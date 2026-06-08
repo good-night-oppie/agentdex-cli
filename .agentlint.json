@@ -1,0 +1,23 @@
+{
+  "$comment": "OpenAI G2 harness scaffold. Tracks permissions agent needs for this repo.",
+  "version": 1,
+  "permissions": {
+    "filesystem": {
+      "read":  ["**/*"],
+      "write": ["src/**", "tests/**", "agents/**", "docs/**", "agentdex-cli/**", "./*.md", ".github/**"]
+    },
+    "shell": {
+      "enabled": true,
+      "allowed_commands": [
+        "./tools/agent_senses/run_tests.sh",
+        "./tools/agent_senses/tail_logs.sh",
+        "./tools/agent_senses/peek_metrics.sh"
+      ]
+    },
+    "network": { "outbound": false }
+  },
+  "rules": {
+    "fail-on": "high",
+    "warn-on": "medium"
+  }
+}

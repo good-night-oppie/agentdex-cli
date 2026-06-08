@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentsRegistry",
+  "description": "~/.hermes/agents_registry.json — single source of truth that the main Hermes agent reads to decide which sub-agent or CLI to route a task to.",
+  "type": "object",
+  "required": ["version", "agents"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "agents": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/subAgent"}
+    }
+  },
+  "$defs": {
+    "subAgent": {
+      "type": "object",
+      "required": ["name", "kind"],
+      "properties": {
+        "name":         {"type": "string", "minLength": 1, "description": "stable id; surfaces in @-mention menu"},
+        "kind":         {"type": "string", "enum": ["hermes-agent", "cli"]},
+        "description":  {"type": "string", "description": "1-line capability sketch; main agent reads this to route"},
+        "capabilities": {"type": "array", "items": {"type": "string"}, "description": "tags: code, search, write, review, browse, etc."},
+
+        "base_url":      {"type": "string", "format": "uri", "description": "Hermes agent dashboard HTTP base (kind=hermes-agent)"},
+        "session_token": {"type": "string", "description": "Bearer token for the target's _SESSION_TOKEN (kind=hermes-agent)"},
+
+        "bridge_host":  {"type": "string", "default": "127.0.0.1", "description": "TCP JSON-RPC bridge host (kind=cli)"},
+        "bridge_port":  {"type": "integer", "minimum": 1, "maximum": 65535, "description": "TCP JSON-RPC bridge port (kind=cli)"},
+
+        "workdir":      {"type": "string", "description": "default cwd to pass to sub-agent / CLI"},
+        "stats": {
+          "type": "object",
+          "description": "rolling usage stats — main agent learns which sub-agent is good at what",
+          "properties": {
+            "calls":         {"type": "integer", "minimum": 0},
+            "last_called":   {"type": "number"},
+            "avg_latency_ms": {"type": "number"},
+            "success_rate":  {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      }
+    }
+  }
+}

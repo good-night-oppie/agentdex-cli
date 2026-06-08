@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+dist/
+build/
+*.egg-info/
+.env
+.env.local
+
+# KAOS sqlite (vendored at packages/kaos/ post-P4; stray dbs atticed in P1)
+*.db
+*.db-shm
+*.db-wal
+
+# KAOS docs/demos/blog culled from vendored subtree (per A8)
+demo_*/
+blog/
+
+# supergoal harness artifacts (skill state, not source)
+.supergoal/
+
+# Claude Code session settings (user-specific)
+.claude/
+
+# skill outputs (.agents/ tree is committed but cache files aren't)
+.agents/*.lock
+.agents/cache/
