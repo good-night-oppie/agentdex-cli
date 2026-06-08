@@ -1,0 +1,943 @@
+"""KAOS Web UI Server — Starlette backend for the agent observability dashboard.
+
+Reads any kaos.db file directly via sqlite3 (read-only).
+Multi-project: every endpoint accepts ?db=<path> query param.
+Projects list persisted in ~/.kaos/ui_projects.json.
+
+Launch via: kaos ui [--db PATH] [--port 8765]
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import logging
+import os
+import sqlite3
+import time
+from pathlib import Path
+from typing import AsyncGenerator
+
+
+class _SuppressConnReset(logging.Filter):
+    """Filter out Windows [WinError 10054] ConnectionResetError noise from uvicorn."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return "WinError 10054" not in msg and "ConnectionResetError" not in msg
+
+
+_conn_reset_filter = _SuppressConnReset()
+
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
+
+PROJECTS_FILE = Path.home() / ".kaos" / "ui_projects.json"
+STATIC_DIR = Path(__file__).parent / "static"
+
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+def _is_kaos_db(path: str) -> bool:
+    """Return True if file is a valid KAOS database (has agents table)."""
+    try:
+        conn = sqlite3.connect(path)
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        conn.close()
+        return "agents" in tables
+    except Exception:
+        return False
+
+
+def _scan_dbs(directory: str) -> list[dict]:
+    """Scan directory for valid KAOS .db files, sorted by agent count desc."""
+    import glob as _glob
+    results = []
+    for db_file in sorted(_glob.glob(os.path.join(directory, "*.db"))):
+        if not _is_kaos_db(db_file):
+            continue
+        try:
+            conn = sqlite3.connect(db_file)
+            count = conn.execute("SELECT COUNT(*) FROM agents").fetchone()[0]
+            conn.close()
+            results.append({
+                "path": db_file,
+                "name": Path(db_file).stem,
+                "agent_count": count,
+            })
+        except Exception:
+            pass
+    return sorted(results, key=lambda x: -x["agent_count"])
+
+
+def _resolve_db(raw: str) -> str:
+    """Resolve a path that may be a directory to a valid KAOS DB file."""
+    p = Path(raw)
+    if p.is_file():
+        return str(p)
+    if p.is_dir():
+        # Prefer kaos.db if valid, otherwise pick the DB with most agents
+        default = p / "kaos.db"
+        if default.exists() and _is_kaos_db(str(default)):
+            return str(default)
+        dbs = _scan_dbs(str(p))
+        if dbs:
+            return dbs[0]["path"]
+        raise ValueError(f"No valid KAOS database found in '{raw}'. Expected a .db file with an 'agents' table.")
+    return raw  # let downstream give a normal "file not found" error
+
+
+def _db_path(request: Request) -> str:
+    raw = request.query_params.get("db", "./kaos.db")
+    return _resolve_db(raw)
+
+
+def _conn(db_path: str) -> sqlite3.Connection:
+    conn = sqlite3.connect(db_path, check_same_thread=False, uri=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
+def _rows(db_path: str, sql: str, params=()) -> list[dict]:
+    try:
+        with _conn(db_path) as conn:
+            cur = conn.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"DB error ({db_path}): {e}") from e
+
+
+def _one(db_path: str, sql: str, params=()) -> dict | None:
+    rows = _rows(db_path, sql, params)
+    return rows[0] if rows else None
+
+
+def _json(data, status=200) -> JSONResponse:
+    return JSONResponse(data, status_code=status)
+
+
+def _err(msg: str, status=400) -> JSONResponse:
+    return JSONResponse({"error": msg}, status_code=status)
+
+
+def agent_hue(agent_id: str) -> int:
+    """Deterministic 0-359 hue for an agent id. Stable across reloads and
+    processes — the war-room floor and the intent kanban color the same
+    agent identically (Track D, v0.8.3). Pure function, unit-testable."""
+    h = hashlib.sha256((agent_id or "").encode("utf-8", "replace")).hexdigest()
+    return int(h[:6], 16) % 360
+
+
+def _load_projects() -> list[dict]:
+    if PROJECTS_FILE.exists():
+        try:
+            return json.loads(PROJECTS_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def _save_projects(projects: list[dict]) -> None:
+    PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROJECTS_FILE.write_text(json.dumps(projects, indent=2))
+
+
+# ── API Handlers ───────────────────────────────────────────────────────────
+
+async def api_stats(request: Request) -> JSONResponse:
+    """GET /api/stats?db=PATH — aggregate dashboard stats."""
+    db = _db_path(request)
+    try:
+        agents = _rows(db, """
+            SELECT status, COUNT(*) as count
+            FROM agents
+            GROUP BY status
+        """)
+        status_counts = {r["status"]: r["count"] for r in agents}
+
+        totals = _one(db, """
+            SELECT
+                COUNT(*) as total_agents,
+                COALESCE(SUM(CASE WHEN status='running' THEN 1 ELSE 0 END), 0) as running,
+                COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END), 0) as completed,
+                COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END), 0) as failed,
+                COALESCE(SUM(CASE WHEN status='paused' THEN 1 ELSE 0 END), 0) as paused,
+                COALESCE(SUM(CASE WHEN status='killed' THEN 1 ELSE 0 END), 0) as killed,
+                COALESCE(SUM(CASE WHEN status='initialized' THEN 1 ELSE 0 END), 0) as initialized
+            FROM agents
+        """) or {}
+
+        event_count = _one(db, "SELECT COUNT(*) as n FROM events") or {}
+        tool_count = _one(db, "SELECT COUNT(*) as n FROM tool_calls") or {}
+        token_sum = _one(db, "SELECT COALESCE(SUM(token_count),0) as n FROM tool_calls") or {}
+
+        return _json({
+            "agents": totals,
+            "events": event_count.get("n", 0),
+            "tool_calls": tool_count.get("n", 0),
+            "tokens": token_sum.get("n", 0),
+        })
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agents(request: Request) -> JSONResponse:
+    """GET /api/agents?db=PATH — all agents with stats for graph."""
+    db = _db_path(request)
+    try:
+        rows = _rows(db, """
+            SELECT
+                a.agent_id,
+                a.name,
+                a.parent_id,
+                a.status,
+                a.config,
+                a.metadata,
+                a.created_at,
+                a.last_heartbeat,
+                COALESCE(fc.cnt, 0) AS file_count,
+                COALESCE(tc.cnt, 0) AS tool_call_count,
+                COALESCE(tc.tokens, 0) AS token_count,
+                COALESCE(ec.cnt, 0) AS event_count,
+                strftime('%Y-%m-%dT%H:%M', a.created_at) AS batch_minute,
+                COALESCE(st.value, '') AS task_description
+            FROM agents a
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt
+                FROM files WHERE deleted=0
+                GROUP BY agent_id
+            ) fc ON fc.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt, COALESCE(SUM(token_count),0) as tokens
+                FROM tool_calls
+                GROUP BY agent_id
+            ) tc ON tc.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt
+                FROM events
+                GROUP BY agent_id
+            ) ec ON ec.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, value
+                FROM state WHERE key = 'task'
+            ) st ON st.agent_id = a.agent_id
+            ORDER BY a.created_at DESC
+        """)
+        # Parse JSON fields
+        for r in rows:
+            for field in ("config", "metadata"):
+                if r.get(field):
+                    try:
+                        r[field] = json.loads(r[field])
+                    except Exception:
+                        r[field] = {}
+
+        # Compute batch_id: group agents by same-minute creation into batches of size >= 2
+        from collections import Counter
+        minute_counts = Counter(r["batch_minute"] for r in rows if r.get("batch_minute"))
+        batch_minutes = {m for m, n in minute_counts.items() if n >= 2}
+        for r in rows:
+            m = r.get("batch_minute")
+            r["batch_id"] = m if m in batch_minutes else None
+
+        return _json(rows)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_detail(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}?db=PATH — single agent detail."""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    try:
+        row = _one(db, """
+            SELECT
+                a.agent_id, a.name, a.parent_id, a.status,
+                a.config, a.metadata, a.created_at, a.last_heartbeat, a.pid,
+                COALESCE(fc.cnt, 0) AS file_count,
+                COALESCE(tc.cnt, 0) AS tool_call_count,
+                COALESCE(tc.tokens, 0) AS token_count,
+                COALESCE(ec.cnt, 0) AS event_count,
+                s.value AS task_description
+            FROM agents a
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt FROM files WHERE deleted=0 GROUP BY agent_id
+            ) fc ON fc.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt, COALESCE(SUM(token_count),0) as tokens
+                FROM tool_calls GROUP BY agent_id
+            ) tc ON tc.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cnt FROM events GROUP BY agent_id
+            ) ec ON ec.agent_id = a.agent_id
+            LEFT JOIN state s ON s.agent_id = a.agent_id AND s.key = 'task'
+            WHERE a.agent_id = ?
+        """, (agent_id,))
+        if not row:
+            return _err("Agent not found", 404)
+        for field in ("config", "metadata"):
+            if row.get(field):
+                try:
+                    row[field] = json.loads(row[field])
+                except Exception:
+                    row[field] = {}
+        return _json(row)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_events(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}/events?db=PATH&limit=100&since=EVENT_ID"""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    limit = int(request.query_params.get("limit", 200))
+    since = request.query_params.get("since")
+    try:
+        if since:
+            rows = _rows(db, """
+                SELECT event_id, agent_id, event_type, payload, timestamp
+                FROM events WHERE agent_id=? AND event_id > ?
+                ORDER BY event_id ASC LIMIT ?
+            """, (agent_id, int(since), limit))
+        else:
+            rows = _rows(db, """
+                SELECT event_id, agent_id, event_type, payload, timestamp
+                FROM events WHERE agent_id=?
+                ORDER BY event_id DESC LIMIT ?
+            """, (agent_id, limit))
+            rows.reverse()
+        for r in rows:
+            if r.get("payload"):
+                try:
+                    r["payload"] = json.loads(r["payload"])
+                except Exception:
+                    pass
+        return _json(rows)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_tool_calls(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}/tool_calls?db=PATH — nested tool call tree."""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    try:
+        rows = _rows(db, """
+            SELECT call_id, agent_id, tool_name, input, output, status,
+                   started_at, completed_at, duration_ms, token_count,
+                   parent_call_id, error_message
+            FROM tool_calls WHERE agent_id=?
+            ORDER BY started_at ASC
+        """, (agent_id,))
+        for r in rows:
+            for field in ("input", "output"):
+                if r.get(field):
+                    try:
+                        r[field] = json.loads(r[field])
+                    except Exception:
+                        pass
+        # Build nested tree
+        by_id = {r["call_id"]: {**r, "children": []} for r in rows}
+        roots = []
+        for r in by_id.values():
+            pid = r.get("parent_call_id")
+            if pid and pid in by_id:
+                by_id[pid]["children"].append(r)
+            else:
+                roots.append(r)
+        return _json(roots)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_checkpoints(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}/checkpoints?db=PATH"""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    try:
+        rows = _rows(db, """
+            SELECT checkpoint_id, agent_id, label, created_at, event_id, metadata
+            FROM checkpoints WHERE agent_id=?
+            ORDER BY created_at ASC
+        """, (agent_id,))
+        for r in rows:
+            if r.get("metadata"):
+                try:
+                    r["metadata"] = json.loads(r["metadata"])
+                except Exception:
+                    r["metadata"] = {}
+        return _json(rows)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_files(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}/files?db=PATH&path=/"""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    path = request.query_params.get("path", "/")
+    # Normalize path
+    if not path.startswith("/"):
+        path = "/" + path
+    try:
+        # List direct children of path
+        if path == "/":
+            prefix = "/"
+            rows = _rows(db, """
+                SELECT file_id, path, is_dir, size, modified_at, version, content_hash
+                FROM files
+                WHERE agent_id=? AND deleted=0
+                  AND (
+                    path = '/' OR
+                    (path LIKE '/_%' AND INSTR(SUBSTR(path, 2), '/') = 0)
+                  )
+                ORDER BY is_dir DESC, path ASC
+            """, (agent_id,))
+        else:
+            # Children under path/
+            prefix = path.rstrip("/") + "/"
+            plen = len(prefix)
+            rows = _rows(db, """
+                SELECT file_id, path, is_dir, size, modified_at, version, content_hash
+                FROM files
+                WHERE agent_id=? AND deleted=0
+                  AND path LIKE ? ESCAPE '\\'
+                ORDER BY is_dir DESC, path ASC
+            """, (agent_id, prefix.replace("%", "\\%").replace("_", "\\_") + "%"))
+            # Filter to direct children only (no deeper nesting)
+            def is_direct(p):
+                rel = p[plen:]
+                return rel and "/" not in rel
+            rows = [r for r in rows if is_direct(r["path"])]
+
+        return _json({
+            "path": path,
+            "entries": rows,
+        })
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_projects_get(request: Request) -> JSONResponse:
+    """GET /api/projects — list known projects."""
+    projects = _load_projects()
+    # Enrich with existence check
+    for p in projects:
+        p["exists"] = Path(p["path"]).exists()
+    return _json(projects)
+
+
+async def api_projects_post(request: Request) -> JSONResponse:
+    """POST /api/projects — add a project. Body: {path: str, name?: str}
+
+    If path is a directory, scans it for all valid KAOS .db files and adds them all.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+    raw_path = body.get("path", "").strip()
+    if not raw_path:
+        return _err("path is required")
+
+    p = Path(raw_path).resolve()
+    projects = _load_projects()
+    added: list[str] = []
+
+    if p.is_dir():
+        dbs = _scan_dbs(str(p))
+        if not dbs:
+            return _err(
+                f"No valid KAOS databases found in '{p}'. "
+                "Expected one or more .db files with an 'agents' table."
+            )
+        for db in dbs:
+            db_abs = str(Path(db["path"]).resolve())
+            if not any(proj["path"] == db_abs for proj in projects):
+                projects.insert(0, {
+                    "path": db_abs,
+                    "name": db["name"],
+                    "added_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                })
+                added.append(db_abs)
+    else:
+        db_abs = str(p)
+        if not any(proj["path"] == db_abs for proj in projects):
+            name = body.get("name") or p.stem or p.parent.name or db_abs
+            projects.insert(0, {
+                "path": db_abs,
+                "name": name,
+                "added_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            })
+            added.append(db_abs)
+
+    if added:
+        _save_projects(projects)
+
+    # Return the first added path so the frontend can switch to it
+    first = added[0] if added else (projects[0]["path"] if projects else None)
+    return _json({"ok": True, "projects": projects, "added": added, "switch_to": first})
+
+
+# ── Graph API ─────────────────────────────────────────────────────────────
+
+def _wave_title(names: list[str]) -> str:
+    """Derive a human-readable wave title from agent names."""
+    if not names:
+        return "Wave"
+    name_set = set(names)
+    counts: dict[str, int] = {}
+    for n in names:
+        counts[n] = counts.get(n, 0) + 1
+
+    # Pure meta-harness orchestrator
+    if all(n == "meta-harness-search" for n in names):
+        return "Meta-Harness"
+
+    # Proposer iterations
+    proposers = [n for n in names if n.startswith("proposer-iter")]
+    if proposers:
+        iters = sorted({n.rsplit("-", 1)[-1] for n in proposers})
+        return f"Proposer · iter {', '.join(iters)}"
+
+    # Harness (evaluation) waves
+    harnesses = [n for n in names if n.startswith("harness-")]
+    if len(harnesses) == len(names):
+        return f"Eval · {len(names)} harnesses"
+    if harnesses:
+        non_h = [n for n in names if not n.startswith("harness-")]
+        return f"Mixed: {non_h[0] if non_h else ''} + {len(harnesses)} harnesses"
+
+    # Research-role waves
+    research = {"base-architect", "slot-optimizer", "quant-master",
+                "training-optimizer", "innovation-researcher",
+                "compression-expert", "ensemble-master", "researcher"}
+    found = [n for n in names if n in research]
+    if found:
+        return "Research Wave"
+
+    # Dominant single name
+    dominant = max(counts, key=lambda k: counts[k])
+    if counts[dominant] > len(names) // 2:
+        label = dominant.replace("-", " ").title()
+        extra = len(names) - counts[dominant]
+        return label + (f" +{extra}" if extra else "")
+
+    # Generic: list first 2 unique names
+    unique = list(dict.fromkeys(names))[:2]
+    label = " · ".join(n.replace("-", " ") for n in unique)
+    if len(names) > 2:
+        label += f" +{len(names)-2}"
+    return label
+
+
+def _parse_score(scores_json: str) -> float | None:
+    """Extract best accuracy from scores JSON."""
+    if not scores_json:
+        return None
+    try:
+        sc = json.loads(scores_json)
+        if isinstance(sc, list):
+            vals = [s.get("accuracy") for s in sc if isinstance(s, dict) and s.get("accuracy") is not None]
+            return max(vals) if vals else None
+        if isinstance(sc, dict):
+            return sc.get("accuracy")
+    except Exception:
+        pass
+    return None
+
+
+def _parse_tokens(usage_json: str) -> int:
+    if not usage_json:
+        return 0
+    try:
+        u = json.loads(usage_json)
+        return int(u.get("total_tokens") or 0)
+    except Exception:
+        return 0
+
+
+async def api_graph(request: Request) -> JSONResponse:
+    """GET /api/graph?db=PATH — nodes + edges for the execution graph."""
+    db = _db_path(request)
+    try:
+        agents = _rows(db, """
+            SELECT
+                a.agent_id, a.name, a.parent_id, a.status,
+                strftime('%Y-%m-%dT%H:%M', a.created_at) AS batch_minute,
+                COALESCE(tk.value, '') AS task,
+                COALESCE(sc.value, '') AS scores_json,
+                COALESCE(us.value, '') AS usage_json,
+                COALESCE(fw.cnt, 0)    AS file_count,
+                COALESCE(tc.cnt, 0)    AS tool_count
+            FROM agents a
+            LEFT JOIN state tk ON tk.agent_id = a.agent_id AND tk.key = 'task'
+            LEFT JOIN state sc ON sc.agent_id = a.agent_id AND sc.key = 'scores'
+            LEFT JOIN state us ON us.agent_id = a.agent_id AND us.key = 'usage'
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) cnt FROM events
+                WHERE event_type = 'file_write' GROUP BY agent_id
+            ) fw ON fw.agent_id = a.agent_id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) cnt FROM events
+                WHERE event_type = 'tool_call_start' GROUP BY agent_id
+            ) tc ON tc.agent_id = a.agent_id
+            ORDER BY a.created_at ASC
+        """)
+
+        # ── Group into waves (batch_minute groups ≥ 2 agents) ────────────
+        from collections import Counter, defaultdict
+        minute_agents: dict[str, list] = defaultdict(list)
+        for a in agents:
+            if a.get("batch_minute"):
+                minute_agents[a["batch_minute"]].append(a)
+        batch_minutes = {m for m, grp in minute_agents.items() if len(grp) >= 2}
+
+        nodes: list[dict] = []
+        edges: list[dict] = []
+        agent_ids = {a["agent_id"] for a in agents}
+
+        # ── Wave nodes ────────────────────────────────────────────────────
+        sorted_minutes = sorted(batch_minutes)
+        wave_node_ids: list[str] = []
+        for minute in sorted_minutes:
+            wave_agents = minute_agents[minute]
+            names = [a["name"] for a in wave_agents]
+            title = _wave_title(names)
+
+            # Best score + completion stats
+            scores = [s for s in (_parse_score(a["scores_json"]) for a in wave_agents) if s is not None]
+            best_score = max(scores) if scores else None
+            n_done = sum(1 for a in wave_agents if a["status"] == "completed")
+            n_fail = sum(1 for a in wave_agents if a["status"] == "failed")
+
+            wave_id = f"wave:{minute}"
+            wave_node_ids.append(wave_id)
+            nodes.append({
+                "id": wave_id,
+                "type": "wave",
+                "label": title,
+                "timestamp": minute,
+                "agent_count": len(wave_agents),
+                "completed": n_done,
+                "failed": n_fail,
+                "best_score": round(best_score, 3) if best_score is not None else None,
+            })
+
+        # ── Agent nodes ───────────────────────────────────────────────────
+        for a in agents:
+            score = _parse_score(a["scores_json"])
+            tokens = _parse_tokens(a["usage_json"])
+            task_raw = a.get("task") or ""
+            try:
+                task_raw = json.loads(task_raw)
+            except Exception:
+                pass
+            task_str = str(task_raw).replace("\n", " ").strip()
+
+            nodes.append({
+                "id": a["agent_id"],
+                "type": "agent",
+                "label": a["name"],
+                "status": a["status"],
+                "task": task_str[:300],
+                "score": round(score, 3) if score is not None else None,
+                "file_count": int(a["file_count"]),
+                "tool_count": int(a["tool_count"]),
+                "token_count": tokens,
+                "batch_minute": a.get("batch_minute"),
+            })
+
+        # ── Edges: parent→child spawn ─────────────────────────────────────
+        for a in agents:
+            pid = a.get("parent_id")
+            if pid and pid in agent_ids:
+                edges.append({
+                    "id": f"spawn:{pid}:{a['agent_id']}",
+                    "source": pid,
+                    "target": a["agent_id"],
+                    "type": "spawn",
+                })
+
+        # ── Edges: wave → member agents ───────────────────────────────────
+        for a in agents:
+            minute = a.get("batch_minute")
+            if minute and minute in batch_minutes:
+                edges.append({
+                    "id": f"wm:{minute}:{a['agent_id']}",
+                    "source": f"wave:{minute}",
+                    "target": a["agent_id"],
+                    "type": "wave_member",
+                })
+
+        # ── Edges: wave → next wave (temporal flow) ───────────────────────
+        for i in range(len(wave_node_ids) - 1):
+            edges.append({
+                "id": f"wseq:{i}",
+                "source": wave_node_ids[i],
+                "target": wave_node_ids[i + 1],
+                "type": "wave_sequence",
+            })
+
+        return _json({"nodes": nodes, "edges": edges})
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+# ── SSE Stream ────────────────────────────────────────────────────────────
+
+async def _event_generator(db: str) -> AsyncGenerator[bytes, None]:
+    """Poll DB every 2s, emit new events and agent status changes."""
+    last_event_id = 0
+    last_agent_snapshot: dict[str, str] = {}
+
+    # Get current max event_id
+    try:
+        row = _one(db, "SELECT COALESCE(MAX(event_id),0) as m FROM events")
+        last_event_id = row["m"] if row else 0
+    except Exception:
+        pass
+
+    while True:
+        try:
+            # New events
+            new_events = _rows(db, """
+                SELECT event_id, agent_id, event_type, payload, timestamp
+                FROM events WHERE event_id > ?
+                ORDER BY event_id ASC LIMIT 50
+            """, (last_event_id,))
+
+            for ev in new_events:
+                last_event_id = ev["event_id"]
+                if ev.get("payload"):
+                    try:
+                        ev["payload"] = json.loads(ev["payload"])
+                    except Exception:
+                        pass
+                data = json.dumps({"type": "new_event", "event": ev})
+                yield f"data: {data}\n\n".encode()
+
+            # Agent status changes
+            agents = _rows(db, "SELECT agent_id, status, name, last_heartbeat FROM agents")
+            for a in agents:
+                aid = a["agent_id"]
+                if last_agent_snapshot.get(aid) != a["status"]:
+                    last_agent_snapshot[aid] = a["status"]
+                    data = json.dumps({"type": "agent_update", "agent": a})
+                    yield f"data: {data}\n\n".encode()
+
+        except Exception as e:
+            data = json.dumps({"type": "error", "message": str(e)})
+            yield f"data: {data}\n\n".encode()
+
+        await asyncio.sleep(2)
+
+
+async def api_events_stream(request: Request) -> StreamingResponse:
+    """GET /api/events/stream?db=PATH — SSE stream."""
+    db = _db_path(request)
+
+    async def generator():
+        try:
+            yield b"data: {\"type\": \"connected\"}\n\n"
+            async for chunk in _event_generator(db):
+                if await request.is_disconnected():
+                    break
+                yield chunk
+        except (ConnectionResetError, GeneratorExit, asyncio.CancelledError):
+            pass  # client disconnected — normal on Windows (WinError 10054)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+# ── App ────────────────────────────────────────────────────────────────────
+
+async def api_agents_floor(request: Request) -> JSONResponse:
+    """GET /api/agents/floor?db=PATH — the operatives-floor view (Track D).
+
+    One card per agent: deterministic colour, live status, elapsed time.
+    Pure read over data that already exists; no schema dependency on the
+    v8 additions, so it works on any KAOS database."""
+    db = _db_path(request)
+    try:
+        rows = _rows(db, """
+            SELECT a.agent_id, a.name, a.status, a.created_at,
+                   a.last_heartbeat,
+                   COALESCE(tc.cnt, 0) AS tool_calls,
+                   COALESCE(tc.errs, 0) AS tool_errors
+            FROM agents a
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) AS cnt,
+                       SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errs
+                FROM tool_calls GROUP BY agent_id
+            ) tc ON tc.agent_id = a.agent_id
+            ORDER BY a.created_at DESC
+        """)
+        for r in rows:
+            r["hue"] = agent_hue(r["agent_id"])
+            r["monogram"] = (r.get("name") or r["agent_id"] or "?")[:2].upper()
+        return _json(rows)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+async def api_agent_dossier(request: Request) -> JSONResponse:
+    """GET /api/agents/{id}/dossier?db=PATH — drill-in for one agent.
+
+    Aggregates the agent's skills used, memories written, shared-log
+    activity, and recent tool calls. Read-only; degrades gracefully on
+    older databases (each block is independently try/excepted)."""
+    db = _db_path(request)
+    agent_id = request.path_params["id"]
+    out: dict = {"agent_id": agent_id, "hue": agent_hue(agent_id)}
+    try:
+        out["agent"] = _one(db,
+            "SELECT agent_id, name, status, created_at, last_heartbeat "
+            "FROM agents WHERE agent_id = ?", (agent_id,))
+    except Exception:
+        out["agent"] = None
+    try:
+        out["skills_used"] = _rows(db, """
+            SELECT s.skill_id, s.name,
+                   COUNT(*) AS uses,
+                   SUM(su.success) AS successes
+            FROM skill_uses su JOIN agent_skills s
+              ON s.skill_id = su.skill_id
+            WHERE su.agent_id = ?
+            GROUP BY s.skill_id ORDER BY uses DESC LIMIT 20
+        """, (agent_id,))
+    except Exception:
+        out["skills_used"] = []
+    try:
+        out["memories"] = _rows(db,
+            "SELECT memory_id, type, key, substr(content,1,160) AS preview, "
+            "created_at FROM memory WHERE agent_id = ? "
+            "ORDER BY created_at DESC LIMIT 20", (agent_id,))
+    except Exception:
+        out["memories"] = []
+    try:
+        out["shared_log"] = _rows(db,
+            "SELECT log_id, position, type, substr(payload,1,160) AS payload, "
+            "created_at FROM shared_log WHERE agent_id = ? "
+            "ORDER BY position DESC LIMIT 20", (agent_id,))
+    except Exception:
+        out["shared_log"] = []
+    try:
+        out["recent_tool_calls"] = _rows(db,
+            "SELECT call_id, tool_name, status, "
+            "substr(COALESCE(error_message,''),1,160) AS error, started_at "
+            "FROM tool_calls WHERE agent_id = ? "
+            "ORDER BY started_at DESC LIMIT 20", (agent_id,))
+    except Exception:
+        out["recent_tool_calls"] = []
+    return _json(out)
+
+
+async def api_intents_kanban(request: Request) -> JSONResponse:
+    """GET /api/intents/kanban?db=PATH — LogAct intents grouped by
+    lifecycle (Track D). Pure read over shared_log; no schema change."""
+    db = _db_path(request)
+    try:
+        intents = _rows(db,
+            "SELECT log_id, agent_id, position, "
+            "substr(payload,1,200) AS payload, created_at "
+            "FROM shared_log WHERE type='intent' "
+            "ORDER BY position DESC LIMIT 200")
+        votes = _rows(db,
+            "SELECT ref_id, COUNT(*) AS n FROM shared_log "
+            "WHERE type='vote' GROUP BY ref_id")
+        decisions = {r["ref_id"] for r in _rows(db,
+            "SELECT DISTINCT ref_id FROM shared_log WHERE type='decision'")}
+        terminal = {r["ref_id"] for r in _rows(db,
+            "SELECT DISTINCT ref_id FROM shared_log "
+            "WHERE type IN ('commit','abort')")}
+        vote_by = {r["ref_id"]: r["n"] for r in votes}
+        cols = {"proposed": [], "voting": [], "decided": [], "terminal": []}
+        for it in intents:
+            lid = it["log_id"]
+            it["votes"] = vote_by.get(lid, 0)
+            it["hue"] = agent_hue(it["agent_id"])
+            if lid in terminal:
+                cols["terminal"].append(it)
+            elif lid in decisions:
+                cols["decided"].append(it)
+            elif vote_by.get(lid):
+                cols["voting"].append(it)
+            else:
+                cols["proposed"].append(it)
+        return _json(cols)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+def create_app() -> Starlette:
+    routes = [
+        Route("/api/stats", api_stats),
+        Route("/api/agents", api_agents),
+        # NOTE: literal routes before the {id} catch-all so "floor" and
+        # "kanban" are not captured as an agent id.
+        Route("/api/agents/floor", api_agents_floor),
+        Route("/api/intents/kanban", api_intents_kanban),
+        Route("/api/agents/{id}/dossier", api_agent_dossier),
+        Route("/api/agents/{id}", api_agent_detail),
+        Route("/api/agents/{id}/events", api_agent_events),
+        Route("/api/agents/{id}/tool_calls", api_agent_tool_calls),
+        Route("/api/agents/{id}/checkpoints", api_agent_checkpoints),
+        Route("/api/agents/{id}/files", api_agent_files),
+        Route("/api/graph", api_graph),
+        Route("/api/events/stream", api_events_stream),
+        Route("/api/projects", api_projects_get, methods=["GET"]),
+        Route("/api/projects", api_projects_post, methods=["POST"]),
+        Mount("/", app=StaticFiles(directory=str(STATIC_DIR), html=True)),
+    ]
+
+    app = Starlette(routes=routes)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    return app
+
+
+app = create_app()
+
+
+def run(host: str = "127.0.0.1", port: int = 8765, db: str = "./kaos.db") -> None:
+    """Launch the UI server. Called from CLI."""
+    import uvicorn
+
+    # Auto-register the project
+    db_abs = str(Path(db).resolve())
+    projects = _load_projects()
+    if not any(p["path"] == db_abs for p in projects):
+        name = Path(db_abs).parent.name or db_abs
+        projects.insert(0, {
+            "path": db_abs,
+            "name": name,
+            "added_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        _save_projects(projects)
+
+    print(f"  KAOS UI  →  http://{host}:{port}/?db={db_abs}")
+    # Suppress Windows [WinError 10054] noise from client disconnects
+    for _lgr in ("uvicorn", "uvicorn.error", "uvicorn.access", "asyncio"):
+        logging.getLogger(_lgr).addFilter(_conn_reset_filter)
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    except KeyboardInterrupt:
+        pass
