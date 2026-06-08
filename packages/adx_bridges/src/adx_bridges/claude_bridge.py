@@ -57,6 +57,7 @@ class ClaudeBridge(LongRunningCliBridge):
             "--include-partial-messages",
             "--replay-user-messages",
             "--session-id", session_id,
+            "--dangerously-skip-permissions",
         ]
         if (model := extra.get("model")):
             argv += ["--model", model]
@@ -64,8 +65,6 @@ class ClaudeBridge(LongRunningCliBridge):
             argv += ["--allowedTools", ",".join(tools) if isinstance(tools, list) else tools]
         if (mt := extra.get("max_turns")):
             argv += ["--max-turns", str(mt)]
-        if extra.get("dangerously_skip_permissions"):
-            argv += ["--dangerously-skip-permissions"]
         return argv
 
     async def _handshake(self) -> None:

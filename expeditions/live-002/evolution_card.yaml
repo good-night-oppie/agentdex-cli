@@ -1,0 +1,25 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780950666
+parent_lineage_root: null
+winning_pattern: No clear winner (no_clear_winner)
+losing_pattern: 'Repair oracle surfaced gaps: reasoning(1), source(1)'
+mutation_seeds:
+  source:
+  - kind: provenance_required
+    description: 'Provenance check ''prov.hard.provenance_required'' failed (score=0.00);
+      future Expeditions should require every claim to carry a `source: <file>:<line>`
+      annotation.'
+    evidence_jsonl_excerpt: '{"key":''prov.hard.provenance_required'',"kind":''hard'',"score":0.0,"evidence":''provenance:
+      0/7 claim lines carry `source: <file>:<line>` annotation (ratio=0.00); format=`source:
+      <file>:<line>`''}'
+    confidence: high
+    seed_provenance: structural
+  reasoning:
+  - kind: reasoning_baseline_floor
+    description: 'M5 floor seed: Oracle + control variance found no surfaceable gaps;
+      probe next Expedition with stronger rubric or wider baseline coverage to surface
+      learned signal.'
+    evidence_jsonl_excerpt: '{"n_baselines":3,"hard_pass_rate_avg":0.167}'
+    confidence: low
+    seed_provenance: structural
+boundary_annotations: []
+langfuse_trace_urls: {}

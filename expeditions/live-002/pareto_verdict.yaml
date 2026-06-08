@@ -1,0 +1,15 @@
+winner: null
+verdict_kind: no_clear_winner
+rankings:
+  claude:
+    pass_rate: 2
+    cost_dollar: 1
+    speed_wall_clock_sec: 1
+  codex:
+    pass_rate: 3
+    cost_dollar: 2
+    speed_wall_clock_sec: 2
+  manus(codex-web-fallback):
+    pass_rate: 1
+    cost_dollar: 3
+    speed_wall_clock_sec: 3

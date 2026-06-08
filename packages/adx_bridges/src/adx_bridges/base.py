@@ -75,6 +75,9 @@ class LongRunningCliBridge(ABC):
     async def _spawn(self) -> None:
         env = {**os.environ, **self.cfg.env}
         log.info("spawn %s argv=%s cwd=%s", self.cfg.name, self.cfg.cli_argv, self.cfg.workdir)
+        # codex app-server emits ~80KB skill/agent/plugin inventory as a single
+        # JSON-RPC frame at session-init; default 64KB StreamReader limit raises
+        # LimitOverrunError in _reader_loop. Bump to 10MB.
         self.proc = await asyncio.create_subprocess_exec(
             *self.cfg.cli_argv,
             stdin=asyncio.subprocess.PIPE,
@@ -82,6 +85,7 @@ class LongRunningCliBridge(ABC):
             stderr=asyncio.subprocess.PIPE,
             cwd=self.cfg.workdir,
             env=env,
+            limit=10_000_000,
         )
         self._stderr_task = asyncio.create_task(self._drain_stderr())
         self._handshake_done = False
