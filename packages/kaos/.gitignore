@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+.env
+
+# Generated demo recordings (canonical copies live in docs/demos/)
+video_scripts/kaos/recordings/*.gif
+demo_synthesis_consolidation_bench/_*.db
+demo_synthesis_consolidation_bench/*.db
+demo_synthesis_consolidation_bench/.synth_cache/
