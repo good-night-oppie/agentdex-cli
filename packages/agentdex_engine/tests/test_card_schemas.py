@@ -3,10 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from task_card import TaskCard
-from result_card import ResultCard
-from evolution_card import EvolutionCard
-from fixtures import (
+from agentdex_engine.cards import TaskCard, ResultCard, EvolutionCard
+from card_fixtures import (
     task_card_examples as tcf,
     result_card_examples as rcf,
     evolution_card_examples as ecf,
