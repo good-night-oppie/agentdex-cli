@@ -2,6 +2,10 @@
 
 Hermes (or any caller) → TCP JSON-RPC → bridge → CLI native protocol over stdio.
 Keeps one CLI subprocess alive across many turns to skip cold-start cost.
+
+Async co-opetition note (ADR-0009 §Amendment-2026-06-08): bridges are per-baseline
+async actors invoked from the orchestrator's sequential loop; they do NOT race
+in real-time against each other.
 """
 from __future__ import annotations
 
@@ -15,6 +19,17 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
+
+try:
+    from agentdex_observe import (
+        get_trace_context_headers,
+        is_enabled as _langfuse_is_enabled,
+    )
+except ImportError:  # pragma: no cover
+    def get_trace_context_headers() -> dict[str, str]:
+        return {}
+    def _langfuse_is_enabled() -> bool:
+        return False
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +61,8 @@ class LongRunningCliBridge(ABC):
         self._req_lock = asyncio.Lock()
         self._stderr_task: Optional[asyncio.Task] = None
         self._handshake_done = False
+        self._last_response_text: Optional[str] = None
+        self._turn_idx: int = 0
 
     # ---- subprocess lifecycle ----
 
@@ -134,14 +151,77 @@ class LongRunningCliBridge(ABC):
                     self._send_turn(prompt, session_id=session_id, extra=extra),
                     self.cfg.request_timeout_sec,
                 )
-                return {"ok": True, "session_id": new_sid, "mode": "long-lived"}
+                self._turn_idx += 1
+                return {
+                    "ok": True,
+                    "session_id": new_sid,
+                    "text": self._last_response_text,
+                    "mode": "long-lived",
+                }
             except (CliDead, BrokenPipeError, ConnectionResetError, asyncio.TimeoutError) as e:
                 log.warning("%s long-lived failed: %s — fallback", self.cfg.name, e)
                 if not self.cfg.allow_cold_fallback:
                     return {"ok": False, "error": str(e), "mode": "long-lived"}
                 await self._kill()
                 result = await self._cold_shot(prompt, session_id=session_id, extra=extra)
+                self._last_response_text = result.get("text")
+                self._turn_idx += 1
                 return {"ok": True, **result, "mode": "cold-fallback"}
+
+    async def send(
+        self,
+        prompt: str,
+        *,
+        session_id: Optional[str] = None,
+        extra: Optional[dict] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Public bridge API (per phase-5 contract).
+
+        Returns ``(response_text, langfuse_trace_id|None)``.
+
+        Wraps :meth:`chat` in a Langfuse ``@trace_turn`` span so the orchestrator
+        can stash the trace ref into the ResultCard. With ``LANGFUSE_PUBLIC_KEY``
+        unset, the trace_id is ``None`` and bridge still works (no-op tracing).
+        P5.4 contract: when ``extra["transport"] == "http"``, downstream HTTP
+        callers SHOULD merge ``get_trace_context_headers()`` into their request
+        headers so gateway-side spans re-parent under the Expedition trace.
+        """
+        merged_extra = {**(extra or {})}
+        if merged_extra.get("transport") == "http":
+            merged_extra.setdefault("trace_context_headers", get_trace_context_headers())
+
+        trace_id: Optional[str] = None
+        if _langfuse_is_enabled():
+            from agentdex_observe import trace_turn
+
+            sid_for_meta = session_id or "<new>"
+
+            @trace_turn(
+                name=f"{self.cfg.name}.send",
+                metadata={
+                    "bridge_name": self.cfg.name,
+                    "session_id": sid_for_meta,
+                    "turn_idx": self._turn_idx,
+                    "model": merged_extra.get("model"),
+                },
+            )
+            async def _wrapped() -> dict:
+                return await self.chat(prompt, session_id=session_id, extra=merged_extra)
+
+            result = await _wrapped()
+            try:
+                from agentdex_observe import current_trace_url
+                url = current_trace_url()
+                if url:
+                    trace_id = url.rsplit("/", 1)[-1]
+            except Exception:
+                trace_id = None
+        else:
+            result = await self.chat(prompt, session_id=session_id, extra=merged_extra)
+
+        if not result.get("ok"):
+            raise CliDead(f"{self.cfg.name}.send failed: {result.get('error')}")
+        return (result.get("text") or "", trace_id)
 
 
 # ---------------------------------------------------------------------------

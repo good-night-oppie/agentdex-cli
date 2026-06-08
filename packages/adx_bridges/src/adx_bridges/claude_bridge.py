@@ -23,7 +23,7 @@ import logging
 import os
 from typing import Optional
 
-from base import (
+from adx_bridges.base import (
     BridgeConfig,
     CliDead,
     JsonRpcServer,
@@ -113,13 +113,15 @@ class ClaudeBridge(LongRunningCliBridge):
             # Final assistant message; could also derive text from content blocks.
             return
         if ftype == "result":
+            text = "".join(self._assistant_buf) or frame.get("result") or ""
             self._turn_result = {
-                "text": "".join(self._assistant_buf),
+                "text": text,
                 "session_id": frame.get("session_id"),
                 "num_turns": frame.get("num_turns"),
                 "cost_usd": frame.get("total_cost_usd"),
                 "subtype": frame.get("subtype"),
             }
+            self._last_response_text = text
             self._assistant_buf.clear()
             self._turn_event.set()
 
@@ -136,7 +138,9 @@ class ClaudeBridge(LongRunningCliBridge):
             "message": {"role": "user", "content": [{"type": "text", "text": prompt}]},
         })
         await self._turn_event.wait()
-        return self._turn_result.get("session_id") or wanted_sid
+        new_sid = self._turn_result.get("session_id") or wanted_sid
+        self.current_session_id = new_sid
+        return new_sid
 
     async def _respawn_for_session(self, session_id: str, extra: dict) -> None:
         await self._kill()
@@ -164,8 +168,16 @@ class ClaudeBridge(LongRunningCliBridge):
         out, err = await proc.communicate()
         if proc.returncode != 0:
             raise CliDead(f"cold shot failed: {err.decode(errors='replace')[:400]}")
-        result = json.loads(out)
-        return {"text": result.get("result"), "session_id": result.get("session_id")}
+        try:
+            result = json.loads(out)
+            text = result.get("result") or ""
+            sid_out = result.get("session_id")
+        except json.JSONDecodeError:
+            text = out.decode(errors="replace")
+            sid_out = sid
+        self._last_response_text = text
+        self.current_session_id = sid_out or sid
+        return {"text": text, "session_id": sid_out}
 
 
 def main() -> None:

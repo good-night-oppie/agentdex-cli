@@ -1,19 +1,17 @@
-"""KAOS-backed CheckpointStore adapter — Hermes-exclusive memory provider.
+"""KAOS-backed CheckpointStore adapter + Expedition lineage helper.
 
 Per ADR-0009 §D1 + ADR-0008 §Amendment-2026-06-07 (bene→KAOS substrate pivot),
-the Hermes-exclusive memory provider is backed by KAOS db.checkpoint / db.restore
-and blob storage. This module wraps the KAOS Python API behind the
-CheckpointStore Protocol shared with helios_client.adapter (M6 swap target).
-
-Note: this is a M2 STUB. The full KAOS substrate integration (MemoryStore +
-SkillStore + SharedLog + experiments.log) lands at M5 phase-7 when the
-Expedition lineage is first persisted. For M2 phase-4, only the
-CheckpointStore Protocol surface is required to satisfy plugin discovery and
-ensure import-time integrity.
+the Hermes-exclusive memory provider is backed by KAOS db.checkpoint /
+db.restore and blob storage. This module wraps the KAOS Python API behind the
+CheckpointStore Protocol shared with helios_client.adapter (M6 swap target),
+AND exposes :func:`log_expedition_lineage` for M5 phase-7 Expedition lineage
+persistence (acceptance criterion 10 of phase-7).
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from helios_client.adapter import CheckpointStore
@@ -61,3 +59,59 @@ class KaosCheckpointStore:
 
     def delete(self, checkpoint_id: str) -> bool:
         return self._ensure_kaos().delete(checkpoint_id)
+
+
+def log_expedition_lineage(
+    db_path: str | Path,
+    expedition_id: str,
+    evolution_card_dict: dict[str, Any],
+    *,
+    parent_lineage_root: str | None = None,
+) -> str | None:
+    """Persist an Expedition lineage entry in KAOS.
+
+    Spawns a KAOS agent named ``expedition-<id>``, stores the EvolutionCard
+    payload as a state blob keyed ``evolution_card``, then snapshots a final
+    checkpoint labelled ``expedition-final``. Returns the spawned agent_id
+    (used as the lineage anchor) — or ``None`` if KAOS is unavailable, so
+    the Expedition still completes when KAOS is offline.
+
+    Per ADR-0009 §M5: KAOS stores lineage durably so M10 can walk
+    parent-child via accepted seeds.
+    """
+    try:
+        from kaos import Kaos
+    except ImportError:
+        return None
+    try:
+        kaos = Kaos(str(db_path))
+        agent_id = kaos.spawn(
+            name=f"expedition-{expedition_id}",
+            parent_id=parent_lineage_root,
+        )
+        kaos.set_state(
+            agent_id,
+            "evolution_card_json",
+            json.dumps(evolution_card_dict, ensure_ascii=False, default=str),
+        )
+        kaos.set_state(agent_id, "expedition_id", expedition_id)
+        kaos.checkpoint(agent_id, label="expedition-final")
+        return agent_id
+    except Exception:  # pragma: no cover — KAOS sqlite hiccups shouldn't kill Expedition
+        return None
+
+
+def list_expedition_lineage(
+    db_path: str | Path, *, prefix: str = "expedition-"
+) -> list[dict[str, Any]]:
+    """Return KAOS agents whose name begins with ``prefix``."""
+    try:
+        from kaos import Kaos
+    except ImportError:
+        return []
+    try:
+        kaos = Kaos(str(db_path))
+        agents = kaos.list_agents()
+        return [a for a in agents if (a.get("name") or "").startswith(prefix)]
+    except Exception:  # pragma: no cover
+        return []

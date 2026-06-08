@@ -12,5 +12,11 @@ dependencies = [
   "agentdex-observe",
 ]
 
+[project.optional-dependencies]
+manus = [
+  "camoufox>=0.4.11",
+  "playwright>=1.60",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/adx_bridges"]

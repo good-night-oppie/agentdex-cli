@@ -20,7 +20,7 @@ import logging
 import os
 from typing import Optional
 
-from base import (
+from adx_bridges.base import (
     BridgeConfig,
     CliDead,
     LongRunningCliBridge,
@@ -67,7 +67,13 @@ class CodexBridge(LongRunningCliBridge):
     async def _handshake(self) -> None:
         self._reader_task = asyncio.create_task(self._reader_loop())
         init = await asyncio.wait_for(
-            self._send_rpc("initialize", {"capabilities": {"experimentalApi": True}}),
+            self._send_rpc(
+                "initialize",
+                {
+                    "clientInfo": {"name": "adx_bridges.codex", "version": "0.1.0"},
+                    "capabilities": {"experimentalApi": True},
+                },
+            ),
             timeout=6.0,
         )
         log.info("codex initialized: %s", init.get("userAgent"))
@@ -123,33 +129,67 @@ class CodexBridge(LongRunningCliBridge):
         if method and method.startswith("item/"):
             item = params.get("item") or {}
             if method == "item/agentMessage/delta":
-                if (t := (item.get("delta") or {}).get("text") or params.get("delta", {}).get("text")):
-                    self._turn_buf.append(t)
+                # delta is a raw string in current codex (0.137.0); handle dict shape too for older versions.
+                delta = params.get("delta")
+                if isinstance(delta, str):
+                    self._turn_buf.append(delta)
+                elif isinstance(delta, dict):
+                    if (t := delta.get("text")):
+                        self._turn_buf.append(t)
             elif method == "item/completed" and item.get("type") == "agentMessage":
                 if (t := item.get("text")):
                     if not self._turn_buf:
                         self._turn_buf.append(t)
             return
         if method == "turn/completed":
+            text = "".join(self._turn_buf)
             self._turn_result = {
-                "text": "".join(self._turn_buf),
+                "text": text,
                 "turn_id": params.get("turnId"),
                 "thread_id": self._thread_id,
                 "token_usage": params.get("tokenUsage"),
             }
+            self._last_response_text = text
             self._turn_buf.clear()
             if self._turn_done:
                 self._turn_done.set()
             return
 
     async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str:
-        # session_id ↔ codex threadId
+        # session_id ↔ codex threadId. Field shape varies across codex versions
+        # (`threadId` camelCase or `thread_id` snake_case); accept either.
+        def _extract_tid(d: dict, fallback: Optional[str] = None) -> Optional[str]:
+            if not isinstance(d, dict):
+                return fallback
+            # Direct keys first
+            for k in ("threadId", "thread_id", "id"):
+                if (v := d.get(k)):
+                    return v
+            # Nested {"thread": {"id": ...}} shape (current codex response)
+            thread = d.get("thread")
+            if isinstance(thread, dict):
+                for k in ("id", "threadId", "thread_id"):
+                    if (v := thread.get(k)):
+                        return v
+            elif isinstance(thread, str):
+                return thread
+            return fallback
+
         if session_id and session_id != self._thread_id:
-            res = await self._send_rpc("thread/resume", {"threadId": session_id})
-            self._thread_id = res.get("threadId") or session_id
+            try:
+                res = await self._send_rpc("thread/resume", {"threadId": session_id})
+                self._thread_id = _extract_tid(res, session_id)
+            except CliDead as e:
+                log.warning("codex thread/resume failed: %s — starting fresh thread", e)
+                self._thread_id = None
         if not self._thread_id:
             res = await self._send_rpc("thread/start", {"cwd": self.cfg.workdir})
-            self._thread_id = res["threadId"]
+            tid = _extract_tid(res)
+            if not tid:
+                raise CliDead(
+                    f"codex thread/start returned no thread id; keys={list(res.keys())}"
+                )
+            self._thread_id = tid
 
         self._turn_done = asyncio.Event()
         self._turn_buf.clear()
@@ -178,7 +218,9 @@ class CodexBridge(LongRunningCliBridge):
         out, err = await proc.communicate()
         if proc.returncode != 0:
             raise CliDead(f"codex exec failed: {err.decode(errors='replace')[:400]}")
-        return {"text": out.decode(errors="replace"), "session_id": None}
+        text = out.decode(errors="replace")
+        self._last_response_text = text
+        return {"text": text, "session_id": None}
 
 
 def main() -> None:

@@ -22,7 +22,7 @@ import logging
 import os
 from typing import Optional
 
-from base import (
+from adx_bridges.base import (
     BridgeConfig,
     CliDead,
     LongRunningCliBridge,
@@ -96,6 +96,7 @@ class GeminiBridge(LongRunningCliBridge):
         self._conv_by_workdir[workdir] = conv
         # stash for caller via shared buffer? simplest: piggyback in result dict
         self._last_text = text
+        self._last_response_text = text
         return conv
 
     async def chat(self, prompt: str, *, session_id=None, extra=None) -> dict:
