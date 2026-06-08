@@ -24,6 +24,10 @@ from agentdex_engine.oracle.base import OracleVerdict, OracleVerdictMap
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
+def _budget_for(level: str) -> int:
+    return {"low": 256, "medium": 1024, "high": 4096}.get(level.lower(), 1024)
+
+
 class LlmJudgeOracle:
     """Calls an LLM judge with the rubric + response; parses verdict JSON."""
 
@@ -44,17 +48,35 @@ class LlmJudgeOracle:
         pass_threshold: float = 0.7,
         *,
         client_factory=None,  # injectable for tests
+        reasoning_effort: str = "high",
     ):
         self.judge_llm = judge_llm
         self.rubric_path = Path(rubric_path) if rubric_path else None
         self.pass_threshold = pass_threshold
         self._client_factory = client_factory
+        self.reasoning_effort = reasoning_effort
 
     def _resolve_client(self):
         if self._client_factory is not None:
             return self._client_factory()
-        from agentdex_observe import anthropic_client
+        # Pool-first: setup once via ~/.adx/llm_pool.env, dispatch by model id.
+        try:
+            from agentdex_observe.llm_pool import client_for
 
+            return client_for(self.judge_llm)
+        except Exception:
+            pass
+        prefix = self.judge_llm.split("-", 1)[0].lower()
+        if prefix == "claude":
+            from agentdex_observe import anthropic_client
+            return anthropic_client()
+        if prefix in {"gpt", "o1", "o3", "o4"}:
+            from agentdex_observe import openai_client
+            return openai_client()
+        if prefix == "gemini":
+            from agentdex_observe import gemini_client
+            return gemini_client()
+        from agentdex_observe import anthropic_client
         return anthropic_client()
 
     def _load_rubric(self, task_card: TaskCard) -> str:
@@ -82,13 +104,8 @@ class LlmJudgeOracle:
     def evaluate(self, response: str, task_card: TaskCard) -> OracleVerdictMap:
         rubric = self._load_rubric(task_card)
         client = self._resolve_client()
-        message = client.messages.create(
-            model=self.judge_llm,
-            max_tokens=500,
-            system=self.SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": self._build_user_prompt(response, rubric)}],
-        )
-        raw_text = self._extract_text(message)
+        user_prompt = self._build_user_prompt(response, rubric)
+        raw_text = self._invoke_judge(client, user_prompt)
         try:
             data = self._parse_verdict_json(raw_text)
         except (ValueError, json.JSONDecodeError) as e:
@@ -114,6 +131,50 @@ class LlmJudgeOracle:
                 uncertainty=max(0.0, min(uncertainty, 1.0)),
             )
         }
+
+    def _invoke_judge(self, client: Any, user_prompt: str) -> str:
+        """Adapter — dispatch by model prefix to the right SDK call shape."""
+        prefix = self.judge_llm.split("-", 1)[0].lower()
+        # Anthropic SDK (.messages.create)
+        if prefix == "claude" or hasattr(client, "messages"):
+            message = client.messages.create(
+                model=self.judge_llm,
+                max_tokens=2000,
+                system=self.SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            return self._extract_text(message)
+        # google-genai SDK (.models.generate_content)
+        if prefix == "gemini" or hasattr(client, "models"):
+            cfg: dict[str, Any] = {"system_instruction": self.SYSTEM_PROMPT}
+            if self.reasoning_effort:
+                cfg["thinking_config"] = {"thinking_budget": _budget_for(self.reasoning_effort)}
+            try:
+                resp = client.models.generate_content(
+                    model=self.judge_llm,
+                    contents=user_prompt,
+                    config=cfg,
+                )
+            except TypeError:
+                # older SDK without config kw; retry minimal
+                resp = client.models.generate_content(
+                    model=self.judge_llm,
+                    contents=user_prompt,
+                )
+            return getattr(resp, "text", "") or self._extract_text(resp)
+        # OpenAI SDK fallback (.chat.completions.create)
+        if hasattr(client, "chat"):
+            comp = client.chat.completions.create(
+                model=self.judge_llm,
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            return comp.choices[0].message.content or ""
+        raise RuntimeError(
+            f"no judge adapter matches client {type(client).__name__} for model {self.judge_llm!r}"
+        )
 
     @staticmethod
     def _extract_text(message: Any) -> str:

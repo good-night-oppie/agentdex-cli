@@ -101,6 +101,152 @@ def openai_client():
     return LangfuseOpenAI()
 
 
+def gemini_client(prefer: str | None = None):
+    """Return a Gemini-shaped judge client.
+
+    Resolution ladder (override via ``prefer``):
+    1. ``cliproxy``     — OpenAI SDK pointed at ``CLIPROXY_BASE_URL`` (model
+                          pool broker; brokers subscription CLI quota into an
+                          OpenAI-compatible endpoint).
+    2. ``vertex_oauth`` — ``google.genai.Client(vertexai=True)`` using
+                          Application Default Credentials + ``GOOGLE_CLOUD_PROJECT``
+                          (Google AI subscription via OAuth / ADC).
+    3. ``api``          — ``google.genai.Client()`` if ``GEMINI_API_KEY`` /
+                          ``GOOGLE_API_KEY`` in env.
+    4. ``antigravity``  — :class:`AntigravityShellClient` shells to the
+                          ``antigravity`` subscription CLI.
+
+    Returns whichever works first. Raises ``RuntimeError`` if all unavailable.
+    """
+    _ensure_init()
+    order = ("cliproxy", "vertex_oauth", "api", "antigravity")
+    if prefer:
+        order = (prefer, *[m for m in order if m != prefer])
+
+    last_err: Exception | None = None
+    for mode in order:
+        try:
+            if mode == "cliproxy":
+                base = os.environ.get("CLIPROXY_BASE_URL")
+                if not base:
+                    raise RuntimeError("CLIPROXY_BASE_URL not set")
+                from openai import OpenAI  # type: ignore
+
+                return CliProxyGeminiClient(
+                    base_url=base,
+                    api_key=os.environ.get("CLIPROXY_API_KEY", "no-key"),
+                    underlying=OpenAI(
+                        base_url=base,
+                        api_key=os.environ.get("CLIPROXY_API_KEY", "no-key"),
+                    ),
+                )
+            if mode == "vertex_oauth":
+                project = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get(
+                    "VERTEX_PROJECT"
+                )
+                if not project:
+                    raise RuntimeError(
+                        "GOOGLE_CLOUD_PROJECT (or VERTEX_PROJECT) not set; "
+                        "vertex_oauth requires ADC scope"
+                    )
+                from google import genai  # type: ignore
+
+                location = os.environ.get("VERTEX_LOCATION", "us-central1")
+                return genai.Client(
+                    vertexai=True, project=project, location=location
+                )
+            if mode == "api":
+                if not (
+                    os.environ.get("GEMINI_API_KEY")
+                    or os.environ.get("GOOGLE_API_KEY")
+                ):
+                    raise RuntimeError("no GEMINI_API_KEY / GOOGLE_API_KEY in env")
+                from google import genai  # type: ignore
+
+                return genai.Client()
+            if mode == "antigravity":
+                import shutil as _shutil
+
+                bin_ = os.environ.get("ANTIGRAVITY_BIN", "antigravity")
+                if not _shutil.which(bin_):
+                    raise RuntimeError(f"antigravity binary {bin_!r} not on PATH")
+                return AntigravityShellClient(bin_)
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(
+        f"no Gemini backend available (tried {order}); last error: {last_err}"
+    )
+
+
+class CliProxyGeminiClient:
+    """OpenAI-shaped Gemini client backed by a CLIProxyAPI broker.
+
+    Exposes ``.models.generate_content(model, contents, config=None)`` so the
+    LlmJudgeOracle adapter is backend-agnostic. The broker translates
+    OpenAI-style chat completions into subscription-CLI invocations under
+    the hood.
+    """
+
+    def __init__(self, *, base_url: str, api_key: str, underlying: Any):
+        self._base_url = base_url
+        self._api_key = api_key
+        self._client = underlying
+        self.models = self
+
+    def generate_content(
+        self, *, model: str, contents: str, config: dict | None = None
+    ):
+        system = (config or {}).get("system_instruction", "") if config else ""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": contents})
+        comp = self._client.chat.completions.create(
+            model=model,
+            messages=messages,
+        )
+        text = comp.choices[0].message.content or ""
+        return _SimpleResponse(text=text)
+
+
+class AntigravityShellClient:
+    """Shell-based Gemini client mirroring google-genai's surface.
+
+    Exposes ``.models.generate_content(model, contents, config=None)`` so the
+    :class:`LlmJudgeOracle` adapter does not branch on backend.
+    """
+
+    def __init__(self, bin_: str = "antigravity"):
+        self._bin = bin_
+        self.models = self  # so `.models.generate_content` works
+
+    def generate_content(self, *, model: str, contents: str, config: dict | None = None):
+        import subprocess as _subprocess
+
+        prompt = contents if config is None else _prepend_system(config, contents)
+        cmd = [self._bin, "exec", "--model", model, "--prompt", prompt]
+        proc = _subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"antigravity exec failed ({proc.returncode}): "
+                f"{proc.stderr[:400] if proc.stderr else proc.stdout[:400]}"
+            )
+        return _SimpleResponse(text=proc.stdout)
+
+
+class _SimpleResponse:
+    def __init__(self, text: str):
+        self.text = text
+
+
+def _prepend_system(config: dict, contents: str) -> str:
+    sys_inst = config.get("system_instruction") if isinstance(config, dict) else None
+    if not sys_inst:
+        return contents
+    return f"[SYSTEM]\n{sys_inst}\n[/SYSTEM]\n\n{contents}"
+
+
 def trace_session(name: str, metadata: dict[str, Any] | None = None):
     """Decorator: wrap function as Langfuse root trace (Expedition / per-baseline session)."""
 
@@ -209,6 +355,7 @@ __all__ = [
     "init_langfuse",
     "anthropic_client",
     "openai_client",
+    "gemini_client",
     "trace_session",
     "trace_turn",
     "current_trace_url",

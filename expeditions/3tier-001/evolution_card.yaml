@@ -1,0 +1,22 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780943939
+parent_lineage_root: null
+winning_pattern: No clear winner (no_clear_winner)
+losing_pattern: 'Repair oracle surfaced gaps: control(1), reasoning(1)'
+mutation_seeds:
+  control:
+  - kind: response_shape_variance
+    description: "Baselines diverged in response length by \u226525% (max=667 min=523);\
+      \ control-flow / formatting drift worth probing in the next Expedition."
+    evidence_jsonl_excerpt: '{"lengths":[claude:667ch, codex:601ch, manus:523ch]}'
+    confidence: med
+    seed_provenance: structural
+  reasoning:
+  - kind: reasoning_baseline_floor
+    description: 'M5 floor seed: Oracle + control variance found no surfaceable gaps;
+      probe next Expedition with stronger rubric or wider baseline coverage to surface
+      learned signal.'
+    evidence_jsonl_excerpt: '{"n_baselines":3,"hard_pass_rate_avg":0.900}'
+    confidence: low
+    seed_provenance: structural
+boundary_annotations: []
+langfuse_trace_urls: {}

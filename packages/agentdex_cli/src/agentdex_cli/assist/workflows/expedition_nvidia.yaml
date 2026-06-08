@@ -1,0 +1,39 @@
+id: expedition.nvidia
+name: Run NVIDIA earnings infographic Expedition
+description: |
+  Full M5 Expedition end-to-end on the frozen NVIDIA Q3 FY2026 earnings
+  infographic task. Pulls 3 baseline bridges (claude / codex / manus),
+  pre-Expedition fairness gate, Oracle layer (hard + soft + repair),
+  Pareto verdict, EvolutionCard, KAOS lineage.
+when_to_use: |
+  When the user wants to run the canonical NVIDIA earnings co-opetition
+  benchmark or test the full evolution pipeline end-to-end.
+args_schema:
+  baselines:
+    type: string
+    default: "claude,codex,manus"
+  judge:
+    type: string
+    default: "gemini-3.5-flash"
+  output:
+    type: string
+    default: "expeditions/nvidia-q3-fy2026-{ts}/"
+  mocked:
+    type: bool
+    default: false
+  fairness_tolerance:
+    type: int
+    default: 5
+command:
+  - adx
+  - expedition
+  - --task
+  - nvidia-earnings-infographic
+  - --baselines
+  - "{baselines}"
+  - --judge
+  - "{judge}"
+  - --output
+  - "{output}"
+  - --fairness-tolerance
+  - "{fairness_tolerance}"

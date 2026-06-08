@@ -15,8 +15,10 @@ import argparse
 import asyncio
 import json
 import os
+import shutil
 import sys
 import uuid
+import webbrowser
 from pathlib import Path
 from typing import Optional
 
@@ -219,14 +221,46 @@ async def _run_expedition(args: argparse.Namespace) -> int:
     else:
         bridges = _instantiate_bridges(baselines, str(repo_root))
 
+    # ----- pre-Expedition manifests + fairness gate -----
+    from agentdex_engine.manifest import stock_manifest
+
+    manifests = [stock_manifest(name) for name in baselines]
+
+    output_dir = (repo_root / args.output) if not Path(args.output).is_absolute() else Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _on_fairness(report):
+        _write_yaml(output_dir / "fairness_report.yaml", report.model_dump())
+        print(
+            f"fairness: overall={report.fairness_verdict} "
+            f"(process={report.process.verdict} "
+            f"resource={report.resource.verdict} "
+            f"procedure={report.procedure.verdict})"
+        )
+        print(
+            f"  envelope: ctx={report.balanced_constraints.context_window_tokens} "
+            f"out={report.balanced_constraints.max_output_tokens} "
+            f"tools={report.balanced_constraints.tool_allowlist[:5]}"
+        )
+        print(
+            f"  resource_ratios: cost={report.resource.cost_ratio_max:.2f}x "
+            f"ctx={report.resource.context_ratio_max:.2f}x "
+            f"out={report.resource.output_ratio_max:.2f}x"
+        )
+        for note in report.advisory_notes:
+            print(f"  advisory: {note}")
+
     try:
-        result_cards, verdict, evolution_card = await asyncio.wait_for(
+        result_cards, verdict, evolution_card, fairness_report = await asyncio.wait_for(
             run_expedition_orchestrator(
                 task_card,
                 bridges,
                 oracle_chain,
                 args.judge,
                 repo_root=repo_root,
+                manifests=manifests,
+                fairness_tolerance=args.fairness_tolerance,
+                on_fairness_report=_on_fairness,
             ),
             timeout=args.timeout * max(len(bridges), 1),
         )
@@ -237,8 +271,17 @@ async def _run_expedition(args: argparse.Namespace) -> int:
             except Exception:
                 pass
 
-    output_dir = (repo_root / args.output) if not Path(args.output).is_absolute() else Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if fairness_report is not None and fairness_report.fairness_verdict == "fail":
+        print(
+            f"\nEXPEDITION BLOCKED by 3-tier fairness gate.\n"
+            f"  process:   {fairness_report.process.verdict}\n"
+            f"  resource:  {fairness_report.resource.verdict}\n"
+            f"  procedure: {fairness_report.procedure.verdict}\n"
+            f"See fairness_report.yaml for advisories.",
+            file=sys.stderr,
+        )
+        return 4
+
     trace_dir = output_dir / "trace"
     trace_dir.mkdir(exist_ok=True)
 
@@ -273,7 +316,22 @@ async def _run_expedition(args: argparse.Namespace) -> int:
     print(f"mutation_seed_categories: {sorted(evolution_card.mutation_seeds.keys())}")
     print(f"kaos_lineage_agent_id: {kaos_agent}")
     print(f"output_dir: {output_dir}")
+
+    ui_url = _langfuse_project_url()
+    if ui_url:
+        print(f"langfuse_dashboard: {ui_url}")
+        if getattr(args, "open_ui", False):
+            try:
+                webbrowser.open(ui_url)
+            except Exception:
+                pass
     return 0
+
+
+def _langfuse_project_url() -> str | None:
+    host = os.environ.get("LANGFUSE_HOST", "http://localhost:3000").rstrip("/")
+    project_id = os.environ.get("LANGFUSE_PROJECT_ID", "agentdex-cli-mvp")
+    return f"{host}/project/{project_id}/traces"
 
 
 _MOCKED_RESPONSE_BY_AGENT: dict[str, str] = {}
@@ -354,6 +412,32 @@ def cmd_expedition(args: argparse.Namespace) -> int:
             )
             return 3
 
+    # ----- pre-flight: Langfuse lifecycle (scoped to expedition window) -----
+    if not args.mocked and not args.no_langfuse:
+        try:
+            from agentdex_observe import langfuse_stack
+
+            h = langfuse_stack.ensure(max_wait_seconds=180)
+            if not h.healthy:
+                print(
+                    "WARN: Langfuse not healthy after 180s; traces will be disabled. "
+                    "Use --no-langfuse to skip or fix docker / compose state.",
+                    file=sys.stderr,
+                )
+            elif not (h.public_key and h.secret_key):
+                print(
+                    "WARN: Langfuse running but creds not in ~/.adx/langfuse.env yet. "
+                    "Seed via the UI at http://localhost:3000, then re-run. "
+                    "Continuing without traces.",
+                    file=sys.stderr,
+                )
+        except Exception as e:
+            print(
+                f"WARN: langfuse_stack.ensure() failed ({type(e).__name__}: {e}); "
+                f"continuing without traces. Pass --no-langfuse to silence.",
+                file=sys.stderr,
+            )
+
     try:
         return asyncio.run(_run_expedition(args))
     except FileNotFoundError as e:
@@ -378,6 +462,11 @@ def _missing_required_env(baselines_csv: str, judge_llm: str) -> list[str]:
         needed.append("ANTHROPIC_API_KEY")
     elif judge_llm.startswith(("gpt-", "o1-", "o3-", "o4-")) and not os.environ.get("OPENAI_API_KEY"):
         needed.append("OPENAI_API_KEY")
+    elif judge_llm.startswith("gemini-"):
+        has_api = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        has_cli = shutil.which(os.environ.get("ANTIGRAVITY_BIN", "antigravity"))
+        if not (has_api or has_cli):
+            needed.append("GEMINI_API_KEY (or install `antigravity` CLI)")
     return needed
 
 
@@ -413,8 +502,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     expedition.add_argument(
         "--judge",
-        default="claude-haiku-4.5",
-        help="judge LLM model id (default: claude-haiku-4.5)",
+        default="gemini-3.5-flash",
+        help="judge LLM model id (default: gemini-3.5-flash, reasoning_effort=high)",
     )
     expedition.add_argument(
         "--output",
@@ -437,9 +526,325 @@ def build_parser() -> argparse.ArgumentParser:
         default="kaos.db",
         help="path to KAOS sqlite DB for lineage persistence (default kaos.db)",
     )
+    expedition.add_argument(
+        "--no-langfuse",
+        action="store_true",
+        help="skip langfuse_stack.ensure() pre-flight (use existing env / no traces)",
+    )
+    expedition.add_argument(
+        "--fairness-tolerance",
+        type=int,
+        default=5,
+        help="max special-capability drop allowed before blocking the expedition "
+             "(default 5). 0 = strict equality required.",
+    )
+    expedition.add_argument(
+        "--open-ui",
+        action="store_true",
+        help="open Langfuse trace dashboard in the default browser after the run completes",
+    )
     expedition.set_defaults(func=cmd_expedition)
 
+    langfuse = subs.add_parser(
+        "langfuse",
+        help="Langfuse self-host lifecycle (scoped to Expedition window per ADR-0009).",
+    )
+    lf_subs = langfuse.add_subparsers(dest="langfuse_cmd", required=True)
+
+    lf_up = lf_subs.add_parser("up", help="docker compose up the bundled Langfuse stack")
+    lf_up.add_argument("--wait", type=int, default=180, help="max seconds to wait for healthy")
+    lf_up.set_defaults(func=cmd_langfuse_up)
+
+    lf_down = lf_subs.add_parser("down", help="docker compose down")
+    lf_down.set_defaults(func=cmd_langfuse_down)
+
+    lf_status = lf_subs.add_parser("status", help="probe /api/public/health + show creds path")
+    lf_status.set_defaults(func=cmd_langfuse_status)
+
+    lf_ensure = lf_subs.add_parser(
+        "ensure",
+        help="status; if down, up; wait healthy; export creds. Idempotent.",
+    )
+    lf_ensure.add_argument("--wait", type=int, default=180)
+    lf_ensure.set_defaults(func=cmd_langfuse_ensure)
+
+    # ---- llm-pool: unified LLM proxy (CLIProxyAPI) lifecycle ----
+    pool = subs.add_parser(
+        "llm-pool",
+        help="Unified LLM proxy (CLIProxyAPI) — setup once, use everywhere.",
+    )
+    pool_subs = pool.add_subparsers(dest="pool_cmd", required=True)
+
+    p_status = pool_subs.add_parser("status", help="show pool mode + base URL + key path")
+    p_status.set_defaults(func=cmd_pool_status)
+
+    p_verify = pool_subs.add_parser(
+        "verify",
+        help='run a small probe against one model: `adx llm-pool verify --model gemini-3.5-flash`',
+    )
+    p_verify.add_argument("--model", default="gemini-3.5-flash")
+    p_verify.add_argument("--prompt", default="Reply with exactly: POOL_OK")
+    p_verify.set_defaults(func=cmd_pool_verify)
+
+    p_setenv = pool_subs.add_parser(
+        "set-env",
+        help="write ~/.adx/llm_pool.env (creates parent dirs)",
+    )
+    p_setenv.add_argument("--base-url", default="http://localhost:8118/v1")
+    p_setenv.add_argument("--api-key", default="cliproxy-no-key")
+    p_setenv.add_argument(
+        "--mode",
+        choices=["cliproxy", "direct", "hybrid"],
+        default="hybrid",
+    )
+    p_setenv.set_defaults(func=cmd_pool_set_env)
+
+    # ---- assist: Hermes-style NL / workflow / skill router -----
+    assist = subs.add_parser(
+        "assist",
+        help=(
+            "Talk to the evolution-research assistant. "
+            "Pick a workflow / skill, or type a natural-language request."
+        ),
+    )
+    assist_subs = assist.add_subparsers(dest="assist_cmd", required=True)
+
+    a_list = assist_subs.add_parser(
+        "list", help="list available workflows + skills"
+    )
+    a_list.set_defaults(func=cmd_assist_list)
+
+    a_ask = assist_subs.add_parser(
+        "ask", help='ask in natural language: `adx assist ask "run a fairness check"`'
+    )
+    a_ask.add_argument("prompt", help="natural-language request")
+    a_ask.add_argument("--yes", "-y", action="store_true",
+                       help="execute the chosen action without confirmation")
+    a_ask.add_argument("--dry-run", action="store_true",
+                       help="print resolved command + rationale, do not execute")
+    a_ask.add_argument("--model", default="claude-haiku-4.5",
+                       help="judge / router model id (default claude-haiku-4.5)")
+    a_ask.set_defaults(func=cmd_assist_ask)
+
+    a_run = assist_subs.add_parser(
+        "run", help='explicit selection: `adx assist run workflow expedition.nvidia`'
+    )
+    a_run.add_argument("kind", choices=["workflow", "skill"])
+    a_run.add_argument("id", help="workflow / skill id")
+    a_run.add_argument("--arg", action="append", default=[],
+                       help='key=value arg override; repeatable')
+    a_run.add_argument("--yes", "-y", action="store_true")
+    a_run.add_argument("--dry-run", action="store_true")
+    a_run.set_defaults(func=cmd_assist_run)
+
     return p
+
+
+def _print_decision(decision, used_llm: bool):
+    print(f"--- assistant decision ---")
+    print(f"action:    {decision.action}")
+    print(f"id:        {decision.id}")
+    print(f"rationale: {decision.rationale}  (via {'LLM router' if used_llm else 'deterministic'})")
+    if decision.args:
+        print(f"args:      {decision.args}")
+    print(f"command:   {' '.join(decision.resolved_command)}")
+
+
+def _confirm(prompt: str = "execute? [y/N] ") -> bool:
+    try:
+        ans = input(prompt).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    return ans in {"y", "yes"}
+
+
+def _execute_decision(decision) -> int:
+    import subprocess
+
+    cmd = decision.resolved_command
+    if not cmd:
+        print("ERROR: empty resolved_command", file=sys.stderr)
+        return 1
+    proc = subprocess.run(cmd, check=False)
+    return proc.returncode
+
+
+def cmd_assist_list(args: argparse.Namespace) -> int:
+    from agentdex_cli.assist import load_registry
+
+    registry = load_registry()
+    print("# Workflows")
+    for w in registry.list_workflows():
+        print(f"- {w.id}\n    {w.description.strip().splitlines()[0]}")
+    print("\n# Skills")
+    for s in registry.list_skills():
+        print(f"- {s.id}\n    {s.description.strip().splitlines()[0]}")
+    return 0
+
+
+def cmd_assist_ask(args: argparse.Namespace) -> int:
+    from agentdex_cli.assist import load_registry, route
+
+    registry = load_registry()
+    try:
+        result = route(registry, args.prompt, model=args.model)
+    except Exception as e:
+        print(f"ASSIST_ROUTE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+
+    _print_decision(result.decision, used_llm=result.used_llm)
+
+    if args.dry_run:
+        return 0
+    if not args.yes:
+        if not _confirm():
+            print("aborted by user")
+            return 0
+    return _execute_decision(result.decision)
+
+
+def cmd_assist_run(args: argparse.Namespace) -> int:
+    from agentdex_cli.assist import load_registry, route
+
+    overrides: dict = {}
+    for kv in args.arg or []:
+        if "=" not in kv:
+            print(f"ERROR: bad --arg {kv!r}; expected key=value", file=sys.stderr)
+            return 2
+        k, v = kv.split("=", 1)
+        overrides[k.strip()] = v.strip()
+
+    registry = load_registry()
+    try:
+        result = route(
+            registry,
+            prompt=None,
+            explicit=(args.kind, args.id),
+            explicit_args=overrides,
+        )
+    except Exception as e:
+        print(f"ASSIST_RUN_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+
+    _print_decision(result.decision, used_llm=False)
+    if args.dry_run:
+        return 0
+    if not args.yes:
+        if not _confirm():
+            print("aborted by user")
+            return 0
+    return _execute_decision(result.decision)
+
+
+def cmd_langfuse_status(args: argparse.Namespace) -> int:
+    from agentdex_observe import langfuse_stack
+
+    h = langfuse_stack.status()
+    print(f"host: {h.host}")
+    print(f"healthy: {h.healthy}")
+    print(f"public_key: {'set' if h.public_key else '<unset>'}")
+    print(f"secret_key: {'set' if h.secret_key else '<unset>'}")
+    print(f"creds_file: ~/.adx/langfuse.env")
+    return 0 if h.healthy else 1
+
+
+def cmd_langfuse_up(args: argparse.Namespace) -> int:
+    from agentdex_observe import langfuse_stack
+
+    try:
+        h = langfuse_stack.up(max_wait_seconds=args.wait)
+    except Exception as e:
+        print(f"LANGFUSE_UP_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    print(f"host: {h.host}  healthy={h.healthy}")
+    if not (h.public_key and h.secret_key):
+        print(
+            "\nNEXT STEPS (first-run seed):\n"
+            "  1. open http://localhost:3000 in browser\n"
+            "  2. create org + project\n"
+            "  3. Settings → API Keys → Create new keys\n"
+            "  4. paste into ~/.adx/langfuse.env (template already created)\n"
+            "  5. re-run `adx expedition`"
+        )
+    return 0 if h.healthy else 3
+
+
+def cmd_langfuse_down(args: argparse.Namespace) -> int:
+    from agentdex_observe import langfuse_stack
+
+    langfuse_stack.down()
+    print("langfuse stack: down")
+    return 0
+
+
+def cmd_pool_status(args: argparse.Namespace) -> int:
+    from agentdex_observe.llm_pool import ensure_pool_env
+
+    env = ensure_pool_env()
+    print(f"mode:        {os.environ.get('ADX_LLM_POOL_MODE', 'hybrid')}")
+    print(f"base_url:    {os.environ.get('CLIPROXY_BASE_URL', '<unset>')}")
+    print(f"api_key:     {'set' if os.environ.get('CLIPROXY_API_KEY') else '<unset>'}")
+    print(f"env_file:    ~/.adx/llm_pool.env  ({'present' if env else 'MISSING'})")
+    return 0
+
+
+def cmd_pool_verify(args: argparse.Namespace) -> int:
+    from agentdex_observe.llm_pool import client_for, ensure_pool_env
+
+    ensure_pool_env()
+    try:
+        client = client_for(args.model)
+    except Exception as e:
+        print(f"POOL_RESOLVE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    try:
+        if hasattr(client, "models") and hasattr(client.models, "generate_content"):
+            resp = client.models.generate_content(
+                model=args.model, contents=args.prompt
+            )
+            text = getattr(resp, "text", str(resp))
+        else:
+            msg = client.messages.create(
+                model=args.model,
+                max_tokens=120,
+                system="Reply terse.",
+                messages=[{"role": "user", "content": args.prompt}],
+            )
+            text = msg.content[0].text if hasattr(msg, "content") else str(msg)
+        print(f"--- pool verify: {args.model} ---")
+        print((text or "<empty>")[:500])
+        return 0 if text else 1
+    except Exception as e:
+        print(f"POOL_INVOKE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 3
+
+
+def cmd_pool_set_env(args: argparse.Namespace) -> int:
+    path = Path(os.path.expanduser("~/.adx/llm_pool.env"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = (
+        "# adx LLM pool — managed by `adx llm-pool set-env`\n"
+        f"ADX_LLM_POOL_MODE={args.mode}\n"
+        f"CLIPROXY_BASE_URL={args.base_url}\n"
+        f"CLIPROXY_API_KEY={args.api_key}\n"
+    )
+    path.write_text(body, encoding="utf-8")
+    print(f"wrote {path}")
+    print(body, end="")
+    return 0
+
+
+def cmd_langfuse_ensure(args: argparse.Namespace) -> int:
+    from agentdex_observe import langfuse_stack
+
+    try:
+        h = langfuse_stack.ensure(max_wait_seconds=args.wait)
+    except Exception as e:
+        print(f"LANGFUSE_ENSURE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    print(f"host: {h.host}  healthy={h.healthy}")
+    print(f"creds: pk={'set' if h.public_key else '<unset>'}  sk={'set' if h.secret_key else '<unset>'}")
+    return 0 if h.healthy else 3
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,0 +1,27 @@
+id: expedition.nvidia.mocked
+name: Run NVIDIA Expedition (mocked, offline)
+description: |
+  Same as expedition.nvidia but uses recorded mock bridges + stub judge,
+  so it runs offline without subscription CLIs or ANTHROPIC_API_KEY.
+  Useful for CI / smoke checks / first-run demo.
+when_to_use: |
+  When the user wants to test the pipeline without spending real API quota
+  or when running in CI / a fresh laptop without subscription auth.
+args_schema:
+  output:
+    type: string
+    default: "expeditions/mocked-{ts}/"
+command:
+  - adx
+  - expedition
+  - --task
+  - nvidia-earnings-infographic
+  - --baselines
+  - claude,codex,manus
+  - --judge
+  - gemini-3.5-flash
+  - --output
+  - "{output}"
+  - --mocked
+  - --fairness-tolerance
+  - "5"

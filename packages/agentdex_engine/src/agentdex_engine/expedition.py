@@ -31,7 +31,14 @@ from agentdex_engine.cards import (
     SeedCategory,
     TaskCard,
 )
+from agentdex_engine.balancer import ResourceBalancer
 from agentdex_engine.evolver.pareto import ParetoVerdict, pareto_verdict
+from agentdex_engine.manifest import (
+    AgentManifest,
+    BalancedConstraints,
+    FairnessReport,
+    stock_manifest,
+)
 from agentdex_engine.oracle.base import Oracle, OracleVerdictMap
 from agentdex_engine.oracle.repair import OracleRepairFlagger
 
@@ -119,9 +126,15 @@ async def _run_one_bridge(
     oracle: Oracle,
     task_card: TaskCard,
     expedition_id: str,
+    balanced: BalancedConstraints | None = None,
 ) -> tuple[ResultCard, OracleVerdictMap, str]:
     t0 = time.monotonic()
-    text, trace_id = await bridge.send(prompt, extra={"max_turns": 1})
+    extra: dict = {"max_turns": 1}
+    if balanced is not None:
+        extra["balanced"] = balanced.model_dump()
+        extra["max_tokens"] = balanced.max_output_tokens
+        extra["tool_allowlist"] = list(balanced.tool_allowlist)
+    text, trace_id = await bridge.send(prompt, extra=extra)
     elapsed = time.monotonic() - t0
     text = text or ""
     verdicts = oracle.evaluate(text, task_card)
@@ -259,11 +272,45 @@ async def run_expedition_orchestrator(
     *,
     repo_root: Path | None = None,
     prompt_override: str | None = None,
-) -> tuple[list[ResultCard], ParetoVerdict, EvolutionCard]:
-    """Run task across all bridges, score, Pareto, emit EvolutionCard."""
+    manifests: list[AgentManifest] | None = None,
+    fairness_tolerance: int = 5,
+    on_fairness_report=None,
+) -> tuple[list[ResultCard], ParetoVerdict, EvolutionCard, FairnessReport | None]:
+    """Run task across all bridges, score, Pareto, emit EvolutionCard.
+
+    When ``manifests`` is provided, runs a pre-Expedition
+    :class:`ResourceBalancer` pass first. The resulting
+    :class:`FairnessReport` is published via the optional
+    ``on_fairness_report(report)`` callback (CLI writes it to
+    ``fairness_report.yaml``) and the balanced ``max_output_tokens`` /
+    ``tool_allowlist`` is forwarded to every ``bridge.send`` call as
+    ``extra={"balanced": {...}}``.
+
+    If ``fairness_verdict == "blocked"`` the expedition aborts BEFORE running
+    any bridge and returns ``(empty_result_cards, no_clear_winner_verdict,
+    empty_evolution_card, fairness_report)``.
+    """
     expedition_id = _expedition_id(task_card)
     repo_root = repo_root or Path.cwd()
     prompt = prompt_override or _load_first_source_text(task_card, repo_root)
+
+    # ----- pre-Expedition fairness gate -----
+    fairness_report: FairnessReport | None = None
+    balanced: BalancedConstraints | None = None
+    if manifests:
+        balancer = ResourceBalancer(max_capability_drop_tolerance=fairness_tolerance)
+        fairness_report = balancer.equalize(
+            manifests, task_card, expedition_id=expedition_id
+        )
+        balanced = fairness_report.balanced_constraints
+        if on_fairness_report is not None:
+            on_fairness_report(fairness_report)
+        if fairness_report.fairness_verdict == "fail":
+            empty_verdict = pareto_verdict([])
+            empty_card = _build_evolution_card(
+                expedition_id, empty_verdict, {}, {}
+            )
+            return [], empty_verdict, empty_card, fairness_report
 
     async with _ExpeditionTrace(
         name=f"expedition.{task_card.id}",
@@ -278,7 +325,8 @@ async def run_expedition_orchestrator(
         for bridge in bridges:
             try:
                 rc, verdicts, text = await _run_one_bridge(
-                    bridge, prompt, oracle_chain, task_card, expedition_id
+                    bridge, prompt, oracle_chain, task_card, expedition_id,
+                    balanced=balanced,
                 )
             except Exception as e:
                 rc, verdicts, text = _failed_baseline_record(
@@ -334,4 +382,4 @@ async def run_expedition_orchestrator(
         evolution_card = _build_evolution_card(
             expedition_id, verdict, repair_seeds, trace_urls
         )
-        return result_cards, verdict, evolution_card
+        return result_cards, verdict, evolution_card, fairness_report

@@ -1,0 +1,60 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780943126
+balanced_constraints:
+  context_window_tokens: 128000
+  max_output_tokens: 8000
+  tool_allowlist:
+  - read
+  latency_budget_sec: 120.0
+  cost_ceiling_dollar: 1.0
+  intersected_capabilities:
+  - tool_calls
+  rationale: 'intersected 3 manifests: ctx_min=128000 out_min=8000 cost_min=$1.00
+    latency=120s common_tools=1 common_caps=1'
+deltas:
+  claude:
+    agent_id: claude
+    context_window_excess_tokens: 72000
+    max_output_excess_tokens: 0
+    capabilities_dropped:
+    - stream_json
+    - subscription_quota
+    - long_context
+    tools_dropped:
+    - write
+    - bash
+    - edit
+    - grep
+    cost_headroom_dollar: 0.0
+    latency_headroom_sec: 0.0
+  codex:
+    agent_id: codex
+    context_window_excess_tokens: 0
+    max_output_excess_tokens: 0
+    capabilities_dropped:
+    - json_rpc_lite
+    - subscription_quota
+    tools_dropped:
+    - write
+    - bash
+    - edit
+    - grep
+    cost_headroom_dollar: 0.0
+    latency_headroom_sec: 0.0
+  manus:
+    agent_id: manus
+    context_window_excess_tokens: 0
+    max_output_excess_tokens: 0
+    capabilities_dropped:
+    - browser_dom
+    - api_quota
+    - structured_output
+    tools_dropped:
+    - browser
+    - search
+    cost_headroom_dollar: 0.0
+    latency_headroom_sec: 60.0
+fairness_verdict: auto-clamped
+max_capability_drop: 3
+advisory_notes:
+- Some manifests trimmed to fair envelope; per-baseline `*_excess_*` fields surface
+  the headroom each agent gave up.

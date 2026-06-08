@@ -1,0 +1,14 @@
+id: langfuse.status
+name: Probe Langfuse health + credentials
+description: |
+  Curl /api/public/health, print healthy=true/false and whether
+  ~/.adx/langfuse.env carries seeded LANGFUSE_PUBLIC_KEY +
+  LANGFUSE_SECRET_KEY.
+when_to_use: |
+  Quick diagnostic when a user is unsure whether the trace pipeline is
+  live, or before running an Expedition.
+args_schema: {}
+command:
+  - adx
+  - langfuse
+  - status

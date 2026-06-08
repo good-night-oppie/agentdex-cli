@@ -14,3 +14,4 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentdex_observe"]
+force-include = { "src/agentdex_observe/compose/langfuse.docker-compose.yml" = "agentdex_observe/compose/langfuse.docker-compose.yml" }

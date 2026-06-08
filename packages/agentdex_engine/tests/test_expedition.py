@@ -69,7 +69,7 @@ def test_orchestrator_returns_three_card_chain():
         "data_center": True,
     })
 
-    result_cards, verdict, evolution_card = asyncio.run(
+    result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
             _task_card(), bridges, oracle, judge_llm="claude-haiku-4.5",
             prompt_override="dummy prompt",
@@ -92,7 +92,7 @@ def test_orchestrator_returns_three_card_chain():
 
 
 def test_orchestrator_empty_bridges_returns_no_winner():
-    result_cards, verdict, evolution_card = asyncio.run(
+    result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
             _task_card(),
             [],

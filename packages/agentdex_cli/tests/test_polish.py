@@ -96,12 +96,13 @@ def test_partial_baseline_failure_continues_with_other_baselines():
     )
 
     bridges = [_OkBridge("claude"), _ExplodingBridge("codex"), _OkBridge("manus")]
-    result_cards, verdict, evolution_card = asyncio.run(
+    result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
             task_card, bridges, _StubOracle(),
             judge_llm="claude-haiku-4.5", prompt_override="dummy",
         )
     )
+    assert fairness_report is None, "no manifests passed → no fairness report"
     assert len(result_cards) == 3, "all 3 ResultCards present even on partial failure"
     by_id = {rc.agent_id: rc for rc in result_cards}
     assert by_id["claude"].pass_rate == 1.0
