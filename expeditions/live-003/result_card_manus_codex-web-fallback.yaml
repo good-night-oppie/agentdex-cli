@@ -1,0 +1,11 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780951140
+task_id: nvidia-earnings-infographic-q3-fy2026
+agent_id: manus(codex-web-fallback)
+pass_rate: 0.5
+cost_dollar: 0.000268
+cost_token: 268
+speed_wall_clock_sec: 28.491697198012844
+failure_trace_path: null
+pareto_position: no-clear-winner
+langfuse_trace_id: null
+langfuse_trace_url: null

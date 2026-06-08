@@ -1,0 +1,24 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780951140
+parent_lineage_root: null
+winning_pattern: No clear winner (no_clear_winner)
+losing_pattern: 'Repair oracle surfaced gaps: control(1), source(1)'
+mutation_seeds:
+  source:
+  - kind: provenance_required
+    description: 'Provenance check ''prov.hard.provenance_required'' failed (score=0.00);
+      future Expeditions should require every claim to carry a `source: <file>:<line>`
+      annotation.'
+    evidence_jsonl_excerpt: '{"key":''prov.hard.provenance_required'',"kind":''hard'',"score":0.0,"evidence":''provenance:
+      0/8 claim lines carry `source: <file>:<line>` annotation (ratio=0.00); format=`source:
+      <file>:<line>`''}'
+    confidence: high
+    seed_provenance: structural
+  control:
+  - kind: response_shape_variance
+    description: "Baselines diverged in response length by \u226525% (max=1398 min=1072);\
+      \ control-flow / formatting drift worth probing in the next Expedition."
+    evidence_jsonl_excerpt: '{"lengths":[claude:1398ch, codex:1088ch, manus(codex-web-fallback):1072ch]}'
+    confidence: med
+    seed_provenance: structural
+boundary_annotations: []
+langfuse_trace_urls: {}
