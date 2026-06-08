@@ -155,6 +155,36 @@ def _estimate_cost(text: str) -> float:
     return max(round(tokens * 1e-6, 6), 1e-6)  # ~$1 per 1M tokens floor
 
 
+def _failed_baseline_record(
+    bridge: _BridgeLike,
+    task_card: TaskCard,
+    expedition_id: str,
+    exc: Exception,
+) -> tuple[ResultCard, OracleVerdictMap, str]:
+    """Phase-8 polish: produce a degraded ResultCard for a failed baseline.
+
+    Continues the Expedition with the remaining baselines + persists a record
+    of the failure (``failure_trace_path``, ``pass_rate=0``,
+    ``cost_dollar=floor``) so the EvolutionCard surfaces the gap.
+    """
+    agent_name = getattr(bridge.cfg, "name", "unknown")
+    failure_excerpt = f"{type(exc).__name__}: {exc}"[:1000]
+    rc = ResultCard(
+        expedition_id=expedition_id,
+        task_id=task_card.id,
+        agent_id=agent_name,
+        pass_rate=0.0,
+        cost_dollar=1e-6,
+        cost_token=0,
+        speed_wall_clock_sec=1e-6,
+        failure_trace_path=f"<inline-failure>::{failure_excerpt}",
+        pareto_position="undominated",
+        langfuse_trace_id=None,
+        langfuse_trace_url=None,
+    )
+    return rc, {}, ""
+
+
 def _build_evolution_card(
     expedition_id: str,
     verdict: ParetoVerdict,
@@ -246,9 +276,14 @@ async def run_expedition_orchestrator(
     ):
         per_baseline = []
         for bridge in bridges:
-            rc, verdicts, text = await _run_one_bridge(
-                bridge, prompt, oracle_chain, task_card, expedition_id
-            )
+            try:
+                rc, verdicts, text = await _run_one_bridge(
+                    bridge, prompt, oracle_chain, task_card, expedition_id
+                )
+            except Exception as e:
+                rc, verdicts, text = _failed_baseline_record(
+                    bridge, task_card, expedition_id, e
+                )
             per_baseline.append((rc, verdicts, text))
 
         result_cards = [rc for rc, _, _ in per_baseline]

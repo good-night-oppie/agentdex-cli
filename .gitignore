@@ -26,3 +26,24 @@ blog/
 # skill outputs (.agents/ tree is committed but cache files aren't)
 .agents/*.lock
 .agents/cache/
+
+# Expedition trace artifacts are large per-run jsonl; commit yaml summaries only.
+expeditions/*/trace/
+
+# pytest / lint / type-check caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# extra dotenv variants
+.env.*
+
+# editor / IDE / language server caches
+.serena/
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python build artifacts (anchored — already covered above with /dist /build)
+*.whl

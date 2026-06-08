@@ -331,11 +331,54 @@ def _make_mock_bridges(baselines: list[str], task_id: str, repo_root: Path):
 
 
 def cmd_expedition(args: argparse.Namespace) -> int:
+    # ----- pre-flight: task bundle exists ------------------------------------
+    repo_root = _detect_repo_root()
+    bundle_path = repo_root / "tasks" / args.task / "bundle.yaml"
+    if not bundle_path.is_file():
+        print(
+            f"ERROR: task {args.task!r} not found at {bundle_path}\n"
+            f"       (looked under {repo_root / 'tasks'})",
+            file=sys.stderr,
+        )
+        return 2
+
+    # ----- pre-flight: API keys present when judge is live (not mocked) ------
+    if not args.mocked:
+        missing = _missing_required_env(args.baselines, args.judge)
+        if missing:
+            print(
+                f"ERROR: required env var(s) not set: {', '.join(missing)}\n"
+                f"       Re-run with --mocked for offline acceptance gate, "
+                f"or export the keys above.",
+                file=sys.stderr,
+            )
+            return 3
+
     try:
         return asyncio.run(_run_expedition(args))
+    except FileNotFoundError as e:
+        print(f"EXPEDITION_ERROR: {e}", file=sys.stderr)
+        return 2
     except Exception as e:
         print(f"EXPEDITION_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
-        return 2
+        return 1
+
+
+def _missing_required_env(baselines_csv: str, judge_llm: str) -> list[str]:
+    """Return required env vars not set in os.environ.
+
+    - Soft Oracle requires ANTHROPIC_API_KEY for live Anthropic SDK call
+      (claude-* models). When the judge_llm starts with "claude-" we require
+      ANTHROPIC_API_KEY; "gpt-"/"o1-" → OPENAI_API_KEY.
+    - Subscription bridges (claude/codex/manus) authenticate through their
+      respective CLIs' own auth, NOT env vars — so we don't gate on those.
+    """
+    needed: list[str] = []
+    if judge_llm.startswith("claude-") and not os.environ.get("ANTHROPIC_API_KEY"):
+        needed.append("ANTHROPIC_API_KEY")
+    elif judge_llm.startswith(("gpt-", "o1-", "o3-", "o4-")) and not os.environ.get("OPENAI_API_KEY"):
+        needed.append("OPENAI_API_KEY")
+    return needed
 
 
 def build_parser() -> argparse.ArgumentParser:

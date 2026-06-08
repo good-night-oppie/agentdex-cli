@@ -1,0 +1,118 @@
+# CLAUDE.md — agentdex-cli doctrine
+
+This file documents the architectural commitments that the codebase enforces
+through structure (uv workspace + ADR cascade) rather than through prose.
+Treat it as the operating manual for any contributor (human or AI) opening
+the repo cold.
+
+## Why agentdex-cli is the Hermes retrofit
+
+agentdex-cli is the **library boundary** between the agentdex Pokédex pattern
+(Three Cards: TaskCard / ResultCard / EvolutionCard) and the Hermes
+gateway-per-profile plugin runtime. The retrofit decision is documented in
+**ADR-0008 §D** (Hermes gateway as the per-profile process boundary) and
+**ADR-0009** (the unifying meta-ADR landed at `docs/adr/0009-...`).
+
+Bridges to subscription baselines (Claude Code, Codex app-server, Manus
+Camofox) sit at `packages/adx_bridges/`. The orchestrator that drives them is
+the Hermes plugin at `packages/agentdex_plugin/`. The plugin is discoverable
+via the `hermes_agent.plugins` entry-points group, which means a vanilla
+`hermes gateway --profile agentdex` is enough to wire the Pokédex flow into
+Hermes — no custom Runner / SessionRunner abstraction needed
+(SessionRunner is documented vapor; see phase-4 STATE.md Notable event).
+
+## Why KAOS lives at `packages/kaos/`, not pip install
+
+The vendored copy at `packages/kaos/` is a **git subtree** (squashed +
+culled) rather than a published pypi dependency for two reasons:
+
+1. **ACE-FCA (Agent Context Engineering)** — agentdex-cli wants the full
+   KAOS source readable from the agent's working tree at all times.
+   `lib/.venv/` indirection breaks that reading discipline; every bridge,
+   oracle, and expedition orchestrator needs to be able to grep through the
+   KAOS substrate without leaving the workspace.
+2. **Velocity** — at MVP we want to land doctrine / instrumentation changes
+   in KAOS as part of the same commit that exercises them. A pypi
+   dependency forces a publish-step decoupling that's premature for the
+   first 5 milestones.
+
+The subtree was assembled at phase-4 (commits `2dc26f1` merge + `5039a12`
+squash + `3d5540f` cull, ~150MB demo/doc material trimmed). When KAOS hits a
+stable v1.0, we'll consider re-extracting to pypi.
+
+## Why helios stays external
+
+`helios` is the Go daemon that maintains the hot tier of mutation-seed
+substrate. agentdex-cli vendors only its Python client at
+`packages/helios_client/` because:
+
+- helios has its own build/release cycle (Go modules, separate ABI)
+- the daemon is a process you operate, not code you import
+- M6 (post-MVP) wires helios as the upstream of `SqliteCheckpointStore`;
+  M5 still runs against the SQLite fallback so the MVP is buildable without
+  a live helios
+
+## Why `~/gh/agentdex/` was archived
+
+The `~/gh/agentdex/` repo was a phase-2 exploration of a FastAPI + VEX
+orchestrator. That exploration informed the engine extract but does not
+ship: the engine moved to `packages/agentdex_engine/` here and the
+FastAPI/VEX surface was retired. The `~/_attic/agentdex-pre-cli/` archive is
+the source of truth for "what was tried"; the live engine is here.
+
+## Two-tier substrate (M5 → M6 plan)
+
+- **Hot tier (M6+):** `helios` Go daemon, in-memory + WAL persistence,
+  short-window seed scoring + mutation acceptance. Powers the per-Expedition
+  EvolutionCard mutation-seed flow.
+- **Warm/cold tier (M5):** KAOS sqlite + blob storage. Stores Expedition
+  lineage entries (one KAOS agent per Expedition, EvolutionCard payload as a
+  set_state JSON blob, snapshot via `checkpoint(label="expedition-final")`).
+  Surfaced via `agentdex_engine.shared.kaos_adapter.log_expedition_lineage`.
+
+The two tiers share the `CheckpointStore` Protocol defined in
+`helios_client.adapter`, so callers can swap implementations without code
+changes.
+
+## Context-window discipline
+
+The codebase assumes that contributors (esp. AI agents) work under explicit
+context-window budgets:
+
+- **40–60% utilization target.** When the current window crosses 60%,
+  compact intentionally (FIC — Frequent Intentional Compaction) before the
+  auto-compact kicks in unpredictably.
+- **Sub-agent isolation.** Long bridge runs (live live live live live live
+  expeditions) should be invoked via the Agent / Workflow tools, not in the
+  parent context. The Expedition orchestrator already respects this — it
+  awaits per-baseline bridges sequentially in a single async loop.
+- **Memory writeback.** Non-obvious learnings live under
+  `~/.claude/projects/-home-admin-gh-agentdex-cli/memory/`; that directory
+  is the canonical "what we learned from the last run" sink and is consulted
+  by `/MEMORY.md` automatically.
+- **STATE.md as the single source of project state.** `.supergoal/STATE.md`
+  carries phase progress + Notable events; per-conversation tasks are
+  ephemeral.
+
+## Async co-opetition (合作竞争), not real-time race
+
+Per **ADR-0009 §Amendment-2026-06-08**: baselines run sequentially against
+the same task; the Pareto judge ranks them after-the-fact. There is no
+synchronous side-by-side battle. Bridges expose an async `send()` that the
+orchestrator awaits one baseline at a time. The synchronous wrapper command
+is sugar over the async primitives (`init / run / finalize`); the async path
+is the source of truth.
+
+## Glossary
+
+- **Three Cards** — TaskCard (frozen input), ResultCard (per-baseline
+  output), EvolutionCard (across-baseline mutation seeds). All pydantic
+  strict + `extra="forbid"`.
+- **Oracle layer** — `hard` (regex + tolerance), `soft` (Langfuse-wrapped
+  Anthropic SDK as judge), `repair` (meta-oracle emitting structural
+  seeds).
+- **Pareto verdict** — winner / no_clear_winner across
+  (pass_rate ↑, cost ↓, speed ↓).
+- **Mutation seed** — a pydantic Seed carrying `kind`, `description`,
+  `confidence`, `seed_provenance ∈ {"structural", "learned"}` (R6
+  truth-in-advertising).

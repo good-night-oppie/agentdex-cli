@@ -23,3 +23,17 @@ adx-bridges      = { workspace = true }
 helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }
 kaos             = { workspace = true }
+
+[tool.pytest.ini_options]
+# importlib mode avoids the "duplicate `tests` package" collision when multiple
+# workspace packages each carry a `tests/__init__.py` (kaos / adx_bridges /
+# agentdex_cli all do). The kaos vendored test suite has its own collection
+# errors (missing fixtures, internal pytest plugins not vendored) — exclude
+# from the agentdex-cli regression sweep.
+addopts = "--import-mode=importlib"
+norecursedirs = ["packages/kaos/tests", ".venv", "_attic", "expeditions"]
+testpaths = [
+  "packages/adx_bridges/tests",
+  "packages/agentdex_cli/tests",
+  "packages/agentdex_engine/tests",
+]
