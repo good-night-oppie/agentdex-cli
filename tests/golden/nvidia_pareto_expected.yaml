@@ -1,0 +1,53 @@
+# Golden expected ParetoVerdict + EvolutionCard shape for NVIDIA Q3 FY2026 bundle.
+#
+# Purpose: anchor for Phase 7 mocked smoke test (test_expedition_smoke.py) to verify
+# pipeline SHAPE invariants. Live-run wins/losses can diverge run-to-run; what's
+# invariant is the verdict structure + mutation_seed taxonomy + provenance labels.
+#
+# Provenance: hand-authored 2026-06-08 against IDEAL_EXPERIENCE.md "Failure mode #2"
+# (non-reproducible Expedition) + EVAL.md "Reproducible Expedition" criterion.
+# This file is a STUB — populated more precisely after Phase 3 bundle freezes and
+# Phase 7 first live run produces a baseline shape to lock in.
+#
+# Invariants asserted by smoke test:
+#   1. ParetoVerdict.verdict_kind ∈ {"dominated","undominated","no_clear_winner"}
+#   2. If verdict_kind == "dominated", winner is non-null
+#   3. EvolutionCard.mutation_seeds has entries in ≥2 of 5 categories
+#   4. Every Seed carries non-null seed_provenance ∈ {"structural","learned"}
+#   5. EvolutionCard.langfuse_trace_urls has one entry per baseline (or empty if Phase-4 R3 spike falls back to per-baseline-root path AND smoke test runs in mocked mode)
+
+task_id: nvidia-earnings-infographic-q3-fy2026
+
+expected_pareto_shape:
+  verdict_kind_one_of: ["dominated", "undominated", "no_clear_winner"]
+  winner_required_when: "verdict_kind == 'dominated'"
+  rankings_keys_one_of: ["pass_rate", "cost_dollar", "speed_wall_clock_sec"]
+  agent_ids_min: 2  # at least 2 baselines must have produced a ResultCard
+  agent_ids_max: 3  # 3 baselines is the M5 plan; allow 2 if Manus bridge falls back
+
+expected_evolution_card_shape:
+  mutation_seeds:
+    categories_required_min: 2
+    valid_categories: ["source", "reasoning", "coding", "control", "harness"]
+    seed_provenance_required: true
+    seed_provenance_valid: ["structural", "learned"]
+    m5_acceptable_provenance: ["structural"]  # M5 explicitly admits structural; M7 raises bar
+    m7_required_min_learned: 1                # post-MVP — documented here for forward compat
+  langfuse_trace_urls:
+    keys_one_of_baselines: ["claude", "codex", "manus"]
+    keys_min: 0  # 0 acceptable in mocked mode + R3 spike fallback path
+    keys_max: 3
+  boundary_annotations:
+    required: false
+    helpful_for: "documenting structural-vs-learned provenance distribution at M5 gate"
+
+m5_gate_assertions:
+  - "len(set(evolution_card.mutation_seeds.keys()) & set(valid_categories)) >= 2"
+  - "all(seed.seed_provenance in {'structural', 'learned'} for cat in evolution_card.mutation_seeds.values() for seed in cat)"
+  - "pareto_verdict.verdict_kind in {'dominated', 'undominated', 'no_clear_winner'}"
+  - "pareto_verdict.verdict_kind != 'dominated' or pareto_verdict.winner is not None"
+
+# Once Phase 7 live run produces a stable baseline, append concrete examples here:
+# expected_winner_when_oracle_stable: <baseline>
+# expected_seed_kinds_observed: [<kind>, ...]
+# expected_pass_rate_floor: <float>

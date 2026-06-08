@@ -1,0 +1,89 @@
+# AgentLint config for agentdex-cli
+# Adopted from harness-praxis/references/agentlint.claude-native.yaml (2026-06-08).
+# Disables 3 documented agentlint parser bugs (FS-001 / FS-003 / HOOK-002) that
+# false-positive against Claude Code's native `permissions.deny` format.
+# 17 of 20 real-signal rules stay active.
+#
+# Reference: agentlint v0.3.0 expects ALLOWLIST schema; Claude Code's
+# .claude/settings.json uses DENYLIST schema which is STRICTER but trips
+# the parser. Re-enable disabled rules when upstream adds native-format parser.
+
+version: 1
+
+scan:
+  include:
+    - ".claude/**"
+    - ".cursorrules"
+    - "CLAUDE.md"
+    - "AGENTS.md"
+    - "agents/**/AGENTS.md"
+    - "IDEAL_EXPERIENCE.md"
+    - "EVAL.md"
+    - "AUTONOMY_THRESHOLD.md"
+  exclude:
+    - "**/.git/**"
+    - "**/node_modules/**"
+    - "**/__pycache__/**"        # compiled bytecode, not hook source (HOOK-002 FP)
+    - "**/*.pyc"
+    - "**/_agentdex_internal/**" # internal shared lib path placeholder
+    - "**/.venv/**"              # cards-mvp/.venv etc; not agent-facing
+    - "coverage*.out"
+    - "coverage.html"
+    - "**/kaos.db*"              # KAOS sqlite (atticed; also gitignored)
+  tool_mode: auto
+  max_files: 2000
+
+policy:
+  fail_on: high
+  warn_on: medium
+  min_finding_confidence: 0.7    # default 0.6 — bump to suppress low-confidence FPs
+  strict: false
+
+rules:
+  # FS-001 / FS-003 fire on Claude Code's native deny-list format because
+  # agentlint v0.3.0 expects allowlist schema. The real permission model is
+  # in .claude/settings.json `permissions.deny` and is STRICTER than agentlint's
+  # baseline. Disable both rules until upstream adds native-format support.
+  disable:
+    - FS-001    # Unscoped Write Access — false positive vs native deny-list
+    - FS-003    # Cross-Boundary Write — fires on `>/dev/null` redirect (stdin discard, not write target)
+    - HOOK-002  # Hidden Hook Activation — parser checks filename substrings (pre_commit/post_edit/on_edit/on_pr)
+                # which are NOT Claude Code's actual hook taxonomy (UserPromptSubmit/Stop/PreToolUse/etc).
+                # See agentlint dist/parsers/claude.js::determineTriggers — hardwired to wrong taxonomy.
+                # Re-enable when upstream fixes parser to recognize Claude Code hook types.
+
+  # Keep these high-value rules ACTIVE — they catch real issues regardless of
+  # permission schema:
+  #   - EXEC-* (dynamic shell exec, broad capability)
+  #   - SEC-*  (secret references, propagation)
+  #   - INST-* (instruction override, self-modifying rules)
+  #   - SCOPE-* (capability expansion across versions)
+  #   - HOOK-001 (auto-triggered side effects — distinct from HOOK-002 discoverability)
+  #   - OBS-* (missing capability declaration)
+
+capabilities:
+  fail_on_new_dynamic_shell: true
+  fail_on_sensitive_path_write: true
+  sensitive_paths:
+    - ".github/workflows/**"
+    - ".git/**"
+    - ".env"
+    - ".supergoal/ROADMAP.md"       # plan tampering = reward hack
+    - ".supergoal/ARCHITECTURE.md"
+    - ".supergoal/phases/**"
+    - "tasks/**/oracle/**"          # Oracle spec tampering = reward hack on M5 gate
+    - "tasks/**/bundle.yaml"        # BLAKE3-frozen bundle; tampering breaks reproducibility
+    - "tests/golden/**"             # heldout eval = reward hack
+
+diff:
+  enabled: true
+  fail_on:
+    - capability_expansion
+    - shell_dynamic_introduced
+    - context_change_to_hook
+
+output:
+  format: text
+  color: auto
+  include_recommendations: true
+  include_permission_manifest: true
