@@ -104,11 +104,26 @@ def _pareto_position(rc_id: str, verdict: ParetoVerdict) -> str:
     return "dominated"
 
 
+def _resolve_task_dir(task_card: TaskCard, repo_root: Path) -> Path | None:
+    id_path = repo_root / "tasks" / task_card.id
+    if id_path.is_dir():
+        return id_path
+
+    oracle_ref = Path(task_card.oracle_spec_ref)
+    oracle_path = oracle_ref if oracle_ref.is_absolute() else repo_root / oracle_ref
+    oracle_task_dir = oracle_path.parent.parent
+    if oracle_task_dir.is_dir() and (oracle_task_dir / "sources").is_dir():
+        return oracle_task_dir
+
+    return None
+
+
 def _load_first_source_text(task_card: TaskCard, repo_root: Path) -> str:
-    task_dir = repo_root / "tasks" / task_card.id
-    if not task_dir.is_dir():
-        return f"(no sources/ dir found under {task_dir})"
-    sources = sorted((task_dir / "sources").glob("*.md")) if (task_dir / "sources").is_dir() else []
+    task_dir = _resolve_task_dir(task_card, repo_root)
+    if task_dir is None:
+        return f"(no sources/ dir found for task {task_card.id})"
+    sources_dir = task_dir / "sources"
+    sources = sorted(sources_dir.glob("*.md")) if sources_dir.is_dir() else []
     if not sources:
         return f"(no source files under {task_dir / 'sources'})"
     body = sources[0].read_text(encoding="utf-8")[:4000]

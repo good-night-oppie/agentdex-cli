@@ -96,24 +96,20 @@ def _cliproxy_available() -> bool:
     import urllib.error
     import urllib.request
 
+    url = f"{base.rstrip('/')}/models"
+    api_key = os.environ.get("CLIPROXY_API_KEY", "")
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+    )
     try:
-        with urllib.request.urlopen(
-            f"{base.rstrip('/')}/models", timeout=1.5
-        ) as r:
+        with urllib.request.urlopen(req, timeout=3.0) as r:
             return 200 <= r.status < 300
+    except urllib.error.HTTPError as e:
+        # 401/403 mean "server alive, auth missing" — still a successful liveness probe.
+        return e.code in (401, 403)
     except Exception:
-        # Some proxies return 401 on /models without auth — still alive.
-        try:
-            import urllib.request
-
-            req = urllib.request.Request(
-                f"{base.rstrip('/')}/models",
-                headers={"Authorization": "Bearer probe"},
-            )
-            with urllib.request.urlopen(req, timeout=1.5) as r:
-                return 200 <= r.status < 500
-        except Exception:
-            return False
+        return False
 
 
 class PooledClient:
@@ -180,10 +176,22 @@ def client_for(model_id: str):
 
     Returns a backend-shaped client whose call surface matches what the soft
     Oracle / bridges expect (see :class:`PooledClient` for the dual interface).
+
+    Subscription-CLI override: model ids starting with ``claude-code`` /
+    ``codex`` route directly to the subscription-CLI shell wrapper bypassing
+    the cliproxy / direct-SDK ladder. This is the live-mode fallback when
+    OAuth-based subscription is the only working auth (no API key, no
+    reachable proxy upstream).
     """
     ensure_pool_env()
     mode = _pool_mode()
     family = _model_family(model_id)
+    lower = model_id.lower()
+
+    if lower.startswith(("claude-code", "claude_code", "codex-exec", "codex_exec")):
+        from agentdex_observe.subscription_judge import subscription_judge_factory
+
+        return subscription_judge_factory(model_id)
 
     if mode in {"cliproxy", "hybrid"} and _cliproxy_available():
         return PooledClient(_cliproxy_openai_client(), model_id)
@@ -196,7 +204,13 @@ def client_for(model_id: str):
     )
 
     if family == "anthropic":
-        return anthropic_client()
+        try:
+            return anthropic_client()
+        except Exception:
+            # No API key — final fallback to subscription CLI.
+            from agentdex_observe.subscription_judge import subscription_judge_factory
+
+            return subscription_judge_factory(model_id)
     if family == "openai":
         return openai_client()
     if family == "gemini":

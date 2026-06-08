@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,14 +13,19 @@ from agentdex_engine.expedition import run_expedition_orchestrator
 from agentdex_engine.oracle.base import OracleVerdict
 
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
 class _StubBridge:
     """Minimal async bridge w/ ``send`` + ``cfg.name``."""
 
     def __init__(self, name: str, response_text: str):
         self._response = response_text
         self.cfg = SimpleNamespace(name=name)
+        self.prompts = []
 
     async def send(self, prompt, *, session_id=None, extra=None):
+        self.prompts.append(prompt)
         return self._response, None
 
 
@@ -44,12 +50,12 @@ class _StubOracle:
         return verdicts
 
 
-def _task_card() -> TaskCard:
+def _task_card(oracle_spec_ref: str = "dummy.yaml") -> TaskCard:
     return TaskCard(
         id="nvidia-earnings-infographic-q3-fy2026",
         source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",
         environment_spec={"runtime": "test"},
-        oracle_spec_ref="dummy.yaml",
+        oracle_spec_ref=oracle_spec_ref,
         budget_token_cap=1000,
         budget_dollar_cap=1.0,
         expected_output_kind="infographic",
@@ -89,6 +95,31 @@ def test_orchestrator_returns_three_card_chain():
     assert evolution_card.expedition_id.startswith("expedition.")
     assert isinstance(evolution_card.mutation_seeds, dict)
     assert verdict.verdict_kind in {"undominated", "no_clear_winner"}
+
+
+def test_orchestrator_resolves_sources_from_oracle_spec_ref():
+    bridge = _StubBridge("claude", "revenue gross_margin data_center")
+    oracle = _StubOracle({
+        "revenue": True,
+        "gross_margin": True,
+        "data_center": True,
+    })
+
+    asyncio.run(
+        run_expedition_orchestrator(
+            _task_card(
+                oracle_spec_ref="tasks/nvidia-earnings-infographic/oracle/spec.yaml",
+            ),
+            [bridge],
+            oracle,
+            judge_llm="claude-haiku-4.5",
+            repo_root=REPO_ROOT,
+        )
+    )
+
+    assert bridge.prompts
+    assert "(no sources/ dir found" not in bridge.prompts[0]
+    assert "=== nvidia-q3-fy2026-" in bridge.prompts[0]
 
 
 def test_orchestrator_empty_bridges_returns_no_winner():

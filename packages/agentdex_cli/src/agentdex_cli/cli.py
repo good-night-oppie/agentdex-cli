@@ -416,6 +416,12 @@ def _missing_required_env(baselines_csv: str, judge_llm: str) -> list[str]:
       respective CLIs' own auth, NOT env vars — so we don't gate on those.
     """
     needed: list[str] = []
+    if judge_llm.lower().startswith(("claude-code", "claude_code", "codex-exec", "codex_exec")):
+        # Subscription-CLI routed; no API key needed.
+        return []
+    if os.environ.get("CLIPROXY_BASE_URL") and os.environ.get("CLIPROXY_API_KEY"):
+        # LLM pool active; pool handles auth.
+        return []
     if judge_llm.startswith("claude-") and not os.environ.get("ANTHROPIC_API_KEY"):
         needed.append("ANTHROPIC_API_KEY")
     elif judge_llm.startswith(("gpt-", "o1-", "o3-", "o4-")) and not os.environ.get("OPENAI_API_KEY"):
