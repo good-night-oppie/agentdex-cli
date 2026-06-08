@@ -1,22 +1,25 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
-name = "agentdex-cli"
+name = "agentdex-cli-workspace"
 version = "0.1.0"
-description = "Hermes main-agent stack: long-lived CLI bridges + sub-agent registry + routing plugin"
-requires-python = ">=3.10"
-dependencies = [
-  "fastapi>=0.110",
-  "pydantic>=2.0",
-  "pyyaml>=6.0",
+description = "agentdex-cli uv workspace root — orchestrator + plugin + engine + bridges + observability + KAOS"
+requires-python = ">=3.11,<3.14"
+
+[tool.uv.workspace]
+members = [
+  "packages/agentdex_cli",
+  "packages/agentdex_engine",
+  "packages/agentdex_plugin",
+  "packages/adx_bridges",
+  "packages/helios_client",
+  "packages/agentdex_observe",
+  "packages/kaos",
 ]
 
-[project.scripts]
-adx-claude-bridge = "bridges.claude_bridge:main"
-adx-codex-bridge  = "bridges.codex_bridge:main"
-adx-gemini-bridge = "bridges.gemini_bridge:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["bridges", "plugin", "registry", "tools"]
+[tool.uv.sources]
+agentdex-cli     = { workspace = true }
+agentdex-engine  = { workspace = true }
+agentdex-plugin  = { workspace = true }
+adx-bridges      = { workspace = true }
+helios-client    = { workspace = true }
+agentdex-observe = { workspace = true }
+kaos             = { workspace = true }

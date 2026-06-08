@@ -6,15 +6,33 @@
 
 A developer or researcher evaluating multiple agentic coding/research subscriptions (Claude Code, Codex, Manus) against the SAME task and wanting a reproducible, comparable verdict — not vibes-based "I think Claude was better." They run subscription CLIs they already pay for; agentdex-cli orchestrates them, scores them, and persists the receipt.
 
-## The ideal session looks like
+## The ideal session looks like (async co-opetition — per ADR-0009 §Amendment-2026-06-08)
+
+### Async primitives (the load-bearing path)
+
+- **User runs (whenever each is convenient — could be hours or days apart):**
+  ```
+  adx expedition init    --task nvidia-earnings-infographic --baselines claude,codex,manus
+  adx expedition run     --expedition <id> --baseline claude       # today
+  adx expedition run     --expedition <id> --baseline codex        # tomorrow morning
+  adx expedition run     --expedition <id> --baseline manus        # whenever Camofox cooperates
+  adx expedition finalize --expedition <id> --judge claude-haiku-4.5
+  ```
+- **agentdex-cli does (per baseline run):** ensures `hermes gateway --profile agentdex` is live (spawn-once OR reuse via PID-file), drives ONE baseline through its bridge, writes `expeditions/<id>/result_card_<baseline>.yaml` + `trace/<baseline>_full_trace.jsonl`, each baseline carries its Langfuse trace URL. No coordination with the other baselines required.
+- **agentdex-cli does (at finalize):** verifies all required ResultCards present, soft Oracle judge scores narrative quality via `agentdex_observe.anthropic_client()` (Langfuse-wrapped), Pareto judge produces `winner` OR `no_clear_winner`, EvolutionCard aggregates mutation seeds with `seed_provenance ∈ {structural, learned}`, KAOS persists the lineage entry.
+
+### Synchronous wrapper (MVP demo path, sugar over the async primitives)
 
 - **User runs:** `adx expedition --task nvidia-earnings-infographic --baselines claude,codex,manus --judge claude-haiku-4.5`
-- **agentdex-cli does:** spawns one long-lived `hermes gateway --profile agentdex`, drives 3 baselines sequentially through bridges, each baseline produces a trace + ResultCard, soft Oracle judge scores narrative quality via `agentdex_observe.anthropic_client()` (Langfuse-wrapped), Pareto judge picks winner OR `no_clear_winner`, EvolutionCard collects mutation seeds tagged `seed_provenance ∈ {structural, learned}`, KAOS persists the lineage entry; all artifacts written to `expeditions/<id>/`.
-- **User feels:** **certain.** The same NVIDIA bundle frozen by BLAKE3 hash produces the same Pareto verdict tomorrow. The Pokédex entry has 3 ResultCards + 1 Pareto + 1 EvolutionCard, each carrying its Langfuse trace URL, so any disagreement with the verdict drills into the actual reasoning chain in one click. No "trust me, the LLM said so."
+- **agentdex-cli does:** invokes the four async commands above in sequence within one process. Same artifacts, same KAOS lineage. Used by `test_expedition_smoke.py` to keep the M5 gate deterministic + cheap.
+
+### User feels
+
+**certain.** The same NVIDIA bundle frozen by BLAKE3 hash produces the same Pareto verdict tomorrow (or three days later when the last baseline finally runs). The Pokédex entry has 3 ResultCards + 1 Pareto + 1 EvolutionCard, each carrying its Langfuse trace URL, so any disagreement with the verdict drills into the actual reasoning chain in one click. No synchronous coordination required; no "trust me, the LLM said so." Co-opetition (合作竞争), not battle.
 
 ## Anti-patterns (NOT agentdex-cli's job)
 
-- **Not a battle-replay UI.** Pokémon Showdown is the marketing analogy; Pokédex (catalog + receipt + lineage) is the product. We render YAML cards and Langfuse links, not live combat animations.
+- **Not a battle.** Co-opetition (合作竞争), not adversarial battle. Per ADR-0009 §Amendment-2026-06-08: baselines are not fighting each other; they run the same task independently and asynchronously, and the Pareto judge aggregates ResultCards when they're all in. No synchronous side-by-side compete. No live combat animation. Pokédex (catalog) survives as the product metaphor; Pokémon Showdown does not.
 - **Not a subscription-replacement broker.** We DRIVE Claude/Codex/Manus subscription CLIs the user already pays for. We do not host inference, do not aggregate billing, do not proxy API keys.
 - **Not a vibes leaderboard.** Every claim cites a source file + line; every Oracle verdict is grounded in `tasks/<id>/oracle/spec.yaml`. Pure LLM-as-judge without ground-truth anchor is a Phase-6 calibration target, not the headline value.
 - **Not a real-time agent orchestrator.** M5 ships sequential baseline runs. Concurrent multi-agent live coordination is post-M8.

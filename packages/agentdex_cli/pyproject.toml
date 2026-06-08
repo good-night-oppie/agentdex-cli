@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentdex-cli"
+version = "0.1.0"
+description = "agentdex-cli: adx CLI shell + orchestrator (drives Hermes gateway) + observe panel + release"
+requires-python = ">=3.11"
+dependencies = [
+  "hermes-agent>=0.15.1",
+  "agentdex-engine",
+  "agentdex-plugin",
+  "agentdex-observe",
+  "adx-bridges",
+  "helios-client",
+  "pyyaml>=6.0",
+  "requests>=2.31",
+]
+
+[project.scripts]
+adx = "agentdex_cli.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentdex_cli"]

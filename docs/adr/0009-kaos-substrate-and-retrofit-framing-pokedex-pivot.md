@@ -8,7 +8,34 @@
 ## Status
 
 Accepted (2026-06-07).
-Amended 2026-06-08 with single-gateway embedded mode pivot (SessionRunner-vapor recon resolution) and §judge-as-profile MVP downgrade. See §Amendment-2026-06-08.
+Amended 2026-06-08 with: (a) single-gateway embedded mode pivot (SessionRunner-vapor recon resolution); (b) §judge-as-profile MVP downgrade; (c) **co-opetition (合作竞争) framing — "battle" terminology dropped from external product language**; (d) **Langfuse self-host as MVP default**. See §Amendment-2026-06-08 below.
+
+## §Amendment-2026-06-08 — co-opetition framing + Langfuse self-host
+
+### Co-opetition (合作竞争) — async benchmark, not synchronous battle
+
+ADR-0005 framed agentdex as a "battle platform" — two agents going head-to-head in real time, side by side. **This is dropped.** The system is **co-opetition (合作竞争)**: each baseline runs the same task **independently and asynchronously**; the Pareto judge aggregates ResultCards when all required baselines have completed, **whenever that happens**. No synchronous coordination, no simultaneous compete.
+
+- **Async completion model (load-bearing change).**
+  - Each baseline runs on its own schedule (subscription rate-limits, user attention, daily quotas all vary across CLIs).
+  - `adx expedition run --baseline <name>` is the unit of work. Runs ONE baseline against ONE TaskCard, produces ONE ResultCard, writes to `expeditions/<id>/result_card_<baseline>.yaml`.
+  - User invokes each baseline independently — could be hours or days apart.
+  - `adx expedition finalize --expedition <id>` checks all ResultCards present, runs Pareto + Evolution, writes `pareto_verdict.yaml` + `evolution_card.yaml`, persists KAOS lineage entry.
+  - The orchestrator becomes a state machine over ResultCards; it does NOT need 3 baselines live simultaneously.
+- **MVP M5 demo path.** For the live demo a synchronous wrapper command `adx expedition --task <id> --baselines claude,codex,manus` runs each baseline in sequence + finalizes in one process. This is sugar over the async primitives, not a different architecture. Test path uses the same sugar with mocked bridges.
+- **Co-opetition framing in artifacts.** EvolutionCard's `winning_pattern` + `losing_pattern` field names stay (backwards compatibility); internal semantics shift toward `productive_pattern` (what the leading baseline did well) + `gap_pattern` (what the trailing baselines missed). Pokédex entries celebrate COMPLEMENTARY emergence, not winner-take-all.
+- **What changes externally.** Product language (README, CLAUDE.md, `adx --help`, user-facing strings, marketing) drops "battle." Use "co-opetition," "expedition," or "async benchmark."
+- **What does NOT change.** Internal module names (`agentdex_engine/modules/battles/`, `BattleResult`, `TrajectoryTree`, `StopSignal`, `TurnTaker`, `engine.run_battle`) stay as code identifiers — renaming costs ~40 files of churn for zero functional benefit. Phase-8 polish considers an in-place rename pass; for M0–M5 the internal names are ADR-0005 historical baggage.
+- **Single-gateway invariant relaxed accordingly.** Phase-7's `ps -ef|grep hermes.*gateway|wc -l == 1` test still applies *per baseline run window*, not "during a 3-baseline serial run." Async invocations re-check `ensure_gateway()` and reuse the running instance.
+- **Pokémon Showdown analogy retired.** Pokédex (catalog) survives as product metaphor; Pokémon Showdown (live combat) does not. Replacement marketing: "co-opetition leaderboard," "async agentic benchmark," or "Pokédex of complementary strengths."
+
+### Langfuse self-host as MVP default
+
+User decision 2026-06-08: agentdex-cli ships with **`LANGFUSE_HOST=http://localhost:3000`** as the default in `agentdex_observe.init_langfuse()`. Cloud (`https://cloud.langfuse.com`) becomes an explicit override, not the default.
+
+- **Operational implication.** MVP M5 demo assumes a local `docker run langfuse/langfuse` instance OR `docker-compose` stack. Phase-8 polish documents the compose file + a `make langfuse-up` target. Until then, ops/AGENTS.md lists the manual `docker run` command.
+- **Rationale.** Trace data carrying NVIDIA earnings claim text + judge invocations may be sensitive in some deploys; self-host keeps it on-prem. Cloud free tier stays as the fallback when local infra isn't available.
+- **agentdex_observe behavior.** Unchanged in code — the host is read from `LANGFUSE_HOST` env with a new default. If both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are unset, decorators no-op (graceful degrade; MVP can still run without Langfuse).
 
 ## Supersedes
 
