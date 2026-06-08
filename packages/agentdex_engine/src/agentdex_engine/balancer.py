@@ -234,14 +234,22 @@ class ResourceBalancer:
             caps_missing = [c for c in union_caps if c not in m.special_capabilities]
             tools_missing = [t for t in union_tools if t not in m.tool_allowlist]
             max_cap_drop = max(max_cap_drop, len(caps_missing))
+            ctx_excess = max(0, ctx_max - m.context_window_tokens)
+            out_excess = max(0, out_max - m.max_output_tokens)
+            cost_headroom = max(0.0, cost_max - m.cost_ceiling_dollar)
+            latency_headroom = max(0.0, m.latency_budget_sec - latency_min)
+            excess_summary = (
+                f"ctx+={ctx_excess}, out+={out_excess}, "
+                f"cost+={cost_headroom:.2f}, latency+={latency_headroom:.1f}s"
+            )
+            gaps_summary = (
+                "caps_missing=" + ",".join(caps_missing or ["none"])
+                + "; tools_missing=" + ",".join(tools_missing or ["none"])
+            )
             deltas[m.agent_id] = FairnessDelta(
                 agent_id=m.agent_id,
-                context_window_excess_tokens=max(0, ctx_max - m.context_window_tokens),
-                max_output_excess_tokens=max(0, out_max - m.max_output_tokens),
-                capabilities_dropped=caps_missing,
-                tools_dropped=tools_missing,
-                cost_headroom_dollar=max(0.0, cost_max - m.cost_ceiling_dollar),
-                latency_headroom_sec=max(0.0, m.latency_budget_sec - latency_min),
+                excess_summary=excess_summary,
+                gaps_summary=gaps_summary,
             )
         return balanced, deltas, max_cap_drop
 

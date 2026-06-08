@@ -124,8 +124,8 @@ def test_procedure_fails_when_trace_parent_diverges():
 
 def test_jagged_capabilities_declared_not_dropped():
     """Claude's stream_json + long_context capabilities appear in the union
-    envelope and per-baseline `capabilities_dropped` discloses what each
-    baseline LACKS — not what is removed from the run."""
+    envelope and per-baseline `gaps_summary` discloses what each baseline
+    LACKS — not what is removed from the run."""
     ms = [stock_manifest(n) for n in ("claude", "codex", "manus")]
     report = ResourceBalancer().equalize(
         ms, _task_card(), expedition_id="exp",
@@ -135,10 +135,10 @@ def test_jagged_capabilities_declared_not_dropped():
     assert "stream_json" in union_caps
     assert "browser_dom" in union_caps
     assert "long_context" in union_caps
-    # codex / manus declare their gaps via the delta.
-    assert "stream_json" in report.deltas["codex"].capabilities_dropped
-    assert "long_context" in report.deltas["codex"].capabilities_dropped
-    assert "stream_json" in report.deltas["manus"].capabilities_dropped
+    # codex / manus declare their gaps via the delta's gaps_summary string.
+    assert "stream_json" in report.deltas["codex"].gaps_summary
+    assert "long_context" in report.deltas["codex"].gaps_summary
+    assert "stream_json" in report.deltas["manus"].gaps_summary
 
 
 def test_fairness_report_pydantic_strict():

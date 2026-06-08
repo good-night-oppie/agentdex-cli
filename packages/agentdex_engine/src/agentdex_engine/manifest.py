@@ -66,17 +66,20 @@ class BalancedConstraints(BaseModel):
 
 
 class FairnessDelta(BaseModel):
-    """Per-baseline deviation from the balanced envelope."""
+    """Per-baseline deviation from the balanced envelope.
+
+    Simplified to 3 fields after Musk-review: agent_id + two human-readable
+    summary strings (``excess_summary`` = what this baseline has BEYOND the
+    envelope floor; ``gaps_summary`` = what this baseline LACKS vs the
+    envelope union). Drops six prematurely-structured fields whose values
+    were never consumed by downstream code.
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
     agent_id: str = Field(min_length=1)
-    context_window_excess_tokens: int = Field(ge=0)
-    max_output_excess_tokens: int = Field(ge=0)
-    capabilities_dropped: list[str] = Field(default_factory=list)
-    tools_dropped: list[str] = Field(default_factory=list)
-    cost_headroom_dollar: float
-    latency_headroom_sec: float
+    excess_summary: str = Field(min_length=1)
+    gaps_summary: str = Field(min_length=1)
 
 
 FairnessVerdict = Literal["pass", "warn", "fail"]
@@ -137,7 +140,7 @@ class FairnessReport(BaseModel):
 
 
 def stock_manifest(agent_id: str) -> AgentManifest:
-    """Built-in manifests for the 3 MVP baselines + codex-web fallback.
+    """Built-in manifests for the 3 MVP baselines.
 
     Conservative defaults — the goal is FAIR baseline, not maxed-out per agent.
     Override via ``adx expedition --manifest <path>`` when running production
@@ -195,22 +198,6 @@ def stock_manifest(agent_id: str) -> AgentManifest:
             ],
             auth_mode="api_key",
             notes="Manus task.create API (sk-mr-* bearer); fallback to Camofox browser then codex-web.",
-        )
-    if agent_id in ("codex-web", "codex_web"):
-        return AgentManifest(
-            agent_id="codex-web",
-            model_id="gpt-5.5",
-            context_window_tokens=128_000,
-            max_output_tokens=8_000,
-            tool_allowlist=["read", "write", "bash"],
-            latency_budget_sec=120.0,
-            cost_ceiling_dollar=1.0,
-            special_capabilities=[
-                "subscription_quota",
-                "tool_calls",
-            ],
-            auth_mode="subscription",
-            notes="codex-web fallback bridge: cold per-turn via codex exec, transcript replay for continuity.",
         )
     raise ValueError(f"no stock manifest for agent_id={agent_id!r}")
 

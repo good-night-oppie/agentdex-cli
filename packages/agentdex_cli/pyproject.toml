@@ -23,4 +23,3 @@ adx = "agentdex_cli.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentdex_cli"]
-force-include = { "src/agentdex_cli/assist" = "agentdex_cli/assist" }

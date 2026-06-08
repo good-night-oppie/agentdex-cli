@@ -18,7 +18,6 @@ import os
 import shutil
 import sys
 import uuid
-import webbrowser
 from pathlib import Path
 from typing import Optional
 
@@ -316,22 +315,7 @@ async def _run_expedition(args: argparse.Namespace) -> int:
     print(f"mutation_seed_categories: {sorted(evolution_card.mutation_seeds.keys())}")
     print(f"kaos_lineage_agent_id: {kaos_agent}")
     print(f"output_dir: {output_dir}")
-
-    ui_url = _langfuse_project_url()
-    if ui_url:
-        print(f"langfuse_dashboard: {ui_url}")
-        if getattr(args, "open_ui", False):
-            try:
-                webbrowser.open(ui_url)
-            except Exception:
-                pass
     return 0
-
-
-def _langfuse_project_url() -> str | None:
-    host = os.environ.get("LANGFUSE_HOST", "http://localhost:3000").rstrip("/")
-    project_id = os.environ.get("LANGFUSE_PROJECT_ID", "agentdex-cli-mvp")
-    return f"{host}/project/{project_id}/traces"
 
 
 _MOCKED_RESPONSE_BY_AGENT: dict[str, str] = {}
@@ -411,32 +395,6 @@ def cmd_expedition(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 3
-
-    # ----- pre-flight: Langfuse lifecycle (scoped to expedition window) -----
-    if not args.mocked and not args.no_langfuse:
-        try:
-            from agentdex_observe import langfuse_stack
-
-            h = langfuse_stack.ensure(max_wait_seconds=180)
-            if not h.healthy:
-                print(
-                    "WARN: Langfuse not healthy after 180s; traces will be disabled. "
-                    "Use --no-langfuse to skip or fix docker / compose state.",
-                    file=sys.stderr,
-                )
-            elif not (h.public_key and h.secret_key):
-                print(
-                    "WARN: Langfuse running but creds not in ~/.adx/langfuse.env yet. "
-                    "Seed via the UI at http://localhost:3000, then re-run. "
-                    "Continuing without traces.",
-                    file=sys.stderr,
-                )
-        except Exception as e:
-            print(
-                f"WARN: langfuse_stack.ensure() failed ({type(e).__name__}: {e}); "
-                f"continuing without traces. Pass --no-langfuse to silence.",
-                file=sys.stderr,
-            )
 
     try:
         return asyncio.run(_run_expedition(args))
@@ -538,11 +496,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="max special-capability drop allowed before blocking the expedition "
              "(default 5). 0 = strict equality required.",
     )
-    expedition.add_argument(
-        "--open-ui",
-        action="store_true",
-        help="open Langfuse trace dashboard in the default browser after the run completes",
-    )
     expedition.set_defaults(func=cmd_expedition)
 
     langfuse = subs.add_parser(
@@ -599,141 +552,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_setenv.set_defaults(func=cmd_pool_set_env)
 
-    # ---- assist: Hermes-style NL / workflow / skill router -----
-    assist = subs.add_parser(
-        "assist",
-        help=(
-            "Talk to the evolution-research assistant. "
-            "Pick a workflow / skill, or type a natural-language request."
-        ),
-    )
-    assist_subs = assist.add_subparsers(dest="assist_cmd", required=True)
-
-    a_list = assist_subs.add_parser(
-        "list", help="list available workflows + skills"
-    )
-    a_list.set_defaults(func=cmd_assist_list)
-
-    a_ask = assist_subs.add_parser(
-        "ask", help='ask in natural language: `adx assist ask "run a fairness check"`'
-    )
-    a_ask.add_argument("prompt", help="natural-language request")
-    a_ask.add_argument("--yes", "-y", action="store_true",
-                       help="execute the chosen action without confirmation")
-    a_ask.add_argument("--dry-run", action="store_true",
-                       help="print resolved command + rationale, do not execute")
-    a_ask.add_argument("--model", default="claude-haiku-4.5",
-                       help="judge / router model id (default claude-haiku-4.5)")
-    a_ask.set_defaults(func=cmd_assist_ask)
-
-    a_run = assist_subs.add_parser(
-        "run", help='explicit selection: `adx assist run workflow expedition.nvidia`'
-    )
-    a_run.add_argument("kind", choices=["workflow", "skill"])
-    a_run.add_argument("id", help="workflow / skill id")
-    a_run.add_argument("--arg", action="append", default=[],
-                       help='key=value arg override; repeatable')
-    a_run.add_argument("--yes", "-y", action="store_true")
-    a_run.add_argument("--dry-run", action="store_true")
-    a_run.set_defaults(func=cmd_assist_run)
-
     return p
-
-
-def _print_decision(decision, used_llm: bool):
-    print(f"--- assistant decision ---")
-    print(f"action:    {decision.action}")
-    print(f"id:        {decision.id}")
-    print(f"rationale: {decision.rationale}  (via {'LLM router' if used_llm else 'deterministic'})")
-    if decision.args:
-        print(f"args:      {decision.args}")
-    print(f"command:   {' '.join(decision.resolved_command)}")
-
-
-def _confirm(prompt: str = "execute? [y/N] ") -> bool:
-    try:
-        ans = input(prompt).strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        return False
-    return ans in {"y", "yes"}
-
-
-def _execute_decision(decision) -> int:
-    import subprocess
-
-    cmd = decision.resolved_command
-    if not cmd:
-        print("ERROR: empty resolved_command", file=sys.stderr)
-        return 1
-    proc = subprocess.run(cmd, check=False)
-    return proc.returncode
-
-
-def cmd_assist_list(args: argparse.Namespace) -> int:
-    from agentdex_cli.assist import load_registry
-
-    registry = load_registry()
-    print("# Workflows")
-    for w in registry.list_workflows():
-        print(f"- {w.id}\n    {w.description.strip().splitlines()[0]}")
-    print("\n# Skills")
-    for s in registry.list_skills():
-        print(f"- {s.id}\n    {s.description.strip().splitlines()[0]}")
-    return 0
-
-
-def cmd_assist_ask(args: argparse.Namespace) -> int:
-    from agentdex_cli.assist import load_registry, route
-
-    registry = load_registry()
-    try:
-        result = route(registry, args.prompt, model=args.model)
-    except Exception as e:
-        print(f"ASSIST_ROUTE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
-        return 2
-
-    _print_decision(result.decision, used_llm=result.used_llm)
-
-    if args.dry_run:
-        return 0
-    if not args.yes:
-        if not _confirm():
-            print("aborted by user")
-            return 0
-    return _execute_decision(result.decision)
-
-
-def cmd_assist_run(args: argparse.Namespace) -> int:
-    from agentdex_cli.assist import load_registry, route
-
-    overrides: dict = {}
-    for kv in args.arg or []:
-        if "=" not in kv:
-            print(f"ERROR: bad --arg {kv!r}; expected key=value", file=sys.stderr)
-            return 2
-        k, v = kv.split("=", 1)
-        overrides[k.strip()] = v.strip()
-
-    registry = load_registry()
-    try:
-        result = route(
-            registry,
-            prompt=None,
-            explicit=(args.kind, args.id),
-            explicit_args=overrides,
-        )
-    except Exception as e:
-        print(f"ASSIST_RUN_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
-        return 2
-
-    _print_decision(result.decision, used_llm=False)
-    if args.dry_run:
-        return 0
-    if not args.yes:
-        if not _confirm():
-            print("aborted by user")
-            return 0
-    return _execute_decision(result.decision)
 
 
 def cmd_langfuse_status(args: argparse.Namespace) -> int:

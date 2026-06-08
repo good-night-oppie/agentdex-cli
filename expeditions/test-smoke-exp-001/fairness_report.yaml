@@ -1,0 +1,79 @@
+expedition_id: expedition.nvidia-earnings-infographic-q3-fy2026.1780945139
+process:
+  verdict: pass
+  shared_prompt_template_hash: 42e02e1a037ed2e0
+  shared_oracle_ref: tasks/nvidia-earnings-infographic/oracle/spec.yaml
+  shared_turn_budget: 1
+  notes: []
+resource:
+  verdict: pass
+  cost_ratio_max: 1.0
+  context_ratio_max: 1.5625
+  output_ratio_max: 1.0
+  cost_ratio_threshold: 3.0
+  per_agent_declared:
+    claude:
+      cost_ceiling_dollar: 1.0
+      context_window_tokens: 200000
+      max_output_tokens: 8000
+      latency_budget_sec: 120.0
+    codex:
+      cost_ceiling_dollar: 1.0
+      context_window_tokens: 128000
+      max_output_tokens: 8000
+      latency_budget_sec: 120.0
+    manus:
+      cost_ceiling_dollar: 1.0
+      context_window_tokens: 128000
+      max_output_tokens: 8000
+      latency_budget_sec: 180.0
+  notes: []
+procedure:
+  verdict: pass
+  same_trace_parent: true
+  same_result_card_schema_version: result_card.v0.1.0
+  same_kaos_lineage_root: null
+  notes: []
+balanced_constraints:
+  context_window_tokens: 200000
+  max_output_tokens: 8000
+  tool_allowlist:
+  - read
+  - write
+  - bash
+  - edit
+  - grep
+  - browser
+  - search
+  latency_budget_sec: 120.0
+  cost_ceiling_dollar: 1.0
+  intersected_capabilities:
+  - stream_json
+  - subscription_quota
+  - tool_calls
+  - long_context
+  - json_rpc_lite
+  - browser_dom
+  - api_quota
+  - structured_output
+  rationale: envelope = UNION of declared manifests (jagged profiles preserved); per-baseline
+    gaps surfaced in FairnessDelta, no min-clamp applied.
+deltas:
+  claude:
+    agent_id: claude
+    excess_summary: ctx+=0, out+=0, cost+=0.00, latency+=0.0s
+    gaps_summary: caps_missing=json_rpc_lite,browser_dom,api_quota,structured_output;
+      tools_missing=browser,search
+  codex:
+    agent_id: codex
+    excess_summary: ctx+=72000, out+=0, cost+=0.00, latency+=0.0s
+    gaps_summary: caps_missing=stream_json,long_context,browser_dom,api_quota,structured_output;
+      tools_missing=browser,search
+  manus:
+    agent_id: manus
+    excess_summary: ctx+=72000, out+=0, cost+=0.00, latency+=60.0s
+    gaps_summary: caps_missing=stream_json,subscription_quota,long_context,json_rpc_lite;
+      tools_missing=write,bash,edit,grep
+fairness_verdict: pass
+max_capability_drop: 5
+advisory_notes: []
