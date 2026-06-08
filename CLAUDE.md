@@ -11,7 +11,7 @@ agentdex-cli is the **library boundary** between the agentdex Pokédex pattern
 (Three Cards: TaskCard / ResultCard / EvolutionCard) and the Hermes
 gateway-per-profile plugin runtime. The retrofit decision is documented in
 **ADR-0008 §D** (Hermes gateway as the per-profile process boundary) and
-**ADR-0009** (the unifying meta-ADR landed at `docs/adr/0009-...`).
+**ADR-0009** (the unifying meta-ADR landed at `docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md`).
 
 Bridges to subscription baselines (Claude Code, Codex app-server, Manus
 Camofox) sit at `packages/adx_bridges/`. The orchestrator that drives them is

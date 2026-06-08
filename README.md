@@ -5,7 +5,7 @@ Async co-opetition (合作竞争) orchestrator across subscription-CLI baselines
 Pokédex-style record of each Expedition: 3 Result Cards, 1 Pareto verdict,
 1 Evolution Card with mutation seeds, plus full per-bridge traces.
 
-See [ADR-0009](docs/adr/0009-pokedex-three-cards-meta-adr.md) for the
+See [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) for the
 unifying architecture and [CLAUDE.md](CLAUDE.md) for codebase doctrine.
 
 ## Quickstart
@@ -105,7 +105,7 @@ ADX_LIVE_BRIDGES=1 uv run pytest packages/adx_bridges/tests/ -v   # live subscri
 
 - [CLAUDE.md](CLAUDE.md) — codebase doctrine (Hermes retrofit, KAOS subtree,
   two-tier substrate, context discipline).
-- [ADR-0009](docs/adr/0009-pokedex-three-cards-meta-adr.md) — unifying
+- [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — unifying
   meta-ADR (Pokédex framing + async co-opetition + Langfuse observability).
 - Superlinear post "Agent Pokédex" §4 / §8 — origin of the Three Cards
   pattern + Repair Oracle as mutation seed source.
