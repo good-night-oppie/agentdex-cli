@@ -88,9 +88,13 @@ class CamoufoxManusBridge(LongRunningCliBridge):
         self._camoufox_ctx_mgr = None
 
     async def ensure_proc(self) -> None:
-        if self._page is not None:
-            return
-        await self._spawn_browser()
+        # Codereview M2 (2026-06-08): mirror base.ensure_proc lock discipline so
+        # a retry that races a previous spawn cannot stand up two browser
+        # contexts and leak the camoufox process.
+        async with self._proc_lock:
+            if self._page is not None:
+                return
+            await self._spawn_browser()
 
     async def _spawn_browser(self) -> None:
         # camoufox provides only sync_api in 0.4.x; run in thread executor to keep async-friendly.

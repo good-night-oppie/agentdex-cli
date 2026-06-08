@@ -143,13 +143,39 @@ class CodexBridge(LongRunningCliBridge):
             return
         if method == "turn/completed":
             text = "".join(self._turn_buf)
+            token_usage = params.get("tokenUsage") or {}
+            tokens_total: Optional[int] = None
+            if isinstance(token_usage, dict):
+                # Codex 0.137 shape: {"inputTokens": N, "outputTokens": M,
+                # "cachedInputTokens": K} (camelCase). Tolerate snake_case too.
+                inp = (
+                    token_usage.get("inputTokens")
+                    or token_usage.get("input_tokens")
+                    or 0
+                )
+                out = (
+                    token_usage.get("outputTokens")
+                    or token_usage.get("output_tokens")
+                    or 0
+                )
+                cached = (
+                    token_usage.get("cachedInputTokens")
+                    or token_usage.get("cached_input_tokens")
+                    or 0
+                )
+                tokens_total = int(inp + out + cached)
             self._turn_result = {
                 "text": text,
                 "turn_id": params.get("turnId"),
                 "thread_id": self._thread_id,
-                "token_usage": params.get("tokenUsage"),
+                "token_usage": token_usage,
+                "tokens_total": tokens_total,
             }
             self._last_response_text = text
+            if tokens_total:
+                self._last_tokens = tokens_total
+            # Codex subscription does NOT surface a per-call dollar cost in
+            # the result frame; orchestrator falls back to heuristic.
             self._turn_buf.clear()
             if self._turn_done:
                 self._turn_done.set()

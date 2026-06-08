@@ -109,6 +109,65 @@ def test_provenance_present_passes():
     assert v.score >= 0.9
 
 
+def test_provenance_per_bullet_citation_count_no_prose_inflation():
+    """Regression (codereview C1): live LLM emits citations BOTH inside bullet
+    claims AND in surrounding prose. Score must reflect per-bullet provenance
+    fraction, not a global-citation-count / bullet ratio that would inflate
+    past 1.0 and trip pydantic le=1. 4 bullets w/ citations + 4 prose citations
+    → ratio=4/4=1.0; clamp must not be needed."""
+    response = (
+        "Summary: NVIDIA had a strong Q3 (source: a.md:1) with revenue growth (source: a.md:2).\n"
+        "- Revenue: $35.08 billion (source: a.md:14)\n"
+        "- Data Center: $30.77 billion (source: a.md:26)\n"
+        "- Gross margin: 74.6% (source: a.md:42)\n"
+        "- Guidance: $37.5 billion ± 2% (source: a.md:60)\n"
+        "Additional context (source: a.md:88) — Blackwell ramp (source: a.md:92).\n"
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert 0.0 <= v.score <= 1.0, f"score {v.score} outside [0,1]"
+    assert v.score == 1.0, (
+        f"all 4 bullets carry citations → ratio must be 1.0, got {v.score}"
+    )
+    assert v.pass_ is True
+    assert "4/4" in v.evidence, f"evidence should report per-bullet count, got {v.evidence!r}"
+
+
+def test_provenance_partial_bullet_citation_fails():
+    """Half of the bullets miss a citation → ratio=0.5 < 0.9 → fails. Verifies
+    per-bullet count discriminates partial coverage."""
+    response = (
+        "- Revenue: $35.08 billion (source: a.md:14)\n"
+        "- Data Center: $30.77 billion\n"
+        "- Gross margin: 74.6% (source: a.md:42)\n"
+        "- Guidance: $37.5 billion ± 2%\n"
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert v.pass_ is False
+    assert 0.49 <= v.score <= 0.51, f"expected ratio≈0.5, got {v.score}"
+
+
+def test_provenance_prose_only_returns_indeterminate_evidence():
+    """Response is all prose with citations but no bullets — Oracle cannot
+    verify per-claim provenance. Returns pass=False with score=0 + evidence
+    that distinguishes the prose-only case from the no-citation case so
+    downstream Repair Oracle / human reviewer sees the structural mismatch."""
+    response = (
+        "NVIDIA Q3 FY2026 revenue was $35.08 billion "
+        "(source: nvidia-q3-fy2026-press-release.md:14) with Data Center at "
+        "$30.77 billion (source: nvidia-q3-fy2026-press-release.md:26) and "
+        "gross margin 74.6% (source: nvidia-q3-fy2026-press-release.md:42)."
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert v.pass_ is False
+    assert v.score == 0.0
+    assert "indeterminate" in v.evidence.lower(), (
+        f"prose-only evidence should be flagged indeterminate, got {v.evidence!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Soft Oracle — LlmJudgeOracle with mocked client
 # ---------------------------------------------------------------------------

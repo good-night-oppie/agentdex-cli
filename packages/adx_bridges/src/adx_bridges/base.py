@@ -62,7 +62,21 @@ class LongRunningCliBridge(ABC):
         self._stderr_task: Optional[asyncio.Task] = None
         self._handshake_done = False
         self._last_response_text: Optional[str] = None
+        # Real cost / token counters surfaced by the CLI's own result frame
+        # (claude_bridge reads ``total_cost_usd`` + ``usage``; codex_bridge
+        # reads ``tokenUsage``). Orchestrator prefers these over the
+        # 4-char/token heuristic when not None.
+        self._last_cost_usd: Optional[float] = None
+        self._last_tokens: Optional[int] = None
         self._turn_idx: int = 0
+
+    @property
+    def last_cost_usd(self) -> Optional[float]:
+        return self._last_cost_usd
+
+    @property
+    def last_tokens(self) -> Optional[int]:
+        return self._last_tokens
 
     # ---- subprocess lifecycle ----
 
@@ -149,6 +163,10 @@ class LongRunningCliBridge(ABC):
                    extra: Optional[dict] = None) -> dict:
         extra = extra or {}
         async with self._req_lock:
+            # Reset real-cost counters so a turn that fails to surface usage
+            # data does not inherit the previous turn's numbers.
+            self._last_cost_usd = None
+            self._last_tokens = None
             try:
                 await self.ensure_proc()
                 new_sid = await asyncio.wait_for(

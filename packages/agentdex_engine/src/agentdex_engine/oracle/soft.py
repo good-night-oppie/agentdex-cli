@@ -2,16 +2,24 @@
 
 Per phase-6 spec + ADR-0008 §Amendment-2026-06-08 §judge-as-profile DOWNGRADE:
 ``judge_llm`` is a **model id string** (e.g. ``"claude-haiku-4.5"``), NOT a
-Hermes profile name. The judge is invoked through
-:func:`agentdex_observe.anthropic_client` so Langfuse auto-instrumentation
-captures the call as a span (parent = current Expedition trace).
+Hermes profile name.
 
-Bypassing ``agentdex_observe`` (e.g. direct ``from anthropic import Anthropic``)
-is forbidden — that breaks the trace tree (judge call invisible). A unit test
-asserts that the judge invocation flows through ``anthropic_client``.
+Trace tree contract (codereview H2 fix, 2026-06-08):
+- :meth:`LlmJudgeOracle._invoke_judge` opens an explicit Langfuse observation
+  (``judge.<model_id>``) around every backend call so the judge child appears
+  under the orchestrator's Expedition trace regardless of whether the client
+  is the auto-instrumented Anthropic SDK, a pooled OpenAI-shape proxy, or a
+  subprocess-backed subscription wrapper. The span is a no-op when Langfuse
+  is disabled (``init_langfuse()`` not called / public key missing).
+- The client is resolved through :func:`agentdex_observe.llm_pool.client_for`
+  whose backend ladder is documented in :mod:`agentdex_observe.llm_pool`. SDK
+  auto-instrument adds a generation span as a child of the judge span; the
+  pooled OpenAI proxy + subscription subprocess backends emit only the judge
+  span (no per-token generation child) — that's the accepted MVP shape.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 from pathlib import Path
@@ -22,6 +30,39 @@ from agentdex_engine.oracle.base import OracleVerdict, OracleVerdictMap
 
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+@contextlib.contextmanager
+def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
+    """Open a Langfuse ``generation``-typed observation around a judge call.
+
+    No-op when Langfuse is not initialized. Always yields so callers can
+    use a single ``with`` statement regardless of tracing state.
+    """
+    try:
+        from agentdex_observe import is_enabled
+
+        if not is_enabled():
+            yield None
+            return
+        from langfuse import get_client
+    except Exception:
+        yield None
+        return
+    try:
+        client = get_client()
+        with client.start_as_current_observation(
+            name=name, as_type="generation"
+        ) as obs:
+            if metadata:
+                try:
+                    obs.update(metadata=metadata)
+                except Exception:
+                    pass
+            yield obs
+    except Exception:
+        # Tracing must never break the judge call itself.
+        yield None
 
 
 def _budget_for(level: str) -> int:
@@ -133,48 +174,79 @@ class LlmJudgeOracle:
         }
 
     def _invoke_judge(self, client: Any, user_prompt: str) -> str:
-        """Adapter — dispatch by model prefix to the right SDK call shape."""
+        """Adapter — dispatch by model prefix to the right SDK call shape.
+
+        Wrapped in :func:`_judge_observation` so the call appears as a
+        ``generation``-typed Langfuse child of the current Expedition trace
+        regardless of which backend (Anthropic SDK / google-genai / OpenAI /
+        subscription subprocess wrapper) handles the request.
+        """
         prefix = self.judge_llm.split("-", 1)[0].lower()
-        # Anthropic SDK (.messages.create)
-        if prefix == "claude" or hasattr(client, "messages"):
-            message = client.messages.create(
-                model=self.judge_llm,
-                max_tokens=2000,
-                system=self.SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
-            return self._extract_text(message)
-        # google-genai SDK (.models.generate_content)
-        if prefix == "gemini" or hasattr(client, "models"):
-            cfg: dict[str, Any] = {"system_instruction": self.SYSTEM_PROMPT}
-            if self.reasoning_effort:
-                cfg["thinking_config"] = {"thinking_budget": _budget_for(self.reasoning_effort)}
+        backend = type(client).__name__
+        metadata = {
+            "judge_llm": self.judge_llm,
+            "prefix": prefix,
+            "backend": backend,
+            "reasoning_effort": self.reasoning_effort,
+        }
+        with _judge_observation(
+            name=f"judge.{self.judge_llm}", metadata=metadata
+        ) as obs:
             try:
-                resp = client.models.generate_content(
+                if obs is not None:
+                    obs.update(input={"prompt": user_prompt[:4000]})
+            except Exception:
+                pass
+
+            # Anthropic SDK (.messages.create)
+            if prefix == "claude" or hasattr(client, "messages"):
+                message = client.messages.create(
                     model=self.judge_llm,
-                    contents=user_prompt,
-                    config=cfg,
+                    max_tokens=2000,
+                    system=self.SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_prompt}],
                 )
-            except TypeError:
-                # older SDK without config kw; retry minimal
-                resp = client.models.generate_content(
+                out = self._extract_text(message)
+            # google-genai SDK (.models.generate_content)
+            elif prefix == "gemini" or hasattr(client, "models"):
+                cfg: dict[str, Any] = {"system_instruction": self.SYSTEM_PROMPT}
+                if self.reasoning_effort:
+                    cfg["thinking_config"] = {"thinking_budget": _budget_for(self.reasoning_effort)}
+                try:
+                    resp = client.models.generate_content(
+                        model=self.judge_llm,
+                        contents=user_prompt,
+                        config=cfg,
+                    )
+                except TypeError:
+                    # older SDK without config kw; retry minimal
+                    resp = client.models.generate_content(
+                        model=self.judge_llm,
+                        contents=user_prompt,
+                    )
+                out = getattr(resp, "text", "") or self._extract_text(resp)
+            # OpenAI SDK fallback (.chat.completions.create)
+            elif hasattr(client, "chat"):
+                comp = client.chat.completions.create(
                     model=self.judge_llm,
-                    contents=user_prompt,
+                    messages=[
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
                 )
-            return getattr(resp, "text", "") or self._extract_text(resp)
-        # OpenAI SDK fallback (.chat.completions.create)
-        if hasattr(client, "chat"):
-            comp = client.chat.completions.create(
-                model=self.judge_llm,
-                messages=[
-                    {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-            return comp.choices[0].message.content or ""
-        raise RuntimeError(
-            f"no judge adapter matches client {type(client).__name__} for model {self.judge_llm!r}"
-        )
+                out = comp.choices[0].message.content or ""
+            else:
+                raise RuntimeError(
+                    f"no judge adapter matches client {type(client).__name__} "
+                    f"for model {self.judge_llm!r}"
+                )
+
+            try:
+                if obs is not None:
+                    obs.update(output={"text": (out or "")[:4000]})
+            except Exception:
+                pass
+            return out
 
     @staticmethod
     def _extract_text(message: Any) -> str:

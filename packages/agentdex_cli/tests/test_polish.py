@@ -36,9 +36,16 @@ def test_missing_task_bundle_exits_2():
 
 
 def test_missing_api_key_exits_3():
-    """Live (non-mocked) path with judge=claude-haiku-4.5 + ANTHROPIC_API_KEY unset → exit 3."""
+    """Live (non-mocked) path with judge=claude-haiku-4.5 + ANTHROPIC_API_KEY unset → exit 3.
+
+    Also strip CLIPROXY_BASE_URL / CLIPROXY_API_KEY because cli.py's
+    `_missing_required_env` short-circuits to "no missing keys" when the pool
+    is wired (cli.py:422-423). A developer shell with CLIPROXY env exported
+    used to make this assertion non-deterministic.
+    """
     env = os.environ.copy()
-    env.pop("ANTHROPIC_API_KEY", None)
+    for k in ("ANTHROPIC_API_KEY", "CLIPROXY_BASE_URL", "CLIPROXY_API_KEY"):
+        env.pop(k, None)
     proc = subprocess.run(
         _adx_cmd(
             "expedition",

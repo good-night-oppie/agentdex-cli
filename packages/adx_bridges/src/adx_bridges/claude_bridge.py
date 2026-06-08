@@ -113,14 +113,28 @@ class ClaudeBridge(LongRunningCliBridge):
             return
         if ftype == "result":
             text = "".join(self._assistant_buf) or frame.get("result") or ""
+            cost_usd = frame.get("total_cost_usd")
+            usage = frame.get("usage") or {}
+            tokens_total: Optional[int] = None
+            if isinstance(usage, dict):
+                inp = usage.get("input_tokens") or 0
+                out = usage.get("output_tokens") or 0
+                cache_creation = usage.get("cache_creation_input_tokens") or 0
+                cache_read = usage.get("cache_read_input_tokens") or 0
+                tokens_total = int(inp + out + cache_creation + cache_read)
             self._turn_result = {
                 "text": text,
                 "session_id": frame.get("session_id"),
                 "num_turns": frame.get("num_turns"),
-                "cost_usd": frame.get("total_cost_usd"),
+                "cost_usd": cost_usd,
                 "subtype": frame.get("subtype"),
+                "tokens_total": tokens_total,
             }
             self._last_response_text = text
+            if cost_usd is not None:
+                self._last_cost_usd = float(cost_usd)
+            if tokens_total:
+                self._last_tokens = tokens_total
             self._assistant_buf.clear()
             self._turn_event.set()
 

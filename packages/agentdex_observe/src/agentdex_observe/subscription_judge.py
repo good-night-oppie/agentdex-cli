@@ -12,10 +12,14 @@ backend-specific branching.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 from typing import Any
+
+
+log = logging.getLogger(__name__)
 
 
 _JSON_OBJ_RE = re.compile(r"\{[\s\S]*\}", re.DOTALL)
@@ -89,16 +93,27 @@ class ClaudeCodeJudgeClient:
         proc = subprocess.run(
             argv, capture_output=True, text=True, timeout=300
         )
-        raw = proc.stdout or proc.stderr or ""
-        text = self._extract_result(raw)
+        # Hard-separate stdout (the channel that carries the JSON envelope)
+        # from stderr (warnings, rate-limit chatter). Never parse stderr as
+        # if it were the judge verdict — that path silently turns warnings
+        # into JSON-decode failures that downstream code reads as
+        # "uncertainty=1.0, pass=False" without any clue why.
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        text = self._extract_result(stdout)
         if text:
             return text
         if proc.returncode != 0:
             raise RuntimeError(
                 f"claude code exec failed ({proc.returncode}): "
-                f"{(proc.stderr or proc.stdout)[:500]}"
+                f"{(stderr or stdout)[:500]}"
             )
-        return raw
+        if stderr.strip():
+            raise RuntimeError(
+                "claude code exec returned 0 with empty stdout but non-empty "
+                f"stderr: {stderr[:500]}"
+            )
+        return stdout
 
     @staticmethod
     def _extract_result(raw: str) -> str:
@@ -170,22 +185,40 @@ class CodexJudgeClient:
         proc = subprocess.run(
             argv, capture_output=True, text=True, timeout=180
         )
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
         if proc.returncode != 0:
             raise RuntimeError(
                 f"codex exec failed ({proc.returncode}): "
-                f"{proc.stderr[:400] or proc.stdout[:400]}"
+                f"{stderr[:400] or stdout[:400]}"
             )
-        return proc.stdout
+        if not stdout.strip() and stderr.strip():
+            raise RuntimeError(
+                "codex exec returned 0 with empty stdout but non-empty "
+                f"stderr: {stderr[:500]}"
+            )
+        return stdout
 
 
 def subscription_judge_factory(judge_llm: str):
-    """Pick a subscription judge based on the model id prefix."""
+    """Pick a subscription judge based on the model id prefix.
+
+    Codereview L4 (2026-06-08): when ``judge_llm`` does not match a known
+    prefix the factory falls back to Claude Code so legacy callers keep
+    working. The fallback is logged at WARNING so a typo (``clade-haiku``)
+    does not silently incur a Claude Code subscription charge.
+    """
     lower = judge_llm.lower()
     if lower.startswith(("claude-", "claude code", "claude_code")):
         return ClaudeCodeJudgeClient(default_model=judge_llm)
     if lower.startswith(("gpt-", "o1-", "o3-", "o4-", "codex")):
         return CodexJudgeClient()
-    # Default to Claude Code as the safest universal subscription path.
+    log.warning(
+        "subscription_judge_factory: no prefix match for %r — defaulting to "
+        "ClaudeCodeJudgeClient. Set judge_llm to a known model id "
+        "(claude-* / gpt-* / o1-* / o3-* / o4-* / codex*) to silence this.",
+        judge_llm,
+    )
     return ClaudeCodeJudgeClient(default_model=judge_llm)
 
 

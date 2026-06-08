@@ -152,15 +152,20 @@ async def _run_one_bridge(
     text, trace_id = await bridge.send(prompt, extra=extra)
     elapsed = time.monotonic() - t0
     text = text or ""
-    verdicts = oracle.evaluate(text, task_card)
+    # Oracle.evaluate is sync; soft-judge subprocess path can block 5 minutes
+    # on the asyncio loop. Defer to a thread so concurrent bridges still drain
+    # stdout / Langfuse flushes still run while the judge thinks.
+    verdicts = await asyncio.to_thread(oracle.evaluate, text, task_card)
     pass_rate = _hard_pass_rate(verdicts)
+    real_cost = getattr(bridge, "last_cost_usd", None)
+    real_tokens = getattr(bridge, "last_tokens", None)
     rc = ResultCard(
         expedition_id=expedition_id,
         task_id=task_card.id,
         agent_id=getattr(bridge.cfg, "name", "unknown"),
         pass_rate=pass_rate,
-        cost_dollar=_estimate_cost(text),
-        cost_token=_estimate_tokens(text),
+        cost_dollar=float(real_cost) if real_cost is not None else _estimate_cost(text),
+        cost_token=int(real_tokens) if real_tokens is not None else _estimate_tokens(text),
         speed_wall_clock_sec=max(elapsed, 1e-6),
         failure_trace_path=None,
         pareto_position="undominated",  # filled below

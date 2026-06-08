@@ -211,25 +211,38 @@ class ProvenanceOracle:
         r"\bsource\s*:\s*[\w\-./]+\.md\s*:\s*\d+",
         re.IGNORECASE,
     )
-    CLAIM_LINE_RE = re.compile(r"^\s*[-*•]\s+\S+", re.MULTILINE)
+    # Capture the body of each bullet-formatted claim line so we can scan it
+    # for an inline citation. The previous regex matched only the bullet
+    # marker + first non-whitespace token, which forced a global-counting
+    # workaround that double-counted prose citations.
+    CLAIM_LINE_RE = re.compile(r"^[ \t]*[-*•][ \t]+(.+)$", re.MULTILINE)
 
     def evaluate(self, response: str, task_card: TaskCard) -> OracleVerdictMap:
-        claim_lines = self.CLAIM_LINE_RE.findall(response)
-        n_claims = len(claim_lines)
-        citations = self.CITATION_RE.findall(response)
-        n_citations = len(citations)
-        ratio = (n_citations / n_claims) if n_claims else 0.0
+        claim_bodies = [m.group(1) for m in self.CLAIM_LINE_RE.finditer(response)]
+        n_claims = len(claim_bodies)
+        n_cited = sum(1 for body in claim_bodies if self.CITATION_RE.search(body))
+        n_global_citations = len(self.CITATION_RE.findall(response))
+        ratio = (n_cited / n_claims) if n_claims else 0.0
 
         passed = n_claims > 0 and ratio >= 0.9
+        if n_claims == 0 and n_global_citations > 0:
+            evidence = (
+                f"provenance indeterminate: response has 0 bullet-formatted "
+                f"claims but {n_global_citations} `source:` citations in prose; "
+                f"cannot verify per-claim provenance without bulleted structure"
+            )
+        else:
+            evidence = (
+                f"provenance: {n_cited}/{n_claims} bullet claim lines carry "
+                f"`source: <file>:<line>` annotation (ratio={ratio:.2f}); "
+                f"global citation count={n_global_citations}; "
+                f"format=`source: <file>:<line>`"
+            )
         verdict = OracleVerdict(
             kind="hard",
             **{"pass": passed},
-            score=ratio if n_claims else 0.0,
-            evidence=(
-                f"provenance: {n_citations}/{n_claims} claim lines carry "
-                f"`source: <file>:<line>` annotation (ratio={ratio:.2f}); "
-                f"format=`source: <file>:<line>`"
-            ),
+            score=ratio,
+            evidence=evidence,
             uncertainty=None,
         )
         return {"hard.provenance_required": verdict}

@@ -89,15 +89,15 @@ def _cliproxy_openai_client():
     return OpenAI(base_url=base, api_key=api_key)
 
 
-def _cliproxy_available() -> bool:
-    base = os.environ.get("CLIPROXY_BASE_URL")
-    if not base:
-        return False
+@lru_cache(maxsize=8)
+def _cliproxy_available_for(base: str, api_key: str) -> bool:
+    """Liveness probe — memoized per (base_url, api_key) tuple for the life of
+    the process. Previously rerun on every ``client_for`` call (N bridges × M
+    turns × 1 judge per turn HTTP probes per Expedition)."""
     import urllib.error
     import urllib.request
 
     url = f"{base.rstrip('/')}/models"
-    api_key = os.environ.get("CLIPROXY_API_KEY", "")
     req = urllib.request.Request(
         url,
         headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
@@ -110,6 +110,14 @@ def _cliproxy_available() -> bool:
         return e.code in (401, 403)
     except Exception:
         return False
+
+
+def _cliproxy_available() -> bool:
+    base = os.environ.get("CLIPROXY_BASE_URL")
+    if not base:
+        return False
+    api_key = os.environ.get("CLIPROXY_API_KEY", "")
+    return _cliproxy_available_for(base, api_key)
 
 
 class PooledClient:
