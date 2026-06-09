@@ -52,6 +52,12 @@ def build_bridge(
             name="claude",
             workdir=workdir,
             cli_argv=ClaudeBridge.build_argv(sid, extra),
+            # PR #14: claude cold-starts from a project tree run SessionStart
+            # hooks before emitting the first stream-json frame; the 10 s
+            # default was tight, 60 s gives reliable headroom on the heavier
+            # eddie-agi-kb / agentdex-cli session contexts where hooks ingest
+            # large skill lists.
+            spawn_timeout_sec=60.0,
         )
         bridge = ClaudeBridge(cfg)
         bridge.current_session_id = sid
