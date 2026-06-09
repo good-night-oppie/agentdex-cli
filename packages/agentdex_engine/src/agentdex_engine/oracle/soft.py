@@ -1,7 +1,7 @@
 """Soft Oracle — LLM-as-judge narrative coherence scorer.
 
 Per phase-6 spec + ADR-0008 §Amendment-2026-06-08 §judge-as-profile DOWNGRADE:
-``judge_llm`` is a **model id string** (e.g. ``"claude-haiku-4.5"``), NOT a
+``judge_llm`` is a **model id string** (e.g. ``"claude-haiku-4-5"``), NOT a
 Hermes profile name.
 
 Trace tree contract (codereview H2 fix, 2026-06-08):

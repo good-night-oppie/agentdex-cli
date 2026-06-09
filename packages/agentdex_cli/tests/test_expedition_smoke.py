@@ -44,7 +44,7 @@ def run_mocked_expedition():
         "--baselines",
         "claude,codex,manus",
         "--judge",
-        "claude-haiku-4.5",
+        "claude-haiku-4-5",
         "--output",
         str(artifact_dir.relative_to(REPO_ROOT)),
         "--mocked",
@@ -179,7 +179,7 @@ def test_judge_span_parented_to_expedition():
         messages = _RecMessages()
 
     oracle = LlmJudgeOracle(
-        judge_llm="claude-haiku-4.5",
+        judge_llm="claude-haiku-4-5",
         client_factory=lambda: _RecClient(),
     )
     tc = TaskCard(
@@ -193,7 +193,7 @@ def test_judge_span_parented_to_expedition():
         version="0.1.0",
     )
     verdicts = oracle.evaluate("Revenue $35.08B.", tc)
-    assert recorded["model"] == "claude-haiku-4.5", (
+    assert recorded["model"] == "claude-haiku-4-5", (
         "judge_llm model id must propagate verbatim into the Anthropic SDK call "
         "(NO Hermes profile resolution at MVP — ADR-0008 §judge-as-profile DOWNGRADE)"
     )
