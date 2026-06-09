@@ -1,0 +1,36 @@
+schema_version: 1
+dimension: narrative_coherence
+fixtures:
+  - id: nvidia-empty
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: ""
+    expected_pass: false
+    expected_score: 0.05
+    expected_uncertainty_max: 0.30
+    label_author: etang@oppie.xyz
+    label_rationale: "Empty response — bridge crash / API timeout pattern"
+    captured_at: 2026-06-09
+
+  - id: nvidia-refusal
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: |
+      I cannot help with that. Please provide more context.
+    expected_pass: false
+    expected_score: 0.05
+    expected_uncertainty_max: 0.25
+    label_author: etang@oppie.xyz
+    label_rationale: "Model refusal — no claims at all, no provenance, no infographic substance"
+    captured_at: 2026-06-09
+
+  - id: nvidia-hallucinated-different-company
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: |
+      - AMD Q3 revenue: $5.8 billion
+      - Intel Q3 revenue: $14.2 billion
+      - Tesla revenue: $25.18 billion
+    expected_pass: false
+    expected_score: 0.02
+    expected_uncertainty_max: 0.20
+    label_author: etang@oppie.xyz
+    label_rationale: "Off-task: model answered about other companies, zero NVIDIA hard-claim hits"
+    captured_at: 2026-06-09

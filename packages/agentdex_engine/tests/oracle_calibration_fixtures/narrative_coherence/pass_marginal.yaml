@@ -1,0 +1,42 @@
+schema_version: 1
+dimension: narrative_coherence
+fixtures:
+  - id: nvidia-3-of-4-cited
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: |
+      - Revenue: $35.08 billion (source: nvidia-q3-fy2026-press-release.md:14)
+      - Data Center: $30.77 billion
+      - Gross margin: 74.6% (source: nvidia-q3-fy2026-press-release.md:42)
+      - Q4 outlook: $37.5 billion (source: nvidia-q3-fy2026-press-release.md:60)
+    expected_pass: true
+    expected_score: 0.75
+    expected_uncertainty_max: 0.35
+    label_author: etang@oppie.xyz
+    label_rationale: "3/4 cited = 0.75 ratio < 0.9 hard gate but narrative-coherent enough to pass soft"
+    captured_at: 2026-06-09
+
+  - id: nvidia-lettered-enum-acceptable
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: |
+      a. Revenue: $35.08 billion (source: a.md:14)
+      b. Data Center: $30.77 billion (source: a.md:26)
+      c. Gross margin: 74.6% (source: a.md:42)
+    expected_pass: true
+    expected_score: 0.72
+    expected_uncertainty_max: 0.35
+    label_author: etang@oppie.xyz
+    label_rationale: "Lettered enum (PR-B regex tightening), all cited but only 3 claims"
+    captured_at: 2026-06-09
+
+  - id: nvidia-mixed-format
+    task_id: nvidia-earnings-infographic-q3-fy2026
+    response: |
+      Q3 was strong. Revenue $35.08B (source: a.md:14), Data Center $30.77B
+      (source: a.md:26), margin 74.6% (source: a.md:42).
+      - Q4 guide: $37.5B ± 2% (source: a.md:60)
+    expected_pass: true
+    expected_score: 0.71
+    expected_uncertainty_max: 0.40
+    label_author: etang@oppie.xyz
+    label_rationale: "Prose + 1 bullet; bullet cited; prose carries citations but PR-B regex doesn't count"
+    captured_at: 2026-06-09
