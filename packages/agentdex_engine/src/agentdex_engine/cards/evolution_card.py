@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 SeedCategory = Literal["source", "reasoning", "coding", "control", "harness"]
 
 

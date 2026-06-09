@@ -25,13 +25,13 @@ Pool mode is set globally via ``ADX_LLM_POOL_MODE``:
 - ``direct``         skip pool, use provider SDK
 - ``hybrid`` (default) try cliproxy, fall back to direct
 """
+
 from __future__ import annotations
 
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
-
 
 _ENV_PATH = Path(os.path.expanduser("~/.adx/llm_pool.env"))
 
@@ -135,8 +135,8 @@ class PooledClient:
     def __init__(self, openai_client: Any, model_id: str):
         self._client = openai_client
         self._model_id = model_id
-        self.models = self          # gemini-style: client.models.generate_content
-        self.messages = self        # anthropic-style: client.messages.create
+        self.models = self  # gemini-style: client.models.generate_content
+        self.messages = self  # anthropic-style: client.messages.create
 
     # ----- Anthropic-shaped -----
     def create(self, *, model, max_tokens=None, system=None, messages, **_):
@@ -147,9 +147,7 @@ class PooledClient:
             content = m["content"]
             if isinstance(content, list):
                 # anthropic block list → flatten to text
-                content = "\n".join(
-                    b.get("text", "") for b in content if isinstance(b, dict)
-                )
+                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
             oai_messages.append({"role": m["role"], "content": content})
         comp = self._client.chat.completions.create(
             model=model,

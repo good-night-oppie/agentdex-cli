@@ -26,9 +26,7 @@ class _BaseTrivialAgent:
     def _transform(self, text: str) -> str:
         raise NotImplementedError
 
-    async def run_until_stop(
-        self, task: TaskContext, history: list[Move]
-    ) -> AgentTurnOutput:
+    async def run_until_stop(self, task: TaskContext, history: list[Move]) -> AgentTurnOutput:
         if self._stage == "init":
             self._stage = "awaiting_approval"
             self._pending_resume = True
@@ -84,7 +82,5 @@ def make_agent(name: str) -> _BaseTrivialAgent:
     try:
         cls = AGENT_REGISTRY[name]
     except KeyError as e:
-        raise KeyError(
-            f"unknown agent {name!r}, known: {sorted(AGENT_REGISTRY)}"
-        ) from e
+        raise KeyError(f"unknown agent {name!r}, known: {sorted(AGENT_REGISTRY)}") from e
     return cls()

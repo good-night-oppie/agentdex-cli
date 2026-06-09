@@ -42,18 +42,18 @@ def register(ctx: Any = None) -> dict[str, Any]:
         "version": "0.1.0",
         "description": "agentdex-cli plugin: Card pipeline + bridge tools + KAOS memory provider (co-opetition framing per ADR-0009)",
         "tools": [
-            "agentdex_run_expedition",      # M5
-            "agentdex_route_to_subagent",   # M3
-            "agentdex_list_subagents",      # M3
-            "agentdex_register_subagent",   # M3
+            "agentdex_run_expedition",  # M5
+            "agentdex_route_to_subagent",  # M3
+            "agentdex_list_subagents",  # M3
+            "agentdex_register_subagent",  # M3
         ],
         "commands": [
-            "/events",       # M5
-            "/expedition",   # M5
+            "/events",  # M5
+            "/expedition",  # M5
         ],
         "hooks": [
-            "on_session_end",        # M5 Kanban poller
-            "on_request_received",   # M4 R3 spike trace-propagation hook
+            "on_session_end",  # M5 Kanban poller
+            "on_request_received",  # M4 R3 spike trace-propagation hook
         ],
         "memory_provider": "kaos_exclusive",  # M5
         "milestone_status": "M2-stub-discovery-only",

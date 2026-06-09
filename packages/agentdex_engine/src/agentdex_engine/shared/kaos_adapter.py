@@ -34,11 +34,10 @@ class KaosCheckpointStore:
         if self._inner is not None:
             return self._inner
         try:
-            from kaos import Kaos  # noqa: F401  -- ensures kaos importable
-
             # M5 phase-7 wires the actual Kaos(db).checkpoint API here.
             # For M2, fall back to SqliteCheckpointStore so the protocol holds.
             from helios_client.adapter import SqliteCheckpointStore
+            from kaos import Kaos  # noqa: F401  -- ensures kaos importable
 
             self._inner = SqliteCheckpointStore(self.db_path)
             return self._inner

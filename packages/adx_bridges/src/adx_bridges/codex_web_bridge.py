@@ -12,13 +12,12 @@ This is an MVP substitution flagged in STATE.md Notable events.
 Async co-opetition note: this bridge participates in the per-baseline async
 loop; no real-time race against claude/codex.
 """
+
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
-from typing import Optional
 
 from adx_bridges.base import (
     BridgeConfig,
@@ -55,10 +54,10 @@ class CodexWebBridge(LongRunningCliBridge):
     async def _kill(self) -> None:
         return
 
-    def _resolve_sid(self, session_id: Optional[str], workdir: str) -> str:
+    def _resolve_sid(self, session_id: str | None, workdir: str) -> str:
         if session_id:
             return session_id
-        if (existing := self._conv_by_workdir.get(workdir)):
+        if existing := self._conv_by_workdir.get(workdir):
             return existing
         new = new_session_id()
         self._conv_by_workdir[workdir] = new
@@ -79,7 +78,7 @@ class CodexWebBridge(LongRunningCliBridge):
         argv = [CODEX_BIN, "exec"]
         if extra.get("full_auto", True):
             argv.append("--full-auto")
-        if (model := extra.get("model")):
+        if model := extra.get("model"):
             argv += ["--model", model]
         argv.append(prompt)
         proc = await asyncio.create_subprocess_exec(
@@ -91,12 +90,11 @@ class CodexWebBridge(LongRunningCliBridge):
         out, err = await proc.communicate()
         if proc.returncode != 0:
             raise CliDead(
-                f"codex-web exec failed ({proc.returncode}): "
-                f"{err.decode(errors='replace')[:400]}"
+                f"codex-web exec failed ({proc.returncode}): {err.decode(errors='replace')[:400]}"
             )
         return out.decode(errors="replace")
 
-    async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str:
+    async def _send_turn(self, prompt: str, *, session_id: str | None, extra: dict) -> str:
         workdir = extra.get("workdir") or self.cfg.workdir or os.getcwd()
         sid = self._resolve_sid(session_id, workdir)
         rendered = self._render_prompt(sid, prompt)

@@ -10,6 +10,7 @@ Two oracles ship here:
 - :class:`ProvenanceOracle` — every claim must carry a
   ``source: <file>:<line>`` annotation; missing → fail.
 """
+
 from __future__ import annotations
 
 import re
@@ -20,7 +21,6 @@ import yaml
 
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.oracle.base import OracleVerdict, OracleVerdictMap
-
 
 _DOLLAR_VALUE_RE = re.compile(
     r"\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(billion|million|B|M)?",
@@ -93,7 +93,9 @@ class NumberAccuracyOracle:
             evidence=f"{key} not found or mismatch: expected={expected!r}",
         )
 
-    def _grade_percent(self, response: str, expected: float, key: str, tolerance_pp: float) -> OracleVerdict:
+    def _grade_percent(
+        self, response: str, expected: float, key: str, tolerance_pp: float
+    ) -> OracleVerdict:
         # Tolerate match against any percent in the response.
         for match in _PERCENT_RE.finditer(response):
             seen = float(match.group(1))
@@ -116,14 +118,13 @@ class NumberAccuracyOracle:
         # For nvidia spec: china_revenue_disclosure_present, blackwell_rubin_mention_present.
         keywords = _keywords_from_key(key)
         found = any(k.lower() in response.lower() for k in keywords) if keywords else False
-        passed = (found == expected)
+        passed = found == expected
         return OracleVerdict(
             kind="hard",
             **{"pass": passed},
             score=1.0 if passed else 0.0,
             evidence=(
-                f"{key} presence={found} expected={expected} "
-                f"keywords={keywords!r} hint={hint!r}"
+                f"{key} presence={found} expected={expected} keywords={keywords!r} hint={hint!r}"
             ),
         )
 
@@ -179,13 +180,13 @@ class NumberAccuracyOracle:
                 )
             elif kind == "boolean":
                 out[f"hard.{key}"] = self._grade_boolean(
-                    response, bool(claim["expected"]), key,
+                    response,
+                    bool(claim["expected"]),
+                    key,
                     claim.get("source_hint", ""),
                 )
             elif kind == "dollar_range_string":
-                out[f"hard.{key}"] = self._grade_dollar_range(
-                    response, claim["expected"], key
-                )
+                out[f"hard.{key}"] = self._grade_dollar_range(response, claim["expected"], key)
         return out
 
 

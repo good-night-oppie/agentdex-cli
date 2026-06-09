@@ -69,7 +69,4 @@ class TrajectoryTree(BaseModel):
     def leaves_for_side(self, side_id: str) -> list[Checkpoint]:
         """Checkpoints for a side that have no outgoing branch."""
         outgoing_from = {br.from_checkpoint_id for br in self.branches}
-        return [
-            c for c in self.checkpoints
-            if c.side_id == side_id and c.id not in outgoing_from
-        ]
+        return [c for c in self.checkpoints if c.side_id == side_id and c.id not in outgoing_from]

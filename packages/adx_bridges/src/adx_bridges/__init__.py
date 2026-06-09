@@ -69,9 +69,7 @@ def build_bridge(
     if name == "manus":
         from adx_bridges.manus_bridge import make_manus_bridge
 
-        return make_manus_bridge(
-            BridgeConfig(name="manus", workdir=workdir, cli_argv=[])
-        )
+        return make_manus_bridge(BridgeConfig(name="manus", workdir=workdir, cli_argv=[]))
     if name == "gemini":
         from adx_bridges.gemini_bridge import GeminiBridge
 

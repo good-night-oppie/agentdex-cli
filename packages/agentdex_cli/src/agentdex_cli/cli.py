@@ -9,6 +9,7 @@ runs :func:`agentdex_engine.expedition.run_expedition_orchestrator`, writes 6
 yaml artifacts + 3 trace jsonl per baseline under ``<output>/``, persists
 lineage in KAOS, returns ``0`` on success / non-zero on a failed acceptance.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,16 +18,13 @@ import json
 import os
 import shutil
 import sys
-import uuid
 from pathlib import Path
-from typing import Optional
-
 
 REPO_ROOT_ENV = "AGENTDEX_REPO_ROOT"
 
 
 def _detect_repo_root() -> Path:
-    if (env := os.environ.get(REPO_ROOT_ENV)):
+    if env := os.environ.get(REPO_ROOT_ENV):
         return Path(env)
     here = Path(__file__).resolve()
     for parent in [here, *here.parents]:
@@ -35,7 +33,7 @@ def _detect_repo_root() -> Path:
     return Path.cwd()
 
 
-def _first_source_file(task_id: str, root: Path) -> Optional[Path]:
+def _first_source_file(task_id: str, root: Path) -> Path | None:
     task_dir = root / "tasks" / task_id
     if not task_dir.is_dir():
         return None
@@ -59,7 +57,9 @@ def _load_prompt_for_task(task_id: str, root: Path) -> str:
     )
 
 
-async def _run_probe(bridge_name: str, task_id: str, *, timeout: float) -> tuple[str, Optional[str], str]:
+async def _run_probe(
+    bridge_name: str, task_id: str, *, timeout: float
+) -> tuple[str, str | None, str]:
     """Returns ``(text, trace_id, used_bridge_name)``."""
     from adx_bridges import build_bridge
 
@@ -91,6 +91,7 @@ def cmd_bridge_probe(args: argparse.Namespace) -> int:
     print(text or "<empty>")
     if trace_id:
         from agentdex_observe import current_trace_url
+
         url = current_trace_url() or f"<trace-id:{trace_id}>"
         print(f"langfuse_trace_url: {url}")
     else:
@@ -102,7 +103,6 @@ def cmd_bridge_probe(args: argparse.Namespace) -> int:
 def _load_task_bundle(task_id: str, repo_root: Path):
     """Load tasks/<id>/bundle.yaml and validate against TaskCard."""
     import yaml
-
     from agentdex_engine.cards import TaskCard
 
     bundle_path = repo_root / "tasks" / task_id / "bundle.yaml"
@@ -210,9 +210,7 @@ async def _run_expedition(args: argparse.Namespace) -> int:
 
     repo_root = _detect_repo_root()
     task_card = _load_task_bundle(args.task, repo_root)
-    oracle_chain = _build_default_oracle_chain(
-        args.task, repo_root, args.judge, mocked=args.mocked
-    )
+    oracle_chain = _build_default_oracle_chain(args.task, repo_root, args.judge, mocked=args.mocked)
 
     baselines = [b.strip() for b in args.baselines.split(",") if b.strip()]
     if args.mocked:
@@ -225,7 +223,9 @@ async def _run_expedition(args: argparse.Namespace) -> int:
 
     manifests = [stock_manifest(name) for name in baselines]
 
-    output_dir = (repo_root / args.output) if not Path(args.output).is_absolute() else Path(args.output)
+    output_dir = (
+        (repo_root / args.output) if not Path(args.output).is_absolute() else Path(args.output)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def _on_fairness(report):
@@ -338,8 +338,7 @@ def _make_mock_bridges(baselines: list[str], task_id: str, repo_root: Path):
     )
 
     per_agent = {
-        "claude": common_body
-        + "- Capex: $1.85 billion "
+        "claude": common_body + "- Capex: $1.85 billion "
         "(source: nvidia-q3-fy2026-press-release.md:101)\n"
         "- Inventory rose 11% QoQ "
         "(source: nvidia-q3-fy2026-press-release.md:118)\n",
@@ -424,7 +423,9 @@ def _missing_required_env(baselines_csv: str, judge_llm: str) -> list[str]:
         return []
     if judge_llm.startswith("claude-") and not os.environ.get("ANTHROPIC_API_KEY"):
         needed.append("ANTHROPIC_API_KEY")
-    elif judge_llm.startswith(("gpt-", "o1-", "o3-", "o4-")) and not os.environ.get("OPENAI_API_KEY"):
+    elif judge_llm.startswith(("gpt-", "o1-", "o3-", "o4-")) and not os.environ.get(
+        "OPENAI_API_KEY"
+    ):
         needed.append("OPENAI_API_KEY")
     elif judge_llm.startswith("gemini-"):
         has_api = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
@@ -448,8 +449,9 @@ def build_parser() -> argparse.ArgumentParser:
         "probe",
         help="One-turn probe through a baseline bridge with a task's first source file.",
     )
-    probe.add_argument("--bridge", required=True,
-                       choices=["claude", "codex", "manus", "codex-web", "gemini"])
+    probe.add_argument(
+        "--bridge", required=True, choices=["claude", "codex", "manus", "codex-web", "gemini"]
+    )
     probe.add_argument("--task", required=True, help="task id under tasks/<id>/")
     probe.add_argument("--timeout", default="60", help="seconds (default 60)")
     probe.set_defaults(func=cmd_bridge_probe)
@@ -500,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=5,
         help="max special-capability drop allowed before blocking the expedition "
-             "(default 5). 0 = strict equality required.",
+        "(default 5). 0 = strict equality required.",
     )
     expedition.set_defaults(func=cmd_expedition)
 
@@ -539,7 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_verify = pool_subs.add_parser(
         "verify",
-        help='run a small probe against one model: `adx llm-pool verify --model gemini-3.5-flash`',
+        help="run a small probe against one model: `adx llm-pool verify --model gemini-3.5-flash`",
     )
     p_verify.add_argument("--model", default="gemini-3.5-flash")
     p_verify.add_argument("--prompt", default="Reply with exactly: POOL_OK")
@@ -569,7 +571,7 @@ def cmd_langfuse_status(args: argparse.Namespace) -> int:
     print(f"healthy: {h.healthy}")
     print(f"public_key: {'set' if h.public_key else '<unset>'}")
     print(f"secret_key: {'set' if h.secret_key else '<unset>'}")
-    print(f"creds_file: ~/.adx/langfuse.env")
+    print("creds_file: ~/.adx/langfuse.env")
     return 0 if h.healthy else 1
 
 
@@ -624,9 +626,7 @@ def cmd_pool_verify(args: argparse.Namespace) -> int:
         return 2
     try:
         if hasattr(client, "models") and hasattr(client.models, "generate_content"):
-            resp = client.models.generate_content(
-                model=args.model, contents=args.prompt
-            )
+            resp = client.models.generate_content(model=args.model, contents=args.prompt)
             text = getattr(resp, "text", str(resp))
         else:
             msg = client.messages.create(
@@ -668,7 +668,9 @@ def cmd_langfuse_ensure(args: argparse.Namespace) -> int:
         print(f"LANGFUSE_ENSURE_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         return 2
     print(f"host: {h.host}  healthy={h.healthy}")
-    print(f"creds: pk={'set' if h.public_key else '<unset>'}  sk={'set' if h.secret_key else '<unset>'}")
+    print(
+        f"creds: pk={'set' if h.public_key else '<unset>'}  sk={'set' if h.secret_key else '<unset>'}"
+    )
     return 0 if h.healthy else 3
 
 

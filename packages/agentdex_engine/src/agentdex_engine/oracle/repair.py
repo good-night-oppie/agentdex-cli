@@ -13,6 +13,7 @@ dict. Repair seeds map to ``harness`` (the Oracle itself is harness-level
 infrastructure); provenance gaps map to ``source`` (per ADR-0009 §Q5 the
 source of the citation is what's missing).
 """
+
 from __future__ import annotations
 
 from agentdex_engine.cards import Seed, SeedCategory
@@ -51,10 +52,7 @@ class OracleRepairFlagger:
                 seeds_by_category.setdefault("harness", []).append(seed)
 
         # --- provenance gap → source seed ---
-        prov_keys = [
-            k for k in verdicts
-            if k.endswith("provenance_required") or "provenance" in k
-        ]
+        prov_keys = [k for k in verdicts if k.endswith("provenance_required") or "provenance" in k]
         for key in prov_keys:
             verdict = verdicts[key]
             if not verdict.pass_:

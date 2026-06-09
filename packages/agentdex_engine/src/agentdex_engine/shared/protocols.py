@@ -22,9 +22,7 @@ class AgentRunner(Protocol):
     then routes the stop to a TurnTaker, gets a response, and calls resume.
     """
 
-    async def run_until_stop(
-        self, task: TaskContext, history: list[Move]
-    ) -> AgentTurnOutput: ...
+    async def run_until_stop(self, task: TaskContext, history: list[Move]) -> AgentTurnOutput: ...
 
     def resume(self, taker_response: str) -> None: ...
 

@@ -4,6 +4,7 @@ Subscription-CLI auth is detected at collection time; tests that need live
 ``claude`` or ``codex`` are skipped (not failed) when their CLI is missing or
 auth has not been configured.
 """
+
 from __future__ import annotations
 
 import os

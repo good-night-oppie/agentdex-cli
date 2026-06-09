@@ -4,14 +4,14 @@ Hermes dashboard scans plugins/<name>/dashboard/plugin_api.py for a
 module-level `router = APIRouter()` and includes it. Auth middleware
 (session bearer or cookie) gates every request.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status as http_status
+from fastapi import APIRouter, HTTPException
+from fastapi import status as http_status
 from pydantic import BaseModel, Field
-
 from registry.registry import AgentsRegistry, SubAgent, load_default_registry
 
 log = logging.getLogger(__name__)
@@ -23,9 +23,9 @@ _registry: AgentsRegistry = load_default_registry()
 class SubAgentIn(BaseModel):
     name: str
     kind: str = Field(..., description="hermes-agent | cli")
-    base_url: Optional[str] = None
-    bridge_port: Optional[int] = None
-    session_token: Optional[str] = None
+    base_url: str | None = None
+    bridge_port: int | None = None
+    session_token: str | None = None
     capabilities: list[str] = Field(default_factory=list)
     description: str = ""
 
@@ -33,7 +33,7 @@ class SubAgentIn(BaseModel):
 class RouteIn(BaseModel):
     target: str
     prompt: str
-    session_id: Optional[str] = None
+    session_id: str | None = None
     extra: dict = Field(default_factory=dict)
 
 
@@ -64,8 +64,10 @@ async def route(req: RouteIn) -> dict:
     try:
         if target.kind == "cli":
             from tools.route_to_subagent import _call_cli_bridge
+
             return await _call_cli_bridge(target, req.prompt, req.session_id, req.extra)
         from tools.route_to_subagent import _call_hermes_agent
+
         return await _call_hermes_agent(target, req.prompt, req.session_id, req.extra)
     except Exception as e:
         log.exception("route fail")

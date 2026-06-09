@@ -21,23 +21,19 @@ Compose bundle: ``compose/langfuse.docker-compose.yml`` — official Langfuse v3
 stack (postgres + clickhouse + minio + redis + langfuse-web + langfuse-worker),
 all 6 services. First-run image pull is ~2GB; subsequent up is ~10s.
 """
+
 from __future__ import annotations
 
 import os
 import shutil
 import subprocess
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
-
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
 
-
-_COMPOSE_PATH = (
-    Path(__file__).resolve().parent / "compose" / "langfuse.docker-compose.yml"
-)
+_COMPOSE_PATH = Path(__file__).resolve().parent / "compose" / "langfuse.docker-compose.yml"
 _PROJECT_NAME = "agentdex-langfuse"
 _ENV_PATH = Path(os.path.expanduser("~/.adx/langfuse.env"))
 _DEFAULT_HOST = "http://localhost:3000"
@@ -47,8 +43,8 @@ _DEFAULT_HOST = "http://localhost:3000"
 class LangfuseHandle:
     host: str
     healthy: bool
-    public_key: Optional[str]
-    secret_key: Optional[str]
+    public_key: str | None
+    secret_key: str | None
 
 
 def _docker_compose_available() -> bool:
@@ -56,7 +52,8 @@ def _docker_compose_available() -> bool:
         return False
     rc = subprocess.run(
         ["docker", "compose", "version"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     ).returncode
     return rc == 0
 
@@ -95,10 +92,14 @@ def up(*, max_wait_seconds: int = 180) -> LangfuseHandle:
 
     subprocess.run(
         [
-            "docker", "compose",
-            "-p", _PROJECT_NAME,
-            "-f", str(_COMPOSE_PATH),
-            "up", "-d",
+            "docker",
+            "compose",
+            "-p",
+            _PROJECT_NAME,
+            "-f",
+            str(_COMPOSE_PATH),
+            "up",
+            "-d",
         ],
         check=True,
     )
@@ -117,9 +118,12 @@ def down() -> None:
         return
     subprocess.run(
         [
-            "docker", "compose",
-            "-p", _PROJECT_NAME,
-            "-f", str(_COMPOSE_PATH),
+            "docker",
+            "compose",
+            "-p",
+            _PROJECT_NAME,
+            "-f",
+            str(_COMPOSE_PATH),
             "down",
         ],
         check=False,
@@ -138,7 +142,7 @@ def ensure(*, max_wait_seconds: int = 180) -> LangfuseHandle:
     return h
 
 
-def _load_env_creds() -> tuple[Optional[str], Optional[str]]:
+def _load_env_creds() -> tuple[str | None, str | None]:
     if not _ENV_PATH.is_file():
         return None, None
     pk = sk = None
@@ -150,7 +154,7 @@ def _load_env_creds() -> tuple[Optional[str], Optional[str]]:
     return pk, sk
 
 
-def _ensure_creds() -> tuple[Optional[str], Optional[str]]:
+def _ensure_creds() -> tuple[str | None, str | None]:
     """Return (pk, sk). If ~/.adx/langfuse.env missing, instruct user to seed.
 
     Langfuse v3 self-host requires manual project creation through the UI on

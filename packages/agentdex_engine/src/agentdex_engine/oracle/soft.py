@@ -17,6 +17,7 @@ Trace tree contract (codereview H2 fix, 2026-06-08):
   pooled OpenAI proxy + subscription subprocess backends emit only the judge
   span (no per-token generation child) — that's the accepted MVP shape.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -28,7 +29,6 @@ from typing import Any
 
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.oracle.base import OracleVerdict, OracleVerdictMap
-
 
 log = logging.getLogger(__name__)
 
@@ -72,9 +72,7 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
         return
     try:
         client = get_client()
-        with client.start_as_current_observation(
-            name=name, as_type="generation"
-        ) as obs:
+        with client.start_as_current_observation(name=name, as_type="generation") as obs:
             if metadata:
                 try:
                     obs.update(metadata=metadata)
@@ -110,6 +108,7 @@ def _extract_anthropic_usage(message: Any) -> dict[str, int] | None:
         usage = message.get("usage")
     if usage is None:
         return None
+
     def _g(name: str) -> int:
         v = getattr(usage, name, None)
         if v is None and isinstance(usage, dict):
@@ -118,6 +117,7 @@ def _extract_anthropic_usage(message: Any) -> dict[str, int] | None:
             return int(v) if v is not None else 0
         except (TypeError, ValueError):
             return 0
+
     inp = _g("input_tokens")
     out = _g("output_tokens")
     cc = _g("cache_creation_input_tokens")
@@ -140,6 +140,7 @@ def _extract_openai_usage(comp: Any) -> dict[str, int] | None:
         usage = comp.get("usage")
     if usage is None:
         return None
+
     def _g(name: str) -> int:
         v = getattr(usage, name, None)
         if v is None and isinstance(usage, dict):
@@ -148,6 +149,7 @@ def _extract_openai_usage(comp: Any) -> dict[str, int] | None:
             return int(v) if v is not None else 0
         except (TypeError, ValueError):
             return 0
+
     inp = _g("prompt_tokens")
     out = _g("completion_tokens")
     total = _g("total_tokens") or (inp + out)
@@ -163,6 +165,7 @@ def _extract_gemini_usage(resp: Any) -> dict[str, int] | None:
         meta = resp.get("usage_metadata")
     if meta is None:
         return None
+
     def _g(name: str) -> int:
         v = getattr(meta, name, None)
         if v is None and isinstance(meta, dict):
@@ -171,6 +174,7 @@ def _extract_gemini_usage(resp: Any) -> dict[str, int] | None:
             return int(v) if v is not None else 0
         except (TypeError, ValueError):
             return 0
+
     inp = _g("prompt_token_count")
     out = _g("candidates_token_count")
     total = _g("total_token_count") or (inp + out)
@@ -220,22 +224,25 @@ class LlmJudgeOracle:
         prefix = self.judge_llm.split("-", 1)[0].lower()
         if prefix == "claude":
             from agentdex_observe import anthropic_client
+
             return anthropic_client()
         if prefix in {"gpt", "o1", "o3", "o4"}:
             from agentdex_observe import openai_client
+
             return openai_client()
         if prefix == "gemini":
             from agentdex_observe import gemini_client
+
             return gemini_client()
         from agentdex_observe import anthropic_client
+
         return anthropic_client()
 
     def _load_rubric(self, task_card: TaskCard) -> str:
         if self.rubric_path and self.rubric_path.is_file():
             return self.rubric_path.read_text(encoding="utf-8")
         return (
-            "Default rubric: response coherence, factual presentation, "
-            "narrative flow. Score 0..1."
+            "Default rubric: response coherence, factual presentation, narrative flow. Score 0..1."
         )
 
     def _build_user_prompt(self, response: str, rubric: str) -> str:
@@ -299,9 +306,7 @@ class LlmJudgeOracle:
             "backend": backend,
             "reasoning_effort": self.reasoning_effort,
         }
-        with _judge_observation(
-            name=f"judge.{self.judge_llm}", metadata=metadata
-        ) as obs:
+        with _judge_observation(name=f"judge.{self.judge_llm}", metadata=metadata) as obs:
             try:
                 if obs is not None:
                     obs.update(input={"prompt": user_prompt[:4000]})
@@ -386,7 +391,9 @@ class LlmJudgeOracle:
         if isinstance(content, list):
             parts: list[str] = []
             for block in content:
-                t = getattr(block, "text", None) or (block.get("text") if isinstance(block, dict) else None)
+                t = getattr(block, "text", None) or (
+                    block.get("text") if isinstance(block, dict) else None
+                )
                 if t:
                     parts.append(t)
             return "\n".join(parts)

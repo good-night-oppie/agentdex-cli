@@ -14,13 +14,13 @@ Override env:
   GEMINI_PROMPT_FLAG=--prompt
   GEMINI_CONV_FLAG=--conversation-id
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import os
-from typing import Optional
 
 from adx_bridges.base import (
     BridgeConfig,
@@ -55,10 +55,10 @@ class GeminiBridge(LongRunningCliBridge):
     async def _kill(self) -> None:
         return
 
-    def _resolve_conv(self, session_id: Optional[str], workdir: str) -> str:
+    def _resolve_conv(self, session_id: str | None, workdir: str) -> str:
         if session_id:
             return session_id
-        if (existing := self._conv_by_workdir.get(workdir)):
+        if existing := self._conv_by_workdir.get(workdir):
             return existing
         new = new_session_id()
         self._conv_by_workdir[workdir] = new
@@ -77,7 +77,9 @@ class GeminiBridge(LongRunningCliBridge):
         )
         out, err = await proc.communicate()
         if proc.returncode != 0:
-            raise CliDead(f"gemini cli failed ({proc.returncode}): {err.decode(errors='replace')[:400]}")
+            raise CliDead(
+                f"gemini cli failed ({proc.returncode}): {err.decode(errors='replace')[:400]}"
+            )
         text = out.decode(errors="replace")
         # Try parse JSON wrapper; fall through to raw.
         try:
@@ -86,7 +88,7 @@ class GeminiBridge(LongRunningCliBridge):
         except json.JSONDecodeError:
             return text
 
-    async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str:
+    async def _send_turn(self, prompt: str, *, session_id: str | None, extra: dict) -> str:
         workdir = extra.get("workdir") or self.cfg.workdir or os.getcwd()
         conv = self._resolve_conv(session_id, workdir)
         try:
@@ -103,7 +105,12 @@ class GeminiBridge(LongRunningCliBridge):
         extra = extra or {}
         try:
             new_sid = await self._send_turn(prompt, session_id=session_id, extra=extra)
-            return {"ok": True, "session_id": new_sid, "text": self._last_text, "mode": "cold-per-turn"}
+            return {
+                "ok": True,
+                "session_id": new_sid,
+                "text": self._last_text,
+                "mode": "cold-per-turn",
+            }
         except CliDead as e:
             if not self.cfg.allow_cold_fallback:
                 return {"ok": False, "error": str(e)}
@@ -111,7 +118,12 @@ class GeminiBridge(LongRunningCliBridge):
             try:
                 extra2 = {**extra, "output_json": False}
                 new_sid = await self._send_turn(prompt, session_id=session_id, extra=extra2)
-                return {"ok": True, "session_id": new_sid, "text": self._last_text, "mode": "cold-fallback-plain"}
+                return {
+                    "ok": True,
+                    "session_id": new_sid,
+                    "text": self._last_text,
+                    "mode": "cold-fallback-plain",
+                }
             except CliDead as e2:
                 return {"ok": False, "error": str(e2)}
 

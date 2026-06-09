@@ -27,10 +27,11 @@ Jagged capabilities (Claude's stream_json, Manus's browser_dom) are NOT
 dropped — they are DECLARED in each ResultCard's ``capability_profile`` so
 the Pareto judge can attribute outcome differences honestly.
 """
+
 from __future__ import annotations
 
 import hashlib
-from typing import Iterable
+from collections.abc import Iterable
 
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.manifest import (
@@ -44,7 +45,6 @@ from agentdex_engine.manifest import (
     ProcessFairnessReport,
     ResourceFairnessReport,
 )
-
 
 _SCHEMA_VERSION = "result_card.v0.1.0"
 
@@ -101,9 +101,7 @@ class ResourceBalancer:
             notes=notes,
         )
 
-    def assess_resource(
-        self, manifests: list[AgentManifest]
-    ) -> ResourceFairnessReport:
+    def assess_resource(self, manifests: list[AgentManifest]) -> ResourceFairnessReport:
         if not manifests:
             return ResourceFairnessReport(
                 verdict="fail",
@@ -176,9 +174,7 @@ class ResourceBalancer:
         verdict: FairnessVerdict = "pass"
         if not same_trace_parent:
             verdict = "fail"
-            notes.append(
-                "trace parent diverges across baselines — measurement device unfair."
-            )
+            notes.append("trace parent diverges across baselines — measurement device unfair.")
         return ProcedureFairnessReport(
             verdict=verdict,
             same_trace_parent=same_trace_parent,
@@ -243,8 +239,10 @@ class ResourceBalancer:
                 f"cost+={cost_headroom:.2f}, latency+={latency_headroom:.1f}s"
             )
             gaps_summary = (
-                "caps_missing=" + ",".join(caps_missing or ["none"])
-                + "; tools_missing=" + ",".join(tools_missing or ["none"])
+                "caps_missing="
+                + ",".join(caps_missing or ["none"])
+                + "; tools_missing="
+                + ",".join(tools_missing or ["none"])
             )
             deltas[m.agent_id] = FairnessDelta(
                 agent_id=m.agent_id,
@@ -275,7 +273,8 @@ class ResourceBalancer:
             ).hexdigest()[:16]
 
         process = self.assess_process(
-            ms, task_card,
+            ms,
+            task_card,
             prompt_template_hash=prompt_template_hash,
             turn_budget=turn_budget,
         )

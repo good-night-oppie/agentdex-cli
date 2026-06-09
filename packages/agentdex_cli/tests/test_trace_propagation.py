@@ -19,7 +19,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from agentdex_observe import (
     get_trace_context_headers,
     init_langfuse,
@@ -54,9 +53,7 @@ def test_set_trace_context_returns_false_when_disabled(monkeypatch):
     obs._initialized = False
     obs._client = None
 
-    assert (
-        set_trace_context_from_headers({"X-Langfuse-Trace-Id": "trace-xyz"}) is False
-    )
+    assert set_trace_context_from_headers({"X-Langfuse-Trace-Id": "trace-xyz"}) is False
 
 
 @pytest.mark.skipif(

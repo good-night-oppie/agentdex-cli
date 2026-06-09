@@ -1,15 +1,17 @@
 """Three Cards schema tests — ≥9 (3 fixtures × 3 Cards minimum)."""
 
 import pytest
-from pydantic import ValidationError
-
-from agentdex_engine.cards import TaskCard, ResultCard, EvolutionCard
+from agentdex_engine.cards import EvolutionCard, ResultCard, TaskCard
 from card_fixtures import (
-    task_card_examples as tcf,
-    result_card_examples as rcf,
     evolution_card_examples as ecf,
 )
-
+from card_fixtures import (
+    result_card_examples as rcf,
+)
+from card_fixtures import (
+    task_card_examples as tcf,
+)
+from pydantic import ValidationError
 
 # ─── TaskCard ────────────────────────────────────────────────────────────────
 

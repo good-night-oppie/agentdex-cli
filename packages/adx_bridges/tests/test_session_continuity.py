@@ -8,19 +8,18 @@ documented per phase-5 spec.
 A mocked-bridge continuity test guarantees the API contract itself is sound
 even when no subscription auth is available in CI.
 """
+
 from __future__ import annotations
 
 import asyncio
 
 import pytest
-
 from adx_bridges import build_bridge
 from adx_bridges.base import (
     BridgeConfig,
     LongRunningCliBridge,
     new_session_id,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mocked-bridge contract check — runs in every environment
@@ -35,16 +34,21 @@ class _MockBridge(LongRunningCliBridge):
         self._sid: str | None = None
         self._history: list[tuple[str, str]] = []
 
-    async def ensure_proc(self): return
-    async def _handshake(self): return
-    async def _kill(self): return
+    async def ensure_proc(self):
+        return
+
+    async def _handshake(self):
+        return
+
+    async def _kill(self):
+        return
 
     async def _send_turn(self, prompt, *, session_id, extra):
         sid = session_id or self._sid or new_session_id()
         self._sid = sid
         prior_prompts = " | ".join(p for p, _ in self._history) or "<none>"
         echo = (
-            f"[turn {len(self._history)+1}] Current: {prompt!r}. "
+            f"[turn {len(self._history) + 1}] Current: {prompt!r}. "
             f"Earlier prompts: {prior_prompts}."
         )
         self._history.append((prompt, echo))
@@ -114,9 +118,7 @@ def test_codex_session_continuity(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("codex")
-        t1, _ = await b.send(
-            "Hello! Remember the word 'rosebud'. What is your thread id?"
-        )
+        t1, _ = await b.send("Hello! Remember the word 'rosebud'. What is your thread id?")
         # Codex assigns thread_id on first turn; re-use it for turn 2
         sid = getattr(b, "_thread_id", None)
         t2, _ = await b.send("What word did I ask you to remember?", session_id=sid)
@@ -141,9 +143,7 @@ def test_manus_session_continuity(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("manus")
-        t1, _ = await b.send(
-            "Hello! Remember the word 'rosebud'. What is your session id?"
-        )
+        t1, _ = await b.send("Hello! Remember the word 'rosebud'. What is your session id?")
         t2, _ = await b.send("What word did I ask you to remember?")
         return t1, t2
 

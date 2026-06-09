@@ -6,6 +6,7 @@ Usage:
   python gemini_bridge.py &   # 49803
   python client_example.py
 """
+
 import asyncio
 import json
 import sys

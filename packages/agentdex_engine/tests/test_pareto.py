@@ -1,4 +1,5 @@
 """Phase-6 Pareto verdict tests."""
+
 from __future__ import annotations
 
 from agentdex_engine.cards import ResultCard
@@ -38,8 +39,8 @@ def test_clear_winner():
 def test_no_clear_winner_when_none_dominates():
     """Each card excels at a different objective → no clear winner."""
     cards = [
-        _rc("fast", pass_rate=0.70, cost=0.30, speed=1.0),     # fastest
-        _rc("cheap", pass_rate=0.70, cost=0.05, speed=5.0),    # cheapest
+        _rc("fast", pass_rate=0.70, cost=0.30, speed=1.0),  # fastest
+        _rc("cheap", pass_rate=0.70, cost=0.05, speed=5.0),  # cheapest
         _rc("accurate", pass_rate=0.95, cost=0.50, speed=5.0),  # most accurate
     ]
     verdict = pareto_verdict(cards)

@@ -1,8 +1,8 @@
 """3-tier fairness gate tests (process / resource / procedure)."""
+
 from __future__ import annotations
 
 import pytest
-
 from agentdex_engine.balancer import ResourceBalancer
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.manifest import (
@@ -39,7 +39,8 @@ def test_three_stock_baselines_pass_under_3tier_default():
     deltas, and does NOT block on capability differences alone."""
     ms = [stock_manifest(n) for n in ("claude", "codex", "manus")]
     report = ResourceBalancer().equalize(
-        ms, _task_card(),
+        ms,
+        _task_card(),
         expedition_id="exp",
         prompt_template_hash="abc123",
         turn_budget=1,
@@ -59,18 +60,27 @@ def test_resource_ratio_warn_does_not_block():
     """One baseline 100x cheaper → resource warn, but overall not fail."""
     rich = AgentManifest(
         agent_id="rich",
-        model_id="m", context_window_tokens=200_000, max_output_tokens=16_000,
-        tool_allowlist=["read"], latency_budget_sec=120.0,
-        cost_ceiling_dollar=10.0, special_capabilities=["tool_calls"],
+        model_id="m",
+        context_window_tokens=200_000,
+        max_output_tokens=16_000,
+        tool_allowlist=["read"],
+        latency_budget_sec=120.0,
+        cost_ceiling_dollar=10.0,
+        special_capabilities=["tool_calls"],
     )
     poor = AgentManifest(
         agent_id="poor",
-        model_id="m", context_window_tokens=128_000, max_output_tokens=8_000,
-        tool_allowlist=["read"], latency_budget_sec=120.0,
-        cost_ceiling_dollar=0.10, special_capabilities=["tool_calls"],
+        model_id="m",
+        context_window_tokens=128_000,
+        max_output_tokens=8_000,
+        tool_allowlist=["read"],
+        latency_budget_sec=120.0,
+        cost_ceiling_dollar=0.10,
+        special_capabilities=["tool_calls"],
     )
     report = ResourceBalancer().equalize(
-        [rich, poor], _task_card(),
+        [rich, poor],
+        _task_card(),
         expedition_id="exp",
         prompt_template_hash="hash",
         turn_budget=1,
@@ -85,18 +95,27 @@ def test_resource_ratio_warn_does_not_block():
 def test_resource_warn_can_block_when_configured():
     rich = AgentManifest(
         agent_id="rich",
-        model_id="m", context_window_tokens=128_000, max_output_tokens=4_000,
-        tool_allowlist=["read"], latency_budget_sec=120.0,
-        cost_ceiling_dollar=10.0, special_capabilities=["tool_calls"],
+        model_id="m",
+        context_window_tokens=128_000,
+        max_output_tokens=4_000,
+        tool_allowlist=["read"],
+        latency_budget_sec=120.0,
+        cost_ceiling_dollar=10.0,
+        special_capabilities=["tool_calls"],
     )
     poor = AgentManifest(
         agent_id="poor",
-        model_id="m", context_window_tokens=128_000, max_output_tokens=4_000,
-        tool_allowlist=["read"], latency_budget_sec=120.0,
-        cost_ceiling_dollar=0.10, special_capabilities=["tool_calls"],
+        model_id="m",
+        context_window_tokens=128_000,
+        max_output_tokens=4_000,
+        tool_allowlist=["read"],
+        latency_budget_sec=120.0,
+        cost_ceiling_dollar=0.10,
+        special_capabilities=["tool_calls"],
     )
     report = ResourceBalancer(block_on_resource_warn=True).equalize(
-        [rich, poor], _task_card(),
+        [rich, poor],
+        _task_card(),
         expedition_id="exp",
         prompt_template_hash="hash",
         turn_budget=1,
@@ -108,8 +127,11 @@ def test_process_fails_when_oracle_ref_missing():
     tc = _task_card().model_copy(update={"oracle_spec_ref": ""})
     ms = [stock_manifest(n) for n in ("claude", "codex")]
     report = ResourceBalancer().equalize(
-        ms, tc, expedition_id="exp",
-        prompt_template_hash="hash", turn_budget=1,
+        ms,
+        tc,
+        expedition_id="exp",
+        prompt_template_hash="hash",
+        turn_budget=1,
     )
     assert report.process.verdict == "fail"
     assert report.fairness_verdict == "fail"
@@ -128,8 +150,11 @@ def test_jagged_capabilities_declared_not_dropped():
     LACKS — not what is removed from the run."""
     ms = [stock_manifest(n) for n in ("claude", "codex", "manus")]
     report = ResourceBalancer().equalize(
-        ms, _task_card(), expedition_id="exp",
-        prompt_template_hash="hash", turn_budget=1,
+        ms,
+        _task_card(),
+        expedition_id="exp",
+        prompt_template_hash="hash",
+        turn_budget=1,
     )
     union_caps = report.balanced_constraints.intersected_capabilities
     assert "stream_json" in union_caps
@@ -144,8 +169,11 @@ def test_jagged_capabilities_declared_not_dropped():
 def test_fairness_report_pydantic_strict():
     ms = [stock_manifest(n) for n in ("claude", "codex")]
     report = ResourceBalancer().equalize(
-        ms, _task_card(), expedition_id="exp",
-        prompt_template_hash="hash", turn_budget=1,
+        ms,
+        _task_card(),
+        expedition_id="exp",
+        prompt_template_hash="hash",
+        turn_budget=1,
     )
     payload = report.model_dump()
     with pytest.raises(Exception):
@@ -155,6 +183,9 @@ def test_fairness_report_pydantic_strict():
 def test_empty_manifests_raises():
     with pytest.raises(ValueError):
         ResourceBalancer().equalize(
-            [], _task_card(), expedition_id="exp",
-            prompt_template_hash="hash", turn_budget=1,
+            [],
+            _task_card(),
+            expedition_id="exp",
+            prompt_template_hash="hash",
+            turn_budget=1,
         )

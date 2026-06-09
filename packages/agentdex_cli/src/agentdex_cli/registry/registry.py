@@ -3,18 +3,22 @@
 Reads on construction, persists on `upsert`/`remove`/`flush`. Atomic write
 via temp file + rename so concurrent Hermes processes never see a partial.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterable, Literal, Optional
+from typing import Literal
 
 SCHEMA_VERSION = 1
-DEFAULT_PATH = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "agents_registry.json"
+DEFAULT_PATH = (
+    Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "agents_registry.json"
+)
 
 
 @dataclass
@@ -32,12 +36,12 @@ class SubAgent:
     description: str = ""
     capabilities: list[str] = field(default_factory=list)
     # hermes-agent fields
-    base_url: Optional[str] = None
-    session_token: Optional[str] = None
+    base_url: str | None = None
+    session_token: str | None = None
     # cli fields
     bridge_host: str = "127.0.0.1"
-    bridge_port: Optional[int] = None
-    workdir: Optional[str] = None
+    bridge_port: int | None = None
+    workdir: str | None = None
     stats: AgentStats = field(default_factory=AgentStats)
 
     def to_dict(self) -> dict:
@@ -46,7 +50,7 @@ class SubAgent:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SubAgent":
+    def from_dict(cls, data: dict) -> SubAgent:
         stats_raw = data.pop("stats", None) or {}
         return cls(stats=AgentStats(**stats_raw), **data)
 
@@ -94,7 +98,7 @@ class AgentsRegistry:
         with self._lock:
             return list(self._agents.values())
 
-    def get(self, name: str) -> Optional[SubAgent]:
+    def get(self, name: str) -> SubAgent | None:
         with self._lock:
             return self._agents.get(name)
 
@@ -119,7 +123,9 @@ class AgentsRegistry:
             s = a.stats
             n = s.calls
             s.avg_latency_ms = (s.avg_latency_ms * n + latency_ms) / (n + 1) if n else latency_ms
-            s.success_rate = (s.success_rate * n + (1.0 if ok else 0.0)) / (n + 1) if n else (1.0 if ok else 0.0)
+            s.success_rate = (
+                (s.success_rate * n + (1.0 if ok else 0.0)) / (n + 1) if n else (1.0 if ok else 0.0)
+            )
             s.calls = n + 1
             s.last_called = time.time()
             self._dirty = True
@@ -134,8 +140,7 @@ class AgentsRegistry:
         tagset = {t.lower() for t in tags}
         with self._lock:
             return [
-                a for a in self._agents.values()
-                if tagset & {c.lower() for c in a.capabilities}
+                a for a in self._agents.values() if tagset & {c.lower() for c in a.capabilities}
             ]
 
 

@@ -12,19 +12,18 @@ Protocol (no "jsonrpc":"2.0" field; otherwise request/response/notification):
   server → turn/completed {turnId, tokenUsage, finalState}
 Server-initiated approval requests must be answered (auto-accept here).
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import os
-from typing import Optional
 
 from adx_bridges.base import (
     BridgeConfig,
     CliDead,
     LongRunningCliBridge,
-    new_session_id,
     run_bridge,
 )
 
@@ -38,10 +37,10 @@ class CodexBridge(LongRunningCliBridge):
         super().__init__(cfg)
         self._next_id = 1
         self._pending: dict[int, asyncio.Future] = {}
-        self._thread_id: Optional[str] = None
-        self._reader_task: Optional[asyncio.Task] = None
+        self._thread_id: str | None = None
+        self._reader_task: asyncio.Task | None = None
         self._turn_buf: list[str] = []
-        self._turn_done: Optional[asyncio.Event] = None
+        self._turn_done: asyncio.Event | None = None
         self._turn_result: dict = {}
         # auto-accept approval policy (override via env)
         self.auto_accept = os.environ.get("CODEX_AUTO_APPROVE", "1") == "1"
@@ -134,30 +133,22 @@ class CodexBridge(LongRunningCliBridge):
                 if isinstance(delta, str):
                     self._turn_buf.append(delta)
                 elif isinstance(delta, dict):
-                    if (t := delta.get("text")):
+                    if t := delta.get("text"):
                         self._turn_buf.append(t)
             elif method == "item/completed" and item.get("type") == "agentMessage":
-                if (t := item.get("text")):
+                if t := item.get("text"):
                     if not self._turn_buf:
                         self._turn_buf.append(t)
             return
         if method == "turn/completed":
             text = "".join(self._turn_buf)
             token_usage = params.get("tokenUsage") or {}
-            tokens_total: Optional[int] = None
+            tokens_total: int | None = None
             if isinstance(token_usage, dict):
                 # Codex 0.137 shape: {"inputTokens": N, "outputTokens": M,
                 # "cachedInputTokens": K} (camelCase). Tolerate snake_case too.
-                inp = (
-                    token_usage.get("inputTokens")
-                    or token_usage.get("input_tokens")
-                    or 0
-                )
-                out = (
-                    token_usage.get("outputTokens")
-                    or token_usage.get("output_tokens")
-                    or 0
-                )
+                inp = token_usage.get("inputTokens") or token_usage.get("input_tokens") or 0
+                out = token_usage.get("outputTokens") or token_usage.get("output_tokens") or 0
                 cached = (
                     token_usage.get("cachedInputTokens")
                     or token_usage.get("cached_input_tokens")
@@ -181,21 +172,21 @@ class CodexBridge(LongRunningCliBridge):
                 self._turn_done.set()
             return
 
-    async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str:
+    async def _send_turn(self, prompt: str, *, session_id: str | None, extra: dict) -> str:
         # session_id ↔ codex threadId. Field shape varies across codex versions
         # (`threadId` camelCase or `thread_id` snake_case); accept either.
-        def _extract_tid(d: dict, fallback: Optional[str] = None) -> Optional[str]:
+        def _extract_tid(d: dict, fallback: str | None = None) -> str | None:
             if not isinstance(d, dict):
                 return fallback
             # Direct keys first
             for k in ("threadId", "thread_id", "id"):
-                if (v := d.get(k)):
+                if v := d.get(k):
                     return v
             # Nested {"thread": {"id": ...}} shape (current codex response)
             thread = d.get("thread")
             if isinstance(thread, dict):
                 for k in ("id", "threadId", "thread_id"):
-                    if (v := thread.get(k)):
+                    if v := thread.get(k):
                         return v
             elif isinstance(thread, str):
                 return thread
@@ -212,9 +203,7 @@ class CodexBridge(LongRunningCliBridge):
             res = await self._send_rpc("thread/start", {"cwd": self.cfg.workdir})
             tid = _extract_tid(res)
             if not tid:
-                raise CliDead(
-                    f"codex thread/start returned no thread id; keys={list(res.keys())}"
-                )
+                raise CliDead(f"codex thread/start returned no thread id; keys={list(res.keys())}")
             self._thread_id = tid
 
         self._turn_done = asyncio.Event()
@@ -230,7 +219,7 @@ class CodexBridge(LongRunningCliBridge):
         await self._turn_done.wait()
         return self._thread_id
 
-    async def _cold_shot(self, prompt: str, *, session_id: Optional[str], extra: dict) -> dict:
+    async def _cold_shot(self, prompt: str, *, session_id: str | None, extra: dict) -> dict:
         # `codex exec` = one-shot non-interactive (requires git repo)
         argv = [CODEX_BIN, "exec", prompt]
         if extra.get("full_auto", True):

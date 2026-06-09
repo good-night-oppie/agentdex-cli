@@ -14,9 +14,9 @@ class AutonomyPolicy(StrEnum):
     See ADR-0005 §Per-stop UX.
     """
 
-    LENIENT = "lenient"          # proposer handles most stops, human only high-risk
-    CAUTIOUS = "cautious"        # human handles most, proposer only trivial
-    FULL_AUTO = "full_auto"      # proposer always (cron /loop pattern)
+    LENIENT = "lenient"  # proposer handles most stops, human only high-risk
+    CAUTIOUS = "cautious"  # human handles most, proposer only trivial
+    FULL_AUTO = "full_auto"  # proposer always (cron /loop pattern)
     FULL_MANUAL = "full_manual"  # human always
 
 
@@ -29,9 +29,7 @@ class AgentVersion(BaseModel):
 
     id: str
     name: str
-    parent_id: str | None = Field(
-        default=None, description="Previous version this evolved from."
-    )
+    parent_id: str | None = Field(default=None, description="Previous version this evolved from.")
     harness_blob: str = Field(
         description="Agent source (Python module text OR config JSON for declarative agents)."
     )

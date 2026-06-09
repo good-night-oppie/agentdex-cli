@@ -11,7 +11,6 @@ PID lives at `<HERMES_HOME>/profiles/<profile>/gateway.pid`.
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 import time
 from dataclasses import dataclass, field

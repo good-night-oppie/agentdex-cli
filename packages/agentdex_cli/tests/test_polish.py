@@ -1,4 +1,5 @@
 """Phase-8 polish tests — error-case CLI handling + partial baseline failure."""
+
 from __future__ import annotations
 
 import asyncio
@@ -7,9 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -22,12 +20,18 @@ def test_missing_task_bundle_exits_2():
     proc = subprocess.run(
         _adx_cmd(
             "expedition",
-            "--task", "nonexistent-task",
-            "--baselines", "claude",
-            "--output", "expeditions/_should_not_exist/",
+            "--task",
+            "nonexistent-task",
+            "--baselines",
+            "claude",
+            "--output",
+            "expeditions/_should_not_exist/",
             "--mocked",
         ),
-        capture_output=True, text=True, cwd=REPO_ROOT, timeout=30,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=30,
     )
     assert proc.returncode == 2, f"expected exit 2, got {proc.returncode}; stderr={proc.stderr}"
     assert "task 'nonexistent-task' not found" in proc.stderr, (
@@ -49,12 +53,20 @@ def test_missing_api_key_exits_3():
     proc = subprocess.run(
         _adx_cmd(
             "expedition",
-            "--task", "nvidia-earnings-infographic",
-            "--baselines", "claude",
-            "--judge", "claude-haiku-4.5",
-            "--output", "expeditions/_should_not_exist/",
+            "--task",
+            "nvidia-earnings-infographic",
+            "--baselines",
+            "claude",
+            "--judge",
+            "claude-haiku-4.5",
+            "--output",
+            "expeditions/_should_not_exist/",
         ),
-        capture_output=True, text=True, cwd=REPO_ROOT, timeout=30, env=env,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=30,
+        env=env,
     )
     assert proc.returncode == 3, f"expected exit 3, got {proc.returncode}; stderr={proc.stderr}"
     assert "ANTHROPIC_API_KEY" in proc.stderr
@@ -105,8 +117,11 @@ def test_partial_baseline_failure_continues_with_other_baselines():
     bridges = [_OkBridge("claude"), _ExplodingBridge("codex"), _OkBridge("manus")]
     result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
-            task_card, bridges, _StubOracle(),
-            judge_llm="claude-haiku-4.5", prompt_override="dummy",
+            task_card,
+            bridges,
+            _StubOracle(),
+            judge_llm="claude-haiku-4.5",
+            prompt_override="dummy",
         )
     )
     assert fairness_report is None, "no manifests passed → no fairness report"
@@ -122,12 +137,9 @@ def test_partial_baseline_failure_continues_with_other_baselines():
     # labeled `excluded-failed`, not `dominated` — pareto_verdict never
     # compared it, it was just skipped.
     assert by_id["codex"].pareto_position == "excluded-failed", (
-        f"failed baseline must be labeled excluded-failed; got "
-        f"{by_id['codex'].pareto_position!r}"
+        f"failed baseline must be labeled excluded-failed; got {by_id['codex'].pareto_position!r}"
     )
-    assert by_id["codex"].cost_dollar is None, (
-        "MF5 invariant: failed baseline cost_dollar is None"
-    )
+    assert by_id["codex"].cost_dollar is None, "MF5 invariant: failed baseline cost_dollar is None"
 
 
 def test_security_no_hardcoded_api_keys():

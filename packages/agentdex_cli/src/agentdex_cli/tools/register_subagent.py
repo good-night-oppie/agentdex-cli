@@ -1,4 +1,5 @@
 """Tool: register a sub-agent (Hermes profile) or CLI bridge in the registry."""
+
 from __future__ import annotations
 
 from registry.registry import AgentsRegistry, SubAgent
@@ -14,15 +15,15 @@ AGENTDEX_REGISTER_SUBAGENT_SCHEMA = {
         "type": "object",
         "required": ["name", "kind"],
         "properties": {
-            "name":         {"type": "string"},
-            "kind":         {"type": "string", "enum": ["hermes-agent", "cli"]},
-            "description":  {"type": "string"},
+            "name": {"type": "string"},
+            "kind": {"type": "string", "enum": ["hermes-agent", "cli"]},
+            "description": {"type": "string"},
             "capabilities": {"type": "array", "items": {"type": "string"}},
-            "base_url":     {"type": "string"},
-            "session_token":{"type": "string"},
-            "bridge_host":  {"type": "string"},
-            "bridge_port":  {"type": "integer"},
-            "workdir":      {"type": "string"},
+            "base_url": {"type": "string"},
+            "session_token": {"type": "string"},
+            "bridge_host": {"type": "string"},
+            "bridge_port": {"type": "integer"},
+            "workdir": {"type": "string"},
         },
     },
 }
@@ -33,7 +34,10 @@ AGENTDEX_LIST_SUBAGENTS_SCHEMA = {
     "parameters": {
         "type": "object",
         "properties": {
-            "capability": {"type": "string", "description": "optional filter — only return agents tagged with this capability"},
+            "capability": {
+                "type": "string",
+                "description": "optional filter — only return agents tagged with this capability",
+            },
         },
     },
 }

@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import functools
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _DEFAULT_HOST = "http://localhost:3000"  # self-host per user decision 2026-06-08
 _initialized = False
@@ -79,11 +80,13 @@ def anthropic_client():
     if _client is None:
         try:
             from anthropic import Anthropic
+
             return Anthropic()
         except ImportError as e:
             raise RuntimeError(f"anthropic SDK missing: {e}") from e
 
     from langfuse.anthropic import Anthropic as LangfuseAnthropic
+
     return LangfuseAnthropic()
 
 
@@ -93,11 +96,13 @@ def openai_client():
     if _client is None:
         try:
             from openai import OpenAI
+
             return OpenAI()
         except ImportError as e:
             raise RuntimeError(f"openai SDK missing: {e}") from e
 
     from langfuse.openai import OpenAI as LangfuseOpenAI
+
     return LangfuseOpenAI()
 
 
@@ -116,12 +121,8 @@ def gemini_client():
     the direct-API fallback only.
     """
     _ensure_init()
-    if not (
-        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    ):
-        raise RuntimeError(
-            "gemini_client requires GEMINI_API_KEY or GOOGLE_API_KEY in env"
-        )
+    if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
+        raise RuntimeError("gemini_client requires GEMINI_API_KEY or GOOGLE_API_KEY in env")
     try:
         from google import genai  # type: ignore
     except ImportError as e:

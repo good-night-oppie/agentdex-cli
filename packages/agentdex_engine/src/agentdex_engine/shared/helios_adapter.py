@@ -76,9 +76,10 @@ class SQLiteCheckpointStore:
 
     async def get(self, state_hash: str) -> dict[str, Any]:
         await self._init()
-        async with aiosqlite.connect(self.db_path) as db, db.execute(
-            "SELECT payload FROM checkpoints WHERE hash = ?", (state_hash,)
-        ) as cursor:
+        async with (
+            aiosqlite.connect(self.db_path) as db,
+            db.execute("SELECT payload FROM checkpoints WHERE hash = ?", (state_hash,)) as cursor,
+        ):
             row = await cursor.fetchone()
         if row is None:
             raise KeyError(f"unknown checkpoint hash: {state_hash}")
@@ -86,7 +87,8 @@ class SQLiteCheckpointStore:
 
     async def exists(self, state_hash: str) -> bool:
         await self._init()
-        async with aiosqlite.connect(self.db_path) as db, db.execute(
-            "SELECT 1 FROM checkpoints WHERE hash = ? LIMIT 1", (state_hash,)
-        ) as cursor:
+        async with (
+            aiosqlite.connect(self.db_path) as db,
+            db.execute("SELECT 1 FROM checkpoints WHERE hash = ? LIMIT 1", (state_hash,)) as cursor,
+        ):
             return (await cursor.fetchone()) is not None

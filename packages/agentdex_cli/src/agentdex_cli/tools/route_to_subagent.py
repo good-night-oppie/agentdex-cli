@@ -3,14 +3,13 @@
 Records latency + success into the registry so the main agent learns which
 target excels at which capability over time.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import time
-from typing import Optional
-
 import urllib.request
 
 from registry.registry import AgentsRegistry, SubAgent
@@ -29,10 +28,10 @@ AGENTDEX_ROUTE_TO_SUBAGENT_SCHEMA = {
         "type": "object",
         "required": ["target", "prompt"],
         "properties": {
-            "target":     {"type": "string", "description": "registered agent name"},
-            "prompt":     {"type": "string"},
+            "target": {"type": "string", "description": "registered agent name"},
+            "prompt": {"type": "string"},
             "session_id": {"type": "string"},
-            "extra":      {"type": "object"},
+            "extra": {"type": "object"},
         },
     },
 }
@@ -47,10 +46,10 @@ AGENTDEX_ROUTE_TO_CLI_SCHEMA = {
         "type": "object",
         "required": ["target", "prompt"],
         "properties": {
-            "target":     {"type": "string"},
-            "prompt":     {"type": "string"},
+            "target": {"type": "string"},
+            "prompt": {"type": "string"},
             "session_id": {"type": "string"},
-            "extra":      {"type": "object"},
+            "extra": {"type": "object"},
         },
     },
 }
@@ -60,8 +59,10 @@ AGENTDEX_ROUTE_TO_CLI_SCHEMA = {
 # HTTP call to a Hermes sub-agent's dashboard /v1/chat/completions
 # ---------------------------------------------------------------------------
 
-async def _call_hermes_agent(agent: SubAgent, prompt: str,
-                             session_id: Optional[str], extra: dict) -> dict:
+
+async def _call_hermes_agent(
+    agent: SubAgent, prompt: str, session_id: str | None, extra: dict
+) -> dict:
     """Hit the target Hermes' OpenAI-compatible gateway API server.
 
     Endpoint: gateway/platforms/api_server.py:4121 → POST /v1/chat/completions
@@ -84,7 +85,7 @@ async def _call_hermes_agent(agent: SubAgent, prompt: str,
     }
     if session_id:
         headers["X-Hermes-Session-Id"] = session_id
-    if (session_key := extra.get("session_key")):
+    if session_key := extra.get("session_key"):
         headers["X-Hermes-Session-Key"] = session_key
 
     def _do_post() -> dict:
@@ -112,14 +113,16 @@ async def _call_hermes_agent(agent: SubAgent, prompt: str,
 # TCP JSON-RPC call to a CLI bridge (matches bridges/base.py protocol)
 # ---------------------------------------------------------------------------
 
-async def _call_cli_bridge(agent: SubAgent, prompt: str,
-                           session_id: Optional[str], extra: dict) -> dict:
+
+async def _call_cli_bridge(
+    agent: SubAgent, prompt: str, session_id: str | None, extra: dict
+) -> dict:
     if not agent.bridge_port:
         raise ValueError(f"agent {agent.name!r} missing bridge_port")
     reader, writer = await asyncio.open_connection(agent.bridge_host, agent.bridge_port)
     try:
         req = {
-            "id": int(time.time() * 1000) & 0x7fffffff,
+            "id": int(time.time() * 1000) & 0x7FFFFFFF,
             "method": "chat",
             "params": {"prompt": prompt, "session_id": session_id, "extra": extra},
         }
@@ -144,6 +147,7 @@ async def _call_cli_bridge(agent: SubAgent, prompt: str,
 # Hermes tool entry points (sync-friendly wrappers)
 # ---------------------------------------------------------------------------
 
+
 def _run_async(coro):
     try:
         loop = asyncio.get_running_loop()
@@ -157,11 +161,18 @@ def handle_route_to_subagent(registry: AgentsRegistry, args: dict) -> dict:
     if not target:
         return {"ok": False, "error": f"unknown target {args['target']!r}"}
     if target.kind != "hermes-agent":
-        return {"ok": False, "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_cli"}
+        return {
+            "ok": False,
+            "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_cli",
+        }
     t0 = time.time()
     ok = False
     try:
-        result = _run_async(_call_hermes_agent(target, args["prompt"], args.get("session_id"), args.get("extra") or {}))
+        result = _run_async(
+            _call_hermes_agent(
+                target, args["prompt"], args.get("session_id"), args.get("extra") or {}
+            )
+        )
         ok = bool(result.get("ok"))
         return result
     finally:
@@ -173,11 +184,18 @@ def handle_route_to_cli(registry: AgentsRegistry, args: dict) -> dict:
     if not target:
         return {"ok": False, "error": f"unknown target {args['target']!r}"}
     if target.kind != "cli":
-        return {"ok": False, "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_subagent"}
+        return {
+            "ok": False,
+            "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_subagent",
+        }
     t0 = time.time()
     ok = False
     try:
-        result = _run_async(_call_cli_bridge(target, args["prompt"], args.get("session_id"), args.get("extra") or {}))
+        result = _run_async(
+            _call_cli_bridge(
+                target, args["prompt"], args.get("session_id"), args.get("extra") or {}
+            )
+        )
         ok = bool(result.get("ok"))
         return {"ok": True, **result}
     finally:

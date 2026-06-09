@@ -15,18 +15,17 @@ Output frames (we read):  newline-delimited JSON; types include
   system, assistant, user (replay), stream_event, result.
 Turn ends when we see {"type":"result", ...} with session_id.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import os
-from typing import Optional
 
 from adx_bridges.base import (
     BridgeConfig,
     CliDead,
-    JsonRpcServer,
     LongRunningCliBridge,
     new_session_id,
     run_bridge,
@@ -40,30 +39,34 @@ CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
 class ClaudeBridge(LongRunningCliBridge):
     def __init__(self, cfg: BridgeConfig):
         super().__init__(cfg)
-        self.current_session_id: Optional[str] = None
+        self.current_session_id: str | None = None
         self._turn_event = asyncio.Event()
         self._turn_result: dict = {}
-        self._reader_task: Optional[asyncio.Task] = None
+        self._reader_task: asyncio.Task | None = None
         self._assistant_buf: list[str] = []
 
     @classmethod
     def build_argv(cls, session_id: str, extra: dict) -> list[str]:
         argv = [
             CLAUDE_BIN,
-            "-p", "",
-            "--input-format", "stream-json",
-            "--output-format", "stream-json",
+            "-p",
+            "",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
             "--verbose",
             "--include-partial-messages",
             "--replay-user-messages",
-            "--session-id", session_id,
+            "--session-id",
+            session_id,
             "--dangerously-skip-permissions",
         ]
-        if (model := extra.get("model")):
+        if model := extra.get("model"):
             argv += ["--model", model]
-        if (tools := extra.get("allowed_tools")):
+        if tools := extra.get("allowed_tools"):
             argv += ["--allowedTools", ",".join(tools) if isinstance(tools, list) else tools]
-        if (mt := extra.get("max_turns")):
+        if mt := extra.get("max_turns"):
             argv += ["--max-turns", str(mt)]
         return argv
 
@@ -73,7 +76,7 @@ class ClaudeBridge(LongRunningCliBridge):
         # Wait for first system message ("type":"system","subtype":"init") to confirm ready.
         try:
             await asyncio.wait_for(self._await_initial_system(), timeout=8.0)
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise CliDead("no init system frame from claude") from e
 
     async def _await_initial_system(self) -> None:
@@ -115,7 +118,7 @@ class ClaudeBridge(LongRunningCliBridge):
             text = "".join(self._assistant_buf) or frame.get("result") or ""
             cost_usd = frame.get("total_cost_usd")
             usage = frame.get("usage") or {}
-            tokens_total: Optional[int] = None
+            tokens_total: int | None = None
             if isinstance(usage, dict):
                 inp = usage.get("input_tokens") or 0
                 out = usage.get("output_tokens") or 0
@@ -138,7 +141,7 @@ class ClaudeBridge(LongRunningCliBridge):
             self._assistant_buf.clear()
             self._turn_event.set()
 
-    async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str:
+    async def _send_turn(self, prompt: str, *, session_id: str | None, extra: dict) -> str:
         # If caller requests a session change → respawn with that session_id.
         wanted_sid = session_id or self.current_session_id or new_session_id()
         if not self.current_session_id or wanted_sid != self.current_session_id:
@@ -146,10 +149,12 @@ class ClaudeBridge(LongRunningCliBridge):
 
         self._turn_event.clear()
         self._assistant_buf.clear()
-        await self._write_line({
-            "type": "user",
-            "message": {"role": "user", "content": [{"type": "text", "text": prompt}]},
-        })
+        await self._write_line(
+            {
+                "type": "user",
+                "message": {"role": "user", "content": [{"type": "text", "text": prompt}]},
+            }
+        )
         await self._turn_event.wait()
         new_sid = self._turn_result.get("session_id") or wanted_sid
         self.current_session_id = new_sid
@@ -161,16 +166,20 @@ class ClaudeBridge(LongRunningCliBridge):
         await self._spawn()
         self.current_session_id = session_id
 
-    async def _cold_shot(self, prompt: str, *, session_id: Optional[str], extra: dict) -> dict:
+    async def _cold_shot(self, prompt: str, *, session_id: str | None, extra: dict) -> dict:
         sid = session_id or new_session_id()
         argv = [
-            CLAUDE_BIN, "-p", prompt,
-            "--output-format", "json",
-            "--session-id", sid,
+            CLAUDE_BIN,
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            "--session-id",
+            sid,
         ]
-        if (mt := extra.get("max_turns")):
+        if mt := extra.get("max_turns"):
             argv += ["--max-turns", str(mt)]
-        if (model := extra.get("model")):
+        if model := extra.get("model"):
             argv += ["--model", model]
         proc = await asyncio.create_subprocess_exec(
             *argv,

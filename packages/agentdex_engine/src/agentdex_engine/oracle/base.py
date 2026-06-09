@@ -8,6 +8,7 @@ Three kinds (per phase-6 spec + ADR-0009 §Q5):
 
 OracleChain composes multiple Oracles into a single ``evaluate()`` call.
 """
+
 from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable

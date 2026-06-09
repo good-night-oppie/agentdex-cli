@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from agentdex_cli.orchestrator.gateway import (
     GatewayHandle,
     discover_gateway,
@@ -39,9 +38,7 @@ def test_ensure_gateway_spawns_and_cleans_up(isolated_hermes_home, monkeypatch):
     spawn_cmd = [
         "python3",
         "-c",
-        f"import os, time; "
-        f"open('{pid_file}', 'w').write(str(os.getpid())); "
-        f"time.sleep(60)",
+        f"import os, time; open('{pid_file}', 'w').write(str(os.getpid())); time.sleep(60)",
     ]
 
     handle = ensure_gateway(profile="agentdex", timeout=5.0, spawn_cmd=spawn_cmd)

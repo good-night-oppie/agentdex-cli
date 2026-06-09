@@ -16,12 +16,12 @@ MVP shim caveat: the web-scrape selectors target a generic chat input + last
 assistant turn. Override via ``MANUS_INPUT_SELECTOR`` /
 ``MANUS_RESPONSE_SELECTOR`` env vars when point-of-presence schema differs.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
-from typing import Optional
 
 from adx_bridges.base import (
     BridgeConfig,
@@ -32,7 +32,7 @@ from adx_bridges.base import (
 
 log = logging.getLogger(__name__)
 
-_CAMOUFOX_AVAILABLE: Optional[bool] = None
+_CAMOUFOX_AVAILABLE: bool | None = None
 
 
 def _probe_camoufox() -> bool:
@@ -72,9 +72,7 @@ class CamoufoxManusBridge(LongRunningCliBridge):
         if not self._url:
             raise CliDead("MANUS_URL env var required for camoufox bridge")
         self._input_sel = os.environ.get("MANUS_INPUT_SELECTOR", self.DEFAULT_INPUT_SEL)
-        self._response_sel = os.environ.get(
-            "MANUS_RESPONSE_SELECTOR", self.DEFAULT_RESPONSE_SEL
-        )
+        self._response_sel = os.environ.get("MANUS_RESPONSE_SELECTOR", self.DEFAULT_RESPONSE_SEL)
         self._state_path = os.path.expanduser(
             os.environ.get(
                 "MANUS_STATE_PATH",
@@ -82,7 +80,7 @@ class CamoufoxManusBridge(LongRunningCliBridge):
             )
         )
         os.makedirs(os.path.dirname(self._state_path), exist_ok=True)
-        self._sid: Optional[str] = None
+        self._sid: str | None = None
         self._browser_ctx = None
         self._page = None
         self._camoufox_ctx_mgr = None
@@ -109,7 +107,9 @@ class CamoufoxManusBridge(LongRunningCliBridge):
         ctx_args = {}
         if os.path.isfile(self._state_path):
             ctx_args["storage_state"] = self._state_path
-        self._browser_ctx = await browser.new_context(**ctx_args) if hasattr(browser, "new_context") else browser
+        self._browser_ctx = (
+            await browser.new_context(**ctx_args) if hasattr(browser, "new_context") else browser
+        )
         self._page = (
             await self._browser_ctx.new_page() if hasattr(self._browser_ctx, "new_page") else None
         )
@@ -162,7 +162,7 @@ class CamoufoxManusBridge(LongRunningCliBridge):
         raise NotImplementedError("manus is browser-driven only")
 
 
-def make_manus_bridge(cfg: Optional[BridgeConfig] = None) -> LongRunningCliBridge:
+def make_manus_bridge(cfg: BridgeConfig | None = None) -> LongRunningCliBridge:
     """Factory: camoufox primary, codex-web fallback.
 
     Falls back to ``CodexWebBridge`` whenever camoufox unavailable or

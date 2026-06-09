@@ -5,21 +5,19 @@ earnings-relevant substring (``revenue`` or ``gross margin``). Mocked-input
 contract test always runs; live probes require ``ADX_LIVE_BRIDGES=1`` plus the
 respective subscription CLI on PATH.
 """
+
 from __future__ import annotations
 
 import asyncio
-import os
 from pathlib import Path
 
 import pytest
-
 from adx_bridges import build_bridge
 from adx_bridges.base import (
     BridgeConfig,
     LongRunningCliBridge,
     new_session_id,
 )
-
 
 TASK_ID = "nvidia-earnings-infographic"
 EARNINGS_KEYWORDS = ("revenue", "gross margin", "data center", "billion")
@@ -60,9 +58,14 @@ class _MockNvidiaBridge(LongRunningCliBridge):
     def __init__(self):
         super().__init__(BridgeConfig(name="mock-nvidia", cli_argv=[]))
 
-    async def ensure_proc(self): return
-    async def _handshake(self): return
-    async def _kill(self): return
+    async def ensure_proc(self):
+        return
+
+    async def _handshake(self):
+        return
+
+    async def _kill(self):
+        return
 
     async def _send_turn(self, prompt, *, session_id, extra):
         text = (
@@ -111,8 +114,7 @@ def _assert_keywords(text: str, bridge_name: str):
     assert text, f"{bridge_name} produced empty response"
     low = text.lower()
     assert any(k in low for k in EARNINGS_KEYWORDS), (
-        f"{bridge_name}: expected earnings keyword in response (first 300 chars): "
-        f"{text[:300]!r}"
+        f"{bridge_name}: expected earnings keyword in response (first 300 chars): {text[:300]!r}"
     )
 
 

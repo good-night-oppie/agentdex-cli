@@ -1,4 +1,5 @@
 """Smoke test for the Expedition orchestrator (mocked bridges)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,12 +7,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.evolver.pareto import ParetoVerdict
 from agentdex_engine.expedition import run_expedition_orchestrator
 from agentdex_engine.oracle.base import OracleVerdict
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -69,15 +68,20 @@ def test_orchestrator_returns_three_card_chain():
         _StubBridge("codex", "revenue gross_margin"),
         _StubBridge("manus", "revenue"),
     ]
-    oracle = _StubOracle({
-        "revenue": True,
-        "gross_margin": True,
-        "data_center": True,
-    })
+    oracle = _StubOracle(
+        {
+            "revenue": True,
+            "gross_margin": True,
+            "data_center": True,
+        }
+    )
 
     result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
-            _task_card(), bridges, oracle, judge_llm="claude-haiku-4.5",
+            _task_card(),
+            bridges,
+            oracle,
+            judge_llm="claude-haiku-4.5",
             prompt_override="dummy prompt",
         )
     )
@@ -99,11 +103,13 @@ def test_orchestrator_returns_three_card_chain():
 
 def test_orchestrator_resolves_sources_from_oracle_spec_ref():
     bridge = _StubBridge("claude", "revenue gross_margin data_center")
-    oracle = _StubOracle({
-        "revenue": True,
-        "gross_margin": True,
-        "data_center": True,
-    })
+    oracle = _StubOracle(
+        {
+            "revenue": True,
+            "gross_margin": True,
+            "data_center": True,
+        }
+    )
 
     asyncio.run(
         run_expedition_orchestrator(

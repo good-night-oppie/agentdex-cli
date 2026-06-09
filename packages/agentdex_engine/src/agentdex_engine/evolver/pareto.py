@@ -6,6 +6,7 @@ one. Single non-dominated agent = winner; multiple non-dominated = ``no_clear_wi
 This module wraps :func:`agentdex_engine.modules.evolver.pareto.dominates` to
 keep the existing implementation as the single source of truth.
 """
+
 from __future__ import annotations
 
 from typing import Literal
@@ -15,7 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentdex_engine.cards import ResultCard
 from agentdex_engine.modules.battles.result import Domination
 from agentdex_engine.modules.evolver.pareto import dominates
-
 
 VerdictKind = Literal["dominated", "undominated", "no_clear_winner"]
 
@@ -62,9 +62,7 @@ def _rankings_for(cards: list[ResultCard]) -> dict[str, dict[str, int]]:
     # Rank only eligible cards; failed baselines are surfaced via the
     # EvolutionCard's repair seeds + failure_trace_path on the ResultCard.
     eligible = [c for c in cards if not _is_failed(c)]
-    by_pass = _rank_within(
-        [(c.agent_id, c.pass_rate) for c in eligible], ascending=False
-    )
+    by_pass = _rank_within([(c.agent_id, c.pass_rate) for c in eligible], ascending=False)
     by_cost = _rank_within(
         [(c.agent_id, float(c.cost_dollar)) for c in eligible if c.cost_dollar is not None],
         ascending=True,

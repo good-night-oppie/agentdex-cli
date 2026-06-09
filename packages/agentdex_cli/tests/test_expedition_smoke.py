@@ -5,6 +5,7 @@ Mock judge returns a fixed JSON verdict; mock bridges return recorded
 NVIDIA responses. Exercises every acceptance criterion that does NOT
 require live live live live.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,10 +15,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from agentdex_engine.cards import EvolutionCard, ResultCard, TaskCard
 from agentdex_engine.evolver.pareto import ParetoVerdict
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ARTIFACT_DIR = REPO_ROOT / "expeditions" / "test-smoke-exp-001"
@@ -30,23 +29,33 @@ def run_mocked_expedition():
     artifact_dir = ARTIFACT_DIR
     if artifact_dir.exists():
         import shutil
+
         shutil.rmtree(artifact_dir)
     if KAOS_DB_PATH.exists():
         KAOS_DB_PATH.unlink()
 
     cmd = [
-        sys.executable, "-m", "agentdex_cli.cli",
+        sys.executable,
+        "-m",
+        "agentdex_cli.cli",
         "expedition",
-        "--task", "nvidia-earnings-infographic",
-        "--baselines", "claude,codex,manus",
-        "--judge", "claude-haiku-4.5",
-        "--output", str(artifact_dir.relative_to(REPO_ROOT)),
+        "--task",
+        "nvidia-earnings-infographic",
+        "--baselines",
+        "claude,codex,manus",
+        "--judge",
+        "claude-haiku-4.5",
+        "--output",
+        str(artifact_dir.relative_to(REPO_ROOT)),
         "--mocked",
-        "--kaos-db", str(KAOS_DB_PATH),
+        "--kaos-db",
+        str(KAOS_DB_PATH),
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT, timeout=180)
     if proc.returncode != 0:
-        pytest.fail(f"expedition failed: rc={proc.returncode}\nstderr={proc.stderr}\nstdout={proc.stdout}")
+        pytest.fail(
+            f"expedition failed: rc={proc.returncode}\nstderr={proc.stderr}\nstdout={proc.stdout}"
+        )
     yield artifact_dir
 
 
@@ -87,13 +96,14 @@ def test_three_result_cards_validate(run_mocked_expedition):
         if rc.failure_trace_path is None:
             assert rc.cost_dollar is not None and rc.cost_dollar > 0.0
         else:
-            assert rc.cost_dollar is None, (
-                "MF5 invariant: failed baseline cost_dollar must be None"
-            )
+            assert rc.cost_dollar is None, "MF5 invariant: failed baseline cost_dollar must be None"
         assert rc.speed_wall_clock_sec > 0.0
         # PR-E (C5) added "excluded-failed" to the ParetoPosition Literal.
         assert rc.pareto_position in {
-            "dominated", "undominated", "no-clear-winner", "excluded-failed",
+            "dominated",
+            "undominated",
+            "no-clear-winner",
+            "excluded-failed",
         } or isinstance(rc.pareto_position, int)
 
 
@@ -143,10 +153,9 @@ def test_kaos_lineage_entry_persisted():
 
     agents = list_expedition_lineage(str(KAOS_DB_PATH))
     assert agents, "KAOS lineage entry not persisted"
-    assert any(
-        "expedition-expedition" in (a.get("name") or "")
-        for a in agents
-    ), f"expected expedition lineage agent name; got {[a.get('name') for a in agents]}"
+    assert any("expedition-expedition" in (a.get("name") or "") for a in agents), (
+        f"expected expedition lineage agent name; got {[a.get('name') for a in agents]}"
+    )
 
 
 def test_judge_span_parented_to_expedition():
@@ -161,7 +170,9 @@ def test_judge_span_parented_to_expedition():
         def create(self, *, model, max_tokens, system, messages):
             recorded["model"] = model
             recorded["system_excerpt"] = (system or "")[:120]
-            block = type("B", (), {"text": '{"score":0.8,"uncertainty":0.2,"pass":true,"rationale":"ok"}'})
+            block = type(
+                "B", (), {"text": '{"score":0.8,"uncertainty":0.2,"pass":true,"rationale":"ok"}'}
+            )
             return type("M", (), {"content": [block]})
 
     class _RecClient:
@@ -176,7 +187,8 @@ def test_judge_span_parented_to_expedition():
         source_bundle_hash="0" * 64,
         environment_spec={"runtime": "test"},
         oracle_spec_ref="x",
-        budget_token_cap=1, budget_dollar_cap=0.0,
+        budget_token_cap=1,
+        budget_dollar_cap=0.0,
         expected_output_kind="infographic",
         version="0.1.0",
     )

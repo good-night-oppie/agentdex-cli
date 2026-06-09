@@ -1,10 +1,9 @@
 """Phase-6 Oracle tests — hard (number / provenance), soft (mock LLM), repair flagger."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-
-import pytest
 
 from agentdex_engine.cards import (
     EvolutionCard,
@@ -12,7 +11,6 @@ from agentdex_engine.cards import (
     TaskCard,
 )
 from agentdex_engine.oracle.base import (
-    Oracle,
     OracleChain,
     OracleVerdict,
 )
@@ -23,7 +21,6 @@ from agentdex_engine.oracle.hard import (
 )
 from agentdex_engine.oracle.repair import OracleRepairFlagger
 from agentdex_engine.oracle.soft import LlmJudgeOracle
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 NVIDIA_SPEC = REPO_ROOT / "tasks" / "nvidia-earnings-infographic" / "oracle" / "spec.yaml"
@@ -60,8 +57,7 @@ def test_number_accuracy_pass():
     verdicts = oracle.evaluate(response, _build_task_card())
     passed = [v for v in verdicts.values() if v.pass_]
     assert len(passed) >= 5, (
-        f"expected ≥5 hard verdicts to pass, got "
-        f"{[(k, v.pass_) for k, v in verdicts.items()]}"
+        f"expected ≥5 hard verdicts to pass, got {[(k, v.pass_) for k, v in verdicts.items()]}"
     )
 
 
@@ -86,11 +82,7 @@ def test_number_accuracy_fail_wrong_revenue():
 
 
 def test_provenance_missing_fails():
-    response = (
-        "- Revenue: $35.08 billion\n"
-        "- Data Center: $30.77 billion\n"
-        "- Gross margin: 74.6%\n"
-    )
+    response = "- Revenue: $35.08 billion\n- Data Center: $30.77 billion\n- Gross margin: 74.6%\n"
     verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
     v = verdicts["hard.provenance_required"]
     assert v.pass_ is False
@@ -126,9 +118,7 @@ def test_provenance_per_bullet_citation_count_no_prose_inflation():
     verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
     v = verdicts["hard.provenance_required"]
     assert 0.0 <= v.score <= 1.0, f"score {v.score} outside [0,1]"
-    assert v.score == 1.0, (
-        f"all 4 bullets carry citations → ratio must be 1.0, got {v.score}"
-    )
+    assert v.score == 1.0, f"all 4 bullets carry citations → ratio must be 1.0, got {v.score}"
     assert v.pass_ is True
     assert "4/4" in v.evidence, f"evidence should report per-bullet count, got {v.evidence!r}"
 
@@ -205,12 +195,8 @@ def test_provenance_capitalised_initials_in_prose_not_counted_as_claims():
         f"expected pass — 3 bullet claims all cited; prose initials must NOT "
         f"inflate denominator. Got verdict {v}"
     )
-    assert v.score == 1.0, (
-        f"3 bullet claims, 3 citations → ratio 3/3 = 1.0; got {v.score}"
-    )
-    assert "3/3" in v.evidence, (
-        f"evidence should report 3/3 bullet count, got {v.evidence!r}"
-    )
+    assert v.score == 1.0, f"3 bullet claims, 3 citations → ratio 3/3 = 1.0; got {v.score}"
+    assert "3/3" in v.evidence, f"evidence should report 3/3 bullet count, got {v.evidence!r}"
 
 
 def test_provenance_prose_only_returns_indeterminate_evidence():
@@ -251,8 +237,7 @@ class _MockAnthropicMessages:
 
     def create(self, *, model, max_tokens, system, messages):
         self._recorder.update(
-            {"model": model, "max_tokens": max_tokens,
-             "system": system, "messages": messages}
+            {"model": model, "max_tokens": max_tokens, "system": system, "messages": messages}
         )
         return _MockAnthropicMessage(self._response)
 
@@ -393,9 +378,7 @@ def test_oracle_chain_namespaces_keys():
         "- Revenue: $35.08 billion (source: nvidia-q3-fy2026-press-release.md:14)\n"
         "- Gross margin: 74.6% (source: nvidia-q3-fy2026-press-release.md:42)\n"
     )
-    chain = OracleChain(
-        {"number": NumberAccuracyOracle(NVIDIA_SPEC), "prov": ProvenanceOracle()}
-    )
+    chain = OracleChain({"number": NumberAccuracyOracle(NVIDIA_SPEC), "prov": ProvenanceOracle()})
     verdicts = chain.evaluate(response, _build_task_card())
     assert any(k.startswith("number.") for k in verdicts)
     assert any(k.startswith("prov.") for k in verdicts)

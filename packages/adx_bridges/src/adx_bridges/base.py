@@ -7,6 +7,7 @@ Async co-opetition note (ADR-0009 §Amendment-2026-06-08): bridges are per-basel
 async actors invoked from the orchestrator's sequential loop; they do NOT race
 in real-time against each other.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,19 +18,25 @@ import signal
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 try:
     from agentdex_observe import (
         get_trace_context_headers,
+    )
+    from agentdex_observe import (
         is_enabled as _langfuse_is_enabled,
     )
 except ImportError:  # pragma: no cover
+
     def get_trace_context_headers() -> dict[str, str]:
         return {}
+
     def _langfuse_is_enabled() -> bool:
         return False
+
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +46,7 @@ class BridgeConfig:
     name: str
     host: str = "127.0.0.1"
     port: int = 0
-    workdir: Optional[str] = None
+    workdir: str | None = None
     cli_argv: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
     spawn_timeout_sec: float = 10.0
@@ -56,26 +63,26 @@ class LongRunningCliBridge(ABC):
 
     def __init__(self, cfg: BridgeConfig):
         self.cfg = cfg
-        self.proc: Optional[asyncio.subprocess.Process] = None
+        self.proc: asyncio.subprocess.Process | None = None
         self._proc_lock = asyncio.Lock()
         self._req_lock = asyncio.Lock()
-        self._stderr_task: Optional[asyncio.Task] = None
+        self._stderr_task: asyncio.Task | None = None
         self._handshake_done = False
-        self._last_response_text: Optional[str] = None
+        self._last_response_text: str | None = None
         # Real cost / token counters surfaced by the CLI's own result frame
         # (claude_bridge reads ``total_cost_usd`` + ``usage``; codex_bridge
         # reads ``tokenUsage``). Orchestrator prefers these over the
         # 4-char/token heuristic when not None.
-        self._last_cost_usd: Optional[float] = None
-        self._last_tokens: Optional[int] = None
+        self._last_cost_usd: float | None = None
+        self._last_tokens: int | None = None
         self._turn_idx: int = 0
 
     @property
-    def last_cost_usd(self) -> Optional[float]:
+    def last_cost_usd(self) -> float | None:
         return self._last_cost_usd
 
     @property
-    def last_tokens(self) -> Optional[int]:
+    def last_tokens(self) -> int | None:
         return self._last_tokens
 
     # ---- subprocess lifecycle ----
@@ -105,7 +112,7 @@ class LongRunningCliBridge(ABC):
         self._handshake_done = False
         try:
             await asyncio.wait_for(self._handshake(), self.cfg.spawn_timeout_sec)
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             await self._kill()
             raise CliDead(f"handshake timeout: {self.cfg.name}") from e
         self._handshake_done = True
@@ -120,7 +127,7 @@ class LongRunningCliBridge(ABC):
             try:
                 self.proc.send_signal(signal.SIGINT)
                 await asyncio.wait_for(self.proc.wait(), 2.0)
-            except (asyncio.TimeoutError, ProcessLookupError):
+            except (TimeoutError, ProcessLookupError):
                 try:
                     self.proc.kill()
                 except ProcessLookupError:
@@ -135,7 +142,7 @@ class LongRunningCliBridge(ABC):
         self.proc.stdin.write(data)
         await self.proc.stdin.drain()
 
-    async def _read_line(self) -> Optional[dict[str, Any]]:
+    async def _read_line(self) -> dict[str, Any] | None:
         assert self.proc and self.proc.stdout
         line = await self.proc.stdout.readline()
         if not line:
@@ -152,15 +159,16 @@ class LongRunningCliBridge(ABC):
     async def _handshake(self) -> None: ...
 
     @abstractmethod
-    async def _send_turn(self, prompt: str, *, session_id: Optional[str], extra: dict) -> str: ...
+    async def _send_turn(self, prompt: str, *, session_id: str | None, extra: dict) -> str: ...
 
     @abstractmethod
-    async def _cold_shot(self, prompt: str, *, session_id: Optional[str], extra: dict) -> dict: ...
+    async def _cold_shot(self, prompt: str, *, session_id: str | None, extra: dict) -> dict: ...
 
     # ---- public RPC entrypoint ----
 
-    async def chat(self, prompt: str, *, session_id: Optional[str] = None,
-                   extra: Optional[dict] = None) -> dict:
+    async def chat(
+        self, prompt: str, *, session_id: str | None = None, extra: dict | None = None
+    ) -> dict:
         extra = extra or {}
         async with self._req_lock:
             # Reset real-cost counters so a turn that fails to surface usage
@@ -180,7 +188,7 @@ class LongRunningCliBridge(ABC):
                     "text": self._last_response_text,
                     "mode": "long-lived",
                 }
-            except (CliDead, BrokenPipeError, ConnectionResetError, asyncio.TimeoutError) as e:
+            except (TimeoutError, CliDead, BrokenPipeError, ConnectionResetError) as e:
                 log.warning("%s long-lived failed: %s — fallback", self.cfg.name, e)
                 if not self.cfg.allow_cold_fallback:
                     return {"ok": False, "error": str(e), "mode": "long-lived"}
@@ -194,9 +202,9 @@ class LongRunningCliBridge(ABC):
         self,
         prompt: str,
         *,
-        session_id: Optional[str] = None,
-        extra: Optional[dict] = None,
-    ) -> tuple[str, Optional[str]]:
+        session_id: str | None = None,
+        extra: dict | None = None,
+    ) -> tuple[str, str | None]:
         """Public bridge API (per phase-5 contract).
 
         Returns ``(response_text, langfuse_trace_id|None)``.
@@ -212,7 +220,7 @@ class LongRunningCliBridge(ABC):
         if merged_extra.get("transport") == "http":
             merged_extra.setdefault("trace_context_headers", get_trace_context_headers())
 
-        trace_id: Optional[str] = None
+        trace_id: str | None = None
         if _langfuse_is_enabled():
             from agentdex_observe import trace_turn
 
@@ -233,6 +241,7 @@ class LongRunningCliBridge(ABC):
             result = await _wrapped()
             try:
                 from agentdex_observe import current_trace_url
+
                 url = current_trace_url()
                 if url:
                     trace_id = url.rsplit("/", 1)[-1]
@@ -249,6 +258,7 @@ class LongRunningCliBridge(ABC):
 # ---------------------------------------------------------------------------
 # TCP JSON-RPC server (newline-delimited)
 # ---------------------------------------------------------------------------
+
 
 class JsonRpcServer:
     def __init__(self, bridge: LongRunningCliBridge):
@@ -273,7 +283,9 @@ class JsonRpcServer:
         await self.bridge._kill()
         return {"stopped": True}
 
-    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def _handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         peer = writer.get_extra_info("peername")
         log.info("client connect %s", peer)
         try:
@@ -292,7 +304,10 @@ class JsonRpcServer:
                 params = req.get("params") or {}
                 fn = self._methods.get(method)
                 if not fn:
-                    resp = {"id": rid, "error": {"code": -32601, "message": f"unknown method {method}"}}
+                    resp = {
+                        "id": rid,
+                        "error": {"code": -32601, "message": f"unknown method {method}"},
+                    }
                 else:
                     try:
                         result = await fn(params)
@@ -321,6 +336,7 @@ class JsonRpcServer:
 # ---------------------------------------------------------------------------
 # entrypoint helper
 # ---------------------------------------------------------------------------
+
 
 async def run_bridge(bridge: LongRunningCliBridge) -> None:
     server = JsonRpcServer(bridge)

@@ -9,6 +9,7 @@ messages, max_tokens)`` and the Gemini-shape ``.models.generate_content(model,
 contents, config)`` so they slot into :class:`LlmJudgeOracle` without
 backend-specific branching.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,8 +17,6 @@ import logging
 import os
 import re
 import subprocess
-from typing import Any
-
 
 log = logging.getLogger(__name__)
 
@@ -63,10 +62,8 @@ class ClaudeCodeJudgeClient:
         for m in messages:
             content = m.get("content")
             if isinstance(content, list):
-                content = "\n".join(
-                    b.get("text", "") for b in content if isinstance(b, dict)
-                )
-            text_parts.append(f"[{m.get('role','user').upper()}]\n{content}")
+                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
+            text_parts.append(f"[{m.get('role', 'user').upper()}]\n{content}")
         prompt = "\n\n".join(text_parts)
         out = self._invoke(model, prompt)
         return _Message(out)
@@ -74,25 +71,24 @@ class ClaudeCodeJudgeClient:
     # ---- Gemini-shape -----
     def generate_content(self, *, model, contents, config=None):
         sys_inst = (config or {}).get("system_instruction") if config else None
-        prompt = (
-            f"[SYSTEM]\n{sys_inst}\n[/SYSTEM]\n\n{contents}" if sys_inst else contents
-        )
+        prompt = f"[SYSTEM]\n{sys_inst}\n[/SYSTEM]\n\n{contents}" if sys_inst else contents
         out = self._invoke(model, prompt)
         return _SimpleResponse(out)
 
     def _invoke(self, model: str, prompt: str) -> str:
         argv = [
             self._bin,
-            "-p", prompt,
-            "--output-format", "json",
-            "--max-turns", "1",
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            "--max-turns",
+            "1",
             "--dangerously-skip-permissions",
         ]
         if model and model.startswith("claude-") and not model.startswith("claude-code"):
             argv += ["--model", model]
-        proc = subprocess.run(
-            argv, capture_output=True, text=True, timeout=300
-        )
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=300)
         # Hard-separate stdout (the channel that carries the JSON envelope)
         # from stderr (warnings, rate-limit chatter). Never parse stderr as
         # if it were the judge verdict — that path silently turns warnings
@@ -105,8 +101,7 @@ class ClaudeCodeJudgeClient:
             return text
         if proc.returncode != 0:
             raise RuntimeError(
-                f"claude code exec failed ({proc.returncode}): "
-                f"{(stderr or stdout)[:500]}"
+                f"claude code exec failed ({proc.returncode}): {(stderr or stdout)[:500]}"
             )
         if stderr.strip():
             raise RuntimeError(
@@ -125,12 +120,7 @@ class ClaudeCodeJudgeClient:
         except json.JSONDecodeError:
             return ""
         if isinstance(payload, dict):
-            return (
-                payload.get("result")
-                or payload.get("text")
-                or payload.get("content")
-                or ""
-            )
+            return payload.get("result") or payload.get("text") or payload.get("content") or ""
         if isinstance(payload, list):
             # Walk in reverse — the result frame is last.
             for frame in reversed(payload):
@@ -167,35 +157,27 @@ class CodexJudgeClient:
         for m in messages:
             content = m.get("content")
             if isinstance(content, list):
-                content = "\n".join(
-                    b.get("text", "") for b in content if isinstance(b, dict)
-                )
-            text_parts.append(f"[{m.get('role','user').upper()}]\n{content}")
+                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
+            text_parts.append(f"[{m.get('role', 'user').upper()}]\n{content}")
         return _Message(self._invoke("\n\n".join(text_parts)))
 
     def generate_content(self, *, model, contents, config=None):
         sys_inst = (config or {}).get("system_instruction") if config else None
-        prompt = (
-            f"[SYSTEM]\n{sys_inst}\n[/SYSTEM]\n\n{contents}" if sys_inst else contents
-        )
+        prompt = f"[SYSTEM]\n{sys_inst}\n[/SYSTEM]\n\n{contents}" if sys_inst else contents
         return _SimpleResponse(self._invoke(prompt))
 
     def _invoke(self, prompt: str) -> str:
         argv = [self._bin, "exec", "--full-auto", prompt]
-        proc = subprocess.run(
-            argv, capture_output=True, text=True, timeout=180
-        )
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=180)
         stdout = proc.stdout or ""
         stderr = proc.stderr or ""
         if proc.returncode != 0:
             raise RuntimeError(
-                f"codex exec failed ({proc.returncode}): "
-                f"{stderr[:400] or stdout[:400]}"
+                f"codex exec failed ({proc.returncode}): {stderr[:400] or stdout[:400]}"
             )
         if not stdout.strip() and stderr.strip():
             raise RuntimeError(
-                "codex exec returned 0 with empty stdout but non-empty "
-                f"stderr: {stderr[:500]}"
+                f"codex exec returned 0 with empty stdout but non-empty stderr: {stderr[:500]}"
             )
         return stdout
 

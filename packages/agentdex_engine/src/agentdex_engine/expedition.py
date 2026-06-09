@@ -17,6 +17,7 @@ Phase-6 scope:
 Cost/token capture is bridge-dependent + currently best-effort (most stdio
 bridges do not surface token counts; live values land in phase-7).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ import time
 from pathlib import Path
 from typing import Protocol
 
+from agentdex_engine.balancer import ResourceBalancer
 from agentdex_engine.cards import (
     EvolutionCard,
     ResultCard,
@@ -31,13 +33,11 @@ from agentdex_engine.cards import (
     SeedCategory,
     TaskCard,
 )
-from agentdex_engine.balancer import ResourceBalancer
 from agentdex_engine.evolver.pareto import ParetoVerdict, pareto_verdict
 from agentdex_engine.manifest import (
     AgentManifest,
     BalancedConstraints,
     FairnessReport,
-    stock_manifest,
 )
 from agentdex_engine.oracle.base import Oracle, OracleVerdictMap
 from agentdex_engine.oracle.repair import OracleRepairFlagger
@@ -59,7 +59,7 @@ def _control_seed_from_response_variance(
     lo, hi = min(lengths), max(lengths)
     if lo == 0 or hi / max(lo, 1) < 1.25:
         return None
-    excerpt = ", ".join(f"{name}:{l}ch" for (name, _), l in zip(responses, lengths))
+    excerpt = ", ".join(f"{name}:{l}ch" for (name, _), l in zip(responses, lengths, strict=False))
     return Seed(
         kind="response_shape_variance",
         description=(
@@ -241,9 +241,7 @@ def _build_evolution_card(
     )
     losing_pattern = (
         "Repair oracle surfaced gaps: "
-        + ", ".join(
-            f"{cat}({len(seeds)})" for cat, seeds in sorted(repair_seeds.items())
-        )
+        + ", ".join(f"{cat}({len(seeds)})" for cat, seeds in sorted(repair_seeds.items()))
         if repair_seeds
         else "No repair seeds emitted (hard oracle clean, soft uncertainty low)"
     )
@@ -276,9 +274,7 @@ class _ExpeditionTrace:
             from langfuse import get_client
 
             client = get_client()
-            self._cm = client.start_as_current_observation(
-                name=self.name, as_type="span"
-            )
+            self._cm = client.start_as_current_observation(name=self.name, as_type="span")
             obs = self._cm.__enter__()
             if self.metadata:
                 obs.update(metadata=self.metadata)
@@ -329,17 +325,13 @@ async def run_expedition_orchestrator(
     balanced: BalancedConstraints | None = None
     if manifests:
         balancer = ResourceBalancer(max_capability_drop_tolerance=fairness_tolerance)
-        fairness_report = balancer.equalize(
-            manifests, task_card, expedition_id=expedition_id
-        )
+        fairness_report = balancer.equalize(manifests, task_card, expedition_id=expedition_id)
         balanced = fairness_report.balanced_constraints
         if on_fairness_report is not None:
             on_fairness_report(fairness_report)
         if fairness_report.fairness_verdict == "fail":
             empty_verdict = pareto_verdict([])
-            empty_card = _build_evolution_card(
-                expedition_id, empty_verdict, {}, {}
-            )
+            empty_card = _build_evolution_card(expedition_id, empty_verdict, {}, {})
             return [], empty_verdict, empty_card, fairness_report
 
     async with _ExpeditionTrace(
@@ -355,13 +347,15 @@ async def run_expedition_orchestrator(
         for bridge in bridges:
             try:
                 rc, verdicts, text = await _run_one_bridge(
-                    bridge, prompt, oracle_chain, task_card, expedition_id,
+                    bridge,
+                    prompt,
+                    oracle_chain,
+                    task_card,
+                    expedition_id,
                     balanced=balanced,
                 )
             except Exception as e:
-                rc, verdicts, text = _failed_baseline_record(
-                    bridge, task_card, expedition_id, e
-                )
+                rc, verdicts, text = _failed_baseline_record(bridge, task_card, expedition_id, e)
             per_baseline.append((rc, verdicts, text))
 
         result_cards = [rc for rc, _, _ in per_baseline]
@@ -405,7 +399,7 @@ async def run_expedition_orchestrator(
                     ),
                     evidence_jsonl_excerpt=(
                         f'{{"n_baselines":{len(result_cards)},"hard_pass_rate_avg":'
-                        f'{sum(rc.pass_rate for rc in result_cards)/max(len(result_cards),1):.3f}}}'
+                        f"{sum(rc.pass_rate for rc in result_cards) / max(len(result_cards), 1):.3f}}}"
                     ),
                     confidence="low",
                     seed_provenance="structural",
@@ -413,11 +407,7 @@ async def run_expedition_orchestrator(
             )
 
         trace_urls = {
-            rc.agent_id: rc.langfuse_trace_url
-            for rc in result_cards
-            if rc.langfuse_trace_url
+            rc.agent_id: rc.langfuse_trace_url for rc in result_cards if rc.langfuse_trace_url
         }
-        evolution_card = _build_evolution_card(
-            expedition_id, verdict, repair_seeds, trace_urls
-        )
+        evolution_card = _build_evolution_card(expedition_id, verdict, repair_seeds, trace_urls)
         return result_cards, verdict, evolution_card, fairness_report

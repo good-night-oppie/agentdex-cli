@@ -77,8 +77,7 @@ class ToolContract(BaseModel):
             missing_example_fields = required_names - set(example)
             if missing_example_fields:
                 raise ValueError(
-                    "input_examples must include required fields: "
-                    f"{sorted(missing_example_fields)}"
+                    f"input_examples must include required fields: {sorted(missing_example_fields)}"
                 )
         return self
 
@@ -288,11 +287,13 @@ def qualification_status(provider: Provider) -> QualificationStatus:
         "prompt_cache_static_prefix=true",
     ]
     if provider == Provider.OPENAI:
-        checks.extend([
-            f"reasoning_effort={profile.reasoning_effort}",
-            f"text_verbosity={profile.text_verbosity}",
-            "trace_capable=true",
-        ])
+        checks.extend(
+            [
+                f"reasoning_effort={profile.reasoning_effort}",
+                f"text_verbosity={profile.text_verbosity}",
+                "trace_capable=true",
+            ]
+        )
     else:
         checks.append("mcp_capable=true")
 

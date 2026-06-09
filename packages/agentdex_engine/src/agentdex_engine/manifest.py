@@ -13,12 +13,12 @@ no baseline races on an uneven playing field.
 This is methodology, not nice-to-have: if Claude runs with 200K context but
 Codex only sees 128K, the Pareto verdict is comparing apples to oranges.
 """
+
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 CapabilityLiteral = Literal[
     "stream_json",
