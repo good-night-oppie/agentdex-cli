@@ -236,7 +236,7 @@ class ClaudeBridge(LongRunningCliBridge):
             sid_out = result_frame.get("session_id")
             cost_usd = result_frame.get("total_cost_usd")
             usage = result_frame.get("usage") or {}
-            if isinstance(cost_usd, (int, float)):
+            if isinstance(cost_usd, int | float):
                 self._last_cost_usd = float(cost_usd)
             if isinstance(usage, dict):
                 inp = usage.get("input_tokens") or 0

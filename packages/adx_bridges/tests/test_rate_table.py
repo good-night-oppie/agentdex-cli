@@ -60,7 +60,7 @@ def test_claude_cold_shot_parses_json_array_output():
     every live cold-fallback. The fix walks the array and picks the terminal
     `type=result` frame. This test pins that contract by feeding a recorded
     (per PR #15 + PR #16 lint cleanup)
-   
+
     array shape through the cold-shot parser logic in isolation.
     """
     import asyncio

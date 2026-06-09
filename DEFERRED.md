@@ -64,3 +64,4 @@ cross_cutting: true
 ## Session 2 lint follow-ups (post-DEFERRED-drain)
 
 - PR #15 squash-merged with an unused SimpleNamespace import the CI flagged after-the-fact; PR #16 drops it. Doc-lint pairing for the import-drop lives in this note.
+- PR #16 squash-merge still flagged a UP038 ruff rule in claude_bridge.py + a ruff-format diff in test_rate_table.py; PR #17 lands both fixes so main is green again.
