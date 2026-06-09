@@ -65,3 +65,18 @@ repos:
             expeditions/.*|
             \.supergoal/.*
           )$
+
+  # PR-F (workflow w0z1i9vcs H5): auto-fire scripts/sync_toc.sh when
+  # CLAUDE.md is staged so the TOC the script claims to maintain stays
+  # in sync without a human remembering to run it. Local repo hook;
+  # `pass_filenames: false` so the script runs once regardless of how
+  # many files match the trigger.
+  - repo: local
+    hooks:
+      - id: sync-toc
+        name: sync_toc — regenerate CLAUDE.md TOC when staged
+        entry: bash scripts/sync_toc.sh
+        language: system
+        files: ^CLAUDE\.md$
+        pass_filenames: false
+        require_serial: true
