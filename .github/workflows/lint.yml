@@ -19,7 +19,7 @@ on:
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +43,7 @@ jobs:
     # harness-engineering corpus) gated at PR merge so doc + spec
     # drift can't slip into main via the per-commit hook bypass
     # (`git commit --no-verify`).
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
         with:
