@@ -10,8 +10,13 @@
 #   - G2 ep6 [06-0028] "文档是建议 / 而agent需要的是法律" — the audit checks
 #     that prose claims have code-level enforcement (the MF2/MF3/MF4 gaps the
 #     harness-praxis tracer found on 2026-06-09 were exactly this drift).
-#   - G13 ep28 [28-0830] "eval集不能只增不删" — the audit names DEAD claims
-#     in addition to NEW gaps so the doctrine doc stays pruned.
+# TODO (PR-I, workflow w0z1i9vcs P4): sunset tracking — DEAD-week bucket
+# per G13 ep28 [28-0830] "eval集不能只增不删" — DEFERRED to M6 audit v2
+# (see future ADR). The current scaled-down §2 only detects MISSING
+# anchors, not DEAD ones (file exists but unreferenced from any senses /
+# EVAL / CLAUDE.md / IDEAL_EXPERIENCE.md). Citation was earlier in this
+# header but pruned because cite-without-impl is the exact drift the
+# script exists to catch (self-fulfilling MF-class gap).
 #
 # Behavior contract:
 #   1. Read 7-day window of commits, count files-per-commit (tiny-PR violation
