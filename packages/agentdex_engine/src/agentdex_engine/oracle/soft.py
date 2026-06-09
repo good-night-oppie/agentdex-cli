@@ -98,6 +98,87 @@ def _budget_for(level: str) -> int:
     return {"low": 256, "medium": 1024, "high": 4096}.get(level.lower(), 1024)
 
 
+def _extract_anthropic_usage(message: Any) -> dict[str, int] | None:
+    """Pull input_tokens / output_tokens / cache_* from an Anthropic message.
+
+    Real Claude Code calls surface ``cache_creation_input_tokens`` +
+    ``cache_read_input_tokens`` which dominate cost. Roll them up so the
+    Langfuse generation span carries the full cost-relevant token count.
+    """
+    usage = getattr(message, "usage", None)
+    if usage is None and isinstance(message, dict):
+        usage = message.get("usage")
+    if usage is None:
+        return None
+    def _g(name: str) -> int:
+        v = getattr(usage, name, None)
+        if v is None and isinstance(usage, dict):
+            v = usage.get(name)
+        try:
+            return int(v) if v is not None else 0
+        except (TypeError, ValueError):
+            return 0
+    inp = _g("input_tokens")
+    out = _g("output_tokens")
+    cc = _g("cache_creation_input_tokens")
+    cr = _g("cache_read_input_tokens")
+    total = inp + out + cc + cr
+    if total == 0:
+        return None
+    return {
+        "input": inp,
+        "output": out,
+        "cache_creation": cc,
+        "cache_read": cr,
+        "total": total,
+    }
+
+
+def _extract_openai_usage(comp: Any) -> dict[str, int] | None:
+    usage = getattr(comp, "usage", None)
+    if usage is None and isinstance(comp, dict):
+        usage = comp.get("usage")
+    if usage is None:
+        return None
+    def _g(name: str) -> int:
+        v = getattr(usage, name, None)
+        if v is None and isinstance(usage, dict):
+            v = usage.get(name)
+        try:
+            return int(v) if v is not None else 0
+        except (TypeError, ValueError):
+            return 0
+    inp = _g("prompt_tokens")
+    out = _g("completion_tokens")
+    total = _g("total_tokens") or (inp + out)
+    if total == 0:
+        return None
+    return {"input": inp, "output": out, "total": total}
+
+
+def _extract_gemini_usage(resp: Any) -> dict[str, int] | None:
+    # google-genai puts counts under usage_metadata.
+    meta = getattr(resp, "usage_metadata", None)
+    if meta is None and isinstance(resp, dict):
+        meta = resp.get("usage_metadata")
+    if meta is None:
+        return None
+    def _g(name: str) -> int:
+        v = getattr(meta, name, None)
+        if v is None and isinstance(meta, dict):
+            v = meta.get(name)
+        try:
+            return int(v) if v is not None else 0
+        except (TypeError, ValueError):
+            return 0
+    inp = _g("prompt_token_count")
+    out = _g("candidates_token_count")
+    total = _g("total_token_count") or (inp + out)
+    if total == 0:
+        return None
+    return {"input": inp, "output": out, "total": total}
+
+
 class LlmJudgeOracle:
     """Calls an LLM judge with the rubric + response; parses verdict JSON."""
 
@@ -227,6 +308,14 @@ class LlmJudgeOracle:
             except Exception:
                 pass
 
+            # SF2 (harness-praxis tracer follow-up): extract usage tokens
+            # from each SDK shape so the Langfuse generation span carries
+            # input_tokens / output_tokens. Without these, judge cost +
+            # latency dashboards have no signal. None when the backend
+            # (e.g. subscription subprocess wrapper) does not surface usage.
+            usage: dict[str, int] | None = None
+            model_id_used = self.judge_llm
+
             # Anthropic SDK (.messages.create)
             if prefix == "claude" or hasattr(client, "messages"):
                 message = client.messages.create(
@@ -236,6 +325,8 @@ class LlmJudgeOracle:
                     messages=[{"role": "user", "content": user_prompt}],
                 )
                 out = self._extract_text(message)
+                usage = _extract_anthropic_usage(message)
+                model_id_used = getattr(message, "model", self.judge_llm) or self.judge_llm
             # google-genai SDK (.models.generate_content)
             elif prefix == "gemini" or hasattr(client, "models"):
                 cfg: dict[str, Any] = {"system_instruction": self.SYSTEM_PROMPT}
@@ -254,6 +345,7 @@ class LlmJudgeOracle:
                         contents=user_prompt,
                     )
                 out = getattr(resp, "text", "") or self._extract_text(resp)
+                usage = _extract_gemini_usage(resp)
             # OpenAI SDK fallback (.chat.completions.create)
             elif hasattr(client, "chat"):
                 comp = client.chat.completions.create(
@@ -264,6 +356,8 @@ class LlmJudgeOracle:
                     ],
                 )
                 out = comp.choices[0].message.content or ""
+                usage = _extract_openai_usage(comp)
+                model_id_used = getattr(comp, "model", self.judge_llm) or self.judge_llm
             else:
                 raise RuntimeError(
                     f"no judge adapter matches client {type(client).__name__} "
@@ -272,7 +366,13 @@ class LlmJudgeOracle:
 
             try:
                 if obs is not None:
-                    obs.update(output={"text": (out or "")[:4000]})
+                    update_kwargs: dict[str, Any] = {
+                        "output": {"text": (out or "")[:4000]},
+                        "model": model_id_used,
+                    }
+                    if usage is not None:
+                        update_kwargs["usage_details"] = usage
+                    obs.update(**update_kwargs)
             except Exception:
                 pass
             return out
