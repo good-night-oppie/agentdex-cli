@@ -183,6 +183,12 @@ class ClaudeBridge(LongRunningCliBridge):
 
     async def _cold_shot(self, prompt: str, *, session_id: str | None, extra: dict) -> dict:
         sid = session_id or new_session_id()
+        # PR #19: cold-shot inherits the long-lived bridge's permission posture.
+        # `--dangerously-skip-permissions` matches `build_argv`; without it the
+        # CLI prompts on stdin for the first tool grant + the subprocess hangs
+        # silently until the orchestrator's per-baseline timeout fires —
+        # surfacing as `CliDead: cold shot failed:` with empty stderr (returncode
+        # != 0 from timeout-kill, no error message ever emitted).
         argv = [
             CLAUDE_BIN,
             "-p",
@@ -191,6 +197,7 @@ class ClaudeBridge(LongRunningCliBridge):
             "json",
             "--session-id",
             sid,
+            "--dangerously-skip-permissions",
         ]
         if mt := extra.get("max_turns"):
             argv += ["--max-turns", str(mt)]
@@ -204,7 +211,16 @@ class ClaudeBridge(LongRunningCliBridge):
         )
         out, err = await proc.communicate()
         if proc.returncode != 0:
-            raise CliDead(f"cold shot failed: {err.decode(errors='replace')[:400]}")
+            stderr_excerpt = err.decode(errors="replace")[:400]
+            stdout_excerpt = out.decode(errors="replace")[:400]
+            # PR #19: surface stdout too when stderr is empty so silent
+            # subprocess hangs (e.g. permission-prompt wait) produce a
+            # diagnosable error instead of `cold shot failed:` with nothing
+            # after the colon.
+            raise CliDead(
+                f"cold shot failed (rc={proc.returncode}): "
+                f"stderr={stderr_excerpt!r} stdout={stdout_excerpt!r}"
+            )
         # claude `--output-format json` emits a JSON ARRAY of frames (init +
         # hook frames + stream events + result), not a single object. PR #15:
         # walk the array, pick the terminal `type=result` frame, and pull
