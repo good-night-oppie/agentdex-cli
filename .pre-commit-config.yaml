@@ -34,8 +34,11 @@ repos:
         args: ['--maxkb=2048']
 
   # Ruff — lint + format. Single binary, configured in pyproject.toml.
+  # Pinned to a real upstream tag (PR-K, workflow lint.yml live-run fix);
+  # the earlier `v0.13.4` did not exist in astral-sh/ruff-pre-commit
+  # → pre-commit refused to clone.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.13.4
+    rev: v0.9.10
     hooks:
       - id: ruff
         args: ["--fix"]
@@ -44,9 +47,10 @@ repos:
         exclude: '^packages/kaos/'
 
   # Mypy — strict on the schema layer per pyproject.toml override; lenient
-  # elsewhere via follow_imports=silent + ignore_missing_imports.
+  # elsewhere via follow_imports=silent + ignore_missing_imports. v1.9.0
+  # is the latest 1.x; v2.x is breaking — pin to 1.x for M5 stability.
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.18.2
+    rev: v1.9.0
     hooks:
       - id: mypy
         files: ^packages/agentdex_engine/src/agentdex_engine/cards/
