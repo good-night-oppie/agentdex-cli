@@ -5,7 +5,7 @@ so we setup once and use it across adx-cli", every client (bridges, soft
 Oracle judge, assist NL router) routes through one entry point:
 
     from agentdex_observe.llm_pool import client_for
-    client = client_for("gemini-3.5-flash")
+    client = client_for("claude-haiku-4.5")
 
 The pool resolves the right backend by reading ``~/.adx/llm_pool.env``
 exactly once per process (or by env override). Resolution ladder:
