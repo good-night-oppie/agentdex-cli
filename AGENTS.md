@@ -1,54 +1,69 @@
-# AGENTS.md — agentdex-cli
+---
+title: AGENTS.md — agentdex-cli
+status: active
+owner: etang
+created: 2026-06-07
+updated: 2026-06-09
+type: reference
+scope: monorepo
+layer: cross-cutting
+cross_cutting: true
+---
 
-Single-screen index for any AI coding agent (Claude Code / Codex / Cursor / Aider) operating in this repo. **Lazy-load** the modular files in `agents/` for area-specific context. Do NOT paste this file into the agent — it reads it on its own.
+# AGENTS.md
 
-> Maintained per OpenAI G2 Harness Engineering pattern (lazy-load > monolith) and Anthropic G9 3-round prune method. See `~/gh/harness-engineering/glossary.md` for source-paper citations.
+- Map (not encyclopedia) per [G2 ep3 pattern](docs/architecture/architecture.md)
+- Lazy-load linked surfaces — do not paste this file into the agent
+- Foundation: [CLAUDE.md](CLAUDE.md) + [IDEAL_EXPERIENCE.md](IDEAL_EXPERIENCE.md) + [EVAL.md](EVAL.md)
 
-## Anchor docs (read in order on cold start)
-1. `IDEAL_EXPERIENCE.md` — what success looks like for users of agentdex-cli (G14 Cursor anchor)
-2. `EVAL.md` — eval signal + ground-truth gate (G13 LangChain)
-3. `AUTONOMY_THRESHOLD.md` — when human review drops (G2 ep6)
+## Tools
 
-## Modular agent contexts (lazy-load by area)
-- `agents/ops/AGENTS.md` — running, env vars, secrets, ports
-- `agents/build/AGENTS.md` — build/test/lint commands, deps
-- `agents/review/AGENTS.md` — PR / merge philosophy (async gates, G2 ep5+7)
-- `agents/debug/AGENTS.md` — failure modes, log locations, sense tools
+- [uv workspace](pyproject.toml) — workspace pkg manager
+- [pytest runner](tools/agent_senses/run_tests.sh) — canonical test command
+- [pre-commit config](.pre-commit-config.yaml) — ruff + mypy + secrets + sync_toc + doc_lint
+- [doc_lint.py](scripts/doc_lint.py) — 63 rules vendored from harness-engineering
+- [sync_toc.sh](scripts/sync_toc.sh) — CLAUDE.md TOC generator
+- [install_hooks.sh](scripts/install_hooks.sh) — pre-commit installer
+- [install_doc_lint_precommit.sh](scripts/install_doc_lint_precommit.sh) — doc-lint installer
+- [expedition_smoke.sh](cron/expedition_smoke.sh) — daily smoke gate
+- [weekly_harness_audit.sh](cron/weekly_harness_audit.sh) — doctrine drift scan
+- [dream_consolidate.sh](cron/dream_consolidate.sh) — KAOS lineage surface
+- [capture_bridge_smoke.sh](tools/agent_senses/capture_bridge_smoke.sh) — bridge fixture capture
+- [tail_logs.sh](tools/agent_senses/tail_logs.sh) — peek heartbeat logs
+- [peek_metrics.sh](tools/agent_senses/peek_metrics.sh) — system shape signal
 
-## Agent senses (run, don't guess)
-```bash
-./tools/agent_senses/run_tests.sh          # canonical test command + parse
-./tools/agent_senses/tail_logs.sh <area>   # peek recent logs without flooding context
-./tools/agent_senses/peek_metrics.sh       # latest perf / coverage / size deltas
-```
-Per G2 ep4: agents that only write are blind; senses are the read-back loop.
+## Architecture
 
-## Hard rails (architecture as code, not docs)
-- `ruff` + `mypy --strict` configured in `pyproject.toml`
-- Pre-commit hook in `.pre-commit-config.yaml` (when present)
-- CI gate: see `.github/workflows/` — async-style (G2 ep7), does not sync-block agent throughput.
+- [ADR-0009 (canonical)](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — KAOS substrate + retrofit + Pokédex pivot
+- [docs/architecture/architecture.md](docs/architecture/architecture.md) — TOOLS / ARCH / CONTEXT + invariants + guardrails
+- [docs/REPO_STRUCTURE.md](docs/REPO_STRUCTURE.md) — top-level tree
+- [docs/DEV_SETUP.md](docs/DEV_SETUP.md) — env vars + first-run + common workflows
+- [supergoal ROADMAP](.supergoal/ROADMAP.md) — phase progress + Notable events log
+- [DEFERRED.md](DEFERRED.md) — phase-8 polish queue w/ `Until:` dates
+- [agents/ops/AGENTS.md](agents/ops/AGENTS.md) — env vars + secrets + ports
+- [agents/build/AGENTS.md](agents/build/AGENTS.md) — build / test / lint commands
+- [agents/debug/AGENTS.md](agents/debug/AGENTS.md) — failure modes + log locations
+- [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy + escalation
 
-## What NOT to do (G2 ep3 failure modes)
-- Don't grow this file > 200 lines — split into `agents/<area>/`.
-- Don't put architecture rules in prose only — encode in lint/types/tests.
-- Don't block agent loop on synchronous human review — use canary + async gate.
-- Don't hardcode runtime rules that the agent could learn (G11 Browser Use bitter lesson).
+## Context
 
-## Provenance
-- Pattern source: OpenAI "Harness engineering: leveraging Codex in an agent-first environment" (eps 03-09 in harness-engineering corpus)
-- Generated: 2026-06-07 by `scaffold_openai_dev_env.sh`
-## Permissions (manifest — agentlint OBS-002)
-```yaml
-permissions:
-  filesystem:
-    read:  ["**/*"]
-    write: ["src/**", "tests/**", "agents/**", "docs/**", "agentdex-cli/**", "./*.md", ".github/**"]
-  shell:
-    enabled: true
-    allowed_commands:
-      - "./tools/agent_senses/run_tests.sh"
-      - "./tools/agent_senses/tail_logs.sh"
-      - "./tools/agent_senses/peek_metrics.sh"
-  network:
-    outbound: false
-```
+- [IDEAL_EXPERIENCE.md](IDEAL_EXPERIENCE.md) — operator profile + 6 ideal moments + 5 drift cases (G14)
+- [EVAL.md](EVAL.md) — eval gates + ground-truth dataset (G13)
+- [CLAUDE.md](CLAUDE.md) — doctrine commitments
+- [AUTONOMY_THRESHOLD.md](AUTONOMY_THRESHOLD.md) — supervised → autonomous flip gates (G2 ep6)
+- [memory dir](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/) — feedback / project / reference notes
+- [adr cascade](docs/adr/) — historical decisions
+- [.harness/CORPUS_QUERY_KEYWORDS](.harness/CORPUS_QUERY_KEYWORDS) — SessionStart hook seed
+- [.harness/doc-templates/](.harness/doc-templates/) — doc-lint template starters
+
+## Feedback
+
+- [run_tests.sh](tools/agent_senses/run_tests.sh) — is the codebase green?
+- [peek_metrics.sh](tools/agent_senses/peek_metrics.sh) — system shape signal
+- [tail_logs.sh](tools/agent_senses/tail_logs.sh) — last expedition trace
+- [weekly_harness_audit.sh](cron/weekly_harness_audit.sh) — doctrine drift scan
+- [dream_consolidate.sh](cron/dream_consolidate.sh) — KAOS lineage surface
+- [doc_lint.py](scripts/doc_lint.py) — commit-gate doc rules
+- [monitor-gaps.md](~/.cursor/projects/home-admin/heartbeat/monitor-gaps.md) — error funnel (1h sweep cadence)
+- [sweeps/](sweeps/) — audit artifacts
+- [feedback_gap_log_review memory](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_gap_log_review.md) — review cadence

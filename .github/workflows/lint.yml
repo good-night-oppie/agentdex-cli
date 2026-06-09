@@ -37,3 +37,18 @@ jobs:
       - name: Run pre-commit on the full tree
         run: |
           uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+
+  doc-lint:
+    # DOC-LINT-031 closure: scripts/doc_lint.py (63 rules from
+    # harness-engineering corpus) gated at PR merge so doc + spec
+    # drift can't slip into main via the per-commit hook bypass
+    # (`git commit --no-verify`).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run doc_lint.py on the full tree
+        run: |
+          # Vendored copy; no extra deps required (stdlib only).
+          python3 scripts/doc_lint.py
