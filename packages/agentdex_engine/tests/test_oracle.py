@@ -184,6 +184,35 @@ def test_provenance_lettered_list_counts_as_claim_lines():
     assert v.score == 1.0
 
 
+def test_provenance_capitalised_initials_in_prose_not_counted_as_claims():
+    """C3 regression (workflow w0z1i9vcs): the MF6 regex allowed any single
+    ASCII letter + `[.)]` which promoted prose lines like `J. Huang (CEO)
+    said the quarter was strong.` and `I. saw the report.` to claim lines.
+    Realistic NVIDIA-style response: 3 cited bullets + 2 prose initials →
+    if J./I./M. count as claims, ratio = 3/5 = 0.6 → flips PASS to FAIL.
+    The C3-tightened regex rejects capitalised letter + period."""
+    response = (
+        "J. Huang (CEO) said the quarter was strong.\n"
+        "M. Smith (CFO) added that margins held up.\n"
+        "- Revenue: $35.08 billion (source: nvidia-q3-fy2026-press-release.md:14)\n"
+        "- Gross margin: 74.6% (source: nvidia-q3-fy2026-press-release.md:42)\n"
+        "- Guidance: $37.5 billion (source: nvidia-q3-fy2026-press-release.md:60)\n"
+        "I. saw the deck briefly.\n"
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert v.pass_ is True, (
+        f"expected pass — 3 bullet claims all cited; prose initials must NOT "
+        f"inflate denominator. Got verdict {v}"
+    )
+    assert v.score == 1.0, (
+        f"3 bullet claims, 3 citations → ratio 3/3 = 1.0; got {v.score}"
+    )
+    assert "3/3" in v.evidence, (
+        f"evidence should report 3/3 bullet count, got {v.evidence!r}"
+    )
+
+
 def test_provenance_prose_only_returns_indeterminate_evidence():
     """Response is all prose with citations but no bullets — Oracle cannot
     verify per-claim provenance. Returns pass=False with score=0 + evidence

@@ -211,13 +211,26 @@ class ProvenanceOracle:
         r"\bsource\s*:\s*[\w\-./]+\.md\s*:\s*\d+",
         re.IGNORECASE,
     )
-    # MF6 (harness-praxis tracer follow-up, 2026-06-09): match BOTH bullet
-    # markers (-, *, •) AND numbered / lettered enumeration (`1. `, `1) `,
-    # `a. `, `i. `). Earlier per-bullet regex only matched `[-*•]` and
-    # forced a 0/0 ratio = forced fail whenever the LLM responded with
-    # numbered enumeration (a common output style).
+    # MF6+C3 (harness-praxis tracer + workflow w0z1i9vcs follow-up,
+    # 2026-06-09): match BOTH bullet markers (-, *, •) AND numbered /
+    # lettered enumeration (`1. `, `1) `, `a. `, `a) `, `i. `, `ii. `).
+    #
+    # MF6's first cut allowed any single ASCII letter + `[.)]`, which
+    # promoted prose lines like `J. Huang (CEO) said...` and `I. saw the
+    # report` to claim lines and inflated n_claims with uncited "claims"
+    # → ratio drops → previously-passing answers flip to fail (C3 medium).
+    #
+    # Tightened branches (each rejects the most common prose false-positive
+    # named in C3 — capitalised initials like `J. Huang` / `I. saw`):
+    #   - numeric: \d+ followed by `.` or `)`            → `1.` `1)` `42.`
+    #   - lowercase letter: [a-z] followed by `.` or `)` → `a.` `a)` `i.`
+    #     (lowercase initials in prose are rare; accept both terminators)
+    #   - uppercase letter: [A-Z] followed by `)` ONLY   → `A)` `B)`
+    #     (REJECT `J.` `I.` `A.` because capitalised + period = sentence
+    #     initial / prose initial in the overwhelming majority of cases)
+    #   - multi-char roman: [ivxIVX]{2,4} followed by `.` → `ii.` `iv.` `IV.`
     CLAIM_LINE_RE = re.compile(
-        r"^[ \t]*(?:[-*•]|(?:\d+|[a-zA-Z]|[ivxIVX]+)[.)])[ \t]+(.+)$",
+        r"^[ \t]*(?:[-*•]|\d+[.)]|[a-z][.)]|[A-Z]\)|[ivxIVX]{2,4}\.)[ \t]+(.+)$",
         re.MULTILINE,
     )
 
