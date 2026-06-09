@@ -65,7 +65,24 @@ def _is_retryable_judge_error(exc: BaseException) -> bool:
     APITimeoutError, RateLimitError (429), and any exception whose
     stringified body mentions a 5xx Cloudflare edge code (520..527) or a
     standard gateway 5xx (502/503/504).
+
+    PR #20 — honor explicit ``"retryable":false`` / ``"owner_action_required":true``
+    flags emitted by Cloudflare 525-class errors. The Cloudflare body says
+    "Do not retry. The website operator must fix the origin SSL/TLS
+    configuration." Burning 14 s of exponential backoff on a configuration
+    failure the origin operator must fix wastes the orchestrator's
+    per-baseline timeout budget. Surfacing the failure immediately gets the
+    operator a clean error message + lets the next baseline run sooner.
     """
+    text = repr(exc)
+
+    # Explicit non-retryable signal from the error body always wins —
+    # whether the class name looks retryable or not.
+    if '"retryable":false' in text or '"retryable": false' in text:
+        return False
+    if '"owner_action_required":true' in text or '"owner_action_required": true' in text:
+        return False
+
     name = type(exc).__name__.lower()
     if any(
         marker in name
@@ -80,7 +97,6 @@ def _is_retryable_judge_error(exc: BaseException) -> bool:
         )
     ):
         return True
-    text = repr(exc)
     if any(
         code in text
         for code in (
