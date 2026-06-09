@@ -68,9 +68,7 @@ def estimate_cost_usd(
     except (TypeError, ValueError):
         return None
     total = (
-        (input_tokens * in_rate)
-        + (output_tokens * out_rate)
-        + (cached_tokens * cached_rate)
+        (input_tokens * in_rate) + (output_tokens * out_rate) + (cached_tokens * cached_rate)
     ) / 1_000_000.0
     return round(max(total, 0.0), 6)
 

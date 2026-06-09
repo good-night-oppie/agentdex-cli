@@ -9,9 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import yaml
-
 from agentdex_engine.cards import EvolutionCard, Seed
 from agentdex_engine.evolver.learned_seeds import (
     LearnedSeedGenerator,
@@ -72,9 +70,7 @@ def test_recurrence_below_threshold_emits_nothing(tmp_path: Path):
     """
     for i in range(5):
         _write_expedition(tmp_path, f"exp-{i}", {"source": [f"unique_kind_{i}"]})
-    gen = RecurrencePatternGenerator(
-        expeditions_root=tmp_path, window=5, recurrence_threshold=3
-    )
+    gen = RecurrencePatternGenerator(expeditions_root=tmp_path, window=5, recurrence_threshold=3)
     assert gen.emit_seeds("current-exp") == {}
 
 
@@ -86,9 +82,7 @@ def test_recurrence_above_threshold_emits_learned_reasoning_seed(tmp_path: Path)
             f"exp-{i}",
             {"source": ["provenance_required"], "control": ["response_shape_variance"]},
         )
-    gen = RecurrencePatternGenerator(
-        expeditions_root=tmp_path, window=5, recurrence_threshold=3
-    )
+    gen = RecurrencePatternGenerator(expeditions_root=tmp_path, window=5, recurrence_threshold=3)
     out = gen.emit_seeds("current-exp")
     assert "reasoning" in out, f"expected reasoning category, got {list(out)}"
     seeds = out["reasoning"]
@@ -106,9 +100,7 @@ def test_current_expedition_excluded_from_window(tmp_path: Path):
     _write_expedition(tmp_path, "current", {"source": ["should_not_inflate"]})
     for i in range(2):
         _write_expedition(tmp_path, f"prior-{i}", {"source": ["should_not_inflate"]})
-    gen = RecurrencePatternGenerator(
-        expeditions_root=tmp_path, window=5, recurrence_threshold=3
-    )
+    gen = RecurrencePatternGenerator(expeditions_root=tmp_path, window=5, recurrence_threshold=3)
     # 2 prior + 1 current; current is excluded → 2 hits, below threshold
     assert gen.emit_seeds("current") == {}
 
@@ -148,11 +140,7 @@ def test_merge_learned_into_evolution_card_preserves_structural():
     merged = merge_learned_into_evolution_card(base, learned)
     assert "source" in merged.mutation_seeds  # structural preserved
     assert "reasoning" in merged.mutation_seeds  # learned added
-    provs = {
-        s.seed_provenance
-        for cat in merged.mutation_seeds.values()
-        for s in cat
-    }
+    provs = {s.seed_provenance for cat in merged.mutation_seeds.values() for s in cat}
     assert provs == {"structural", "learned"}, (
         f"merge should preserve both provenance labels; got {provs}"
     )
@@ -184,9 +172,7 @@ def test_m7_gate_check_pattern():
         langfuse_trace_urls={},
     )
     has_learned = any(
-        s.seed_provenance == "learned"
-        for cat in card.mutation_seeds.values()
-        for s in cat
+        s.seed_provenance == "learned" for cat in card.mutation_seeds.values() for s in cat
     )
     assert has_learned is False, "M5 card has only structural seeds"
 
@@ -199,8 +185,6 @@ def test_m7_gate_check_pattern():
     )
     card_m7 = merge_learned_into_evolution_card(card, {"reasoning": [learned_seed]})
     has_learned_m7 = any(
-        s.seed_provenance == "learned"
-        for cat in card_m7.mutation_seeds.values()
-        for s in cat
+        s.seed_provenance == "learned" for cat in card_m7.mutation_seeds.values() for s in cat
     )
     assert has_learned_m7 is True, "M7-merged card should report ≥1 learned seed"

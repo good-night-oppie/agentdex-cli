@@ -411,9 +411,7 @@ async def run_expedition_orchestrator(
         # the learned generator already emitted ≥1 learned seed (so the M7
         # gate doesn't get fooled by the M5 floor counting as content).
         already_has_learned = any(
-            s.seed_provenance == "learned"
-            for cat in repair_seeds.values()
-            for s in cat
+            s.seed_provenance == "learned" for cat in repair_seeds.values() for s in cat
         )
         if len(repair_seeds) < 2 and len(result_cards) >= 1 and not already_has_learned:
             repair_seeds.setdefault("reasoning", []).append(

@@ -17,16 +17,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
 import yaml
-
 from agentdex_engine.cards import TaskCard
 from agentdex_engine.oracle.base import OracleVerdict
 from agentdex_engine.oracle.calibration import CalibrationReport, calibrate
 
-FIXTURES_DIR = (
-    Path(__file__).parent / "oracle_calibration_fixtures" / "narrative_coherence"
-)
+FIXTURES_DIR = Path(__file__).parent / "oracle_calibration_fixtures" / "narrative_coherence"
 
 _CITATION_RE = re.compile(r"\bsource\s*:\s*[\w\-./]+\.md\s*:\s*\d+", re.IGNORECASE)
 _BULLET_RE = re.compile(r"^[ \t]*(?:[-*•]|\d+[.)]|[a-z][.)])[ \t]+(.+)$", re.MULTILINE)
@@ -54,7 +50,7 @@ def _load_all_fixtures() -> list[tuple[str, float, bool, str]]:
 def _build_task_card() -> TaskCard:
     return TaskCard(
         id="nvidia-earnings-infographic-q3-fy2026",
-        source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",
+        source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",  # pragma: allowlist secret
         environment_spec={"runtime": "calibration-test"},
         oracle_spec_ref="tasks/nvidia-earnings-infographic/oracle/spec.yaml",
         budget_token_cap=1000,

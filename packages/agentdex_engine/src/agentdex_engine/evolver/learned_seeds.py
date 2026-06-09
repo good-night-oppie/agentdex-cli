@@ -52,9 +52,7 @@ class LearnedSeedGenerator(Protocol):
     without breaking the orchestrator wiring.
     """
 
-    def emit_seeds(
-        self, current_expedition_id: str
-    ) -> dict[SeedCategory, list[Seed]]:
+    def emit_seeds(self, current_expedition_id: str) -> dict[SeedCategory, list[Seed]]:
         """Return a mutation_seeds dict suitable for merging into
         :class:`EvolutionCard.mutation_seeds`. Empty dict if no learned
         signal has accumulated yet (acceptable at M5-M6; M7 raises bar).
@@ -89,9 +87,7 @@ class RecurrencePatternGenerator:
         self.recurrence_threshold = recurrence_threshold
         self._skip = set(skip_expedition_ids)
 
-    def emit_seeds(
-        self, current_expedition_id: str
-    ) -> dict[SeedCategory, list[Seed]]:
+    def emit_seeds(self, current_expedition_id: str) -> dict[SeedCategory, list[Seed]]:
         from pathlib import Path
 
         root = Path(self.expeditions_root)
@@ -107,8 +103,7 @@ class RecurrencePatternGenerator:
             (
                 d
                 for d in root.iterdir()
-                if d.is_dir() and d.name not in skip
-                and (d / "evolution_card.yaml").is_file()
+                if d.is_dir() and d.name not in skip and (d / "evolution_card.yaml").is_file()
             ),
             key=lambda d: d.stat().st_mtime,
             reverse=True,
@@ -139,8 +134,7 @@ class RecurrencePatternGenerator:
                     "signal worth a Pokédex entry, not single-run noise."
                 ),
                 evidence_jsonl_excerpt=(
-                    f'{{"window":{len(dirs)},"recurrence":{n},'
-                    f'"category":{cat!r},"kind":{kind!r}}}'
+                    f'{{"window":{len(dirs)},"recurrence":{n},"category":{cat!r},"kind":{kind!r}}}'
                 ),
                 confidence="med",
                 seed_provenance="learned",

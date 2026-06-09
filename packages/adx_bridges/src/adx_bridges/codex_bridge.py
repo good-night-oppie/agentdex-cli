@@ -162,9 +162,14 @@ class CodexBridge(LongRunningCliBridge):
             cost_usd: float | None = None
             if tokens_total:
                 from adx_bridges.rate_table import estimate_cost_usd
+
                 model_id = params.get("model") or params.get("modelId")
-                inp_calc = int(token_usage.get("inputTokens") or token_usage.get("input_tokens") or 0)
-                out_calc = int(token_usage.get("outputTokens") or token_usage.get("output_tokens") or 0)
+                inp_calc = int(
+                    token_usage.get("inputTokens") or token_usage.get("input_tokens") or 0
+                )
+                out_calc = int(
+                    token_usage.get("outputTokens") or token_usage.get("output_tokens") or 0
+                )
                 cached_calc = int(
                     token_usage.get("cachedInputTokens")
                     or token_usage.get("cached_input_tokens")
