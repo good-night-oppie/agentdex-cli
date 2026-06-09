@@ -80,11 +80,21 @@ def test_three_result_cards_validate(run_mocked_expedition):
         rc = ResultCard.model_validate(body)
         assert rc.agent_id == agent
         assert 0.0 <= rc.pass_rate <= 1.0
-        assert rc.cost_dollar > 0.0
+        # C4 (workflow w0z1i9vcs): post-MF5 cost_dollar is float|None — None
+        # only on the failure path (failure_trace_path set). Guard the
+        # `> 0.0` assert so the smoke test fails cleanly with a useful
+        # message instead of TypeError if it ever covers the failure path.
+        if rc.failure_trace_path is None:
+            assert rc.cost_dollar is not None and rc.cost_dollar > 0.0
+        else:
+            assert rc.cost_dollar is None, (
+                "MF5 invariant: failed baseline cost_dollar must be None"
+            )
         assert rc.speed_wall_clock_sec > 0.0
-        assert rc.pareto_position in {"dominated", "undominated", "no-clear-winner"} or isinstance(
-            rc.pareto_position, int
-        )
+        # PR-E (C5) added "excluded-failed" to the ParetoPosition Literal.
+        assert rc.pareto_position in {
+            "dominated", "undominated", "no-clear-winner", "excluded-failed",
+        } or isinstance(rc.pareto_position, int)
 
 
 def test_pareto_verdict_yaml(run_mocked_expedition):
