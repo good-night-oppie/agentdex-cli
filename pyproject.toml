@@ -24,6 +24,19 @@ helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }
 kaos             = { workspace = true }
 
+# PR-C (workflow w0z1i9vcs H1 fix): install the rails AGENTS.md + the
+# .pre-commit-config.yaml header advertise. Without this dep group, a fresh
+# contributor running `uv sync` gets a workspace without ruff / mypy /
+# pre-commit binaries, so the "Hard rails encoded in code" claim in
+# AGENTS.md:28 was config-only theater. Install via `uv sync --group dev`.
+[dependency-groups]
+dev = [
+  "ruff>=0.13.4",
+  "mypy>=1.18.2",
+  "pre-commit>=4.0.0",
+  "detect-secrets>=1.5.0",
+]
+
 [tool.ruff]
 # Encoded in code so AGENTS.md "ruff configured in pyproject.toml" claim is true.
 # G2 ep6: architecture-as-hard-rails, not prose.
