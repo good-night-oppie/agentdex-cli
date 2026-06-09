@@ -48,11 +48,11 @@ def test_number_accuracy_pass():
     """Synthetic response with all correct numbers → hard pass-rate high."""
     oracle = NumberAccuracyOracle(NVIDIA_SPEC)
     response = (
-        "Q3 FY2026 NVIDIA revenue was $35.08 billion, up substantially. "
-        "Data Center revenue: $30.77 billion, up 112% YoY. "
-        "GAAP gross margin: 74.6%. Q4 guidance: $37.5 billion ± 2%. "
-        "Capex: $1.85 billion. Inventory rose 11% QoQ. "
-        "China revenue $5.40 billion (16%). Blackwell and Rubin ramp continue."
+        "Q3 FY2026 NVIDIA revenue was $57.0 billion, a record quarter. "
+        "Data Center revenue: $51.21 billion, up 66% YoY. "
+        "GAAP gross margin: 73.4%. Q4 guidance: $65.0 billion ± 2%. "
+        "Net income: $31.91 billion. Networking: $8.19 billion. "
+        "Outlook assumes zero data center compute from China. Blackwell Ultra mention present."
     )
     verdicts = oracle.evaluate(response, _build_task_card())
     passed = [v for v in verdicts.values() if v.pass_]
@@ -66,14 +66,14 @@ def test_number_accuracy_fail_wrong_revenue():
     oracle = NumberAccuracyOracle(NVIDIA_SPEC)
     response = (
         "Q3 FY2026 NVIDIA revenue was $99.99 billion. "  # wrong on purpose
-        "Data Center revenue: $30.77 billion. "
-        "GAAP gross margin: 74.6%."
+        "Data Center revenue: $51.21 billion. "
+        "GAAP gross margin: 73.4%."
     )
     verdicts = oracle.evaluate(response, _build_task_card())
     rev = verdicts.get("hard.revenue_total")
     assert rev is not None, "revenue_total verdict missing"
     assert rev.pass_ is False, f"expected revenue_total to FAIL, got {rev!r}"
-    assert "$35.08" in rev.evidence or "35.08" in rev.evidence
+    assert "$57.0" in rev.evidence or "57.0" in rev.evidence
 
 
 # ---------------------------------------------------------------------------

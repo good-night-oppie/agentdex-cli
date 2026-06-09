@@ -6,77 +6,79 @@
 # is graded by whether every claim it makes maps to a row here OR carries an
 # explicit `source: <file>:<line>` annotation. Missing citation → emits
 # Seed(kind="provenance_required", seed_provenance="structural").
+#
+# Aligned to live Q3 FY2026 source bundle (PR #8 cascade) on 2026-06-09.
 
 task_id: nvidia-earnings-infographic-q3-fy2026
 
 claims:
-  - claim: "Q3 FY2026 total revenue was $35.08 billion"
+  - claim: "Q3 FY2026 total revenue was $57.0 billion"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "7-7"
+    source_line_range: "18-18"
     hard_oracle_key: revenue_total
 
-  - claim: "Revenue grew 94% year-over-year"
+  - claim: "Revenue grew 62% year-over-year"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "7-7"
+    source_line_range: "18-18"
 
-  - claim: "GAAP gross margin was 74.6%"
+  - claim: "GAAP gross margin was 73.4%"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "8-8"
+    source_line_range: "19-19"
     hard_oracle_key: gross_margin_pct
 
-  - claim: "Data Center segment revenue was $30.77 billion"
+  - claim: "Data Center segment revenue was $51.21 billion"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "15-15"
+    source_line_range: "29-29"
     hard_oracle_key: data_center_revenue
 
-  - claim: "Data Center revenue grew 112% YoY"
+  - claim: "Data Center revenue grew 66% YoY"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "15-15"
+    source_line_range: "29-29"
     hard_oracle_key: data_center_growth_yoy_pct
-    computed_note: "Confirmed by 10-Q segment table: $30,770M / $14,514M - 1 = 112%"
+    computed_note: "Confirmed by 10-Q segment table: $51,210M / $30,820M - 1 ≈ 66%"
 
-  - claim: "Q4 FY2026 guidance is $37.5 billion ± 2%"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "23-23"
-    hard_oracle_key: guidance_next_quarter
-
-  - claim: "Q3 FY2026 capital expenditure was $1.85 billion"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "31-31"
-    hard_oracle_key: capex_total
-
-  - claim: "Inventory increased 11% sequentially to $7.65 billion"
+  - claim: "Data Center compute revenue was $43.03 billion"
     source_file: nvidia-q3-fy2026-press-release.md
     source_line_range: "37-37"
-    hard_oracle_key: inventory_qoq_change
 
-  - claim: "China revenue was $5.40 billion (16% of total)"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "41-41"
-    hard_oracle_key: china_revenue_disclosure_present
-
-  - claim: "Blackwell B100/B200 shipments ramping into hyperscaler general availability"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "47-47"
-    hard_oracle_key: blackwell_rubin_mention_present
-
-  - claim: "Rubin family announced as successor architecture; R100 targets H2 CY2026 sampling"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "48-48"
-    hard_oracle_key: blackwell_rubin_mention_present
-
-  - claim: "Hopper H200 remains volume product through Q4 FY2026"
-    source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "49-49"
-
-  - claim: "Operating cash flow Q3 FY2026 was $17.6 billion"
+  - claim: "Networking revenue was $8.19 billion, up 162% YoY"
     source_file: nvidia-q3-fy2026-press-release.md
     source_line_range: "38-38"
+    hard_oracle_key: networking_revenue
 
-  - claim: "Cash, equivalents, and marketable securities total $38.50 billion"
+  - claim: "Q4 FY2026 guidance is $65.0 billion ± 2%"
     source_file: nvidia-q3-fy2026-press-release.md
-    source_line_range: "37-37"
+    source_line_range: "43-43"
+    hard_oracle_key: guidance_next_quarter
 
-  - claim: "Diluted EPS GAAP was $0.78"
-    source_file: nvidia-q3-fy2026-10-q-excerpt.md
+  - claim: "Q4 outlook assumes zero data center compute contribution from China"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "49-49"
+    hard_oracle_key: china_compute_outlook_present
+
+  - claim: "Net income was $31.91 billion"
+    source_file: nvidia-q3-fy2026-press-release.md
     source_line_range: "23-23"
+    hard_oracle_key: net_income
+
+  - claim: "Diluted GAAP EPS was $1.30"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "21-21"
+
+  - claim: "Blackwell Ultra is the leading architecture across all customer categories"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "58-58"
+    hard_oracle_key: blackwell_ultra_mention_present
+
+  - claim: "Blackwell shipment pace is 1,000+ racks per week"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "59-59"
+
+  - claim: "$500B Blackwell + Rubin opportunity through CY2026"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "60-60"
+
+  - claim: "H20 sales were insignificant in Q3 FY2026"
+    source_file: nvidia-q3-fy2026-press-release.md
+    source_line_range: "39-39"
+    hard_oracle_key: china_compute_outlook_present

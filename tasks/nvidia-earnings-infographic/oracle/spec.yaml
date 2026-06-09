@@ -5,68 +5,70 @@
 # All claims must cite source via `source: <file>:<line>` annotation
 # (provenance_required at bottom).
 #
-# Provenance: hand-authored 2026-06-08 from sources/*.md (MOCK data; replace
-# with live Q3 FY2026 numbers before any Expedition run).
+# Provenance: hand-authored 2026-06-08, aligned to live Q3 FY2026 numbers
+# 2026-06-09 via PR #9 (MOCK-DATA spec-align follow-up to PR #8).
+# Source bundle: sources/*.md, BLAKE3 frozen in tasks/.../bundle.yaml.
 #
 # Top-level keys are FLAT (not nested under `hard_claims:`) so phase-3 AC3 grep
 # regex hits them directly: revenue_total / gross_margin_pct / data_center_revenue
-# / guidance_next_quarter / capex_total / chart_sanity_rubric / provenance_required.
+# / guidance_next_quarter / net_income / chart_sanity_rubric / provenance_required.
 
 version: 1
 task_id: nvidia-earnings-infographic-q3-fy2026
 
 revenue_total:
   type: dollar_string
-  expected: "$35.08 billion"
+  expected: "$57.0 billion"
   tolerance: exact
   source_hint: "nvidia-q3-fy2026-press-release.md"
 
 gross_margin_pct:
   type: percent
-  expected: 74.6
+  expected: 73.4
   tolerance_pp: 0.1
   source_hint: "nvidia-q3-fy2026-press-release.md"
 
 data_center_revenue:
   type: dollar_string
-  expected: "$30.77 billion"
+  expected: "$51.21 billion"
   tolerance: exact
   source_hint: "nvidia-q3-fy2026-press-release.md"
 
 data_center_growth_yoy_pct:
   type: percent
-  expected: 112
+  expected: 66
   tolerance_pp: 1
   source_hint: "nvidia-q3-fy2026-press-release.md"
-  computation_note: "Derived from segment table; Oracle validates 30770/14514 - 1"
+  computation_note: "10-Q segment table: $51,210M / $30,820M - 1 ≈ 66%"
 
 guidance_next_quarter:
   type: dollar_range_string
-  expected: "$37.5 billion ± 2%"
+  expected: "$65.0 billion ± 2%"
   tolerance: exact_string_match
   source_hint: "nvidia-q3-fy2026-press-release.md"
 
-capex_total:
+net_income:
   type: dollar_string
-  expected: "$1.85 billion"
+  expected: "$31.91 billion"
   tolerance: exact
   source_hint: "nvidia-q3-fy2026-press-release.md"
 
-inventory_qoq_change:
-  type: percent
-  expected: 11
-  tolerance_pp: 1
+networking_revenue:
+  type: dollar_string
+  expected: "$8.19 billion"
+  tolerance: exact
   source_hint: "nvidia-q3-fy2026-press-release.md"
+  computation_note: "Replaces inventory_qoq_change after PR #8 cascade — networking is the new headline sub-segment per CFO commentary."
 
-china_revenue_disclosure_present:
+china_compute_outlook_present:
   type: boolean
   expected: true
-  source_hint: "Any source file must contain China revenue figure ($5.40 billion or 16%)"
+  source_hint: "Sources must reflect 'H20 sales insignificant' and/or 'zero data center compute from China in Q4 outlook'"
 
-blackwell_rubin_mention_present:
+blackwell_ultra_mention_present:
   type: boolean
   expected: true
-  source_hint: "Press release + transcript + investor deck all mention Blackwell and Rubin"
+  source_hint: "Press release + transcript + investor deck all mention Blackwell Ultra as the lead architecture (was 'Blackwell + Rubin' pre-PR-8)"
 
 chart_sanity_rubric:
   ref: oracle/chart_sanity.md
