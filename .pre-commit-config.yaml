@@ -54,11 +54,19 @@ repos:
         additional_dependencies: ["pydantic>=2.0"]
 
   # Secret-scan — block accidental .env / API-key leaks per agentlint SEC-002.
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
+  # DEFERRED.md BASELINE-DRIFT (closed): the upstream hook rewrites the
+  # baseline's `generated_at` on every run, producing a spurious exit-3
+  # on every CI invocation. `scripts/detect_secrets_no_drift.sh` wraps
+  # `detect-secrets-hook`, strips `generated_at`, and suppresses exit-3
+  # when the timestamp was the only diff. Real new-finding exits (1/2)
+  # are preserved.
+  - repo: local
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
+        name: Detect secrets (no-timestamp-drift)
+        entry: bash scripts/detect_secrets_no_drift.sh
+        language: system
+        pass_filenames: true
         exclude: |
           (?x)^(
             packages/kaos/.*|
