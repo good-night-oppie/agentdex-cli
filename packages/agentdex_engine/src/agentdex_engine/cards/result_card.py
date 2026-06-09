@@ -5,7 +5,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-ParetoPosition = Literal["dominated", "undominated", "no-clear-winner"] | int
+# C5 (workflow w0z1i9vcs follow-up): `excluded-failed` makes the
+# pareto-pool exclusion that MF5 introduced explicit in the persisted
+# YAML. Previously a crashed baseline was relabeled `dominated` even
+# though pareto_verdict never compared it — downstream readers (Repair
+# Oracle, lineage logs, audit tooling) could not distinguish "lost on
+# Pareto" from "crashed and was excluded".
+ParetoPosition = (
+    Literal["dominated", "undominated", "no-clear-winner", "excluded-failed"]
+    | int
+)
 
 
 class ResultCard(BaseModel):

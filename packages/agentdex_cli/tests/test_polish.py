@@ -118,6 +118,16 @@ def test_partial_baseline_failure_continues_with_other_baselines():
     assert by_id["codex"].failure_trace_path is not None
     assert "RuntimeError" in by_id["codex"].failure_trace_path
     assert "simulated bridge crash" in by_id["codex"].failure_trace_path
+    # C5 regression (workflow w0z1i9vcs): the crashed baseline must be
+    # labeled `excluded-failed`, not `dominated` — pareto_verdict never
+    # compared it, it was just skipped.
+    assert by_id["codex"].pareto_position == "excluded-failed", (
+        f"failed baseline must be labeled excluded-failed; got "
+        f"{by_id['codex'].pareto_position!r}"
+    )
+    assert by_id["codex"].cost_dollar is None, (
+        "MF5 invariant: failed baseline cost_dollar is None"
+    )
 
 
 def test_security_no_hardcoded_api_keys():

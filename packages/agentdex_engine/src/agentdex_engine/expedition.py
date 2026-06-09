@@ -367,7 +367,15 @@ async def run_expedition_orchestrator(
         result_cards = [rc for rc, _, _ in per_baseline]
         verdict = pareto_verdict(result_cards)
         for rc in result_cards:
-            rc.pareto_position = _pareto_position(rc.agent_id, verdict)
+            # C5 (workflow w0z1i9vcs follow-up): MF5 excludes failed baselines
+            # from the verdict pool but the prior rewrite still labeled them
+            # `dominated`. Mark them `excluded-failed` so the persisted YAML
+            # tells downstream readers the truth: Pareto never compared the
+            # crash; it just skipped it.
+            if rc.cost_dollar is None or rc.failure_trace_path is not None:
+                rc.pareto_position = "excluded-failed"
+            else:
+                rc.pareto_position = _pareto_position(rc.agent_id, verdict)
 
         merged_verdicts: OracleVerdictMap = {}
         for _, vmap, _ in per_baseline:
