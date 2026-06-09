@@ -10,20 +10,22 @@
 #   - G2 ep6 [06-0028] "文档是建议 / 而agent需要的是法律" — the audit checks
 #     that prose claims have code-level enforcement (the MF2/MF3/MF4 gaps the
 #     harness-praxis tracer found on 2026-06-09 were exactly this drift).
-# TODO (PR-I, workflow w0z1i9vcs P4): sunset tracking — DEAD-week bucket
-# per G13 ep28 [28-0830] "eval集不能只增不删" — DEFERRED to M6 audit v2
-# (see future ADR). The current scaled-down §2 only detects MISSING
-# anchors, not DEAD ones (file exists but unreferenced from any senses /
-# EVAL / CLAUDE.md / IDEAL_EXPERIENCE.md). Citation was earlier in this
-# header but pruned because cite-without-impl is the exact drift the
-# script exists to catch (self-fulfilling MF-class gap).
+# Content-scan coverage (H7 + AUDIT-OWNER-SCAN closure, PR-Z2):
+#   - §2b past-due `Until:` rows in DEFERRED.md (PR-Q, earlier)
+#   - §2c Owner=TODO drift across doctrine + DEFERRED rows (H7)
+#   - §2d orphan doctrine anchors — files listed in §2 that exist but
+#     are referenced nowhere else in the repo (H7) per G13 ep28
+#     [28-0830] "eval集不能只增不删" — the DEAD-week bucket the earlier
+#     TODO promised. M6 audit v2 will graduate this to per-rule fire
+#     counters; the basename-grep heuristic is the MVP shape.
 #
 # Behavior contract:
 #   1. Read 7-day window of commits, count files-per-commit (tiny-PR violation
 #      detection per feedback_tiny_pr_discipline memory)
 #   2. Re-grep doctrine anchors (AGENTS.md scripts, EVAL.md fixture dirs,
 #      IDEAL_EXPERIENCE.md async primitives, CLAUDE.md sync_toc reference)
-#      against current filesystem
+#      against current filesystem, plus 2b past-due Until: rows + 2c
+#      Owner=TODO drift + 2d orphan-anchor scan
 #   3. Run agent_senses peek_metrics + run_tests for system-shape baseline
 #   4. Write proposal markdown under sweeps/<date>-weekly-harness-audit.md
 #   5. Idempotent — skip if today's audit exists
@@ -111,12 +113,16 @@ EOF
 |---|---|---|
 EOF
 
+  # H7: collect the §2 path list so §2d can scan it for orphans.
+  AUDIT_PATHS=()
+
   check_exists() {
     # PR-D (workflow w0z1i9vcs C2/P6): the surrounding `cat <<EOF` heredoc
     # is unquoted so backslash-backtick survives as literal `\` + `` ` ``
     # in the rendered markdown table cells. Use bare backticks here; the
     # outer heredoc still expands $REPO + the printf vars correctly.
     local label="$1" path="$2"
+    AUDIT_PATHS+=("$path")
     if [[ -e "$REPO/$path" ]]; then
       printf '| %s | `%s` | ✅ |\n' "$label" "$path"
     else
@@ -175,6 +181,86 @@ EOF
   else
     echo "(DEFERRED.md missing — would be flagged in §2 above)"
   fi
+
+  cat <<EOF
+
+## 2c. Owner=TODO drift (H7)
+
+Doctrine + DEFERRED rows where ownership is unresolved. Each row should
+either land an owner or be re-scoped.
+
+EOF
+
+  # H7: scan for unresolved ownership across the doctrine surface.
+  # Two patterns are accepted:
+  #   (a) `Owner: TODO` — prose-form ownership tag, word-boundary on TODO
+  #       so "Owner: TODO content drift" doesn't false-positive.
+  #   (b) `| TODO |` — owner cell in a markdown table row, case-insensitive.
+  # Lines with leading `>` (markdown blockquote) are filtered out so the
+  # row template in DEFERRED.md§Format doesn't fire.
+  todo_targets=(
+    "DEFERRED.md"
+    "AGENTS.md"
+    "CLAUDE.md"
+    ".supergoal/STATE.md"
+  )
+  todo_hits=0
+  scan_owner_todo() {
+    local file="$1" label="$2"
+    grep -nE '(Owner:[[:space:]]*TODO\b|\|[[:space:]]*TODO[[:space:]]*\|)' "$file" 2>/dev/null \
+      | grep -vE '^[0-9]+:[[:space:]]*>' || true
+  }
+  for tgt in "${todo_targets[@]}"; do
+    [[ -f "$REPO/$tgt" ]] || continue
+    while IFS=: read -r lineno body; do
+      printf '⚠ %s:%s — %s\n' "$tgt" "$lineno" "$(printf '%s' "$body" | sed 's/^[[:space:]]*//' | cut -c1-120)"
+      log_gap "Owner=TODO drift: $tgt:$lineno"
+      todo_hits=$((todo_hits + 1))
+    done < <(scan_owner_todo "$REPO/$tgt" "$tgt")
+  done
+  if [[ -d "$REPO/docs" ]]; then
+    while IFS=: read -r path lineno body; do
+      rel="${path#"$REPO"/}"
+      printf '⚠ %s:%s — %s\n' "$rel" "$lineno" "$(printf '%s' "$body" | sed 's/^[[:space:]]*//' | cut -c1-120)"
+      log_gap "Owner=TODO drift: $rel:$lineno"
+      todo_hits=$((todo_hits + 1))
+    done < <(grep -rnE --include='*.md' '(Owner:[[:space:]]*TODO\b|\|[[:space:]]*TODO[[:space:]]*\|)' "$REPO/docs" 2>/dev/null \
+      | grep -vE ':[[:space:]]*>' || true)
+  fi
+  [[ "$todo_hits" -eq 0 ]] && echo "✅ no Owner=TODO rows"
+
+  cat <<EOF
+
+## 2d. Orphan doctrine anchors (H7 / G13 ep28)
+
+Files listed in §2 that exist but appear referenced nowhere else in the
+repo — candidate sunset bucket per "eval集不能只增不删".
+
+EOF
+
+  # H7: for each §2 path that exists, grep the repo for the file's
+  # basename. The path itself counts as 1 hit; ≤ 1 means no other
+  # doctrine file mentions it → orphan candidate. Vendored KAOS subtree
+  # and the audit script's own output are excluded so they don't mask
+  # a legitimate orphan.
+  orphans=0
+  for path in "${AUDIT_PATHS[@]}"; do
+    [[ -e "$REPO/$path" ]] || continue
+    base="$(basename "$path")"
+    # `--include-dir=...` is not portable across grep impls; use the
+    # broader -r with --exclude-dir filters.
+    refs="$(grep -r --binary-files=without-match --exclude-dir=.git \
+      --exclude-dir=packages/kaos --exclude-dir=node_modules \
+      --exclude-dir=.venv --exclude-dir=__pycache__ \
+      --exclude='*-weekly-harness-audit.md' --exclude='*.lock' \
+      -l "$base" "$REPO" 2>/dev/null | wc -l)"
+    if [[ "$refs" -le 1 ]]; then
+      printf '⚠ orphan: `%s` referenced only by itself (refs=%s)\n' "$path" "$refs"
+      log_gap "orphan doctrine anchor: $path (refs=$refs)"
+      orphans=$((orphans + 1))
+    fi
+  done
+  [[ "$orphans" -eq 0 ]] && echo "✅ no orphan doctrine anchors"
 
   cat <<EOF
 
