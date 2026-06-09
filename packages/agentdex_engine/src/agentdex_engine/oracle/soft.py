@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,16 @@ from agentdex_engine.cards import TaskCard
 from agentdex_engine.oracle.base import OracleVerdict, OracleVerdictMap
 
 
+log = logging.getLogger(__name__)
+
+
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+# SF1 (harness-praxis tracer follow-up): first-failure-only flag so the agent
+# is NOT blind to Langfuse plumbing breakage but ALSO does not spam logs from
+# every judge call once tracing is busted. Cleared per-process; not async-safe
+# by design (logging.warning is the cheap signal, not a metric).
+_judge_observation_failed_once = False
 
 
 @contextlib.contextmanager
@@ -37,8 +47,11 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
     """Open a Langfuse ``generation``-typed observation around a judge call.
 
     No-op when Langfuse is not initialized. Always yields so callers can
-    use a single ``with`` statement regardless of tracing state.
+    use a single ``with`` statement regardless of tracing state. SF1 fix:
+    first failure of the import / get_client / start_as_current_observation
+    path emits a WARNING so the operator notices trace-orphan drift.
     """
+    global _judge_observation_failed_once
     try:
         from agentdex_observe import is_enabled
 
@@ -46,7 +59,15 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
             yield None
             return
         from langfuse import get_client
-    except Exception:
+    except Exception as exc:
+        if not _judge_observation_failed_once:
+            _judge_observation_failed_once = True
+            log.warning(
+                "judge observation tracing disabled (import failure: %r). "
+                "Langfuse spans will NOT parent under the Expedition trace "
+                "until init_langfuse + the langfuse SDK are both importable.",
+                exc,
+            )
         yield None
         return
     try:
@@ -60,7 +81,15 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
                 except Exception:
                     pass
             yield obs
-    except Exception:
+    except Exception as exc:
+        if not _judge_observation_failed_once:
+            _judge_observation_failed_once = True
+            log.warning(
+                "judge observation tracing failed mid-context (%r). "
+                "Subsequent judge calls will silently no-op to avoid log "
+                "spam; check init_langfuse() / langfuse server connectivity.",
+                exc,
+            )
         # Tracing must never break the judge call itself.
         yield None
 
