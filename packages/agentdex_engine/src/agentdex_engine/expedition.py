@@ -176,16 +176,24 @@ async def _run_one_bridge(
 
 
 def _estimate_tokens(text: str) -> int:
-    # Best-effort heuristic: ~4 chars/token (English mean) — bridges seldom
-    # surface real counts in MVP. Phase-8 polish wires real usage when SDKs
-    # expose it.
+    # Best-effort heuristic: ~4 chars/token (English mean). Bridges that
+    # surface real `usage` (claude_bridge total_cost_usd, codex_bridge
+    # tokenUsage) bypass this — orchestrator prefers their values.
     return max(0, len(text) // 4)
 
 
 def _estimate_cost(text: str) -> float:
-    """Best-effort cost estimate so ResultCard.cost_dollar > 0 (P7 acceptance)."""
+    """Best-effort cost estimate (~$1 / 1M tokens).
+
+    SF3 (harness-praxis G11 bitter-lesson): the previous ``max(..., 1e-6)``
+    floor turned every short response into a near-tie on the Pareto cost
+    axis and was the hardcoded rule the bitter lesson tells us to delete
+    once real data flows. The floor is gone; for empty responses the
+    estimate is 0.0 (the failure path already plumbs ``None`` end-to-end
+    via MF5 so we do not need a sentinel here).
+    """
     tokens = _estimate_tokens(text)
-    return max(round(tokens * 1e-6, 6), 1e-6)  # ~$1 per 1M tokens floor
+    return round(tokens * 1e-6, 6)
 
 
 def _failed_baseline_record(
