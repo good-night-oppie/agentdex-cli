@@ -113,9 +113,15 @@ context-window budgets:
 Per **ADR-0009 §Amendment-2026-06-08**: baselines run sequentially against
 the same task; the Pareto judge ranks them after-the-fact. There is no
 synchronous side-by-side battle. Bridges expose an async `send()` that the
-orchestrator awaits one baseline at a time. The synchronous wrapper command
-is sugar over the async primitives (`init / run / finalize`); the async path
-is the source of truth.
+orchestrator awaits one baseline at a time.
+
+> **Doctrine note (2026-06-09):** an earlier revision of this section called
+> the async primitives (`adx expedition init / run / finalize`) "the source
+> of truth" and the sync wrapper "sugar". That was G14 anchor drift — only
+> the sync wrapper ships in `cli.py` at M5. The sync wrapper IS the M5
+> load-bearing path; the async primitives are the M6+ target shape. See
+> IDEAL_EXPERIENCE.md §2.0 + ADR-0009 §Amendment-2026-06-08 (relabeled in
+> commit `bd16c47`) for the canonical framing.
 
 ## Glossary
 
