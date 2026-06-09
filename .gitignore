@@ -30,6 +30,13 @@ blog/
 # Expedition trace artifacts are large per-run jsonl; commit yaml summaries only.
 expeditions/*/trace/
 
+# D2 (harness-praxis tracer follow-up): test-smoke-exp-001/ is the
+# write-target for test_expedition_smoke.py — regenerated on every
+# pytest invocation, polluting `git status` with timestamp + ranking
+# churn that has no signal. Read-references are write-only inside the
+# test (no golden cross-check on these files; see tests/golden/).
+expeditions/test-smoke-exp-001/
+
 # pytest / lint / type-check caches
 .pytest_cache/
 .ruff_cache/
