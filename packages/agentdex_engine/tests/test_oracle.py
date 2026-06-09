@@ -563,3 +563,41 @@ def test_call_judge_with_retries_does_not_retry_value_error(monkeypatch):
     with _pytest.raises(ValueError, match="malformed model id"):
         soft_mod._call_judge_with_retries(_bad_input, label="test.bug")
     assert attempts == [1]
+
+
+# ---------------------------------------------------------------------------
+# Soft Oracle — retry classifier honors explicit "retryable":false (PR #20)
+# ---------------------------------------------------------------------------
+
+
+def test_judge_retry_classifier_honors_retryable_false():
+    """Cloudflare 525 emits ``"retryable":false`` in the body; the classifier
+    must skip retries even though 525 also matches the 5xx code marker."""
+    from agentdex_engine.oracle.soft import _is_retryable_judge_error
+
+    class _CF525(RuntimeError):
+        pass
+
+    body = (
+        "Error code: 525 - {'status': 525, 'retryable': False, "
+        "'owner_action_required': True, 'detail': 'origin SSL broken'}"
+    )
+    # Use double-quoted JSON-shape so the substring check matches.
+    body_json = '{"status":525,"retryable":false,"owner_action_required":true}'
+    assert _is_retryable_judge_error(_CF525(body_json)) is False
+    # Loose-spacing variant.
+    assert (
+        _is_retryable_judge_error(_CF525('{"status":525,"retryable": false}')) is False
+    )
+
+
+def test_judge_retry_classifier_still_retries_525_without_explicit_flag():
+    """Plain 525 string with no retryable flag → keep retry behaviour
+    (backwards compatibility with PR #18)."""
+    from agentdex_engine.oracle.soft import _is_retryable_judge_error
+
+    class _OldStyle525(RuntimeError):
+        pass
+
+    exc = _OldStyle525("Error code: 525 - SSL handshake failed")
+    assert _is_retryable_judge_error(exc) is True
