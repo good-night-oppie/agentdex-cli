@@ -469,3 +469,97 @@ def test_judge_observation_normal_path_no_op_no_double_yield():
     with _judge_observation("test.normal") as obs:
         seen_obs.append(obs)
     assert seen_obs == [None], "expected exactly one yield of None in no-Langfuse path"
+
+
+# ---------------------------------------------------------------------------
+# Soft Oracle — judge retry-on-5xx (PR #18)
+# ---------------------------------------------------------------------------
+
+
+def test_judge_retry_classifier_matches_cloudflare_525():
+    """Live-bridge regression: Cloudflare 525 in exception repr → retry."""
+    from agentdex_engine.oracle.soft import _is_retryable_judge_error
+
+    class _Bogus525(RuntimeError):
+        pass
+
+    exc = _Bogus525("Error code: 525 - {'type': '...', 'status': 525}")
+    assert _is_retryable_judge_error(exc) is True
+
+
+def test_judge_retry_classifier_matches_by_classname():
+    """openai/anthropic SDK InternalServerError exception → retry."""
+    from agentdex_engine.oracle.soft import _is_retryable_judge_error
+
+    class InternalServerError(RuntimeError):
+        pass
+
+    assert _is_retryable_judge_error(InternalServerError("upstream blew up")) is True
+
+
+def test_judge_retry_classifier_skips_non_5xx():
+    """Auth / value / typing errors must NOT retry — they will never recover."""
+    from agentdex_engine.oracle.soft import _is_retryable_judge_error
+
+    assert _is_retryable_judge_error(ValueError("bad input")) is False
+    assert _is_retryable_judge_error(KeyError("missing")) is False
+
+
+def test_call_judge_with_retries_recovers_after_transient_failure(monkeypatch):
+    """Two transient 5xx attempts then success → caller never sees exception."""
+    import agentdex_engine.oracle.soft as soft_mod
+
+    # Shrink the backoff so the test stays under a second.
+    monkeypatch.setattr(soft_mod, "_JUDGE_RETRY_BASE_DELAY_SEC", 0.0)
+
+    class _Cloudflare525(RuntimeError):
+        pass
+
+    call_log: list[int] = []
+
+    def _flaky():
+        call_log.append(len(call_log) + 1)
+        if len(call_log) < 3:
+            raise _Cloudflare525("Error code: 525 - SSL handshake failed")
+        return "ok-on-attempt-3"
+
+    out = soft_mod._call_judge_with_retries(_flaky, label="test.flaky")
+    assert out == "ok-on-attempt-3"
+    assert call_log == [1, 2, 3]
+
+
+def test_call_judge_with_retries_re_raises_after_exhausting_budget(monkeypatch):
+    """Sustained outage → final raised exception preserves the original."""
+    import agentdex_engine.oracle.soft as soft_mod
+
+    monkeypatch.setattr(soft_mod, "_JUDGE_RETRY_BASE_DELAY_SEC", 0.0)
+
+    class _Cloudflare525(RuntimeError):
+        pass
+
+    def _always_fail():
+        raise _Cloudflare525("525 forever")
+
+    import pytest as _pytest
+
+    with _pytest.raises(_Cloudflare525, match="525 forever"):
+        soft_mod._call_judge_with_retries(_always_fail, label="test.dead")
+
+
+def test_call_judge_with_retries_does_not_retry_value_error(monkeypatch):
+    """Programmer errors must surface immediately — no retry budget burned."""
+    import agentdex_engine.oracle.soft as soft_mod
+
+    monkeypatch.setattr(soft_mod, "_JUDGE_RETRY_BASE_DELAY_SEC", 0.0)
+
+    attempts: list[int] = []
+
+    def _bad_input():
+        attempts.append(len(attempts) + 1)
+        raise ValueError("malformed model id")
+
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError, match="malformed model id"):
+        soft_mod._call_judge_with_retries(_bad_input, label="test.bug")
+    assert attempts == [1]

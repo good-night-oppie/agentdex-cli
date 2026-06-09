@@ -43,6 +43,95 @@ _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 _judge_observation_failed_once = False
 
 
+# PR #18 — retry policy for transient upstream 5xx (Cloudflare 525 SSL
+# handshake failure, gateway 502, rate-limit 503 etc.) on the judge SDK
+# call. Without retries, ONE transient upstream blip on the judge path takes
+# down EVERY baseline in the Expedition because the orchestrator catches
+# the SDK exception inside `_run_one_bridge` and marks the baseline as
+# `excluded-failed`. The retry budget is intentionally small: judge calls
+# are sequential per-baseline, so a 3-attempt backoff adds at most ~6 s
+# per baseline on a sustained outage before falling through.
+_JUDGE_RETRY_MAX_ATTEMPTS = 3
+_JUDGE_RETRY_BASE_DELAY_SEC = 2.0
+
+
+def _is_retryable_judge_error(exc: BaseException) -> bool:
+    """Heuristic — retry on transient upstream 5xx / network blip.
+
+    Matches by exception class name + stringified body so we do not have to
+    import every SDK's specific exception type (anthropic, openai,
+    google-genai, cohere, etc. — the pool is open-ended). Errors we DO
+    want to retry: InternalServerError (5xx generic), APIConnectionError,
+    APITimeoutError, RateLimitError (429), and any exception whose
+    stringified body mentions a 5xx Cloudflare edge code (520..527) or a
+    standard gateway 5xx (502/503/504).
+    """
+    name = type(exc).__name__.lower()
+    if any(
+        marker in name
+        for marker in (
+            "internalserver",
+            "apiconnection",
+            "apitimeout",
+            "ratelimit",
+            "serviceunavailable",
+            "badgateway",
+            "gatewaytimeout",
+        )
+    ):
+        return True
+    text = repr(exc)
+    if any(
+        code in text
+        for code in (
+            "520",
+            "521",
+            "522",
+            "523",
+            "524",
+            "525",
+            "526",
+            "527",
+            "502",
+            "503",
+            "504",
+        )
+    ):
+        return True
+    return False
+
+
+def _call_judge_with_retries(fn: Any, *, label: str) -> Any:
+    """Invoke ``fn()`` with exponential-backoff retries on transient upstream errors.
+
+    Synchronous (judge calls run inside ``asyncio.to_thread`` from the
+    orchestrator, so blocking-sleep here does not stall the event loop).
+    Re-raises the original exception after ``_JUDGE_RETRY_MAX_ATTEMPTS``
+    attempts or immediately for non-retryable errors.
+    """
+    import time
+
+    last_exc: BaseException | None = None
+    for attempt in range(1, _JUDGE_RETRY_MAX_ATTEMPTS + 1):
+        try:
+            return fn()
+        except BaseException as exc:
+            last_exc = exc
+            if attempt >= _JUDGE_RETRY_MAX_ATTEMPTS or not _is_retryable_judge_error(exc):
+                raise
+            delay = _JUDGE_RETRY_BASE_DELAY_SEC * (2 ** (attempt - 1))
+            log.warning(
+                "judge %s attempt %d/%d failed (%s); retrying in %.1fs",
+                label,
+                attempt,
+                _JUDGE_RETRY_MAX_ATTEMPTS,
+                type(exc).__name__,
+                delay,
+            )
+            time.sleep(delay)
+    raise last_exc  # type: ignore[misc]  # unreachable
+
+
 @contextlib.contextmanager
 def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
     """Open a Langfuse ``generation``-typed observation around a judge call.
@@ -354,13 +443,22 @@ class LlmJudgeOracle:
             usage: dict[str, int] | None = None
             model_id_used = self.judge_llm
 
+            # Each backend's SDK call is wrapped in `_call_judge_with_retries`
+            # so a transient upstream 5xx (e.g. Cloudflare 525 SSL handshake
+            # failure) does not propagate up and excluded-fail every baseline
+            # in the Expedition. See `_is_retryable_judge_error` for the
+            # retry classifier; non-5xx exceptions still propagate cleanly.
+
             # Anthropic SDK (.messages.create)
             if prefix == "claude" or hasattr(client, "messages"):
-                message = client.messages.create(
-                    model=self.judge_llm,
-                    max_tokens=2000,
-                    system=self.SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": user_prompt}],
+                message = _call_judge_with_retries(
+                    lambda: client.messages.create(
+                        model=self.judge_llm,
+                        max_tokens=2000,
+                        system=self.SYSTEM_PROMPT,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    ),
+                    label=f"anthropic/{self.judge_llm}",
                 )
                 out = self._extract_text(message)
                 usage = _extract_anthropic_usage(message)
@@ -370,28 +468,35 @@ class LlmJudgeOracle:
                 cfg: dict[str, Any] = {"system_instruction": self.SYSTEM_PROMPT}
                 if self.reasoning_effort:
                     cfg["thinking_config"] = {"thinking_budget": _budget_for(self.reasoning_effort)}
-                try:
-                    resp = client.models.generate_content(
-                        model=self.judge_llm,
-                        contents=user_prompt,
-                        config=cfg,
-                    )
-                except TypeError:
-                    # older SDK without config kw; retry minimal
-                    resp = client.models.generate_content(
-                        model=self.judge_llm,
-                        contents=user_prompt,
-                    )
+
+                def _gemini_call() -> Any:
+                    try:
+                        return client.models.generate_content(
+                            model=self.judge_llm,
+                            contents=user_prompt,
+                            config=cfg,
+                        )
+                    except TypeError:
+                        # older SDK without config kw; fall through to minimal call
+                        return client.models.generate_content(
+                            model=self.judge_llm,
+                            contents=user_prompt,
+                        )
+
+                resp = _call_judge_with_retries(_gemini_call, label=f"gemini/{self.judge_llm}")
                 out = getattr(resp, "text", "") or self._extract_text(resp)
                 usage = _extract_gemini_usage(resp)
             # OpenAI SDK fallback (.chat.completions.create)
             elif hasattr(client, "chat"):
-                comp = client.chat.completions.create(
-                    model=self.judge_llm,
-                    messages=[
-                        {"role": "system", "content": self.SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
+                comp = _call_judge_with_retries(
+                    lambda: client.chat.completions.create(
+                        model=self.judge_llm,
+                        messages=[
+                            {"role": "system", "content": self.SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    ),
+                    label=f"openai/{self.judge_llm}",
                 )
                 out = comp.choices[0].message.content or ""
                 usage = _extract_openai_usage(comp)
