@@ -135,6 +135,41 @@ EOF
   check_exists "EVAL.md GT: oracle calibration dir"   "packages/agentdex_engine/tests/oracle_calibration_fixtures"
   check_exists "CLAUDE.md TOC generator"      "scripts/sync_toc.sh"
   check_exists "Daily smoke cron"             "cron/expedition_smoke.sh"
+  check_exists "Phase-8 polish queue"         "DEFERRED.md"
+  check_exists "Pre-commit installer"         "scripts/install_hooks.sh"
+  check_exists "Lint CI gate"                 ".github/workflows/lint.yml"
+
+  cat <<EOF
+
+## 2b. Past-due deferred items (PR-Q + H7 partial)
+
+DEFERRED.md \`Until:\` rows where the date has passed. Empty = clean.
+
+EOF
+
+  # PR-Q (workflow w0z1i9vcs H7 partial closure): content-scan
+  # DEFERRED.md for past-due rows. The audit converts from pure
+  # file-presence to lightweight content-check on doctrine artifacts
+  # the harness commits to keep current.
+  if [[ -f "$REPO/DEFERRED.md" ]]; then
+    today_epoch="$(date -u +%s)"
+    overdue=0
+    # Match `Until: YYYY-MM-DD` inside table rows.
+    while IFS= read -r line; do
+      iso="$(printf '%s' "$line" | grep -oE 'Until: 20[0-9]{2}-[0-9]{2}-[0-9]{2}' | head -1 | cut -d' ' -f2)"
+      [ -z "$iso" ] && continue
+      row_epoch="$(date -u -d "$iso" +%s 2>/dev/null || echo 0)"
+      if [[ "$row_epoch" != "0" && "$row_epoch" -lt "$today_epoch" ]]; then
+        id_cell="$(printf '%s' "$line" | awk -F'|' '{gsub(/^ +| +$/, "", $2); print $2}')"
+        printf '⚠ OVERDUE %s — Until: %s\n' "$id_cell" "$iso"
+        log_gap "DEFERRED.md row past Until: $id_cell ($iso)"
+        overdue=$((overdue + 1))
+      fi
+    done < "$REPO/DEFERRED.md"
+    [[ "$overdue" -eq 0 ]] && echo "✅ no past-due Until: rows"
+  else
+    echo "(DEFERRED.md missing — would be flagged in §2 above)"
+  fi
 
   cat <<EOF
 
