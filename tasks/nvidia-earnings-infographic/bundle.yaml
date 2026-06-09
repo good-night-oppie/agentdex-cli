@@ -3,14 +3,15 @@
 # source_bundle_hash is BLAKE3 of sorted-concat of files in sources/.
 
 id: nvidia-earnings-infographic-q3-fy2026
-source_bundle_hash: 9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c
+source_bundle_hash: 2f3bf8fee53690f76e4701a5097aabb3e19f5bb146a136fe95a2b8d7169c3346  # pragma: allowlist secret
 environment_spec:
   runtime: "agentdex-cli >=0.1.0"
   network_access: read-only-archived-sources
   output_kind: infographic-spec-plus-claim-evidence-map
   notes: |
-    Sources are MOCK; replace with live Q3 FY2026 data before any Expedition run.
-    See STATE.md Notable events for the mock disclosure.
+    Sources reflect live Q3 FY2026 results (quarter ended October 26, 2025;
+    released November 19, 2025). MOCK markers removed. See DEFERRED.md
+    MOCK-DATA close entry for the rehash + cascade.
 oracle_spec_ref: tasks/nvidia-earnings-infographic/oracle/spec.yaml
 budget_token_cap: 200000
 budget_dollar_cap: 5.0
