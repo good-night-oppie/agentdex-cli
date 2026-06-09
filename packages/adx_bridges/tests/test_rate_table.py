@@ -45,3 +45,120 @@ def test_zero_tokens_zero_cost():
 def test_none_model_uses_default():
     cost = estimate_cost_usd(None, 1_000_000, 0, 0)
     assert cost == 2.5  # codex-default
+
+
+# ---------------------------------------------------------------------------
+# claude bridge cold-shot list-frame regression (PR #15)
+# ---------------------------------------------------------------------------
+
+
+def test_claude_cold_shot_parses_json_array_output():
+    """Regression: `claude -p ... --output-format json` returns a JSON ARRAY of
+    frames (init / hook_started / hook_response / stream_event* / result), not
+    a single object. Pre-PR-15 cold_shot did `json.loads(out).get('result')`
+    which raised `AttributeError: 'list' object has no attribute 'get'` on
+    every live cold-fallback. The fix walks the array and picks the terminal
+    `type=result` frame. This test pins that contract by feeding a recorded
+    array shape through the cold-shot parser logic in isolation.
+    """
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from adx_bridges.base import BridgeConfig
+    from adx_bridges.claude_bridge import ClaudeBridge
+
+    captured_array = [
+        {"type": "system", "subtype": "init", "session_id": "abc-123"},
+        {
+            "type": "stream_event",
+            "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "hi"}},
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "Revenue $57.0B, Data Center $51.21B (source: nvidia-q3-fy2026-press-release.md:18)",
+            "session_id": "abc-123",
+            "total_cost_usd": 0.000123,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+        },
+    ]
+    json_array_bytes = json.dumps(captured_array).encode()
+
+    cfg = BridgeConfig(name="claude", workdir="/tmp", cli_argv=["claude"])
+    bridge = ClaudeBridge(cfg)
+
+    class _FakeProc:
+        returncode = 0
+
+        async def communicate(self):
+            return json_array_bytes, b""
+
+    async def _run():
+        with patch(
+            "adx_bridges.claude_bridge.asyncio.create_subprocess_exec",
+            new=lambda *a, **kw: _async_return(_FakeProc()),
+        ):
+            return await bridge._cold_shot("test prompt", session_id=None, extra={})
+
+    async def _async_return(value):
+        return value
+
+    result = asyncio.run(_run())
+    assert result["text"] == (
+        "Revenue $57.0B, Data Center $51.21B (source: nvidia-q3-fy2026-press-release.md:18)"
+    )
+    assert result["session_id"] == "abc-123"
+    assert bridge.last_cost_usd == 0.000123
+    assert bridge.last_tokens == 30  # 10 + 20 + 0 + 0
+
+
+def test_claude_cold_shot_handles_single_object_output():
+    """Schema-drift defense: if claude ever switches to single-object json
+    output, the parser still picks the object's `.result` field via the
+    single-frame fallback. PR #15 wraps the parse so the live-bridge path
+    is forward-compatible across the array/object split."""
+    import asyncio
+    import json
+    from unittest.mock import patch
+
+    from adx_bridges.base import BridgeConfig
+    from adx_bridges.claude_bridge import ClaudeBridge
+
+    single_obj_bytes = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "result": "single-frame shape",
+            "session_id": "single-1",
+        }
+    ).encode()
+
+    cfg = BridgeConfig(name="claude", workdir="/tmp", cli_argv=["claude"])
+    bridge = ClaudeBridge(cfg)
+
+    class _FakeProc:
+        returncode = 0
+
+        async def communicate(self):
+            return single_obj_bytes, b""
+
+    async def _run():
+        with patch(
+            "adx_bridges.claude_bridge.asyncio.create_subprocess_exec",
+            new=lambda *a, **kw: _async_return(_FakeProc()),
+        ):
+            return await bridge._cold_shot("test prompt", session_id=None, extra={})
+
+    async def _async_return(value):
+        return value
+
+    result = asyncio.run(_run())
+    assert result["text"] == "single-frame shape"
+    assert result["session_id"] == "single-1"

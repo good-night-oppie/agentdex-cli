@@ -205,13 +205,47 @@ class ClaudeBridge(LongRunningCliBridge):
         out, err = await proc.communicate()
         if proc.returncode != 0:
             raise CliDead(f"cold shot failed: {err.decode(errors='replace')[:400]}")
+        # claude `--output-format json` emits a JSON ARRAY of frames (init +
+        # hook frames + stream events + result), not a single object. PR #15:
+        # walk the array, pick the terminal `type=result` frame, and pull
+        # `.result` / `.session_id` from it. Pre-PR-15 code did
+        # `result.get("result")` on the list, raising
+        # `AttributeError: 'list' object has no attribute 'get'` on every
+        # live cold-fallback.
         try:
-            result = json.loads(out)
-            text = result.get("result") or ""
-            sid_out = result.get("session_id")
+            parsed = json.loads(out)
         except json.JSONDecodeError:
             text = out.decode(errors="replace")
             sid_out = sid
+        else:
+            frames: list[dict] = parsed if isinstance(parsed, list) else [parsed]
+            result_frame: dict | None = None
+            for f in frames:
+                if isinstance(f, dict) and f.get("type") == "result":
+                    result_frame = f
+            if result_frame is None:
+                # Fall back to the last dict-shaped frame so we surface
+                # *something* even if the schema drifted.
+                for f in reversed(frames):
+                    if isinstance(f, dict):
+                        result_frame = f
+                        break
+            if result_frame is None:
+                result_frame = {}
+            text = result_frame.get("result") or ""
+            sid_out = result_frame.get("session_id")
+            cost_usd = result_frame.get("total_cost_usd")
+            usage = result_frame.get("usage") or {}
+            if isinstance(cost_usd, (int, float)):
+                self._last_cost_usd = float(cost_usd)
+            if isinstance(usage, dict):
+                inp = usage.get("input_tokens") or 0
+                out_t = usage.get("output_tokens") or 0
+                cache_creation = usage.get("cache_creation_input_tokens") or 0
+                cache_read = usage.get("cache_read_input_tokens") or 0
+                total = int(inp + out_t + cache_creation + cache_read)
+                if total:
+                    self._last_tokens = total
         self._last_response_text = text
         self.current_session_id = sid_out or sid
         return {"text": text, "session_id": sid_out}
