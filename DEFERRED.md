@@ -60,3 +60,7 @@ cross_cutting: true
 - `~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_fix_all_before_moving_forward.md`
   — standing policy: when surfacing a ranked-issue list, work the queue
   top-to-bottom; this file is the ranked-issue list for phase-8 polish
+
+## Session 2 lint follow-ups (post-DEFERRED-drain)
+
+- PR #15 squash-merged with an unused SimpleNamespace import the CI flagged after-the-fact; PR #16 drops it. Doc-lint pairing for the import-drop lives in this note.
