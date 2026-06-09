@@ -211,7 +211,10 @@ def set_trace_context_from_headers(headers: dict[str, str]) -> bool:
     if not _ensure_init():
         return False
     trace_id = headers.get("X-Langfuse-Trace-Id")
-    parent_id = headers.get("X-Langfuse-Parent-Observation-Id")
+    # Read but currently unused — Langfuse SDK v4 propagate_attributes only
+    # accepts trace_id; parent-observation parenting lands when SDK v5 lifts
+    # the constraint. Underscore-prefix silences ruff F841.
+    _parent_id = headers.get("X-Langfuse-Parent-Observation-Id")
     if not trace_id:
         return False
     try:

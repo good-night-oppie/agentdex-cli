@@ -138,7 +138,7 @@ def test_process_fails_when_oracle_ref_missing():
 
 
 def test_procedure_fails_when_trace_parent_diverges():
-    ms = [stock_manifest(n) for n in ("claude", "codex")]
+    _ms = [stock_manifest(n) for n in ("claude", "codex")]  # noqa: F841 — fixture-side-effect
     balancer = ResourceBalancer()
     proc = balancer.assess_procedure(same_trace_parent=False)
     assert proc.verdict == "fail"
@@ -176,7 +176,10 @@ def test_fairness_report_pydantic_strict():
         turn_budget=1,
     )
     payload = report.model_dump()
-    with pytest.raises(Exception):
+    # B017: narrow from blind Exception to pydantic's actual validation error.
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
         FairnessReport.model_validate({**payload, "rogue_field": "x"})
 
 

@@ -59,7 +59,9 @@ def _control_seed_from_response_variance(
     lo, hi = min(lengths), max(lengths)
     if lo == 0 or hi / max(lo, 1) < 1.25:
         return None
-    excerpt = ", ".join(f"{name}:{l}ch" for (name, _), l in zip(responses, lengths, strict=False))
+    excerpt = ", ".join(
+        f"{name}:{n}ch" for (name, _), n in zip(responses, lengths, strict=False)
+    )
     return Seed(
         kind="response_shape_variance",
         description=(

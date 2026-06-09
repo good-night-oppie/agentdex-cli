@@ -76,7 +76,7 @@ def test_orchestrator_to_gateway_trace_round_trip():
 
     # Start a span on the orchestrator side; serialize headers
     client = obs._client
-    with client.start_as_current_observation(name="expedition.r3.test", as_type="span") as parent:
+    with client.start_as_current_observation(name="expedition.r3.test", as_type="span") as _parent:
         headers = get_trace_context_headers()
         assert "X-Langfuse-Trace-Id" in headers
         # Simulate gateway-side ingestion

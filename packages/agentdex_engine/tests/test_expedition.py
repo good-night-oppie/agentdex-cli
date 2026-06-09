@@ -35,8 +35,6 @@ class _StubOracle:
         self._pass_by_kw = pass_by_keyword
 
     def evaluate(self, response, task_card):
-        hits = sum(1 for kw, v in self._pass_by_kw.items() if v and kw in response)
-        total = max(len(self._pass_by_kw), 1)
         verdicts: dict[str, OracleVerdict] = {}
         for kw, expected in self._pass_by_kw.items():
             passed = expected and (kw in response)
