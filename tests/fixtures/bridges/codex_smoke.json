@@ -1,0 +1,26 @@
+{
+  "bridge": "codex",
+  "binary_version": "codex-cli 0.137.0",
+  "captured_at": "2026-06-09T13:10:40Z",
+  "captured_with": "tools/agent_senses/capture_bridge_smoke.sh codex",
+  "handshake": {
+    "argv_shape": "codex (per adx bridge probe — recorded in probe log)",
+    "ms_until_init_frame": null,
+    "session_id_format": "thread-id",
+    "session_id_sample": "<not-extracted>"
+  },
+  "one_turn_probe": {
+    "task_id": "nvidia-earnings-infographic",
+    "max_ms": 30000,
+    "max_cost_usd": 0.2,
+    "probe_log_path": "/tmp/adx_capture_bridge_smoke.codex.log.probe",
+    "probe_rc_observed": "see probe log"
+  },
+  "drift_detector": {
+    "fields_required_in_turn_completed": [
+      "turnId",
+      "tokenUsage.inputTokens",
+      "tokenUsage.outputTokens"
+    ]
+  }
+}
