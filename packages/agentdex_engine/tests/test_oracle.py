@@ -29,7 +29,7 @@ NVIDIA_SPEC = REPO_ROOT / "tasks" / "nvidia-earnings-infographic" / "oracle" / "
 def _build_task_card(task_id: str = "nvidia-earnings-infographic-q3-fy2026") -> TaskCard:
     return TaskCard(
         id=task_id,
-        source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",
+        source_bundle_hash="2f3bf8fee53690f76e4701a5097aabb3e19f5bb146a136fe95a2b8d7169c3346",  # pragma: allowlist secret
         environment_spec={"runtime": "agentdex-cli >=0.1.0", "output_kind": "infographic"},
         oracle_spec_ref="tasks/nvidia-earnings-infographic/oracle/spec.yaml",
         budget_token_cap=200000,

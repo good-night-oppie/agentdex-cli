@@ -112,7 +112,7 @@ def test_partial_baseline_failure_continues_with_other_baselines():
 
     task_card = TaskCard(
         id="nvidia-earnings-infographic-q3-fy2026",
-        source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",
+        source_bundle_hash="2f3bf8fee53690f76e4701a5097aabb3e19f5bb146a136fe95a2b8d7169c3346",  # pragma: allowlist secret
         environment_spec={"runtime": "test"},
         oracle_spec_ref="dummy.yaml",
         budget_token_cap=1000,

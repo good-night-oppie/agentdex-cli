@@ -57,7 +57,7 @@ def _load_all_fixtures() -> list[tuple[str, float, bool, str]]:
 def _build_task_card() -> TaskCard:
     return TaskCard(
         id="nvidia-earnings-infographic-q3-fy2026",
-        source_bundle_hash="9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c",  # pragma: allowlist secret
+        source_bundle_hash="2f3bf8fee53690f76e4701a5097aabb3e19f5bb146a136fe95a2b8d7169c3346",  # pragma: allowlist secret
         environment_spec={"runtime": "calibration-test"},
         oracle_spec_ref="tasks/nvidia-earnings-infographic/oracle/spec.yaml",
         budget_token_cap=1000,

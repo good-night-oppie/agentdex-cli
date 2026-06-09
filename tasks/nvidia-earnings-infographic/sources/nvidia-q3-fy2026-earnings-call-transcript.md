@@ -1,47 +1,56 @@
-# NVIDIA Q3 FY2026 Earnings Call Transcript
+---
+title: "NVIDIA Q3 FY2026 Earnings Call Transcript"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: tasks/nvidia-earnings-infographic/sources
+layer: cross-cutting
+cross_cutting: true
+---
 
-# MOCK — replace with live Q3 FY2026 transcript before any Expedition run. Realistic-shaped placeholder per phase-3.md line 98.
+
+Held November 19, 2025. Quarter ended October 26, 2025. Source: NVIDIA Investor Relations live broadcast + Motley Fool transcript.
 
 ## Opening remarks — Jensen Huang (CEO)
 
-Q3 FY2026 was another record quarter, with revenue of $35.08 billion, up 94% year-on-year. Data Center revenue of $30.77 billion reflects continued strength in AI training and inference workloads across hyperscalers, sovereign AI initiatives, and enterprise customers.
+Q3 FY2026 was a record quarter, with revenue of $57.0 billion, up 62% year-on-year and up 22% sequentially. Data Center revenue of $51.21 billion reflects three converging platform shifts: CPU-to-GPU accelerated computing, generative AI moving mainstream, and the emergence of agentic AI applications.
 
-Blackwell is in full production. NVL72 racks are shipping to all major cloud service providers. We are seeing demand significantly outstrip supply through Q4 FY2026 and into the first half of FY2027. The supply chain is responding; TSMC capacity continues to ramp, and our advanced packaging partners are scaling CoWoS to meet demand.
+Blackwell sales are off the charts, and cloud GPUs are sold out. We are shipping more than 1,000 Blackwell racks per week, with Blackwell Ultra now the leading architecture across every customer category — hyperscaler, enterprise, sovereign AI, and industrial.
 
-Today we are introducing Rubin, the architecture that will succeed Blackwell. Rubin's R100 SKU samples to lead customers in the second half of calendar 2026. We expect volume ramp in fiscal 2027 second half.
+We have entered the virtuous cycle of AI: compute demand keeps accelerating across training and inference, each growing exponentially. Customers are buying more networking hardware as they switch from individual AI servers to rack-scale solutions.
 
 ## CFO commentary — Colette Kress
 
-GAAP gross margin of 74.6% came in at the high end of guidance, driven by Data Center mix and improved Blackwell yield. We expect Q4 GAAP gross margin of 73.0%, reflecting one-time costs associated with the Rubin engineering ramp and continued Blackwell mix shift.
+We shipped $50 billion this quarter against the $500 billion opportunity we see for Blackwell + Rubin platforms through calendar 2026; aggregate future demand is likely to increase.
 
-Operating expenses GAAP for Q3 were $4.5 billion. We expect Q4 OpEx of $4.8 billion as we continue investing in R&D for Rubin and our software ecosystem.
+GAAP gross margin of 73.4% improved roughly 0.9 percentage points sequentially. Non-GAAP gross margin of 73.6% reflects favorable Blackwell mix and improved manufacturing yields.
 
-Q3 capex was $1.85 billion, bringing trailing-twelve-month capex to $5.20 billion. Investments are concentrated in our AI training cluster expansion, which supports our own model training pipeline and customer engagements.
+Data Center compute revenue was a record $43.03 billion, up 56% YoY. Networking revenue was a record $8.19 billion, up 162% YoY, driven by the introduction and continued growth of NVLink compute fabric for GB200 and GB300 systems. Networking is now NVIDIA's second-largest business, having overtaken Gaming.
 
-China revenue this quarter was $5.40 billion, 16% of total. This compares to $5.18 billion in the year-ago period. We continue to navigate export controls through compliant SKU offerings.
+H20 sales were insignificant in Q3. Our Q4 outlook reiterates zero data center compute contribution from China. We are guiding Q4 revenue to $65.0 billion plus or minus 2%, non-GAAP gross margin of 75.0% (mid-70s targeted into FY2027), non-GAAP operating expenses of approximately $5.0 billion, and a 17% tax rate.
 
-Inventory increased 11% sequentially to $7.65 billion, primarily reflecting Blackwell ramp inventory and end-of-life Hopper sell-through positioning.
+We will pay a quarterly cash dividend of $0.01 per share on December 26, 2025.
 
 ## Q&A highlights
 
-**Analyst:** Can you size the Blackwell opportunity?
+**Analyst:** Can you size the Blackwell + Rubin opportunity?
 
-Jensen: We are demand-constrained, not supply-constrained, through fiscal 2027 first half. Hyperscaler capex commitments and sovereign AI build-outs give us visibility into multi-year demand. Blackwell is a tens-of-billions-of-dollars opportunity per quarter at peak.
+Jensen: Compute demand keeps accelerating and compounding. We are on a $500B opportunity through CY2026 across Blackwell and Rubin. Hyperscaler capex and sovereign AI build-outs give us multi-year visibility.
 
-**Analyst:** How should we think about Rubin's contribution to FY2027?
+**Analyst:** What is the cadence of Blackwell Ultra adoption versus the prior generation?
 
-Jensen: Rubin samples in H2 calendar 2026; volume ramps in FY2027 H2. We do not include Rubin in FY2027 first-half revenue assumptions. Hopper and Blackwell carry the year through ramp.
+Jensen: Blackwell Ultra is now the leading architecture across all customer categories, and the prior Blackwell generation continues to see strong demand. Both are in production simultaneously.
 
-**Analyst:** China outlook?
+**Analyst:** China context?
 
-Colette: We will continue to ship compliant SKUs. We do not provide separate China revenue guidance. Q3 of $5.40 billion is one data point in an ongoing regulatory environment.
+Colette: H20 sales were insignificant in the quarter. Our Q4 outlook assumes zero data center compute contribution from China.
 
-**Analyst:** Gaming softness?
+**Analyst:** Other segments?
 
-Colette: Gaming revenue of $3.28 billion was up 15% YoY. The growth reflects RTX 50 series ramp and continued strength in laptop GPU. We do not see softness; we see sequential normalization after a strong Q2.
+Colette: Gaming was $4.3 billion, up 30% YoY; Professional Visualization $760 million, up 56% YoY; Automotive $592 million, up 32% YoY; OEM & Other $174 million, up 79% YoY.
 
 ## Closing — Jensen Huang
 
-The age of AI is being built on NVIDIA. We are accelerating our pace. Blackwell is in full production, Rubin is sampling, and we are investing in the platform that powers the next decade of intelligence.
-
-# END MOCK
+Compute demand keeps accelerating and compounding across training and inference, each growing exponentially. We have entered the virtuous cycle of AI. Blackwell is in full production, Blackwell Ultra is the lead architecture, and Rubin is on track. NVIDIA is the platform for the next decade of intelligence.
