@@ -28,6 +28,12 @@
 # pattern — dream_consolidate runs at 03:00, audit at 04:00).
 
 set -u
+# PR-D (workflow w0z1i9vcs P9): match the ancestor weekly_meta_audit.sh
+# discipline. pipefail catches §1's `git log ... | awk` mid-pipeline
+# failures that today vanish silently because the outer braces redirect
+# into $LOG. `|| true` keeps the exit-0 contract on shells without
+# pipefail support.
+set -o pipefail 2>/dev/null || true
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SWEEPS_DIR="$REPO/sweeps"
 TODAY="$(date -u +%Y-%m-%d)"
@@ -69,7 +75,7 @@ _Generated $(date -u +'%Y-%m-%dT%H:%M:%SZ') by cron/weekly_harness_audit.sh._
 
 This file is auto-generated. Sections below are READ-ONLY signals — no
 primary artifact is modified by the audit. Review + act manually as
-[tiny PRs](../../.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_tiny_pr_discipline.md).
+[tiny PRs](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_tiny_pr_discipline.md).
 
 ## 1. Commit shape (Ideal moment 1)
 
@@ -77,7 +83,10 @@ primary artifact is modified by the audit. Review + act manually as
 EOF
 
   # Last 7-day commits with files-changed count.
-  git log --since="$WINDOW_DAYS days ago" \
+  # PR-D (workflow w0z1i9vcs P10): --no-merges drops merge commits whose
+  # shortstat block is empty, which would otherwise cause the awk to
+  # mis-label the previous commit's files=count against the next sha.
+  git log --since="$WINDOW_DAYS days ago" --no-merges \
     --pretty=format:'%h %s' --shortstat | awk '
       /^[0-9a-f]+ / { sha=$1; sub(/^[0-9a-f]+ /, ""); subj=$0; next }
       /file.* changed/ {
@@ -98,11 +107,15 @@ EOF
 EOF
 
   check_exists() {
+    # PR-D (workflow w0z1i9vcs C2/P6): the surrounding `cat <<EOF` heredoc
+    # is unquoted so backslash-backtick survives as literal `\` + `` ` ``
+    # in the rendered markdown table cells. Use bare backticks here; the
+    # outer heredoc still expands $REPO + the printf vars correctly.
     local label="$1" path="$2"
     if [[ -e "$REPO/$path" ]]; then
-      printf '| %s | \`%s\` | ✅ |\n' "$label" "$path"
+      printf '| %s | `%s` | ✅ |\n' "$label" "$path"
     else
-      printf '| %s | \`%s\` | ❌ MISSING |\n' "$label" "$path"
+      printf '| %s | `%s` | ❌ MISSING |\n' "$label" "$path"
       log_gap "doctrine drift: $label expected $path missing"
     fi
   }
@@ -153,7 +166,7 @@ EOF
 The audit is a read-only signal. To act on a finding above:
 
 1. **MISSING entries in §2** → ship a tiny PR per file (max 1 LOC concern
-   per commit, per [tiny-PR-discipline](../../.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_tiny_pr_discipline.md)).
+   per commit, per [tiny-PR-discipline](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_tiny_pr_discipline.md)).
 2. **TINY_PR_VIOLATION flags in §1** → already shipped; not actionable
    retroactively, but next sweep should show 0 violations.
 3. **System-shape regressions in §3-4** → cross-check against
