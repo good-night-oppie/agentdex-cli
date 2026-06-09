@@ -60,13 +60,13 @@ class _MockBridge(LongRunningCliBridge):
 
 
 def test_mock_bridge_session_continuity():
-    """API contract: send() returns (text, trace_id|None); sid stable across turns."""
+    """API contract: send() returns BridgeResponse(text, trace_id, cost, tokens); sid stable across turns."""
 
     async def _run():
         b = _MockBridge()
-        t1, tr1 = await b.send("hello first turn", session_id="sid-fixed")
-        t2, tr2 = await b.send("what did I just say?", session_id="sid-fixed")
-        return b, t1, t2, tr1, tr2
+        r1 = await b.send("hello first turn", session_id="sid-fixed")
+        r2 = await b.send("what did I just say?", session_id="sid-fixed")
+        return b, r1.text, r2.text, r1.langfuse_trace_id, r2.langfuse_trace_id
 
     b, t1, t2, tr1, tr2 = asyncio.run(_run())
 
@@ -98,13 +98,13 @@ def test_claude_session_continuity(live_bridges_enabled, has_claude_cli):
     async def _run():
         b = build_bridge("claude")
         sid = b.current_session_id
-        t1, _ = await b.send(
+        r1 = await b.send(
             "Hello! Remember the word 'rosebud'. What is your session id?",
             session_id=sid,
         )
-        t2, _ = await b.send("What word did I ask you to remember?", session_id=sid)
+        r2 = await b.send("What word did I ask you to remember?", session_id=sid)
         await b._kill()
-        return t1, t2
+        return r1.text, r2.text
 
     t1, t2 = asyncio.run(_run())
     assert t1, "turn 1 response must be non-empty"
@@ -118,12 +118,12 @@ def test_codex_session_continuity(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("codex")
-        t1, _ = await b.send("Hello! Remember the word 'rosebud'. What is your thread id?")
+        r1 = await b.send("Hello! Remember the word 'rosebud'. What is your thread id?")
         # Codex assigns thread_id on first turn; re-use it for turn 2
         sid = getattr(b, "_thread_id", None)
-        t2, _ = await b.send("What word did I ask you to remember?", session_id=sid)
+        r2 = await b.send("What word did I ask you to remember?", session_id=sid)
         await b._kill()
-        return t1, t2
+        return r1.text, r2.text
 
     t1, t2 = asyncio.run(_run())
     assert t1, "turn 1 response must be non-empty"
@@ -143,9 +143,9 @@ def test_manus_session_continuity(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("manus")
-        t1, _ = await b.send("Hello! Remember the word 'rosebud'. What is your session id?")
-        t2, _ = await b.send("What word did I ask you to remember?")
-        return t1, t2
+        r1 = await b.send("Hello! Remember the word 'rosebud'. What is your session id?")
+        r2 = await b.send("What word did I ask you to remember?")
+        return r1.text, r2.text
 
     t1, t2 = asyncio.run(_run())
     assert t1 and t2

@@ -68,8 +68,8 @@ async def _run_probe(
     bridge = build_bridge(bridge_name, workdir=str(root))
     try:
         coro = bridge.send(prompt, extra={"max_turns": 1})
-        text, trace_id = await asyncio.wait_for(coro, timeout=timeout)
-        return text, trace_id, bridge.cfg.name
+        resp = await asyncio.wait_for(coro, timeout=timeout)
+        return resp.text, resp.langfuse_trace_id, bridge.cfg.name
     finally:
         try:
             await bridge._kill()  # type: ignore[attr-defined]
@@ -357,7 +357,11 @@ def _make_mock_bridges(baselines: list[str], task_id: str, repo_root: Path):
             self._text = text
 
         async def send(self, prompt, *, session_id=None, extra=None):
-            return self._text, None
+            from adx_bridges import BridgeResponse
+
+            return BridgeResponse(
+                text=self._text, langfuse_trace_id=None, cost_usd=None, tokens=None
+            )
 
         async def _kill(self):
             return None

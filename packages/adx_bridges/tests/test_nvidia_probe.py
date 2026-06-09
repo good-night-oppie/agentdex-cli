@@ -82,7 +82,8 @@ class _MockNvidiaBridge(LongRunningCliBridge):
 def test_mock_bridge_keyword_contract():
     async def _run():
         b = _MockNvidiaBridge()
-        return await b.send(_build_prompt())
+        r = await b.send(_build_prompt())
+        return r.text, r.langfuse_trace_id
 
     text, trace_id = asyncio.run(_run())
     assert text, "mock probe must return non-empty text"
@@ -124,9 +125,10 @@ def test_claude_nvidia_probe(live_bridges_enabled, has_claude_cli):
 
     async def _run():
         b = build_bridge("claude")
-        return await b.send(_build_prompt(), extra={"max_turns": 1})
+        r = await b.send(_build_prompt(), extra={"max_turns": 1})
+        return r.text
 
-    text, _ = asyncio.run(_run())
+    text = asyncio.run(_run())
     _assert_keywords(text, "claude")
 
 
@@ -136,9 +138,10 @@ def test_codex_nvidia_probe(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("codex")
-        return await b.send(_build_prompt())
+        r = await b.send(_build_prompt())
+        return r.text
 
-    text, _ = asyncio.run(_run())
+    text = asyncio.run(_run())
     _assert_keywords(text, "codex")
 
 
@@ -152,7 +155,8 @@ def test_manus_nvidia_probe(live_bridges_enabled, has_codex_cli):
 
     async def _run():
         b = build_bridge("manus")
-        return await b.send(_build_prompt())
+        r = await b.send(_build_prompt())
+        return r.text
 
-    text, _ = asyncio.run(_run())
+    text = asyncio.run(_run())
     _assert_keywords(text, "manus(codex-web)")

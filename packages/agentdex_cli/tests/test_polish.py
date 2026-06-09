@@ -83,7 +83,14 @@ def test_partial_baseline_failure_continues_with_other_baselines():
             self.cfg = SimpleNamespace(name=name)
 
         async def send(self, prompt, *, session_id=None, extra=None):
-            return "Revenue $35.08B, gross margin 74.6%.", None
+            from adx_bridges import BridgeResponse
+
+            return BridgeResponse(
+                text="Revenue $35.08B, gross margin 74.6%.",
+                langfuse_trace_id=None,
+                cost_usd=None,
+                tokens=None,
+            )
 
     class _ExplodingBridge:
         def __init__(self, name):

@@ -23,9 +23,12 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from agentdex_engine.balancer import ResourceBalancer
+
+if TYPE_CHECKING:
+    from adx_bridges.base import BridgeResponse
 from agentdex_engine.cards import (
     EvolutionCard,
     ResultCard,
@@ -79,7 +82,7 @@ class _BridgeLike(Protocol):
         *,
         session_id: str | None = None,
         extra: dict | None = None,
-    ) -> tuple[str, str | None]: ...
+    ) -> BridgeResponse: ...
 
     cfg: object  # carries .name attr
 
@@ -149,27 +152,25 @@ async def _run_one_bridge(
         extra["balanced"] = balanced.model_dump()
         extra["max_tokens"] = balanced.max_output_tokens
         extra["tool_allowlist"] = list(balanced.tool_allowlist)
-    text, trace_id = await bridge.send(prompt, extra=extra)
+    resp = await bridge.send(prompt, extra=extra)
     elapsed = time.monotonic() - t0
-    text = text or ""
+    text = resp.text or ""
     # Oracle.evaluate is sync; soft-judge subprocess path can block 5 minutes
     # on the asyncio loop. Defer to a thread so concurrent bridges still drain
     # stdout / Langfuse flushes still run while the judge thinks.
     verdicts = await asyncio.to_thread(oracle.evaluate, text, task_card)
     pass_rate = _hard_pass_rate(verdicts)
-    real_cost = getattr(bridge, "last_cost_usd", None)
-    real_tokens = getattr(bridge, "last_tokens", None)
     rc = ResultCard(
         expedition_id=expedition_id,
         task_id=task_card.id,
         agent_id=getattr(bridge.cfg, "name", "unknown"),
         pass_rate=pass_rate,
-        cost_dollar=float(real_cost) if real_cost is not None else _estimate_cost(text),
-        cost_token=int(real_tokens) if real_tokens is not None else _estimate_tokens(text),
+        cost_dollar=float(resp.cost_usd) if resp.cost_usd is not None else _estimate_cost(text),
+        cost_token=int(resp.tokens) if resp.tokens is not None else _estimate_tokens(text),
         speed_wall_clock_sec=max(elapsed, 1e-6),
         failure_trace_path=None,
         pareto_position="undominated",  # filled below
-        langfuse_trace_id=trace_id,
+        langfuse_trace_id=resp.langfuse_trace_id,
         langfuse_trace_url=None,
     )
     return rc, verdicts, text

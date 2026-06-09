@@ -41,6 +41,26 @@ except ImportError:  # pragma: no cover
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class BridgeResponse:
+    """Public ``LongRunningCliBridge.send()`` return.
+
+    SF5 (DEFERRED.md) — cost + tokens used to surface via instance attrs
+    (``bridge.last_cost_usd`` / ``bridge.last_tokens``); orchestrator had
+    to ``getattr`` them out-of-band of the published ``send()`` contract.
+    They are now first-class fields on the returned dataclass.
+
+    The legacy ``last_*`` properties on :class:`LongRunningCliBridge`
+    remain as a read-only mirror for ad-hoc debugging but the orchestrator
+    + tests MUST consume cost/token via this dataclass.
+    """
+
+    text: str
+    langfuse_trace_id: str | None
+    cost_usd: float | None
+    tokens: int | None
+
+
 @dataclass
 class BridgeConfig:
     name: str
@@ -204,10 +224,15 @@ class LongRunningCliBridge(ABC):
         *,
         session_id: str | None = None,
         extra: dict | None = None,
-    ) -> tuple[str, str | None]:
-        """Public bridge API (per phase-5 contract).
+    ) -> BridgeResponse:
+        """Public bridge API (per phase-5 contract, SF5-amended).
 
-        Returns ``(response_text, langfuse_trace_id|None)``.
+        Returns a :class:`BridgeResponse` carrying ``text``,
+        ``langfuse_trace_id``, ``cost_usd`` and ``tokens``. Cost + tokens
+        come from the CLI's own result frame (claude_bridge reads
+        ``total_cost_usd`` + ``usage``; codex_bridge reads ``tokenUsage``);
+        bridges that don't surface a usage block emit ``None`` for both
+        and the orchestrator falls back to its 4-char/token heuristic.
 
         Wraps :meth:`chat` in a Langfuse ``@trace_turn`` span so the orchestrator
         can stash the trace ref into the ResultCard. With ``LANGFUSE_PUBLIC_KEY``
@@ -252,7 +277,12 @@ class LongRunningCliBridge(ABC):
 
         if not result.get("ok"):
             raise CliDead(f"{self.cfg.name}.send failed: {result.get('error')}")
-        return (result.get("text") or "", trace_id)
+        return BridgeResponse(
+            text=result.get("text") or "",
+            langfuse_trace_id=trace_id,
+            cost_usd=self._last_cost_usd,
+            tokens=self._last_tokens,
+        )
 
 
 # ---------------------------------------------------------------------------

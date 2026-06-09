@@ -33,7 +33,6 @@ cross_cutting: true
 
 | ID | Surface | Cited finding | Until | Owner | Open commit |
 |----|---------|---------------|-------|-------|-------------|
-| SF5 | `packages/adx_bridges/src/adx_bridges/base.py` `LongRunningCliBridge.send` | workflow w0z1i9vcs codereview-fix-2 review — cost surfaces via instance attr (`bridge.last_cost_usd`) not via published `send()` return tuple. Breaking API change touching base.py + 5 bridges + expedition.py + tests | 2026-07-15 | unassigned | bd16c47 |
 | H7 | `cron/weekly_harness_audit.sh` | workflow w0z1i9vcs H7 — audit `check_exists()` is file-presence only. Cannot detect Owner=TODO content drift, past-due `Until:` rows, or orphan doctrine claims (file exists but referenced 0 places) | 2026-07-15 | unassigned | bd16c47 |
 | BASELINE-DRIFT | `.secrets.baseline` | PR-O follow-up — `generated_at` timestamp regenerates on every detect-secrets-hook run regardless of code change. CI `pre-commit run --all-files` will surface a baseline-modified exit-3 on every run. Fix: strip `generated_at` post-scan OR swap in `detect-secrets audit` flow | 2026-07-15 | unassigned | 8480584 |
 | MOCK-DATA | `tasks/nvidia-earnings-infographic/sources/*.md` | STATE.md Notable event 2026-06-08 — all 4 source MDs carry `# MOCK — replace with live Q3 FY2026 data` markers. BLAKE3 frozen at `9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c` against MOCK content. Replace + rehash BEFORE any live Expedition run | 2026-07-31 | etang | 1eca32a |
@@ -49,6 +48,7 @@ cross_cutting: true
 | BRIDGE-SMOKE-part-1 | 38b23e7 (PR-T) | capture script + validator test landed; live captures still pending (part 2) |
 | CALIB-FIXTURES-part-1 | 553ebd4 (PR-U) | 13 hand-labeled rows + round-trip test; full κ ≥ 0.7 inter-rater pending second labeler |
 | M7-scaffold | (this PR) | LearnedSeedGenerator Protocol + RecurrencePatternGenerator placeholder + merge helper; real ML post-M9 helios |
+| SF5 | phase-8/sf5-bridge-response-class | `BridgeResponse` dataclass returned by `send()` carries `text`/`langfuse_trace_id`/`cost_usd`/`tokens`; orchestrator + 5 stubs migrated off the `getattr(bridge, "last_cost_usd")` back-channel; legacy properties retained for ad-hoc debug |
 
 ## Cross-references
 
