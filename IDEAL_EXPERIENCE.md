@@ -72,6 +72,7 @@ orchestrator becomes a state machine over ResultCards.
 3. **Trace orphaning** — judge or bridge span doesn't parent to Expedition trace; user clicking the Langfuse URL lands on an isolated child. Mitigation: Phase-4 R3 spike forces explicit pass/fail decision on cross-process trace propagation; per-baseline-root fallback documented in EvolutionCard `langfuse_trace_urls`.
 4. **Tautological MVP gate** — M5 passes because seeds always fire mechanically (structural), not because system learned anything (learned). Mitigation: `Seed.seed_provenance: Literal["structural","learned"]` makes this distinction typed + auditable; M7 raises the bar to ≥1 learned seed.
 5. **Subscription-CLI drift** — Claude Code or Codex CLI ships breaking output-format change; bridge silently parses garbage. Mitigation: bridge tests use recorded fixtures + a smoke probe at session start.
+6. **Upstream 5xx cascade** — one transient Cloudflare 525 / 502 on the judge path takes down EVERY baseline because the orchestrator's per-baseline `try/except` wraps both `bridge.send` AND `oracle.evaluate`. Mitigation (PR #18 + PR #20): `oracle/soft.py:_call_judge_with_retries` runs 3 attempts with exponential backoff against an open-ended exception classifier (class name + body markers covering anthropic / openai / gemini / cohere shapes); explicit `"retryable":false` / `"owner_action_required":true` flags in the body skip the retry budget so origin-config failures surface immediately instead of burning the per-baseline timeout window.
 
 ## How we'll know we got there (deferred to EVAL.md)
 

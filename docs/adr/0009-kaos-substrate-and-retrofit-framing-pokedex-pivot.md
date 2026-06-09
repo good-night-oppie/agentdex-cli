@@ -1,3 +1,15 @@
+---
+title: "ADR-0009: KAOS substrate + Pokédex pivot + retrofit framing"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: docs/adr
+layer: cross-cutting
+cross_cutting: true
+---
+
 # ADR-0009: KAOS substrate + Pokédex pivot + retrofit framing
 
 **Date:** 2026-06-07
@@ -9,6 +21,7 @@
 
 Accepted (2026-06-07).
 Amended 2026-06-08 with: (a) single-gateway embedded mode pivot (SessionRunner-vapor recon resolution); (b) §judge-as-profile MVP downgrade; (c) **co-opetition (合作竞争) framing — "battle" terminology dropped from external product language**; (d) **Langfuse self-host as MVP default**. See §Amendment-2026-06-08 below.
+Amended 2026-06-09 with: (e) `BridgeResponse` dataclass replaces the prior `(text, trace_id)` tuple return of `LongRunningCliBridge.send` (SF5, PR #1) so cost + tokens are first-class fields not back-channel instance attrs; (f) judge SDK calls now run under a 3-attempt exponential-backoff retry classifier (PR #18) that honors explicit `"retryable":false` / `"owner_action_required":true` flags (PR #20) so a transient upstream Cloudflare 5xx does not cascade to every baseline being excluded-failed. See §Amendment-2026-06-09 below.
 
 ## §Amendment-2026-06-08 — co-opetition framing + Langfuse self-host
 
@@ -43,6 +56,22 @@ User decision 2026-06-08: agentdex-cli ships with **`LANGFUSE_HOST=http://localh
 - **Operational implication.** MVP M5 demo assumes a local `docker run langfuse/langfuse` instance OR `docker-compose` stack. Lifecycle commands ship in `cli.py:507-528` (`adx langfuse up/down/status/ensure`); `ops/AGENTS.md` documents the env vars. (Refresh 2026-06-09 per workflow w0z1i9vcs H9 — earlier wording promised Phase-8 polish for what already shipped at M5.)
 - **Rationale.** Trace data carrying NVIDIA earnings claim text + judge invocations may be sensitive in some deploys; self-host keeps it on-prem. Cloud free tier stays as the fallback when local infra isn't available.
 - **agentdex_observe behavior.** Unchanged in code — the host is read from `LANGFUSE_HOST` env with a new default. If both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are unset, decorators no-op (graceful degrade; MVP can still run without Langfuse).
+
+## §Amendment-2026-06-09 — BridgeResponse + judge retry classifier
+
+### SF5 — `BridgeResponse` dataclass returns cost + tokens via `send()`
+
+`LongRunningCliBridge.send()` used to return `(text, langfuse_trace_id|None)` and surface cost / tokens via instance attrs (`bridge.last_cost_usd` / `bridge.last_tokens`). The orchestrator had to `getattr` them out-of-band of the published return tuple. PR #1 (SF5 closure) introduces a `BridgeResponse` frozen-slots dataclass exporting `text`, `langfuse_trace_id`, `cost_usd`, `tokens` as first-class fields; orchestrator + 5 stubs migrated; legacy properties retained as a read-only debug mirror. Cold-fallback path (PR #15) propagates cost / tokens through the same dataclass by parsing claude's `--output-format json` JSON-array shape.
+
+### Judge SDK call resilience — retry classifier
+
+PR #18 wraps every `_invoke_judge` SDK call (anthropic / openai / google-genai branches) in `_call_judge_with_retries(fn, label)`. The classifier (`_is_retryable_judge_error`) is open-ended: it matches by exception class name (InternalServerError / APIConnectionError / APITimeoutError / RateLimitError / ServiceUnavailable / BadGateway / GatewayTimeout) **and** by 5xx markers in the stringified body (520–527, 502, 503, 504). 3-attempt exponential backoff (2 → 4 → 8 s) before the original exception is re-raised, so the orchestrator's per-baseline `try/except` still excluded-fails cleanly on sustained outages.
+
+PR #20 honors explicit `"retryable":false` and `"owner_action_required":true` flags in the body: Cloudflare 525 origin-SSL failures emit these and the operator must fix the origin server config, so retrying wastes the per-baseline timeout window. The classifier short-circuits to non-retryable when those flags appear regardless of code marker / class name.
+
+### Bridge spawn timeout headroom
+
+PR #14 reads claude's handshake timeout from `cfg.spawn_timeout_sec` with a 30 s floor; `build_bridge("claude", ...)` sets `spawn_timeout_sec=60.0` to cover SessionStart-hook latency in heavy project trees. PR #19 adds `--dangerously-skip-permissions` to the cold-shot argv (matching long-lived mode) so a stdin permission prompt cannot silently hang the fallback subprocess; `CliDead` errors now surface `rc=<returncode>` + stdout + stderr excerpts.
 
 ## Supersedes
 

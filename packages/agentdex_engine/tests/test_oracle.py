@@ -583,9 +583,7 @@ def test_judge_retry_classifier_honors_retryable_false():
     body_json = '{"status":525,"retryable":false,"owner_action_required":true}'
     assert _is_retryable_judge_error(_CF525(body_json)) is False
     # Loose-spacing variant.
-    assert (
-        _is_retryable_judge_error(_CF525('{"status":525,"retryable": false}')) is False
-    )
+    assert _is_retryable_judge_error(_CF525('{"status":525,"retryable": false}')) is False
 
 
 def test_judge_retry_classifier_still_retries_525_without_explicit_flag():
