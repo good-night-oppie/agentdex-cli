@@ -63,7 +63,7 @@ Component inventory (per DOC-LINT-012):
 
 | Package | Role | Strict layer |
 |---|---|---|
-| `packages/agentdex_engine` | Three Cards schema + Oracle layer + Pareto + Expedition orchestrator | `cards/` mypy strict |
+| `packages/agentdex_engine` | Three Cards schema + Oracle layer + Pareto + Expedition orchestrator + LearnedSeedGenerator Protocol (M7) | `cards/` mypy strict |
 | `packages/adx_bridges` | 5 bridges: base + claude + codex + manus (camoufox|codex-web fallback) + gemini stub | runtime |
 | `packages/agentdex_observe` | Langfuse wrap + llm_pool + subscription_judge | runtime |
 | `packages/agentdex_cli` | CLI + orchestrator + gateway helper | runtime |

@@ -1,10 +1,22 @@
+---
+title: DEFERRED — agentdex-cli phase-8 polish queue
+status: active
+owner: etang
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: monorepo
+layer: cross-cutting
+cross_cutting: true
+---
+
 # DEFERRED — agentdex-cli phase-8 polish queue
 
 > Closes workflow w0z1i9vcs H2 (deferred-fix tracking) — bd16c47's commit
 > body listed SF/D items as "deferred to phase 8" but no tracking artifact
 > recorded them anywhere greppable. This file IS the tracking artifact.
 >
-> Discipline: every entry MUST carry `Until: <ISO-date>` so the weekly
+> Discipline: every entry must carry `Until: <ISO-date>` so the weekly
 > harness audit can flag past-due items (per IDEAL_EXPERIENCE.md anti-fire-
 > exit clause + the `feedback_fix_all_before_moving_forward` memory). When
 > an item lands, delete its row + record the closing commit hash in
@@ -32,8 +44,11 @@
 
 ## Closed (delete after one weekly audit cycle confirms gone)
 
-(none yet — first row to be moved here when its `Until:` passes or
-the work lands and a commit closes it)
+| ID | Closing commit | Notes |
+|----|----------------|-------|
+| BRIDGE-SMOKE-part-1 | 38b23e7 (PR-T) | capture script + validator test landed; live captures still pending (part 2) |
+| CALIB-FIXTURES-part-1 | 553ebd4 (PR-U) | 13 hand-labeled rows + round-trip test; full κ ≥ 0.7 inter-rater pending second labeler |
+| M7-scaffold | (this PR) | LearnedSeedGenerator Protocol + RecurrencePatternGenerator placeholder + merge helper; real ML post-M9 helios |
 
 ## Cross-references
 
@@ -41,7 +56,7 @@ the work lands and a commit closes it)
   SHOULD grep this file for past-due `Until:` dates (post-H7 fix lands)
 - `.supergoal/STATE.md` Notable events log captures cross-cutting
   doctrine pivots; this file captures fine-grained deferred-fix
-  obligations that don't rise to a Notable event but MUST not be
+  obligations that don't rise to a Notable event but must not be
   silently lost
 - `~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_fix_all_before_moving_forward.md`
   — standing policy: when surfacing a ranked-issue list, work the queue
