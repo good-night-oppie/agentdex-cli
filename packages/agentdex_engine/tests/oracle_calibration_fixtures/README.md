@@ -1,3 +1,15 @@
+---
+title: Oracle calibration fixtures (G13 ground-truth)
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: packages/agentdex_engine/tests/oracle_calibration_fixtures
+layer: cross-cutting
+cross_cutting: true
+---
+
 # Oracle calibration fixtures (G13 ground-truth)
 
 Referenced by `EVAL.md` row "Soft-Oracle judge calibration ≥ 0.7 accuracy on
@@ -23,10 +35,15 @@ oracle_calibration_fixtures/
 │   ├── pass_high_confidence.yaml   # 4 rows, score ≥ 0.85, hand-labeled pass
 │   ├── pass_marginal.yaml          # 3 rows, score 0.70-0.80, hand-labeled pass
 │   ├── fail_marginal.yaml          # 3 rows, score 0.40-0.55, hand-labeled fail
-│   └── fail_obvious.yaml           # 4 rows, score ≤ 0.20, hand-labeled fail
+│   ├── fail_obvious.yaml           # 4 rows, score ≤ 0.20, hand-labeled fail
+│   └── labels_rater_2.yaml         # AI rater-2 labels for the κ ≥ 0.7 gate
 └── infographic_accuracy/           # post-M6 — second dimension once M5 lands
     └── (mirrored layout)
 ```
+
+Total: 13 fixtures + a rater-2 sidecar = enough for the EVAL.md ≥ 10 rows
+× 2 raters κ ≥ 0.7 inter-rater agreement gate enforced by
+`test_inter_rater_kappa.py`.
 
 Total ≥ 14 rows across the four narrative-coherence files = exceeds the
 `EVAL.md` minimum of 10.

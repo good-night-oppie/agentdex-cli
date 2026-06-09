@@ -31,9 +31,16 @@ _OFF_TOPIC_TOKENS = ("AMD", "Intel", "Tesla")
 
 
 def _load_all_fixtures() -> list[tuple[str, float, bool, str]]:
-    """Yield (response, expected_score, expected_pass, fixture_id)."""
+    """Yield (response, expected_score, expected_pass, fixture_id).
+
+    Skips the rater-2 sidecar (`labels_rater_2.yaml`) — that file carries
+    a different schema (`labels:` not `fixtures:`) consumed by the inter-
+    rater κ test, not the round-trip calibration test.
+    """
     rows: list[tuple[str, float, bool, str]] = []
     for yaml_path in sorted(FIXTURES_DIR.glob("*.yaml")):
+        if yaml_path.name.startswith("labels_rater_"):
+            continue
         body = yaml.safe_load(yaml_path.read_text())
         for fix in body.get("fixtures", []):
             rows.append(

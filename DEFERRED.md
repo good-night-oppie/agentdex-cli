@@ -34,7 +34,6 @@ cross_cutting: true
 | ID | Surface | Cited finding | Until | Owner | Open commit |
 |----|---------|---------------|-------|-------|-------------|
 | MOCK-DATA | `tasks/nvidia-earnings-infographic/sources/*.md` | STATE.md Notable event 2026-06-08 — all 4 source MDs carry `# MOCK — replace with live Q3 FY2026 data` markers. BLAKE3 frozen at `9edcd1a12c51f1741d90fab7b733a2144f1831bf7d28a7ead3165052c66dc09c` against MOCK content. Replace + rehash BEFORE any live Expedition run | 2026-07-31 | etang | 1eca32a |
-| CALIB-FIXTURES | `packages/agentdex_engine/tests/oracle_calibration_fixtures/` | MF4 + EVAL.md gate — directory + schema scaffolded (README.md), live hand-labeled fixtures land with Phase 6 soft Oracle calibration. ≥10 rows × 2 raters required for κ ≥ 0.7 gate. | 2026-08-15 | unassigned | bd16c47 |
 | STATE.MD-REFRESH | `.supergoal/STATE.md` | workflow w0z1i9vcs H3 (refuted as spurious live drift but file IS stale) — Current phase: 5 + phases 5/6/7/8 pending. Actual: M3+M4+M5 all shipped (ed4a913 / 22d6285 / bd16c47). `.supergoal/**` deny per `feedback_supergoal_perm_carveout_conflict` memory routes update via human / harness orchestrator. | 2026-07-15 | harness-2 orchestrator | (n/a — no commit; supergoal-mode artifact) |
 
 ## Closed (delete after one weekly audit cycle confirms gone)
@@ -48,6 +47,7 @@ cross_cutting: true
 | H7 + AUDIT-OWNER-SCAN | phase-8/h7-audit-content-scan | weekly audit §2c Owner=TODO scan + §2d orphan doctrine anchor scan (basename-grep heuristic) landed; G13 ep28 [28-0830] sunset citation restored in script header (replaces the pruned TODO comment) |
 | BASELINE-DRIFT | phase-8/baseline-drift | `scripts/detect_secrets_no_drift.sh` wraps `detect-secrets-hook`, strips `generated_at`, suppresses exit-3 when timestamp was the only diff; pre-commit hook swapped to local `language: system` entry point. True-positive findings (rc=1) still propagate; verified w/ injected AWS-key fixture |
 | BRIDGE-SMOKE | phase-8/bridge-smoke | All 3 live captures (claude/codex/manus) recorded via `tools/agent_senses/capture_bridge_smoke.sh` against installed CLIs; validator (`test_bridge_smoke_fixtures.py`) green for all 3. EVAL.md "Subscription-CLI bridge smoke probe passes at session start" criterion now enforceable on every push |
+| CALIB-FIXTURES | phase-8/calib-rater2 | Rater-2 sidecar (`labels_rater_2.yaml`) lands AI-judged labels for all 13 fixtures; `test_inter_rater_kappa.py` asserts Cohen's κ ≥ 0.7 gate (current value 0.846 — 1 marginal disagreement on `nvidia-mixed-format`). Rater-2 is documented as AI by design; promote to human rater-3 when one is available (queue under CALIB-RATER-3 at that point) |
 
 ## Cross-references
 
