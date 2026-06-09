@@ -211,11 +211,15 @@ class ProvenanceOracle:
         r"\bsource\s*:\s*[\w\-./]+\.md\s*:\s*\d+",
         re.IGNORECASE,
     )
-    # Capture the body of each bullet-formatted claim line so we can scan it
-    # for an inline citation. The previous regex matched only the bullet
-    # marker + first non-whitespace token, which forced a global-counting
-    # workaround that double-counted prose citations.
-    CLAIM_LINE_RE = re.compile(r"^[ \t]*[-*•][ \t]+(.+)$", re.MULTILINE)
+    # MF6 (harness-praxis tracer follow-up, 2026-06-09): match BOTH bullet
+    # markers (-, *, •) AND numbered / lettered enumeration (`1. `, `1) `,
+    # `a. `, `i. `). Earlier per-bullet regex only matched `[-*•]` and
+    # forced a 0/0 ratio = forced fail whenever the LLM responded with
+    # numbered enumeration (a common output style).
+    CLAIM_LINE_RE = re.compile(
+        r"^[ \t]*(?:[-*•]|(?:\d+|[a-zA-Z]|[ivxIVX]+)[.)])[ \t]+(.+)$",
+        re.MULTILINE,
+    )
 
     def evaluate(self, response: str, task_card: TaskCard) -> OracleVerdictMap:
         claim_bodies = [m.group(1) for m in self.CLAIM_LINE_RE.finditer(response)]

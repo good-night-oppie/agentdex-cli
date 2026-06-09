@@ -78,3 +78,64 @@ def test_rankings_have_all_three_metrics():
     verdict = pareto_verdict(cards)
     for ranks in verdict.rankings.values():
         assert set(ranks.keys()) == {"pass_rate", "cost_dollar", "speed_wall_clock_sec"}
+
+
+# ---------------------------------------------------------------------------
+# MF5 — failed-baseline does not rank cheapest (harness-praxis tracer)
+# ---------------------------------------------------------------------------
+
+
+def _failed_rc(agent_id: str, speed: float = 0.001) -> ResultCard:
+    """Mirror what expedition._failed_baseline_record produces post-MF5."""
+    return ResultCard(
+        expedition_id="test-expedition",
+        task_id="test-task",
+        agent_id=agent_id,
+        pass_rate=0.0,
+        cost_dollar=None,
+        cost_token=None,
+        speed_wall_clock_sec=speed,
+        failure_trace_path="<inline-failure>::RuntimeError: simulated",
+        pareto_position="undominated",
+        langfuse_trace_id=None,
+        langfuse_trace_url=None,
+    )
+
+
+def test_failed_baseline_excluded_from_verdict_pool():
+    """A baseline that crashed (cost_dollar=None + failure_trace_path set)
+    must NOT show up in the Pareto verdict's rankings as the cheapest entry."""
+    cards = [
+        _rc("alpha", pass_rate=0.95, cost=0.10, speed=2.0),
+        _rc("beta", pass_rate=0.80, cost=0.50, speed=4.0),
+        _failed_rc("crashed", speed=0.001),
+    ]
+    verdict = pareto_verdict(cards)
+    assert verdict.verdict_kind == "undominated"
+    assert verdict.winner == "alpha", (
+        f"alpha should win on Pareto pass-rate dominance; got {verdict.winner!r}"
+    )
+    assert "crashed" not in verdict.rankings, (
+        "failed baseline must be excluded from verdict rankings — its "
+        "ResultCard ships via the EvolutionCard repair seeds, not the Pareto"
+    )
+    # Eligible cost ranks must use the two real values only.
+    assert verdict.rankings["alpha"]["cost_dollar"] == 1
+    assert verdict.rankings["beta"]["cost_dollar"] == 2
+
+
+def test_all_baselines_failed_returns_no_clear_winner():
+    cards = [_failed_rc("a"), _failed_rc("b"), _failed_rc("c")]
+    verdict = pareto_verdict(cards)
+    assert verdict.verdict_kind == "no_clear_winner"
+    assert verdict.winner is None
+    assert verdict.rankings == {}
+
+
+def test_single_eligible_baseline_wins_by_default():
+    """2 failed + 1 success → the success wins undominated (single eligible)."""
+    cards = [_failed_rc("a"), _failed_rc("b"), _rc("survivor", 0.6, 0.20, 3.0)]
+    verdict = pareto_verdict(cards)
+    assert verdict.verdict_kind == "undominated"
+    assert verdict.winner == "survivor"
+    assert set(verdict.rankings.keys()) == {"survivor"}

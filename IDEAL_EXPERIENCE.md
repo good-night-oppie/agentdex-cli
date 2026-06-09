@@ -8,23 +8,39 @@ A developer or researcher evaluating multiple agentic coding/research subscripti
 
 ## The ideal session looks like (async co-opetition — per ADR-0009 §Amendment-2026-06-08)
 
-### Async primitives (the load-bearing path)
-
-- **User runs (whenever each is convenient — could be hours or days apart):**
-  ```
-  adx expedition init    --task nvidia-earnings-infographic --baselines claude,codex,manus
-  adx expedition run     --expedition <id> --baseline claude       # today
-  adx expedition run     --expedition <id> --baseline codex        # tomorrow morning
-  adx expedition run     --expedition <id> --baseline manus        # whenever Camofox cooperates
-  adx expedition finalize --expedition <id> --judge claude-haiku-4.5
-  ```
-- **agentdex-cli does (per baseline run):** ensures `hermes gateway --profile agentdex` is live (spawn-once OR reuse via PID-file), drives ONE baseline through its bridge, writes `expeditions/<id>/result_card_<baseline>.yaml` + `trace/<baseline>_full_trace.jsonl`, each baseline carries its Langfuse trace URL. No coordination with the other baselines required.
-- **agentdex-cli does (at finalize):** verifies all required ResultCards present, soft Oracle judge scores narrative quality via `agentdex_observe.anthropic_client()` (Langfuse-wrapped), Pareto judge produces `winner` OR `no_clear_winner`, EvolutionCard aggregates mutation seeds with `seed_provenance ∈ {structural, learned}`, KAOS persists the lineage entry.
-
-### Synchronous wrapper (MVP demo path, sugar over the async primitives)
+### Synchronous wrapper (MVP M5 — the shipped, load-bearing path)
 
 - **User runs:** `adx expedition --task nvidia-earnings-infographic --baselines claude,codex,manus --judge claude-haiku-4.5`
-- **agentdex-cli does:** invokes the four async commands above in sequence within one process. Same artifacts, same KAOS lineage. Used by `test_expedition_smoke.py` to keep the M5 gate deterministic + cheap.
+- **agentdex-cli does:** in one process, ensures `hermes gateway --profile agentdex` is live (spawn-once OR reuse via PID-file), drives each baseline sequentially through its bridge, writes `expeditions/<id>/result_card_<baseline>.yaml` + `trace/<baseline>_full_trace.jsonl` per baseline, runs soft Oracle judge via `agentdex_observe.anthropic_client()` (Langfuse-wrapped, span explicit per the codereview-fix-1 `_judge_observation` context manager), Pareto judge produces `winner` OR `no_clear_winner`, EvolutionCard aggregates mutation seeds with `seed_provenance ∈ {structural, learned}`, KAOS persists the lineage entry.
+
+> **Doctrine note (harness-praxis tracer follow-up, 2026-06-09):** this sync
+> wrapper is the ONLY path the CLI ships at M5. Earlier revisions of this doc
+> called the async primitives below "load-bearing" while only the sync
+> wrapper had landed; that was G14 drift (ideal-experience anchor named one
+> thing, code shipped another). The async primitives are the M6+ target
+> shape, NOT a shipped surface — see the next section.
+
+### Async primitives (M6+ TARGET — not shipped yet)
+
+These commands are the POST-M5 surface, motivated by users whose baseline
+runs are naturally hours or days apart (subscription rate-limits, daily
+quotas, Camofox availability windows). They are NOT in `cli.py` today; the
+sync wrapper above must be used until M6 lands these subcommands.
+
+```
+adx expedition init    --task nvidia-earnings-infographic --baselines claude,codex,manus
+adx expedition run     --expedition <id> --baseline claude       # today
+adx expedition run     --expedition <id> --baseline codex        # tomorrow morning
+adx expedition run     --expedition <id> --baseline manus        # whenever Camofox cooperates
+adx expedition finalize --expedition <id> --judge claude-haiku-4.5
+```
+
+When shipped (M6+ migration), each `run` invocation will be a unit of work
+that ensures the Hermes gateway is live, drives ONE baseline, writes that
+baseline's ResultCard + trace, and exits. `finalize` then aggregates all
+required ResultCards and produces the Pareto verdict + EvolutionCard +
+KAOS lineage entry. No coordination between baselines required; the
+orchestrator becomes a state machine over ResultCards.
 
 ### User feels
 

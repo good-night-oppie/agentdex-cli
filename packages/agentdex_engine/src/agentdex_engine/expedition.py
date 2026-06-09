@@ -198,7 +198,9 @@ def _failed_baseline_record(
 
     Continues the Expedition with the remaining baselines + persists a record
     of the failure (``failure_trace_path``, ``pass_rate=0``,
-    ``cost_dollar=floor``) so the EvolutionCard surfaces the gap.
+    ``cost_dollar=None``) so the EvolutionCard surfaces the gap and the
+    Pareto judge does not mistake the crash for "cheapest baseline" (MF5,
+    harness-praxis tracer follow-up 2026-06-09).
     """
     agent_name = getattr(bridge.cfg, "name", "unknown")
     failure_excerpt = f"{type(exc).__name__}: {exc}"[:1000]
@@ -207,8 +209,8 @@ def _failed_baseline_record(
         task_id=task_card.id,
         agent_id=agent_name,
         pass_rate=0.0,
-        cost_dollar=1e-6,
-        cost_token=0,
+        cost_dollar=None,
+        cost_token=None,
         speed_wall_clock_sec=1e-6,
         failure_trace_path=f"<inline-failure>::{failure_excerpt}",
         pareto_position="undominated",

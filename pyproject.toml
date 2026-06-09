@@ -24,6 +24,57 @@ helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }
 kaos             = { workspace = true }
 
+[tool.ruff]
+# Encoded in code so AGENTS.md "ruff configured in pyproject.toml" claim is true.
+# G2 ep6: architecture-as-hard-rails, not prose.
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+  "packages/kaos",   # vendored subtree — upstream owns lint config
+  ".venv",
+  "_attic",
+  "expeditions",
+]
+
+[tool.ruff.lint]
+# Conservative starter rule-set; phase 8 polish broadens.
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+  "E501",  # line length — handled by formatter, not the linter
+  "B008",  # default arg = call — pydantic Field() / FastAPI Depends() everywhere
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401", "F811"]  # fixtures import for side-effect
+
+[tool.mypy]
+# AGENTS.md claims mypy --strict — phase-8 polish will broaden to all packages.
+# MVP M5: ship the config so pre-commit hook has something to call; strict gate
+# scoped to the schema layer (cards/) until M7 tightens.
+python_version = "3.11"
+strict = true
+exclude = [
+  "packages/kaos/",
+  "_attic/",
+  "build/",
+  "dist/",
+  "expeditions/",
+]
+# Loosen for M5: only the Three Cards schema is strict by default; rest opts in
+# per-package via [[tool.mypy.overrides]] as phases land.
+follow_imports = "silent"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "agentdex_engine.cards.*"
+strict = true
+
+[[tool.mypy.overrides]]
+# Vendored / third-party shapes — relax until M7.
+module = ["langfuse.*", "anthropic.*", "openai.*", "google.*", "camoufox.*", "kaos.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 # importlib mode avoids the "duplicate `tests` package" collision when multiple
 # workspace packages each carry a `tests/__init__.py` (kaos / adx_bridges /

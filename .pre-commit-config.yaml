@@ -1,0 +1,67 @@
+# Pre-commit configuration — encodes AGENTS.md "Hard rails" in code per G2 ep6.
+#
+# Opt-in install:
+#
+#     pip install pre-commit && pre-commit install
+#
+# Pre-commit fetches its own pinned binaries from each `rev:`, so no system
+# install of ruff / mypy / detect-secrets is required. Hooks run only on
+# staged files by default — the existing codebase is not retroactively
+# blocked; only new diffs get checked.
+#
+# Phase 8 polish target: lift mypy --strict from the cards schema layer
+# alone (configured in pyproject.toml [[tool.mypy.overrides]]) to the
+# whole engine package.
+
+default_language_version:
+  python: python3.11
+
+default_stages: [pre-commit]
+
+repos:
+  # Built-in hygiene — fast, broadly applicable.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'      # markdown trailing-space = soft line break
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: '^expeditions/'
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=2048']
+
+  # Ruff — lint + format. Single binary, configured in pyproject.toml.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        exclude: '^packages/kaos/'
+      - id: ruff-format
+        exclude: '^packages/kaos/'
+
+  # Mypy — strict on the schema layer per pyproject.toml override; lenient
+  # elsewhere via follow_imports=silent + ignore_missing_imports.
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        files: ^packages/agentdex_engine/src/agentdex_engine/cards/
+        additional_dependencies: ["pydantic>=2.0"]
+
+  # Secret-scan — block accidental .env / API-key leaks per agentlint SEC-002.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            packages/kaos/.*|
+            \.secrets\.baseline|
+            expeditions/.*|
+            \.supergoal/.*
+          )$

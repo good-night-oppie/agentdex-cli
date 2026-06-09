@@ -16,13 +16,20 @@ Amended 2026-06-08 with: (a) single-gateway embedded mode pivot (SessionRunner-v
 
 ADR-0005 framed agentdex as a "battle platform" — two agents going head-to-head in real time, side by side. **This is dropped.** The system is **co-opetition (合作竞争)**: each baseline runs the same task **independently and asynchronously**; the Pareto judge aggregates ResultCards when all required baselines have completed, **whenever that happens**. No synchronous coordination, no simultaneous compete.
 
-- **Async completion model (load-bearing change).**
+- **Async completion model (M6+ TARGET — not shipped at M5).**
+  > Doctrine correction landed 2026-06-09 by the harness-praxis tracer
+  > follow-up: prior revisions of this amendment called the async path
+  > "load-bearing change" while only the sync wrapper had shipped in
+  > `agentdex_cli/cli.py`. That was G14 ideal-experience-anchor drift —
+  > the doc anchored on a surface the code did not expose. The async
+  > primitives below remain the post-M5 target shape, scoped to M6 once
+  > the live-pool work stabilises the per-baseline-run window.
   - Each baseline runs on its own schedule (subscription rate-limits, user attention, daily quotas all vary across CLIs).
-  - `adx expedition run --baseline <name>` is the unit of work. Runs ONE baseline against ONE TaskCard, produces ONE ResultCard, writes to `expeditions/<id>/result_card_<baseline>.yaml`.
+  - `adx expedition run --baseline <name>` (M6 target) is the unit of work. Runs ONE baseline against ONE TaskCard, produces ONE ResultCard, writes to `expeditions/<id>/result_card_<baseline>.yaml`.
   - User invokes each baseline independently — could be hours or days apart.
-  - `adx expedition finalize --expedition <id>` checks all ResultCards present, runs Pareto + Evolution, writes `pareto_verdict.yaml` + `evolution_card.yaml`, persists KAOS lineage entry.
+  - `adx expedition finalize --expedition <id>` (M6 target) checks all ResultCards present, runs Pareto + Evolution, writes `pareto_verdict.yaml` + `evolution_card.yaml`, persists KAOS lineage entry.
   - The orchestrator becomes a state machine over ResultCards; it does NOT need 3 baselines live simultaneously.
-- **MVP M5 demo path.** For the live demo a synchronous wrapper command `adx expedition --task <id> --baselines claude,codex,manus` runs each baseline in sequence + finalizes in one process. This is sugar over the async primitives, not a different architecture. Test path uses the same sugar with mocked bridges.
+- **MVP M5 path (shipped, sync wrapper).** The CLI ships ONE command — `adx expedition --task <id> --baselines claude,codex,manus --judge <model>` — that runs each baseline sequentially + finalizes in one process. Same artifacts (TaskCard / ResultCards / Pareto verdict / EvolutionCard / KAOS lineage entry) as the M6 target above. This is the load-bearing path at M5, not "sugar" — the async primitives are aspirational until M6 lands them.
 - **Co-opetition framing in artifacts.** EvolutionCard's `winning_pattern` + `losing_pattern` field names stay (backwards compatibility); internal semantics shift toward `productive_pattern` (what the leading baseline did well) + `gap_pattern` (what the trailing baselines missed). Pokédex entries celebrate COMPLEMENTARY emergence, not winner-take-all.
 - **What changes externally.** Product language (README, CLAUDE.md, `adx --help`, user-facing strings, marketing) drops "battle." Use "co-opetition," "expedition," or "async benchmark."
 - **What does NOT change.** Internal module names (`agentdex_engine/modules/battles/`, `BattleResult`, `TrajectoryTree`, `StopSignal`, `TurnTaker`, `engine.run_battle`) stay as code identifiers — renaming costs ~40 files of churn for zero functional benefit. Phase-8 polish considers an in-place rename pass; for M0–M5 the internal names are ADR-0005 historical baggage.

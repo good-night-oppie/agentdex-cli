@@ -148,6 +148,42 @@ def test_provenance_partial_bullet_citation_fails():
     assert 0.49 <= v.score <= 0.51, f"expected ratio≈0.5, got {v.score}"
 
 
+def test_provenance_numbered_list_counts_as_claim_lines():
+    """MF6 regression (harness-praxis tracer): LLM emits numbered enumeration
+    (`1. `, `2) `, etc.) instead of bullet markers. Per-bullet count must
+    treat these as claim lines too, else perfectly-cited numbered responses
+    were forced to score=0.0/pass=False."""
+    response = (
+        "1. Revenue: $35.08 billion (source: nvidia-q3-fy2026-press-release.md:14)\n"
+        "2. Data Center: $30.77 billion (source: nvidia-q3-fy2026-press-release.md:26)\n"
+        "3) Gross margin: 74.6% (source: nvidia-q3-fy2026-press-release.md:42)\n"
+        "4) Guidance: $37.5 billion ± 2% (source: nvidia-q3-fy2026-press-release.md:60)\n"
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert v.pass_ is True, f"expected pass on fully-cited numbered list; got {v}"
+    assert v.score == 1.0, (
+        f"all 4 numbered claims carry citations → ratio must be 1.0, got {v.score}"
+    )
+    assert "4/4" in v.evidence, f"evidence should report per-bullet count, got {v.evidence!r}"
+
+
+def test_provenance_lettered_list_counts_as_claim_lines():
+    """Lettered enumeration (`a. `, `b) `, `i. ` Roman) also counts. Without
+    this, response styles common in legal / structured reporting fail the
+    Oracle for purely-formatting reasons."""
+    response = (
+        "a. Revenue: $35.08 billion (source: a.md:14)\n"
+        "b. Data Center: $30.77 billion (source: a.md:26)\n"
+        "i. Gross margin: 74.6% (source: a.md:42)\n"
+        "ii. Guidance: $37.5 billion (source: a.md:60)\n"
+    )
+    verdicts = ProvenanceOracle().evaluate(response, _build_task_card())
+    v = verdicts["hard.provenance_required"]
+    assert v.pass_ is True
+    assert v.score == 1.0
+
+
 def test_provenance_prose_only_returns_indeterminate_evidence():
     """Response is all prose with citations but no bullets — Oracle cannot
     verify per-claim provenance. Returns pass=False with score=0 + evidence
