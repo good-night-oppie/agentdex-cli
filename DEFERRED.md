@@ -66,3 +66,4 @@ cross_cutting: true
 - PR #15 squash-merged with an unused SimpleNamespace import the CI flagged after-the-fact; PR #16 drops it. Doc-lint pairing for the import-drop lives in this note.
 - PR #16 squash-merge still flagged a UP038 ruff rule in claude_bridge.py + a ruff-format diff in test_rate_table.py; PR #17 lands both fixes so main is green again.
 - PR #18 wraps judge SDK calls in a 3-attempt exponential-backoff retry classifier (anthropic / openai / gemini exception names + Cloudflare 5xx body markers) so a transient upstream 525 / 502 / 503 does not excluded-fail every baseline in the Expedition.
+- PR #19 adds --dangerously-skip-permissions to the claude cold-shot argv (was only in build_argv long-lived) so the fallback path does not hang on a stdin permission prompt + surfaces stdout in the CliDead message when stderr is empty.
