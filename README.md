@@ -1,3 +1,15 @@
+---
+title: "agentdex-cli — Agent Pokédex"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: .
+layer: cross-cutting
+cross_cutting: true
+---
+
 # agentdex-cli — Agent Pokédex
 
 Async co-opetition (合作竞争) orchestrator across subscription-CLI baselines
@@ -33,7 +45,7 @@ uv run adx bridge probe --bridge claude --task nvidia-earnings-infographic
 uv run adx expedition \
     --task nvidia-earnings-infographic \
     --baselines claude,codex,manus \
-    --judge claude-haiku-4.5 \
+    --judge claude-haiku-4-5 \
     --output expeditions/nvidia-q3-fy2026-exp-001/ \
     --mocked
 ```

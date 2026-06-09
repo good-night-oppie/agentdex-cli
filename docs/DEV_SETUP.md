@@ -94,7 +94,7 @@ uv run --no-sync pytest packages/agentdex_cli/tests/test_expedition_smoke.py -v
 uv run adx expedition \
   --task nvidia-earnings-infographic \
   --baselines claude,codex,manus \
-  --judge claude-haiku-4.5 \
+  --judge claude-haiku-4-5 \
   --output expeditions/$(date -u +%Y%m%d-%H%M%S)/
 ```
 

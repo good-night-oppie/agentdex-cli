@@ -1,3 +1,15 @@
+---
+title: "IDEAL_EXPERIENCE — agentdex-cli"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: .
+layer: cross-cutting
+cross_cutting: true
+---
+
 # IDEAL_EXPERIENCE — agentdex-cli
 
 > Cursor G14: define what success looks like BEFORE choosing metrics. Evals derive from this; the doc is the anchor.
@@ -10,7 +22,7 @@ A developer or researcher evaluating multiple agentic coding/research subscripti
 
 ### Synchronous wrapper (MVP M5 — the shipped, load-bearing path)
 
-- **User runs:** `adx expedition --task nvidia-earnings-infographic --baselines claude,codex,manus --judge claude-haiku-4.5`
+- **User runs:** `adx expedition --task nvidia-earnings-infographic --baselines claude,codex,manus --judge claude-haiku-4-5`
 - **agentdex-cli does:** in one process, ensures `hermes gateway --profile agentdex` is live (spawn-once OR reuse via PID-file), drives each baseline sequentially through its bridge, writes `expeditions/<id>/result_card_<baseline>.yaml` + `trace/<baseline>_full_trace.jsonl` per baseline, runs soft Oracle judge via `agentdex_observe.anthropic_client()` (Langfuse-wrapped, span explicit per the codereview-fix-1 `_judge_observation` context manager), Pareto judge produces `winner` OR `no_clear_winner`, EvolutionCard aggregates mutation seeds with `seed_provenance ∈ {structural, learned}`, KAOS persists the lineage entry.
 
 > **Doctrine note (harness-praxis tracer follow-up, 2026-06-09):** this sync
@@ -32,7 +44,7 @@ adx expedition init    --task nvidia-earnings-infographic --baselines claude,cod
 adx expedition run     --expedition <id> --baseline claude       # today
 adx expedition run     --expedition <id> --baseline codex        # tomorrow morning
 adx expedition run     --expedition <id> --baseline manus        # whenever Camofox cooperates
-adx expedition finalize --expedition <id> --judge claude-haiku-4.5
+adx expedition finalize --expedition <id> --judge claude-haiku-4-5
 ```
 
 When shipped (M6+ migration), each `run` invocation will be a unit of work
