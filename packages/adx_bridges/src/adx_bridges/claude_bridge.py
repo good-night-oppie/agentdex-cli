@@ -71,13 +71,28 @@ class ClaudeBridge(LongRunningCliBridge):
         return argv
 
     async def _handshake(self) -> None:
-        # Claude has no formal init frame in stream-json mode. First system frame is the greeting.
+        # Claude has no formal init frame in stream-json mode. First system frame
+        # (typically `subtype="hook_started"` for SessionStart hooks, then
+        # `subtype="init"` once context is ready) is the greeting.
+        #
+        # Timeout (PR #14): the prior 8 s hardcap was too tight against
+        # real-world cold-starts. Live expedition runs from `~/gh/agentdex-cli/`
+        # consistently exceeded 8 s because SessionStart:startup hooks process
+        # the project's full skill list + memory paths before claude streams
+        # the first frame to stdout. Honor cfg.spawn_timeout_sec with a generous
+        # floor of 30 s — matches the observed-3 s first-frame latency plus a
+        # 10x safety margin and unblocks the live-bridge path that surfaced
+        # after PR #13. The outer `_spawn` still wraps `_handshake` in its own
+        # wait_for, so total cold-start budget is the outer cap.
         self._reader_task = asyncio.create_task(self._reader_loop())
-        # Wait for first system message ("type":"system","subtype":"init") to confirm ready.
+        handshake_budget = max(self.cfg.spawn_timeout_sec, 30.0)
         try:
-            await asyncio.wait_for(self._await_initial_system(), timeout=8.0)
+            await asyncio.wait_for(self._await_initial_system(), timeout=handshake_budget)
         except TimeoutError as e:
-            raise CliDead("no init system frame from claude") from e
+            raise CliDead(
+                f"no init system frame from claude within {handshake_budget:.1f}s — "
+                "check claude --version + SessionStart hook latency"
+            ) from e
 
     async def _await_initial_system(self) -> None:
         self._init_seen = asyncio.Event()
