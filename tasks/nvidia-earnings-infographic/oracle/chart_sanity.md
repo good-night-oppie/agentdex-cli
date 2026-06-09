@@ -1,6 +1,21 @@
+---
+title: "Soft Oracle chart_sanity rubric — NVIDIA Q3 FY2026"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-09
+type: reference
+scope: tasks/nvidia-earnings-infographic/oracle
+layer: cross-cutting
+cross_cutting: true
+enforced_by:
+  - packages/agentdex_engine/src/agentdex_engine/oracle/soft.py:LlmJudgeOracle
+  - tasks/nvidia-earnings-infographic/oracle/spec.yaml:chart_sanity_rubric
+---
+
 # Chart Sanity Rubric (Soft Oracle) — NVIDIA Q3 FY2026 Infographic
 
-> Soft Oracle judge LLM scores infographic descriptions against this rubric. Per ADR-0008 §judge-as-profile MVP downgrade contract, the judge is invoked via `agentdex_observe.anthropic_client().messages.create(model="claude-haiku-4.5", ...)` in the same Python process; Langfuse auto-instruments the call as span `oracle.soft_judge` with parent = Expedition trace.
+> Soft Oracle judge LLM scores infographic descriptions against this rubric. Per ADR-0008 §judge-as-profile MVP downgrade contract, the judge is invoked via `agentdex_observe.anthropic_client().messages.create(model="claude-haiku-4-5", ...)` in the same Python process; Langfuse auto-instruments the call as span `oracle.soft_judge` with parent = Expedition trace.
 
 > Scoring range: 0.0 (fails rubric) → 1.0 (passes all items). Uncertainty score reported separately; uncertainty > 0.5 emits an `oracle_repair` mutation seed with `seed_provenance="structural"`.
 
@@ -14,7 +29,7 @@
 
 4. **Color choice aids comparison, doesn't mislead** — Use a sequential or categorical palette appropriate to the data. Avoid red-green only (accessibility). Highlight color (e.g., for the winning baseline metric) should be intentional, not arbitrary. Failure mode: misleading color encodes a verdict the data doesn't support.
 
-5. **Guidance forward-looking statements clearly marked** — Q4 FY2026 guidance numbers (revenue $37.5B ± 2%) MUST be visually distinguished from actuals. Failure mode: presenting guidance as actual is materially misleading.
+5. **Guidance forward-looking statements clearly marked** — Q4 FY2026 guidance numbers (revenue $65.0B ± 2%) MUST be visually distinguished from actuals. Failure mode: presenting guidance as actual is materially misleading.
 
 6. **China disclosure handled with appropriate context** — China revenue ($5.40B, 16% of total) requires context (export-control regime, compliant SKU mix). A bare China number without context is incomplete reporting.
 

@@ -83,7 +83,7 @@ def test_orchestrator_returns_three_card_chain():
             _task_card(),
             bridges,
             oracle,
-            judge_llm="claude-haiku-4.5",
+            judge_llm="claude-haiku-4-5",
             prompt_override="dummy prompt",
         )
     )
@@ -120,7 +120,7 @@ def test_orchestrator_resolves_sources_from_oracle_spec_ref():
             ),
             [bridge],
             oracle,
-            judge_llm="claude-haiku-4.5",
+            judge_llm="claude-haiku-4-5",
             repo_root=REPO_ROOT,
         )
     )
@@ -146,7 +146,7 @@ def test_orchestrator_empty_bridges_returns_no_winner(tmp_path):
             _task_card(),
             [],
             _StubOracle({"r": True}),
-            judge_llm="claude-haiku-4.5",
+            judge_llm="claude-haiku-4-5",
             prompt_override="dummy",
             repo_root=tmp_path,
         )

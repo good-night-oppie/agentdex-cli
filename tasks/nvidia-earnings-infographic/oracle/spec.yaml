@@ -73,7 +73,7 @@ blackwell_ultra_mention_present:
 chart_sanity_rubric:
   ref: oracle/chart_sanity.md
   judge_kind: soft
-  judge_llm: claude-haiku-4.5
+  judge_llm: claude-haiku-4-5
   scoring_range: [0.0, 1.0]
   uncertainty_threshold: 0.5
   calibration_required: true

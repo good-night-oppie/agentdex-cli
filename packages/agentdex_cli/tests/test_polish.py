@@ -40,7 +40,7 @@ def test_missing_task_bundle_exits_2():
 
 
 def test_missing_api_key_exits_3():
-    """Live (non-mocked) path with judge=claude-haiku-4.5 + ANTHROPIC_API_KEY unset → exit 3.
+    """Live (non-mocked) path with judge=claude-haiku-4-5 + ANTHROPIC_API_KEY unset → exit 3.
 
     Also strip CLIPROXY_BASE_URL / CLIPROXY_API_KEY because cli.py's
     `_missing_required_env` short-circuits to "no missing keys" when the pool
@@ -58,7 +58,7 @@ def test_missing_api_key_exits_3():
             "--baselines",
             "claude",
             "--judge",
-            "claude-haiku-4.5",
+            "claude-haiku-4-5",
             "--output",
             "expeditions/_should_not_exist/",
         ),
@@ -127,7 +127,7 @@ def test_partial_baseline_failure_continues_with_other_baselines():
             task_card,
             bridges,
             _StubOracle(),
-            judge_llm="claude-haiku-4.5",
+            judge_llm="claude-haiku-4-5",
             prompt_override="dummy",
         )
     )

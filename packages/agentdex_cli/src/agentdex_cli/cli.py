@@ -472,9 +472,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     expedition.add_argument(
         "--judge",
-        default="claude-haiku-4.5",
+        default="claude-haiku-4-5",
         help=(
-            "judge LLM model id (default: claude-haiku-4.5 — matches "
+            "judge LLM model id (default: claude-haiku-4-5 — matches "
             "tasks/nvidia-earnings-infographic/oracle/spec.yaml:judge_llm). "
             "Prior default `gemini-3.5-flash` is NOT a real Gemini model id "
             "and produced 502 'unknown provider' from CLIProxyAPI on every "
@@ -551,9 +551,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_verify = pool_subs.add_parser(
         "verify",
-        help="run a small probe against one model: `adx llm-pool verify --model claude-haiku-4.5`",
+        help="run a small probe against one model: `adx llm-pool verify --model claude-haiku-4-5`",
     )
-    p_verify.add_argument("--model", default="claude-haiku-4.5")
+    p_verify.add_argument("--model", default="claude-haiku-4-5")
     p_verify.add_argument("--prompt", default="Reply with exactly: POOL_OK")
     p_verify.set_defaults(func=cmd_pool_verify)
 

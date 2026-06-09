@@ -257,7 +257,7 @@ def test_llm_judge_with_mock():
     }
     client = _MockAnthropicClient(judge_json, recorder)
     oracle = LlmJudgeOracle(
-        judge_llm="claude-haiku-4.5",
+        judge_llm="claude-haiku-4-5",
         rubric_path=None,
         client_factory=lambda: client,
     )
@@ -271,7 +271,7 @@ def test_llm_judge_with_mock():
     assert v.pass_ is True
     assert 0.0 <= v.score <= 1.0
     assert v.uncertainty is not None and 0.0 <= v.uncertainty <= 1.0
-    assert recorder["model"] == "claude-haiku-4.5", (
+    assert recorder["model"] == "claude-haiku-4-5", (
         "judge_llm model id must be passed through verbatim"
     )
 
@@ -286,7 +286,7 @@ def test_llm_judge_handles_garbage_output():
         {"create": lambda self, **_kw: _MockAnthropicMessage("totally not json")},
     )()
     oracle = LlmJudgeOracle(
-        judge_llm="claude-haiku-4.5",
+        judge_llm="claude-haiku-4-5",
         client_factory=lambda: client,
     )
     verdicts = oracle.evaluate("dummy", _build_task_card())

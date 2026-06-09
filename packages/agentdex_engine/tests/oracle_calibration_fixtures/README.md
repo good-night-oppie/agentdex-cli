@@ -80,7 +80,7 @@ Per `packages/agentdex_engine/src/agentdex_engine/oracle/calibration.py`:
 
 ```python
 report = calibrate(
-    judge=LlmJudgeOracle(judge_llm="claude-haiku-4.5", rubric_path="..."),
+    judge=LlmJudgeOracle(judge_llm="claude-haiku-4-5", rubric_path="..."),
     fixtures=[(row["response"], row["expected_score"], row["expected_pass"])
               for f in glob("narrative_coherence/*.yaml")
               for row in yaml.safe_load(open(f))["fixtures"]],
