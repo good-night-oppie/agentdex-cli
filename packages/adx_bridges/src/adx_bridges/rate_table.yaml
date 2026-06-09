@@ -1,0 +1,53 @@
+# Per-model dollar-rate table for bridges whose CLI/SDK does NOT surface
+# a real total_cost_usd in the result frame (codex app-server today;
+# manus codex-web fallback).
+#
+# claude_bridge already gets real cost from `total_cost_usd` in the
+# stream-json result frame, so it does NOT consult this table.
+#
+# Rates approximate the public per-1M-token pricing pages of each
+# provider's last-known stable tier. They are deliberately CONSERVATIVE
+# (rounded up at the 10⁻⁶ digit) so the Pareto cost axis under-rewards
+# a baseline rather than over-rewards it when this is the only signal.
+#
+# Drift policy: re-diff against provider pricing pages quarterly;
+# changes land in their own tiny PR with a `Source:` line citing the
+# pricing page URL + the date of the snapshot.
+#
+# Schema:
+#   <model-id-or-prefix>:
+#     input_usd_per_1m:  <float>   # USD per 1M input tokens
+#     output_usd_per_1m: <float>   # USD per 1M output tokens
+#     cached_usd_per_1m: <float>   # USD per 1M cache-hit tokens (≤ input)
+#     source: <string>             # provider pricing page URL or "internal"
+#     captured: <iso-date>         # last verified
+
+# OpenAI Codex / GPT-style models surfaced through codex app-server.
+gpt-4o:
+  input_usd_per_1m: 2.50
+  output_usd_per_1m: 10.00
+  cached_usd_per_1m: 1.25
+  source: "internal — replace with openai.com/pricing snapshot"
+  captured: "2026-06-09"
+
+gpt-4o-mini:
+  input_usd_per_1m: 0.15
+  output_usd_per_1m: 0.60
+  cached_usd_per_1m: 0.075
+  source: "internal — replace with openai.com/pricing snapshot"
+  captured: "2026-06-09"
+
+o3-mini:
+  input_usd_per_1m: 1.10
+  output_usd_per_1m: 4.40
+  cached_usd_per_1m: 0.55
+  source: "internal — replace with openai.com/pricing snapshot"
+  captured: "2026-06-09"
+
+# Fallback for any codex-served model id without a specific row.
+codex-default:
+  input_usd_per_1m: 2.50
+  output_usd_per_1m: 10.00
+  cached_usd_per_1m: 1.25
+  source: "internal — fallback when model id not matched"
+  captured: "2026-06-09"

@@ -155,18 +155,36 @@ class CodexBridge(LongRunningCliBridge):
                     or 0
                 )
                 tokens_total = int(inp + out + cached)
+            # PR-W: derive cost_dollar from tokens × per-model rate table when
+            # the codex frame surfaces tokens. Falls back to None when the
+            # rate_table.yaml is missing OR no model id matched — orchestrator
+            # then uses the 4-char/token heuristic.
+            cost_usd: float | None = None
+            if tokens_total:
+                from adx_bridges.rate_table import estimate_cost_usd
+                model_id = params.get("model") or params.get("modelId")
+                inp_calc = int(token_usage.get("inputTokens") or token_usage.get("input_tokens") or 0)
+                out_calc = int(token_usage.get("outputTokens") or token_usage.get("output_tokens") or 0)
+                cached_calc = int(
+                    token_usage.get("cachedInputTokens")
+                    or token_usage.get("cached_input_tokens")
+                    or 0
+                )
+                cost_usd = estimate_cost_usd(model_id, inp_calc, out_calc, cached_calc)
+
             self._turn_result = {
                 "text": text,
                 "turn_id": params.get("turnId"),
                 "thread_id": self._thread_id,
                 "token_usage": token_usage,
                 "tokens_total": tokens_total,
+                "cost_usd_derived": cost_usd,
             }
             self._last_response_text = text
             if tokens_total:
                 self._last_tokens = tokens_total
-            # Codex subscription does NOT surface a per-call dollar cost in
-            # the result frame; orchestrator falls back to heuristic.
+            if cost_usd is not None:
+                self._last_cost_usd = float(cost_usd)
             self._turn_buf.clear()
             if self._turn_done:
                 self._turn_done.set()
