@@ -1,0 +1,39 @@
+# lint.yml — pre-commit + ruff + mypy + detect-secrets gate on every PR.
+#
+# Closes H1 (workflow w0z1i9vcs): the .pre-commit-config.yaml had no
+# enforcement layer before this — config-only theater. With this workflow,
+# the rails become law at PR merge time (G2 ep6 [06-0028]) even when a
+# contributor skips the local `bash scripts/install_hooks.sh` step.
+#
+# Runs on every PR + manual dispatch. Does NOT block main branch pushes
+# because there is no main-branch trigger; pre-commit local hooks +
+# .pre-commit-config.yaml DEFER_TO_PR_GATE policy is the existing
+# practice (PRs are the merge boundary).
+
+name: lint
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # pre-commit needs prev SHAs for diff hooks
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace with dev deps
+        run: |
+          uv sync --group dev
+
+      - name: Run pre-commit on the full tree
+        run: |
+          uv run --no-sync pre-commit run --all-files --show-diff-on-failure
