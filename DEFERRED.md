@@ -68,3 +68,4 @@ cross_cutting: true
 - PR #18 wraps judge SDK calls in a 3-attempt exponential-backoff retry classifier (anthropic / openai / gemini exception names + Cloudflare 5xx body markers) so a transient upstream 525 / 502 / 503 does not excluded-fail every baseline in the Expedition.
 - PR #19 adds --dangerously-skip-permissions to the claude cold-shot argv (was only in build_argv long-lived) so the fallback path does not hang on a stdin permission prompt + surfaces stdout in the CliDead message when stderr is empty.
 - PR #20 honors explicit Cloudflare "retryable":false / "owner_action_required":true flags in the classifier so a 525 origin-config failure surfaces immediately instead of burning 14 s of exponential backoff.
+- PR #21 drops unused `body` local var in PR-20 retry test (F841).
