@@ -24,6 +24,7 @@ import contextlib
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -50,16 +51,38 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
     use a single ``with`` statement regardless of tracing state. SF1 fix:
     first failure of the import / get_client / start_as_current_observation
     path emits a WARNING so the operator notices trace-orphan drift.
+
+    Generator-protocol invariant (live-bridge regression fix, PR #10): each
+    branch yields EXACTLY ONCE. The prior shape wrapped a yielded block in
+    ``try/except Exception`` and yielded ``None`` from the except clause —
+    when the caller threw into the original yield (asyncio task cancellation
+    propagating an upstream bridge ``CliDead``), Python's contextmanager
+    machinery raised ``RuntimeError("generator didn't stop after throw()")``
+    because the second yield resumed an already-thrown-into generator. Now
+    setup vs body exceptions are split: setup failures yield ``None`` then
+    return, body exceptions propagate cleanly through the inner observation
+    context manager via explicit ``__enter__`` / ``__exit__`` driving.
     """
     global _judge_observation_failed_once
+
+    # --- setup phase: ALL setup work happens BEFORE the first yield, so
+    #     no throw landing in our yield can reach the except clause -----
+    obs: Any = None
+    cm: Any = None
+    enabled = False
     try:
         from agentdex_observe import is_enabled
 
-        if not is_enabled():
-            yield None
-            return
-        from langfuse import get_client
+        enabled = is_enabled()
+        if enabled:
+            from langfuse import get_client
+
+            client = get_client()
+            cm = client.start_as_current_observation(name=name, as_type="generation")
+            obs = cm.__enter__()
     except Exception as exc:
+        # Setup failed (import error / client init / observation start). Log
+        # once, drop to the no-op branch — we have NOT yielded yet.
         if not _judge_observation_failed_once:
             _judge_observation_failed_once = True
             log.warning(
@@ -68,28 +91,38 @@ def _judge_observation(name: str, metadata: dict[str, Any] | None = None):
                 "until init_langfuse + the langfuse SDK are both importable.",
                 exc,
             )
+        enabled = False
+        obs = None
+        cm = None
+
+    # --- no-op branch: yield exactly once + return ----------------------
+    if not enabled or cm is None:
         yield None
         return
+
+    # --- body phase: yield exactly once + ensure inner cm exits cleanly,
+    #     even when the caller throws into our yield point. NO second
+    #     yield anywhere in this branch — that is what raised
+    #     ``RuntimeError("generator didn't stop after throw()")`` in the
+    #     live-bridge regression. -------------------------------------
+    if metadata:
+        try:
+            obs.update(metadata=metadata)
+        except Exception:
+            pass
     try:
-        client = get_client()
-        with client.start_as_current_observation(name=name, as_type="generation") as obs:
-            if metadata:
-                try:
-                    obs.update(metadata=metadata)
-                except Exception:
-                    pass
-            yield obs
-    except Exception as exc:
-        if not _judge_observation_failed_once:
-            _judge_observation_failed_once = True
-            log.warning(
-                "judge observation tracing failed mid-context (%r). "
-                "Subsequent judge calls will silently no-op to avoid log "
-                "spam; check init_langfuse() / langfuse server connectivity.",
-                exc,
-            )
-        # Tracing must never break the judge call itself.
-        yield None
+        yield obs
+    except BaseException:
+        # Caller threw into our yield. Forward live exc_info to the inner
+        # observation context manager so its __exit__ sees it; re-raise
+        # unless the inner cm explicitly suppressed.
+        if not cm.__exit__(*sys.exc_info()):
+            raise
+    else:
+        try:
+            cm.__exit__(None, None, None)
+        except Exception:
+            pass
 
 
 def _budget_for(level: str) -> int:

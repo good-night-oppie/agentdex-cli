@@ -424,3 +424,48 @@ def test_calibrate_returns_report():
     assert report.accuracy == 1.0
     assert report.passed_calibration is True
     assert sum(r.count for r in report.confusion_matrix_rows) == 5
+
+
+# ---------------------------------------------------------------------------
+# Soft Oracle — _judge_observation generator-protocol regression (PR #10)
+# ---------------------------------------------------------------------------
+
+
+def test_judge_observation_propagates_thrown_exception_without_double_yield():
+    """Regression: raising inside the ``with _judge_observation(...) as obs``
+    block previously triggered ``RuntimeError: generator didn't stop after
+    throw()`` because the context manager caught Exception around the yield
+    and yielded ``None`` from the except clause. Live-bridge expedition runs
+    surfaced this when an upstream ``CliDead`` propagated up through the
+    judge call. The fix splits setup vs body and yields exactly once per
+    branch — caller exceptions must propagate cleanly through ``with``.
+    """
+    from agentdex_engine.oracle.soft import _judge_observation
+
+    class _Sentinel(RuntimeError):
+        pass
+
+    raised: BaseException | None = None
+    try:
+        with _judge_observation("test.regression") as obs:
+            # When langfuse isn't initialized, obs is None; that's the
+            # branch this test exercises (no-Langfuse env in CI).
+            assert obs is None
+            raise _Sentinel("propagate me")
+    except _Sentinel as e:
+        raised = e
+
+    assert isinstance(raised, _Sentinel), (
+        "the thrown exception must propagate through the contextmanager; "
+        "a swallowed exception would indicate the second-yield bug returned"
+    )
+
+
+def test_judge_observation_normal_path_no_op_no_double_yield():
+    """Normal flow (no Langfuse) yields ``None`` exactly once + exits cleanly."""
+    from agentdex_engine.oracle.soft import _judge_observation
+
+    seen_obs = []
+    with _judge_observation("test.normal") as obs:
+        seen_obs.append(obs)
+    assert seen_obs == [None], "expected exactly one yield of None in no-Langfuse path"
