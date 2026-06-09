@@ -138,6 +138,11 @@ EOF
   check_exists "Phase-8 polish queue"         "DEFERRED.md"
   check_exists "Pre-commit installer"         "scripts/install_hooks.sh"
   check_exists "Lint CI gate"                 ".github/workflows/lint.yml"
+  check_exists "Doc-lint upstream shim"       "scripts/doc_lint.py"
+  check_exists "Doc-lint installer"           "scripts/install_doc_lint_precommit.sh"
+  check_exists "Doc-template: architecture"   ".harness/doc-templates/architecture.md"
+  check_exists "Doc-template: bugfix"         ".harness/doc-templates/bugfix.md"
+  check_exists "Doc-template: feature"        ".harness/doc-templates/feature.md"
 
   cat <<EOF
 

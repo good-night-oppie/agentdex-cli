@@ -1,6 +1,6 @@
 # Dream consolidation — 2026-06-09
 
-_Generated 2026-06-09T05:33:32Z by cron/dream_consolidate.sh_
+_Generated 2026-06-09T05:35:48Z by cron/dream_consolidate.sh_
 
 This file is auto-generated. Sections below are PROPOSALS / SURFACES only —
 no primary artifact is modified by the dream loop. Review + act manually as
@@ -26,7 +26,7 @@ tiny PRs per feedback_tiny_pr_discipline memory.
 
 --- kaos dream run --dry-run ---
 {
-  "run_id": 2,
+  "run_id": 3,
   "mode": "dry_run",
   "since": null,
   "episodes": 0,
@@ -42,9 +42,9 @@ tiny PRs per feedback_tiny_pr_discipline memory.
     "consolidation_ms": 0,
     "policies_ms": 0,
     "narrative_ms": 0,
-    "total_ms": 7
+    "total_ms": 8
   },
-  "digest_path": "/home/admin/gh/agentdex-cli/sweeps/_kaos-digests/2026-06-09-053333.md"
+  "digest_path": "/home/admin/gh/agentdex-cli/sweeps/_kaos-digests/2026-06-09-053548.md"
 }
 ```
 
@@ -70,4 +70,4 @@ indicate a stable doctrine gap worth a phase 8 polish PR.
 ```
 
 ---
-DONE_JSON {"out": "/home/admin/gh/agentdex-cli/sweeps/2026-06-09-dream-consolidate.md", "ts": "2026-06-09T05:33:32Z"}
+DONE_JSON {"out": "/home/admin/gh/agentdex-cli/sweeps/2026-06-09-dream-consolidate.md", "ts": "2026-06-09T05:35:48Z"}

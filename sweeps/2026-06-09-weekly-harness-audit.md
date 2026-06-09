@@ -1,6 +1,6 @@
 # Weekly harness audit — 2026-06-09
 
-_Generated 2026-06-09T05:32:16Z by cron/weekly_harness_audit.sh._
+_Generated 2026-06-09T05:35:44Z by cron/weekly_harness_audit.sh._
 
 This file is auto-generated. Sections below are READ-ONLY signals — no
 primary artifact is modified by the audit. Review + act manually as
@@ -9,6 +9,8 @@ primary artifact is modified by the audit. Review + act manually as
 ## 1. Commit shape (Ideal moment 1)
 
 ```
+5ff5200  files=7  PR-R: doc-lint propagation landing — templates + installer + upstream shim
+d4b4d72  files=2  PR-Q: audit scans DEFERRED.md for past-due Until: rows + 3 new check_exists
 bf56136  files=1  PR-P: DEFERRED.md tracks phase-8 polish obligations (closes H2)
 8480584  files=1  PR-O: .secrets.baseline line_number sync (PR-M code-shift follow-up)
 7813a6b  files=2  PR-N: task_card.py dict generic-type + .secrets.baseline line refresh
@@ -76,6 +78,11 @@ da1b4a4  files=41 ⚠ TINY_PR_VIOLATION  init: agentdex-cli (PHASE-3.0 scaffold 
 | Phase-8 polish queue | `DEFERRED.md` | ✅ |
 | Pre-commit installer | `scripts/install_hooks.sh` | ✅ |
 | Lint CI gate | `.github/workflows/lint.yml` | ✅ |
+| Doc-lint upstream shim | `scripts/doc_lint.py` | ✅ |
+| Doc-lint installer | `scripts/install_doc_lint_precommit.sh` | ✅ |
+| Doc-template: architecture | `.harness/doc-templates/architecture.md` | ✅ |
+| Doc-template: bugfix | `.harness/doc-templates/bugfix.md` | ✅ |
+| Doc-template: feature | `.harness/doc-templates/feature.md` | ✅ |
 
 ## 2b. Past-due deferred items (PR-Q + H7 partial)
 
@@ -90,7 +97,7 @@ DEFERRED.md `Until:` rows where the date has passed. Empty = clean.
 === tests (collect-only) ===
 packages/agentdex_engine/tests/test_pareto.py::test_single_eligible_baseline_wins_by_default
 
-77 tests collected in 0.23s
+77 tests collected in 0.21s
 
 === SLOC by package ===
 adx_bridges              1418
@@ -101,6 +108,12 @@ agentdex_plugin          147
 helios_client            106
 
 === recent commits (latest 5 w/ size delta) ===
+5ff5200 2026-06-09 PR-R: doc-lint propagation landing — templates + installer + upstream shim
+ 7 files changed, 705 insertions(+), 4 deletions(-)
+
+d4b4d72 2026-06-09 PR-Q: audit scans DEFERRED.md for past-due Until: rows + 3 new check_exists
+ 2 files changed, 75 insertions(+), 18 deletions(-)
+
 bf56136 2026-06-09 PR-P: DEFERRED.md tracks phase-8 polish obligations (closes H2)
  1 file changed, 48 insertions(+)
 
@@ -109,12 +122,6 @@ bf56136 2026-06-09 PR-P: DEFERRED.md tracks phase-8 polish obligations (closes H
 
 7813a6b 2026-06-09 PR-N: task_card.py dict generic-type + .secrets.baseline line refresh
  2 files changed, 3 insertions(+), 3 deletions(-)
-
-491da7f 2026-06-09 PR-M: clear 7 remaining ruff errors after PR-L mechanical sweep
- 5 files changed, 13 insertions(+), 7 deletions(-)
-
-8401c99 2026-06-09 PR-L: ruff --fix + ruff-format mechanical sweep (bundled, no behavior change)
- 53 files changed, 561 insertions(+), 500 deletions(-)
 
 === latest expedition verdict ===
 expedition: test-smoke-exp-001
@@ -141,7 +148,7 @@ AGENTS.md                  54 lines
 ```
 ..sss.sss....................s.......................................... [ 93%]
 .....                                                                    [100%]
-70 passed, 7 skipped in 1.33s
+70 passed, 7 skipped in 1.35s
 ```
 
 ## 5. Action queue
