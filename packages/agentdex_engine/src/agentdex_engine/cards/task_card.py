@@ -10,7 +10,7 @@ class TaskCard(BaseModel):
 
     id: str = Field(min_length=1)
     source_bundle_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    environment_spec: dict
+    environment_spec: dict[str, object]
     oracle_spec_ref: str
     budget_token_cap: int = Field(ge=0)
     budget_dollar_cap: float = Field(ge=0.0)
