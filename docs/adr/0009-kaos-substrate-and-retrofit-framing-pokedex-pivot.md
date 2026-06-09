@@ -40,7 +40,7 @@ ADR-0005 framed agentdex as a "battle platform" — two agents going head-to-hea
 
 User decision 2026-06-08: agentdex-cli ships with **`LANGFUSE_HOST=http://localhost:3000`** as the default in `agentdex_observe.init_langfuse()`. Cloud (`https://cloud.langfuse.com`) becomes an explicit override, not the default.
 
-- **Operational implication.** MVP M5 demo assumes a local `docker run langfuse/langfuse` instance OR `docker-compose` stack. Phase-8 polish documents the compose file + a `make langfuse-up` target. Until then, ops/AGENTS.md lists the manual `docker run` command.
+- **Operational implication.** MVP M5 demo assumes a local `docker run langfuse/langfuse` instance OR `docker-compose` stack. Lifecycle commands ship in `cli.py:507-528` (`adx langfuse up/down/status/ensure`); `ops/AGENTS.md` documents the env vars. (Refresh 2026-06-09 per workflow w0z1i9vcs H9 — earlier wording promised Phase-8 polish for what already shipped at M5.)
 - **Rationale.** Trace data carrying NVIDIA earnings claim text + judge invocations may be sensitive in some deploys; self-host keeps it on-prem. Cloud free tier stays as the fallback when local infra isn't available.
 - **agentdex_observe behavior.** Unchanged in code — the host is read from `LANGFUSE_HOST` env with a new default. If both `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are unset, decorators no-op (graceful degrade; MVP can still run without Langfuse).
 
