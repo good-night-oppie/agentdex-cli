@@ -578,11 +578,8 @@ def test_judge_retry_classifier_honors_retryable_false():
     class _CF525(RuntimeError):
         pass
 
-    body = (
-        "Error code: 525 - {'status': 525, 'retryable': False, "
-        "'owner_action_required': True, 'detail': 'origin SSL broken'}"
-    )
-    # Use double-quoted JSON-shape so the substring check matches.
+    # Double-quoted JSON-shape so the substring check matches the
+    # Cloudflare 525 body verbatim (PR #20 classifier).
     body_json = '{"status":525,"retryable":false,"owner_action_required":true}'
     assert _is_retryable_judge_error(_CF525(body_json)) is False
     # Loose-spacing variant.
