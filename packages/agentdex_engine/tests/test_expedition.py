@@ -126,7 +126,17 @@ def test_orchestrator_resolves_sources_from_oracle_spec_ref():
     assert "=== nvidia-q3-fy2026-" in bridge.prompts[0]
 
 
-def test_orchestrator_empty_bridges_returns_no_winner():
+def test_orchestrator_empty_bridges_returns_no_winner(tmp_path):
+    """Empty bridges → no_clear_winner verdict.
+
+    PR-X (learned-seed wire): point `repo_root` at a tmpdir so the
+    RecurrencePatternGenerator finds no expeditions/ to walk and the
+    only seeds in the EvolutionCard come from this run's
+    OracleRepairFlagger path (which is empty for empty bridges).
+    Without this scoping the test sees the repo's real expeditions/
+    dir and the learned generator emits recurrence seeds — that's
+    correct production semantics, but defeats the test's intent.
+    """
     result_cards, verdict, evolution_card, fairness_report = asyncio.run(
         run_expedition_orchestrator(
             _task_card(),
@@ -134,6 +144,7 @@ def test_orchestrator_empty_bridges_returns_no_winner():
             _StubOracle({"r": True}),
             judge_llm="claude-haiku-4.5",
             prompt_override="dummy",
+            repo_root=tmp_path,
         )
     )
     assert result_cards == []
