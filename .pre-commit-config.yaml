@@ -13,9 +13,6 @@
 # alone (configured in pyproject.toml [[tool.mypy.overrides]]) to the
 # whole engine package.
 
-default_language_version:
-  python: python3.11
-
 default_stages: [pre-commit]
 
 repos:
