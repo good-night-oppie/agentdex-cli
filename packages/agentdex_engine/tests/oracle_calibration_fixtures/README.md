@@ -46,9 +46,8 @@ fixtures:
       - Gross margin: 74.6% (source: nvidia-q3-fy2026-press-release.md:42)
       - Q4 outlook: $37.5 billion ± 2% (source: nvidia-q3-fy2026-press-release.md:60)
     expected_pass: true
-    expected_score_min: 0.85
-    expected_score_max: 1.00
-    expected_uncertainty_max: 0.20
+    expected_score: 0.90               # single point — matches calibrate() Iterable[tuple[str, float, bool]]
+    expected_uncertainty_max: 0.20     # advisory; calibrate() does not consume yet (post-M6 hook)
     label_author: eddie@oppie.xyz
     label_rationale: |
       All four required infographic claim categories present, every claim
@@ -65,13 +64,17 @@ Per `packages/agentdex_engine/src/agentdex_engine/oracle/calibration.py`:
 ```python
 report = calibrate(
     judge=LlmJudgeOracle(judge_llm="claude-haiku-4.5", rubric_path="..."),
-    fixtures=[(row["response"], row["expected_score_min"], row["expected_pass"])
+    fixtures=[(row["response"], row["expected_score"], row["expected_pass"])
               for f in glob("narrative_coherence/*.yaml")
               for row in yaml.safe_load(open(f))["fixtures"]],
     task_card=task_card_for("nvidia-earnings-infographic-q3-fy2026"),
 )
 assert report.accuracy >= 0.7
 ```
+
+The fixture row shape is a one-to-one match of the `calibrate()`
+signature: `(response: str, expected_score: float, expected_pass: bool)`.
+No band → point hand-mapping (H6 workflow-review fix 2026-06-09).
 
 Inter-rater κ ≥ 0.7 (per `EVAL.md` self-judge guardrails) requires every
 row to carry an independent second label before the calibration gate becomes
