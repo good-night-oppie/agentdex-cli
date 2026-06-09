@@ -1,7 +1,9 @@
 """adx_bridges — long-lived subscription-CLI bridges (Claude Code, Codex, Manus).
 
 Each bridge exposes the contract from :class:`adx_bridges.base.LongRunningCliBridge`
-plus the Phase-5 :meth:`send` wrapper which returns ``(text, langfuse_trace_id|None)``.
+plus the Phase-5 :meth:`send` wrapper which returns a :class:`BridgeResponse`
+(``text``, ``langfuse_trace_id``, ``cost_usd``, ``tokens``) — SF5 (DEFERRED.md)
+moved cost + tokens out of instance attrs and onto the published return.
 
 Async co-opetition (ADR-0009 §Amendment-2026-06-08): bridges are per-baseline async
 actors invoked from the orchestrator's sequential loop — they do NOT race in
@@ -10,6 +12,7 @@ real-time against each other.
 
 from adx_bridges.base import (
     BridgeConfig,
+    BridgeResponse,
     CliDead,
     JsonRpcServer,
     LongRunningCliBridge,
@@ -19,6 +22,7 @@ from adx_bridges.base import (
 
 __all__ = [
     "BridgeConfig",
+    "BridgeResponse",
     "CliDead",
     "JsonRpcServer",
     "LongRunningCliBridge",

@@ -24,8 +24,12 @@ class _StubBridge:
         self.prompts = []
 
     async def send(self, prompt, *, session_id=None, extra=None):
+        from adx_bridges import BridgeResponse
+
         self.prompts.append(prompt)
-        return self._response, None
+        return BridgeResponse(
+            text=self._response, langfuse_trace_id=None, cost_usd=None, tokens=None
+        )
 
 
 class _StubOracle:
