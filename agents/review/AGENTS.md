@@ -6,10 +6,53 @@
 - Human review is HIGH-LEVERAGE checkpoints (research, plan) not every commit.
 
 ## Auto-merge criteria
-- All required CI checks green
-- No HIGH-severity `agentlint scan` findings
-- Coverage delta >= 0
-- TODO: project-specific
+
+All criteria below must hold AND the agent's `AUTONOMY_THRESHOLD.md`
+gate must be AUTONOMOUS (default SUPERVISED — every PR human-gated
+until the 14-day flip gates pass). Until threshold flips, auto-merge
+is DISABLED regardless of these criteria.
+
+- All required CI checks green (`uv run --no-sync pytest packages/` exits 0)
+- No HIGH-severity `agentlint scan` findings (per `agentlint.yaml`)
+- `.pre-commit-config.yaml` hooks pass clean — ruff (lint+format),
+  mypy (strict on `packages/agentdex_engine/src/agentdex_engine/cards/`),
+  detect-secrets vs `.secrets.baseline`
+- Coverage delta ≥ 0 (`coverage run -m pytest` vs main baseline)
+- Golden Pareto verdict shape still matches
+  `tests/golden/nvidia_pareto_expected.yaml` (smoke test invariant)
+- Tiny-PR discipline holds: diff touches ≤ 10 files OR commit body
+  carries `Note: bundled because <reason>` (per
+  `feedback_tiny_pr_discipline` memory + Ideal Moment 1 in
+  `IDEAL_EXPERIENCE.md` v2)
+- Doctrine anchors green per latest
+  `sweeps/<date>-weekly-harness-audit.md` cross-check (10/10 anchors)
 
 ## Escalation path
-- TODO: when does agent stop + ping human?
+
+The agent STOPS + pings human when ANY of these triggers fires. The
+default `AUTONOMY_THRESHOLD.md` state is SUPERVISED — every PR ALREADY
+escalates by default. The triggers below also apply post-flip.
+
+- A planning question genuinely requires user judgment: scope expansion
+  beyond the original task, an architectural fork between two equally
+  valid approaches, or an irreversible/destructive op (per CLAUDE.md
+  "Autonomous-agent defaults" + `feedback_fix_all_before_moving_forward`
+  memory). DO NOT escalate "do I batch or split?" — both answers are
+  obvious; just work the queue top-to-bottom.
+- HIGH-severity `agentlint scan` finding lands on main (per
+  `AUTONOMY_THRESHOLD.md` rollback trigger).
+- Eval golden set score drops > 5% in a single PR.
+- Pre-commit `detect-secrets` flags a NEW result not present in
+  `.secrets.baseline` — likely real leak; do not auto-rebase the
+  baseline.
+- An issue requires credentials, external account access (Anthropic
+  console billing, GH org admin), or capabilities the agent lacks.
+- The agent has edited the same file > 5 times in one session AND
+  tests still fail — doom-loop guard per `agents/debug/AGENTS.md`
+  G4 LangChain ep4 trigger.
+
+Ping channel: append a one-line entry to
+`~/.cursor/projects/home-admin/heartbeat/monitor-gaps.md` (the same
+gap log the cron wrappers funnel into); the persistent orchestrator
+(`harness-N` per `feedback_persistent_orchestrator` memory) sweeps
+that file on its 1h gap-log cadence.
