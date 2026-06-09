@@ -89,11 +89,17 @@ def _cliproxy_openai_client():
     return OpenAI(base_url=base, api_key=api_key)
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=1)
 def _cliproxy_available_for(base: str, api_key: str) -> bool:
     """Liveness probe — memoized per (base_url, api_key) tuple for the life of
     the process. Previously rerun on every ``client_for`` call (N bridges × M
-    turns × 1 judge per turn HTTP probes per Expedition)."""
+    turns × 1 judge per turn HTTP probes per Expedition).
+
+    D1 (harness-praxis tracer follow-up): maxsize=1 is correct here — a
+    single process only ever sees ONE (base, api_key) pair under normal use.
+    The earlier ``maxsize=8`` was an arbitrary default; trim to the actual
+    arity per the bitter-lesson principle (hardcoded numbers without
+    operating evidence are debt)."""
     import urllib.error
     import urllib.request
 
