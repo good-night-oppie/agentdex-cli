@@ -52,8 +52,12 @@ The runtime tooling stack (mirrored from `AGENTS.md`):
   (cards/ strict scope), detect-secrets, sync_toc local hook.
 - **doc_lint.py** — vendored from `~/gh/harness-engineering` (63 rules,
   `scripts/doc_lint.py`).
-- **Hermes gateway** — `hermes gateway --profile agentdex` (spawn-once
-  per expedition via PID-file at `~/.hermes/profiles/agentdex/`).
+- **Hermes runtime** — plugin loads via `hermes_agent.plugins`
+  entry-points; autonomous driver surface is `hermes chat -t agentdex
+  --yolo` (phase-9 PR-C). The earlier `hermes gateway --profile agentdex`
+  framing was pre-0.16 vapor — `hermes gateway` is the MESSAGING gateway
+  (Telegram/Discord/Weixin), no `--profile` flag exists. See ADR-0009
+  §Amendment-2026-06-10.
 - **KAOS** — vendored at `packages/kaos/` (24.6k LOC subtree). Provides
   per-agent SQLite VFS + lineage entries.
 
