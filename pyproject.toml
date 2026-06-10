@@ -44,6 +44,7 @@ line-length = 100
 target-version = "py311"
 extend-exclude = [
   "packages/kaos",   # vendored subtree — upstream owns lint config
+  "vendor/aaop",     # squashed aaop paper repos (phase-9) — same posture
   ".venv",
   "_attic",
   "expeditions",
@@ -68,6 +69,7 @@ python_version = "3.11"
 strict = true
 exclude = [
   "packages/kaos/",
+  "vendor/aaop/",
   "_attic/",
   "build/",
   "dist/",
@@ -95,7 +97,7 @@ follow_imports = "skip"
 # errors (missing fixtures, internal pytest plugins not vendored) — exclude
 # from the agentdex-cli regression sweep.
 addopts = "--import-mode=importlib"
-norecursedirs = ["packages/kaos/tests", ".venv", "_attic", "expeditions"]
+norecursedirs = ["packages/kaos/tests", "vendor", ".venv", "_attic", "expeditions"]
 testpaths = [
   "packages/adx_bridges/tests",
   "packages/agentdex_cli/tests",
