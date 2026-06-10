@@ -45,9 +45,11 @@ gateway-per-profile plugin runtime. The retrofit decision is documented in
 Bridges to subscription baselines (Claude Code, Codex app-server, Manus
 Camofox) sit at `packages/adx_bridges/`. The orchestrator that drives them is
 the Hermes plugin at `packages/agentdex_plugin/`. The plugin is discoverable
-via the `hermes_agent.plugins` entry-points group, which means a vanilla
-`hermes gateway --profile agentdex` is enough to wire the Pokédex flow into
-Hermes — no custom Runner / SessionRunner abstraction needed
+via the `hermes_agent.plugins` entry-points group and — as of phase-9 PR-C —
+**wired**: `register(ctx)` forwards 5 tools (`agentdex_run_expedition` +
+4 registry/routing tools) to `ctx.register_tool` under `toolset="agentdex"`,
+so `hermes chat -t agentdex --yolo` drives the Pokédex flow autonomously —
+no custom Runner / SessionRunner abstraction needed
 (SessionRunner is documented vapor; see phase-4 STATE.md Notable event).
 
 ## Why KAOS lives at `packages/kaos/`, not pip install
