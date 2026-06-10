@@ -12,7 +12,7 @@ import logging
 import time
 import urllib.request
 
-from registry.registry import AgentsRegistry, SubAgent
+from agentdex_cli.registry.registry import AgentsRegistry, SubAgent
 
 log = logging.getLogger(__name__)
 
