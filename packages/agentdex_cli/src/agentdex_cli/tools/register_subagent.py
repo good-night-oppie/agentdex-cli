@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from registry.registry import AgentsRegistry, SubAgent
+from agentdex_cli.registry.registry import AgentsRegistry, SubAgent
 
 AGENTDEX_REGISTER_SUBAGENT_SCHEMA = {
     "name": "agentdex_register_subagent",
