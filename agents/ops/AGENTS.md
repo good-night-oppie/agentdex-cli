@@ -1,3 +1,15 @@
+---
+title: "agents/ops — agentdex-cli"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-08
+updated: 2026-06-10
+type: reference
+scope: agents/ops
+layer: cross-cutting
+cross_cutting: true
+---
+
 # agents/ops — agentdex-cli
 
 ## Running
@@ -35,8 +47,8 @@ cards-mvp/.venv/bin/python -m pytest cards-mvp/test_schemas.py
 - `ANTHROPIC_API_KEY` — required for soft-Oracle judge call (`agentdex_observe.anthropic_client()`). Read from `op://openclaw/anthropic-api-key/credential` if not preset.
 - `OPENAI_API_KEY` — required if any baseline routes through OpenAI SDK (post-MVP).
 
-### Hermes gateway (Phase 4+)
-- `HERMES_HOME` — defaults to `~/.hermes/profiles/agentdex`. Per-profile state dir used by `hermes gateway --profile agentdex`.
+### Hermes runtime (Phase 4+, reframed phase-9)
+- `HERMES_HOME` — defaults to `~/.hermes`. State dir for the Hermes process that loads the agentdex plugin (`hermes chat -t agentdex --yolo`). The `hermes gateway --profile agentdex` per-profile framing was pre-0.16 vapor (ADR-0009 §Amendment-2026-06-10); `AgentsRegistry` honors `HERMES_HOME` for `agents_registry.json`.
 
 ## Secrets (manifest, not contents)
 
@@ -53,7 +65,7 @@ cards-mvp/.venv/bin/python -m pytest cards-mvp/test_schemas.py
 
 | Service | Port | Notes |
 |---|---|---|
-| `hermes gateway --profile agentdex` | auto-assigned, PID-file at `~/.hermes/profiles/agentdex/gateway.pid` | single instance per expedition; `GatewayHandle.base_url` reads from PID file metadata |
+| Hermes chat runtime (`hermes chat -t agentdex`) | n/a (stdio session) | plugin tools registered in-process via `hermes_agent.plugins` entry-points; the pre-0.16 `gateway --profile` PID-file row was vapor (ADR-0009 §Amendment-2026-06-10) |
 | Langfuse cloud | 443 (HTTPS) | `cloud.langfuse.com` |
 | Langfuse self-hosted (optional) | 3000 | `docker run -p 3000:3000 langfuse/langfuse` |
 | KAOS MCP server (optional, dev) | configurable; default 8742 | `kaos serve` — used for `mcp__kaos__*` tool calls in dev sessions |

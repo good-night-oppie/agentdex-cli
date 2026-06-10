@@ -111,6 +111,8 @@ Per ADR-0008 §D library-boundary (source-fork stays rejected): `hermes-agent>=0
 
 **Amendment-2026-06-08:** Original architecture referenced `hermes_cli.SessionRunner`. Recon caught vapor — that class does not exist in 0.15.1. Hermes ships gateway+plugins. Pivot: ONE long-lived `hermes gateway --profile agentdex` subprocess per expedition; orchestrator drives turns via gateway HTTP endpoint; plugin loaded once via entry-points. See ADR-0008 §Amendment-2026-06-08 for full contract. See `.supergoal/ARCHITECTURE.md` for amended mermaid diagrams.
 
+**Amendment-2026-06-10 (phase-9 PR-D):** The 06-08 amendment's replacement framing was itself vapor of the same flavor. In Hermes 0.16, `hermes gateway` is the MESSAGING gateway (Telegram / Discord / Weixin / WhatsApp) — there is no `--profile` flag and no per-profile subprocess to spawn. The real integration surface, recon-confirmed against `hermes_cli/plugins.py`, is: plugin loads via `hermes_agent.plugins` entry-points into any Hermes process; `register(ctx)` forwards 5 tools to `ctx.register_tool` under `toolset="agentdex"` (phase-9 PR-C, milestone `M5-tools-wired`); the autonomous driver is `hermes chat -t agentdex --yolo --max-turns N`. The M5 expedition orchestrator never needed a gateway subprocess — bridges spawn subscription CLIs directly. Doctrine swept in PR-D: CLAUDE.md (PR-C), `docs/architecture/architecture.md`, `agents/ops/AGENTS.md`, `IDEAL_EXPERIENCE.md`.
+
 ### D4 — Vendoring mode: KAOS subtree, Langfuse pip, helios external
 
 - **KAOS (substrate-we-extend)** → vendored subtree at `packages/kaos/`. Agent reads internals to write `kaos_adapter.py`.

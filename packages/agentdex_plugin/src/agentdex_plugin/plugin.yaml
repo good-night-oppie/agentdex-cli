@@ -1,15 +1,16 @@
 name: agentdex
-version: 0.1.0
-description: "Agentdex orchestrator — registers sub-agents + CLI bridges so main Hermes agent can @-route tasks via HTTP gateway or TCP bridge."
+version: 0.2.0
+description: "Agentdex co-opetition orchestrator — Expedition runner + sub-agent/CLI-bridge registry tools for the main Hermes agent."
 author: agentdex
 # Hermes plugin kinds: standalone | backend | exclusive | platform | model-provider
 # (hermes_cli/plugins.py:232) — standalone is the right default for tool/hook plugins.
 kind: standalone
 requires_env: []
 provides_tools:
+  - agentdex_run_expedition
   - agentdex_register_subagent
   - agentdex_list_subagents
   - agentdex_route_to_subagent
   - agentdex_route_to_cli
 provides_hooks:
-  - on_session_end
+  - on_session_end  # declared no-op; M6+ wires Kanban poller (PR-D honesty: on_request_received dropped — never implemented)

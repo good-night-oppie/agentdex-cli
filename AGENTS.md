@@ -67,3 +67,8 @@ cross_cutting: true
 - [monitor-gaps.md](~/.cursor/projects/home-admin/heartbeat/monitor-gaps.md) — error funnel (1h sweep cadence)
 - [sweeps/](sweeps/) — audit artifacts
 - [feedback_gap_log_review memory](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_gap_log_review.md) — review cadence
+- [AAOP MVP verdicts](docs/references/2026-06-10-aaop-mvp-verdicts.md) — 16-paper corpus → 6 refuted MVPs + whitespace (phase-9 strategy anchor)
+
+## Learned notes
+
+- [learned-notes.md](agents/learned-notes.md) — user preferences + workspace facts (promoted out of index per DOC-LINT-021)
