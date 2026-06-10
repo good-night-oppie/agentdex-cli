@@ -102,4 +102,5 @@ testpaths = [
   "packages/adx_bridges/tests",
   "packages/agentdex_cli/tests",
   "packages/agentdex_engine/tests",
+  "packages/agentdex_plugin/tests",
 ]
