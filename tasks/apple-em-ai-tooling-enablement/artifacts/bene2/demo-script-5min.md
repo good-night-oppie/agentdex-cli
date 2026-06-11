@@ -17,6 +17,7 @@ description: Timed 5-minute live demo script on BENE 0.2.0 with real executed co
 **Context:** HM screen, Engineering Manager — AI Developer Tools, Apple DevEx (req 200658219-3337). Fri 2026-06-12 11:30 AM PT.
 **Demo machine:** run from `/home/admin/gh/bene-main` (repo venv `.venv`, all commands via `uv run`).
 **Every command and output below was executed for real on 2026-06-11 against BENE 0.2.0.** ULIDs/timestamps will differ on replay — copy them from your own output. Outputs were captured through a pipe, so BENE auto-emitted JSON; on a live TTY several commands (`ls`, `checkpoint`) render Rich tables instead — same data either way.
+**Re-verified end-to-end at HEAD 2026-06-11 evening (post history-rewrite):** every command works; output blocks below refreshed to current shapes (search results now return full rows, `logs` wraps events in an object, `query` includes the `file_read` event).
 
 **Pre-demo setup (run before the call, off-camera):**
 
@@ -40,7 +41,7 @@ uv run bene --version
 bene, version 0.2.0
 ```
 
-**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 614 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
+**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 615 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
 
 **Cumulative: 0:15**
 
@@ -138,6 +139,10 @@ uv run bene diff $AID --from 01KTV32HYZYV5AC6FPKKN19V74 --to 01KTV32J9AHJX2GKVKT
 │ ADDED      │ /src/refactor.py │
 │ MODIFIED   │ /notes/plan.md   │
 └────────────┴──────────────────┘
+
+No state changes
+
+No tool calls between checkpoints
 ```
 
 ```bash
@@ -169,12 +174,17 @@ uv run bene memory search "flaky tls"
 [
   {
     "memory_id": 1,
+    "agent_id": "01KTW51T8D1AD8H8RZZDG0WQCK",
     "type": "insight",
     "key": "ntp-drift",
-    "content": "Flaky test root cause: NTP drift on runner pool B skews TLS cert validation"
+    "content": "Flaky test root cause: NTP drift on runner pool B skews TLS cert validation",
+    "metadata": {},
+    "created_at": "2026-06-11T20:13:06.177"
   }
 ]
 ```
+
+(The `memory write` itself also echoes a confirmation JSON — `{"memory_id": 1, …}`.)
 
 ```bash
 uv run bene skills save -n triage_flaky_test \
@@ -189,10 +199,15 @@ uv run bene skills search "flaky triage"
   {
     "skill_id": 1,
     "name": "triage_flaky_test",
+    "description": "Triage a flaky CI test by separating infra noise from product bugs",
     "template": "Given failing test {test_name}, check runner clock skew, then rerun {retries} times to classify flake vs bug.",
     "tags": ["triage", "ci"],
+    "source_agent_id": "01KTW51T8D1AD8H8RZZDG0WQCK",
     "use_count": 0,
-    "success_count": 0
+    "success_count": 0,
+    "success_rate": null,
+    "created_at": "2026-06-11T20:13:06.728",
+    "updated_at": "2026-06-11T20:13:06.728"
   }
 ]
 ```
@@ -241,21 +256,27 @@ uv run bene logs $AID --tail 3
 ```
 
 ```
+{
+  "agent_id": "01KTW51T8D1AD8H8RZZDG0WQCK",
+  "conversation_turns": 0,
+  "events": [
     {
-      "timestamp": "2026-06-11T10:19:03.662",
-      "event_type": "file_write",
-      "payload": "{\"path\": \"/src/refactor.py\", \"size\": 28, \"version\": 1}"
-    },
-    {
-      "timestamp": "2026-06-11T10:19:03.850",
+      "timestamp": "2026-06-11T20:12:51.673",
       "event_type": "checkpoint_create",
-      "payload": "{\"checkpoint_id\": \"01KTV32J9AHJX2GKVKTW8Y7EKT\", \"label\": \"after-refactor\"}"
+      "payload": "{\"checkpoint_id\": \"01KTW51V2S29FZXTG0CHY3CVJ8\", \"label\": \"after-refactor\"}"
     },
     {
-      "timestamp": "2026-06-11T10:19:13.060",
+      "timestamp": "2026-06-11T20:12:52.131",
       "event_type": "checkpoint_restore",
-      "payload": "{\"checkpoint_id\": \"01KTV32HYZYV5AC6FPKKN19V74\"}"
+      "payload": "{\"checkpoint_id\": \"01KTW51TQDPTHPW35FCXMS8PWE\"}"
+    },
+    {
+      "timestamp": "2026-06-11T20:12:52.370",
+      "event_type": "file_read",
+      "payload": "{\"path\": \"/notes/plan.md\"}"
     }
+  ]
+}
 ```
 
 ```bash
@@ -267,9 +288,12 @@ uv run bene query "SELECT event_type, COUNT(*) AS n FROM events GROUP BY event_t
   {"event_type": "file_write", "n": 3},
   {"event_type": "checkpoint_create", "n": 2},
   {"event_type": "agent_spawn", "n": 1},
-  {"event_type": "checkpoint_restore", "n": 1}
+  {"event_type": "checkpoint_restore", "n": 1},
+  {"event_type": "file_read", "n": 1}
 ]
 ```
+
+(Live output pretty-prints one field per line; the `file_read` row appears because Beat 2's `bene read` is itself journaled — a nice aside if asked.)
 
 **Say:** "Everything we just did is in an append-only event journal you can hit with read-only SQL. No magic, no hidden state — the whole demo is auditable after the fact."
 
@@ -329,7 +353,7 @@ rm -rf "${BENE_DB%/*}"   # cleanup
 ## UPDATE 2026-06-11 (evening) — BENE 0.2.0 SHIPPED: the 2.0 close is now LIVE
 
 The "designed, build in flight" close is obsolete in the best way: **the kernel
-shipped the same day** (v0.2.0, 614 tests passing). The strongest possible
+shipped the same day** (v0.2.0, 615 tests passing). The strongest possible
 demo beat now exists — one command, keyless, fresh directory, ~0.3s:
 
 **Timing: this beat REPLACES the old Close (the 4:00 → 5:00 slot).** Run
