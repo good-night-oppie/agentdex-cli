@@ -3,7 +3,7 @@ title: "IDEAL_EXPERIENCE — agentdex-cli"
 status: active
 owner: "@EdwardTang"
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-11
 type: reference
 scope: .
 layer: cross-cutting
@@ -60,7 +60,7 @@ orchestrator becomes a state machine over ResultCards.
 
 ## Anti-patterns (NOT agentdex-cli's job)
 
-- **Not a battle.** Co-opetition (合作竞争), not adversarial battle. Per ADR-0009 §Amendment-2026-06-08: baselines are not fighting each other; they run the same task independently and asynchronously, and the Pareto judge aggregates ResultCards when they're all in. No synchronous side-by-side compete. No live combat animation. Pokédex (catalog) survives as the product metaphor; Pokémon Showdown does not.
+- **Not a battle — amended by ADR-0010 (2026-06-11), see §Arena below.** Co-opetition (合作竞争) remains the default framing for coding-task expeditions: baselines run the same task independently and asynchronously, and the Pareto judge aggregates ResultCards when they're all in. ADR-0010 re-promotes a literal battle *lane* (Pokémon Showdown gen9 OU as an expedition variant) without reversing this finding: the product is still the catalog + receipt + lineage; the arena is its most legible entry type, and "battle" language is permitted only in arena-scoped surfaces.
 - **Not a subscription-replacement broker.** We DRIVE Claude/Codex/Manus subscription CLIs the user already pays for. We do not host inference, do not aggregate billing, do not proxy API keys.
 - **Not a vibes leaderboard.** Every claim cites a source file + line; every Oracle verdict is grounded in `tasks/<id>/oracle/spec.yaml`. Pure LLM-as-judge without ground-truth anchor is a Phase-6 calibration target, not the headline value.
 - **Not a real-time agent orchestrator.** M5 ships sequential baseline runs. Concurrent multi-agent live coordination is post-M8.
@@ -73,6 +73,66 @@ orchestrator becomes a state machine over ResultCards.
 4. **Tautological MVP gate** — M5 passes because seeds always fire mechanically (structural), not because system learned anything (learned). Mitigation: `Seed.seed_provenance: Literal["structural","learned"]` makes this distinction typed + auditable; M7 raises the bar to ≥1 learned seed.
 5. **Subscription-CLI drift** — Claude Code or Codex CLI ships breaking output-format change; bridge silently parses garbage. Mitigation: bridge tests use recorded fixtures + a smoke probe at session start.
 6. **Upstream 5xx cascade** — one transient Cloudflare 525 / 502 on the judge path takes down EVERY baseline because the orchestrator's per-baseline `try/except` wraps both `bridge.send` AND `oracle.evaluate`. Mitigation (PR #18 + PR #20): `oracle/soft.py:_call_judge_with_retries` runs 3 attempts with exponential backoff against an open-ended exception classifier (class name + body markers covering anthropic / openai / gemini / cohere shapes); explicit `"retryable":false` / `"owner_action_required":true` flags in the body skip the retry budget so origin-config failures surface immediately instead of burning the per-baseline timeout window.
+
+## §Arena — the Showdown lane (ADR-0010, 2026-06-11)
+
+> Falsifiable clauses A1–A8. Every arena phase gate (supergoal `.supergoal-v2/` phases
+> 2–10) cites at least one clause; `EVAL.md` §Arena binds each clause to a signal.
+
+### The ideal arena session looks like
+
+A visiting agent's **owner** mints a scoped trainer license (consent token) and completes
+an out-of-band confirmation the agent cannot perform alone. The agent then: drafts 1-of-3
+curated starter teams (never a blank page) → battles a scripted gym leader through
+`get_battle_state`/`choose_action` (sanitized, ≤2,500-token state advertising legal
+choices) → receives the receipt: end-block winner, Glicko delta ±2·RD, plain-language
+failure signatures ("switched into obvious KO, turn 7"), and a re-simulable inputLog
+link → mutates its team (or accepts an offered seed), validate-team gates it → same-seed
+sandbox rematch tells the what-if story. Under 5 minutes, under 10 calls. Rated progress
+comes only from server-matchmade battles. The user feels **certain** for the same reason
+as the coding-task lane: every number is backed by a re-simulable artifact, not vibes.
+
+### Clauses
+
+- **A1 — Consent.** No visiting agent acts without an owner-minted, Ed25519-signed,
+  capability-scoped token ({enroll, battle:N, evolve:N}, expiring, revocable). Enrollment
+  requires a human out-of-band action an agent cannot complete alone. Per-battle tokens
+  carry proof-of-possession; a leaked bearer alone is useless.
+- **A2 — Grounding.** Only execution-grounded battle outcomes move any published number.
+  A rating event without a re-simulable inputLog hash is rejected by the ladder.
+- **A3 — Lanes.** Published Glicko moves only via server-matchmade battles against
+  held-out opponent pools with server-secret seeds (revealed post-result). Direct
+  challenges and same-seed rematches are unrated sandbox, permanently.
+- **A4 — Receipt.** Every evolution generation ships one EvolutionCard carrying the
+  measured Glicko delta ±2·RD — or is marked INCONCLUSIVE when the window is
+  underpowered. No published delta smaller than 2·RD, anywhere.
+- **A5 — Evolution honesty.** Visitor measured claims cover the TEAM only (the one
+  component the gateway provably applies). House-lane claims cover the full 5-store
+  harness, gated by mandatory change_manifest predictions, next-window falsification
+  (no self-certification), and HARMFUL → auto-rollback.
+- **A6 — Injection.** Every opponent-controlled string is sanitized at the
+  protocol-parse boundary before reaching any agent or LLM context; judge prompts wrap
+  untrusted content in per-call nonce delimiters; `tests/redteam/injection_corpus.yaml`
+  is a launch-blocking CI gate; visitor-facing errors are opaque ids.
+- **A7 — Economics.** Calibration runs on scripted bots (zero LLM cost); house decisions
+  route through the platform LLM proxy under a fail-closed daily budget circuit breaker;
+  visitor evolution is visitor-funded (server does deterministic validation only).
+- **A8 — Verifiability.** An outsider can recompute any published rating from the
+  append-only public event log and re-simulate any battle from its inputLog without
+  trusting the server.
+
+### Arena failure modes we care about most
+
+1. **Gamed ladder** (forfeit farming, smurfing, seed mining) → A3 lane split + collusion
+   forensics + re-sim audit (10% random, 100% on dispute).
+2. **Injection via battle strings** (nicknames, team names) → A6 single chokepoint
+   sanitizer at parse boundary, corpus-gated in CI.
+3. **Self-certified evolution** (Refiner grades its own edit) → A5 next-window
+   falsification by a pure-Python Verdict role.
+4. **Instrument drift** (anchors decalibrate) → nightly anchor self-test halts
+   publication on ordering failure (EVAL §Arena).
+5. **Unverifiable claims** (rating exists only in a container's SQLite) → A8 byte-identical
+   recompute from the external durable event log.
 
 ## How we'll know we got there (deferred to EVAL.md)
 
