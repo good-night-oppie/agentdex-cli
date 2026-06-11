@@ -62,9 +62,28 @@ the verdicts + whitespace findings that survive.
   physics).
 - Cloudflare 525 via the third-party relay was triple-counted as refuting
   evidence (NightShift / Foundry / Composer). Cheapest single experiment:
-  `ADX_LLM_POOL_MODE=direct` + `ANTHROPIC_API_KEY`, one clean live
-  expedition — updates three refutations at once. Until then, "11/11
-  no_clear_winner" measures the relay, not the method.
+  one clean live expedition — updates three refutations at once. Until
+  then, "11/11 no_clear_winner" measures the relay, not the method.
+
+### Confound resolved (2026-06-11 update)
+
+Root cause was a missing `www.`: the apex `pure100.org` origin cert is
+broken (525); `www.pure100.org` is healthy. Relay config fixed + container
+restarted; judge path verified POOL_OK. The clean experiment ran
+(`expeditions/exp-live-www-fix/`):
+
+- **First discriminating verdict in project history**: winner =
+  `manus(codex-web-fallback)` (`undominated`, sweeps all 3 axes),
+  pass_rate 0.8 vs codex 0.4. Prior record was 11/11 `no_clear_winner`.
+- Evidence impact: the "disagreement signal never fired" /
+  "zero discriminating verdicts to date" clauses in the Dojo, NightShift
+  and Foundry refutations are now stale. The structural objections
+  (statistical power, incumbent density) stand — n=1 discriminates but
+  does not power a champion/challenger gate.
+- Honest caveats: n=1; "manus" ran as codex-web fallback, so the contrast
+  is codex-CLI vs codex-web (same vendor, two harnesses — itself a clean
+  harness-effect datapoint); claude baseline excluded-failed on a NEW
+  bridge bug (DEFERRED CLAUDE-BRIDGE-LIVE-EOF), unrelated to the relay.
 
 ## Verdicts
 
