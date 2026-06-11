@@ -18,7 +18,7 @@ Prep for: HM screen, Engineering Manager — AI Developer Tools, Apple DevEx (re
 
 Sources (all on disk, all verifiable): `docs/design/DESIGN-RATIONALE.md` (D1–D10), `docs/design/BENE2-DESIGN.md` (pillars, subsumption table, autonomy ladder), `docs/design/KERNEL-SPEC.md`, `docs/research/GAP-AUDIT.md` (14 KAOS + 13 BENE evidenced shortcomings), `docs/research/SYNTHESIS.md` (48 citations).
 
-**Honesty line (use verbatim if pressed):** BENE 0.2.0 is built and verified — shipped 2026-06-11 evening, 615 passing tests (145 kernel), 37 MCP tools, kernel phases 4–10 done. The claims audit (docs/design/CLAIMS-AUDIT.md) marks the remaining gaps as planned: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS/loop guards, entropy-routed retrieval, deterministic replay. I will never present a planned feature as working — and the audit is how you can check me.
+**Honesty line (use verbatim if pressed):** BENE 0.2.0 is built and verified — shipped 2026-06-11 evening, 699 passing tests (145 kernel, +84 Round-3), 37 MCP tools, kernel phases 4–10 done. The claims audit (docs/design/CLAIMS-AUDIT.md) marks the remaining gaps as planned: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS/loop guards, entropy-routed retrieval, deterministic replay. I will never present a planned feature as working — and the audit is how you can check me.
 
 ---
 
@@ -26,7 +26,7 @@ Sources (all on disk, all verifiable): `docs/design/DESIGN-RATIONALE.md` (D1–D
 
 **Q:** You already had two frameworks. Isn't a third just churn?
 
-**A:** It isn't a third codebase — that's the point of D10. BENE 2.0 is an additive kernel inside the existing BENE repo: legacy modules stay untouched and green — verified at every one of the 16 commits; the full suite now sits at 615 passing with 145 new kernel tests — adapters mirror writes, supersession is feature-flagged. I didn't extend KAOS because my own audit (GAP-AUDIT) found its structural gaps with command-level evidence: no durable runtime (KAOS-1), SQLite hard-wired with no storage protocol (KAOS-2), an autonomy ladder that exists only as markdown — `grep autonomy kaos/ = 0 hits` (KAOS-3). BENE 0.1.0 already held exactly those surfaces (Temporal, storage protocol, runtime abstraction). The 55-row subsumption table shows 2.0 subsumes both lineages: 20 kept, 11 kept+, 7 re-derived, 17 surpassed.
+**A:** It isn't a third codebase — that's the point of D10. BENE 2.0 is an additive kernel inside the existing BENE repo: legacy modules stay untouched and green — verified at every one of the 16 commits; the full suite now sits at 699 passing with 145 new kernel tests plus 84 Round-3 gap-closure tests — adapters mirror writes, supersession is feature-flagged. I didn't extend KAOS because my own audit (GAP-AUDIT) found its structural gaps with command-level evidence: no durable runtime (KAOS-1), SQLite hard-wired with no storage protocol (KAOS-2), an autonomy ladder that exists only as markdown — `grep autonomy kaos/ = 0 hits` (KAOS-3). BENE 0.1.0 already held exactly those surfaces (Temporal, storage protocol, runtime abstraction). The 55-row subsumption table shows 2.0 subsumes both lineages: 20 kept, 11 kept+, 7 re-derived, 17 surpassed.
 
 ## Card 2 — "Why local-first SQLite? Does this scale?"
 
@@ -80,7 +80,7 @@ Sources (all on disk, all verifiable): `docs/design/DESIGN-RATIONALE.md` (D1–D
 
 **Q:** Where is this in six months, and how do I know it's working?
 
-**A:** Honestly: the kernel shipped last night — phases 4–10 done, 0.2.0 out, closed with a claims audit reconciling implemented vs planned. The next six months are the audit's planned column: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS and loop guards, entropy-routed retrieval, deterministic replay tooling. Measurement stays the same litmus tests: full suite green (615 today), `bene demo` keyless in ~0.3s, probe ACCEPTs per pillar, trust ledger live and consumed by L3/L4 gating. Every milestone is a falsifiable artifact — which is also how I'd report progress upward.
+**A:** Honestly: the kernel shipped last night — phases 4–10 done, 0.2.0 out, closed with a claims audit reconciling implemented vs planned. The next six months are the audit's planned column: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS and loop guards, entropy-routed retrieval, deterministic replay tooling. Measurement stays the same litmus tests: full suite green (699 today), `bene demo` keyless in ~0.3s, probe ACCEPTs per pillar, trust ledger live and consumed by L3/L4 gating. Every milestone is a falsifiable artifact — which is also how I'd report progress upward.
 
 ## Card 11 — "Isn't this over-engineered? Ten decisions through three famous lenses sounds like decoration."
 
@@ -96,4 +96,4 @@ Sources (all on disk, all verifiable): `docs/design/DESIGN-RATIONALE.md` (D1–D
 
 ---
 
-*12 cards. All claims trace to docs read on disk; the 2.0 kernel shipped 2026-06-11 (phases 4–10, v0.2.0, 615 tests) — remaining gaps tracked as planned in CLAIMS-AUDIT.md.*
+*12 cards. All claims trace to docs read on disk; the 2.0 kernel shipped 2026-06-11 (phases 4–10, v0.2.0, 699 tests post-Round-3) — remaining gaps tracked as planned in CLAIMS-AUDIT.md.*

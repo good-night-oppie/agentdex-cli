@@ -41,7 +41,7 @@ uv run bene --version
 bene, version 0.2.0
 ```
 
-**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 615 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
+**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 699 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
 
 **Cumulative: 0:15**
 
@@ -353,7 +353,7 @@ rm -rf "${BENE_DB%/*}"   # cleanup
 ## UPDATE 2026-06-11 (evening) — BENE 0.2.0 SHIPPED: the 2.0 close is now LIVE
 
 The "designed, build in flight" close is obsolete in the best way: **the kernel
-shipped the same day** (v0.2.0, 615 tests passing). The strongest possible
+shipped the same day** (v0.2.0, 699 tests passing post-Round-3). The strongest possible
 demo beat now exists — one command, keyless, fresh directory, ~0.3s:
 
 **Timing: this beat REPLACES the old Close (the 4:00 → 5:00 slot).** Run
