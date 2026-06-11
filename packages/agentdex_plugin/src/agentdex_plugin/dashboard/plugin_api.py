@@ -8,11 +8,12 @@ module-level `router = APIRouter()` and includes it. Auth middleware
 from __future__ import annotations
 
 import logging
+import uuid
 
+from agentdex_cli.registry.registry import AgentsRegistry, SubAgent, load_default_registry
 from fastapi import APIRouter, HTTPException
 from fastapi import status as http_status
 from pydantic import BaseModel, Field
-from registry.registry import AgentsRegistry, SubAgent, load_default_registry
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -63,15 +64,19 @@ async def route(req: RouteIn) -> dict:
         raise HTTPException(status_code=404, detail=f"target {req.target!r} not registered")
     try:
         if target.kind == "cli":
-            from tools.route_to_subagent import _call_cli_bridge
+            from agentdex_cli.tools.route_to_subagent import _call_cli_bridge
 
             return await _call_cli_bridge(target, req.prompt, req.session_id, req.extra)
-        from tools.route_to_subagent import _call_hermes_agent
+        from agentdex_cli.tools.route_to_subagent import _call_hermes_agent
 
         return await _call_hermes_agent(target, req.prompt, req.session_id, req.extra)
     except Exception as e:
-        log.exception("route fail")
-        raise HTTPException(status_code=502, detail=repr(e)) from e
+        # IDEAL_EXPERIENCE §Arena A6: never leak exception internals (tracebacks,
+        # repr, upstream payloads) to HTTP clients. Opaque ref id only; details
+        # stay server-side in the log line below.
+        err_id = uuid.uuid4().hex[:12]
+        log.exception("route fail (ref=%s)", err_id)
+        raise HTTPException(status_code=502, detail=f"upstream error (ref: {err_id})") from e
 
 
 @router.get("/health")
