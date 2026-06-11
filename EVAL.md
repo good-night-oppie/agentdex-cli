@@ -1,3 +1,20 @@
+---
+title: "EVAL — agentdex-cli"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-09
+updated: 2026-06-11
+type: reference
+scope: .
+layer: cross-cutting
+cross_cutting: true
+enforced_by:
+  - "pytest golden gates (tests/golden/ + test_expedition_smoke.py; arena: tests/golden/arena/)"
+  - "lint.yml CI required checks (pre-commit + doc-lint)"
+  - "pydantic ConfigDict(extra='forbid', strict=True) at validate-time (Three Cards)"
+  - "launch-blocking CI job on tests/redteam/injection_corpus.yaml (phase 8)"
+---
+
 # EVAL — agentdex-cli
 
 > LangChain G13: eval signal design is the hardest part of harness engineering. Bad signal → automated optimization amplifies error. Every criterion below MUST trace to a line in `IDEAL_EXPERIENCE.md`.
@@ -20,6 +37,21 @@
 | Soft-Oracle judge calibration ≥ 0.7 accuracy on ≥10 labeled fixtures | Failure mode #1 + Phase-6 calibration spec | `oracle/calibration.py::calibrate()` CalibrationReport.accuracy ≥ 0.7 | Hand-labeled fixtures in `packages/agentdex_engine/tests/oracle_calibration_fixtures/` (P6) |
 | Single-gateway invariant (1 hermes gateway PID during expedition) | "User runs / agentdex-cli does" lines | `ps -ef \| grep hermes.*gateway \| wc -l == 1` during live run | Process listing during `adx expedition` |
 | Subscription-CLI bridge smoke probe passes at session start | Failure mode #5 | each bridge's `smoke()` returns `{ok: true, version: <str>}` before any turn | Recorded fixture (`tests/fixtures/bridges/{claude,codex,manus}_smoke.json`) |
+
+## §Arena eval criteria (ADR-0010 — anchored to IDEAL_EXPERIENCE.md §Arena clauses)
+
+| Criterion | Anchor (IDEAL §Arena) | Signal | GT source |
+|-----------|----------------------|--------|-----------|
+| Deterministic battles (same seed → same winner; inputLog re-simulates identically) | A2 | golden fixtures pass in CI, no network | `tests/golden/arena/` (phase 3) |
+| Sanitizer strips injection payloads at parse boundary | A6 | every `tests/redteam/injection_corpus.yaml` payload neutralized; launch-blocking CI job | injection corpus (phase 3/8) |
+| Rated events carry re-simulable inputLog hash, server-matchmade only | A2, A3 | ladder rejects events without hash; `/challenge` asserted unrated in test | ladder unit tests (phase 5/8) |
+| Anchor calibration: random < max-damage < heuristics, non-overlapping 2·RD in ≤200 battles | A4, A8 | calibration report committed; nightly self-test halts publication on ordering failure | scripted-bot battles (phase 5) |
+| Ratings recompute byte-identically from the external event log | A8 | fresh-checkout recompute equals published state | `events.jsonl` + durable store (phase 5/9) |
+| No published delta < 2·RD | A4 | API/page render asserts; unit test on boundary | ladder API tests (phase 5) |
+| Flat per-turn context: turn-30 context == turn-3 context ±10% over 50+ turns | A7 | CI assertion on fixture battle; state renderer ≤2,500 tokens on corpus | renderer fixtures (phase 6) |
+| Evolution verdicts computed only at the NEXT window (no self-certification); HARMFUL auto-rolls back | A5 | injected one-Pokémon nerf detected HARMFUL in ≤50 CRN paired battles; rollback chaos-drill transcript | CRN regression test (phase 7) |
+| Enrollment requires human out-of-band action | A1 | agent-only enrollment attempt fails in test | consent flow tests (phase 8) |
+| House LLM spend fail-closed | A7 | circuit-breaker test: budget exhausted → battles refused, not degraded | gateway tests (phase 8) |
 
 ## Self-judge guardrails (G13)
 
