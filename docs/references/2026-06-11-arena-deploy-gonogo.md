@@ -73,7 +73,8 @@ health + stateless streamable-HTTP MCP echo, repo
 | Deploy 202 → koyeb HEALTHY | ≈ 3.5 min (202 at 21:13:03Z; HEALTHY by 21:16:4xZ) |
 | Public health GET (warm) | 200 in **0.37 s** |
 | Stateless MCP round-trip (initialize / tools-list / tools-call, warm) | **0.31 / 0.31 / 0.26 s** — ~400× headroom vs the 120 s turn budget |
-| Cold start (Koyeb SLEEPING wake) | not yet sampled — service stayed warm during the window; opportunistic re-probe queued for next phase boundary. Even a 60 s wake fits the 120 s budget; enrollment flow must still tolerate it (phase 9 criterion) |
+| Cold start (Koyeb SLEEPING wake) | **7.15 s** end-to-end (HTTP 200, `uptime_s=0.281` proves zero-scale wake; sampled after <15 min idle) — fits the 120 s turn budget with ~17× headroom; enrollment flow must still tolerate it (phase 9 criterion) |
+| Idle-to-SLEEPING window | < 15 min (service slept between 21:16 warm probes and 21:35 probe) — keep-alive pings required during battles-in-progress (phase 9) |
 | SSE / WebSocket | untested, **informational only** — design needs neither (stateless streamable-HTTP throughout) |
 | Sidecar RSS (node 24, pokemon-showdown **0.11.10** pinned): idle / 1 battle / 3 concurrent | **55.2 / 178.1 / 185.5 MB** — one process multiplexes at +~7 MB/battle; confirms mastermind F1 numbers; stock server (599 MB multi-process) stays deleted from design |
 | Memory budget vs 256 MB | sidecar ~178 + FastAPI gateway ~60–80 ⇒ ~240–260 MB = borderline → conditions 1–2 above; split fallback documented |
