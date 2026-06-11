@@ -320,3 +320,45 @@ uv run bene logs $AID --tail 3
 uv run bene query "SELECT event_type, COUNT(*) AS n FROM events GROUP BY event_type ORDER BY n DESC"
 rm -rf "${BENE_DB%/*}"   # cleanup
 ```
+
+
+---
+
+## UPDATE 2026-06-11 (evening) — BENE 0.2.0 SHIPPED: the 2.0 close is now LIVE
+
+The "designed, build in flight" close is obsolete in the best way: **the kernel
+shipped the same day** (v0.2.0, 613 tests passing). The strongest possible
+demo beat now exists — one command, keyless, fresh directory, ~0.5s:
+
+```bash
+uv run bene demo --no-ui
+```
+
+Real output (executed 2026-06-11):
+
+```text
+BENE 2.0 story  /tmp/bene-demo-hyciazdx/story.db
+  engrams      3 turns -> 1 episode (01KTV5KC…) — the compression ladder
+  breeding     2 offline generations -> best quality 0.67 (frontier 5)
+  kill gates   probe ACCEPT -> promotion ALLOWED (without it: PromotionBlocked)
+  context OS   pollution score 0.0 — clean run, no recovery needed
+  autonomy     L2 agent denied L4 'evolve.promote' — denial recorded as trust 
+engram
+  trust        composite 1.0 (1 denial on record) — computed, never declared
+  senses       manifest generated from live db (1 capabilities)
+story complete in 0.3s — 12 engrams, 4 experiment runs.
+  inspect: bene experiments ls --db /tmp/bene-demo-hyciazdx/story.db · bene 
+trust 01KTV5KCPSYP2EERN33JRZBNAC --db /tmp/bene-demo-hyciazdx/story.db
+```
+
+Talking point (30s): "Every pillar of the redesign is now running code:
+the engram compression ladder, an offline breeding round, a falsifiable probe
+whose ACCEPT verdict gates promotion, the autonomy ladder denying an L2 agent
+an L4 capability — with the denial feeding a computed trust score. The claims
+audit (docs/design/CLAIMS-AUDIT.md) marks every design claim implemented-or-
+planned with test references — that is the honesty discipline I'd bring to an
+AI tooling org."
+
+If asked "what's still planned": skill-decay policy, nightly consolidation
+scheduler, runner wiring for ContextOS/loop-guards, entropy-routed retrieval —
+all marked in CLAIMS-AUDIT.md. Nothing in this demo is vapor.

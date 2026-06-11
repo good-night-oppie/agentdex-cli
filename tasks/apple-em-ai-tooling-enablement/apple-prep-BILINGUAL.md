@@ -155,6 +155,19 @@ TODO — see `artifacts/apple-prep/recruiter-followup-questions.md`.
 
 **BENE 0.1.0 今天就能跑** — 445 个通过的测试、37 个 MCP 工具、每 agent 独立 SQLite VFS、checkpoint/diff/restore、FTS5 记忆+技能、LogAct 共享日志、5 个 provider 的分层路由、带 Pareto 前沿的 metaharness 搜索、Temporal 持久运行时、存储协议（SQLite+Postgres）、web UI + TUI、obsidian 导出。**BENE 2.0 是设计稿** — 2026-06-11 完成设计，构建进行中，第 4–9 阶段待完成。绝不把 2.0 特性说成已可用。
 
+### STATUS UPDATE 2026-06-11 / 当日状态更新
+
+**BENE 0.2.0 shipped the evening before the screen**: all five pillars are
+running code (613 tests; kernel = engrams + probes + breeding + memory OS +
+autonomy ladder). The honesty line changes from "designed, build in flight" to
+"designed in the morning, shipped by evening — with a claims audit." Demo:
+`uv run bene demo --no-ui` (~0.5s, keyless).
+
+**BENE 0.2.0 已在面试前夜发布**：五大支柱全部成为可运行代码（613 个测试；
+kernel = engrams + 探针 + 育种 + 记忆操作系统 + 自治阶梯）。诚实表述从
+"已设计、构建进行中"升级为"早晨设计、傍晚交付，并附带 claims audit"。
+演示命令：`uv run bene demo --no-ui`（约 0.5 秒，无需密钥）。
+
 ## 12. Drills for confirmed problems / 确认题完整演练
 
 TODO — only after problems/round-variants confirmed. Full drill notes go to
