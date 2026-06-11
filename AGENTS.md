@@ -36,6 +36,7 @@ cross_cutting: true
 
 - [ADR-0009 (canonical)](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — KAOS substrate + retrofit + Pokédex pivot
 - [ADR-0010 (arena)](docs/adr/0010-arena-repromotion.md) — Showdown arena lane as expedition variant; Glicko-delta receipt; lanes + consent + cuts
+- [arena deploy go/no-go](docs/references/2026-06-11-arena-deploy-gonogo.md) — measured Spaces/Koyeb contract, sidecar RSS, determinism finding, durable-store choice
 - [docs/architecture/architecture.md](docs/architecture/architecture.md) — TOOLS / ARCH / CONTEXT + invariants + guardrails
 - [docs/REPO_STRUCTURE.md](docs/REPO_STRUCTURE.md) — top-level tree
 - [docs/DEV_SETUP.md](docs/DEV_SETUP.md) — env vars + first-run + common workflows

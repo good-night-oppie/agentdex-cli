@@ -310,7 +310,7 @@ uv run bene query "SELECT event_type, COUNT(*) AS n FROM events GROUP BY event_t
 "What you just saw is 0.2.0 — and the 2.0 kernel shipped last night. Yesterday I finished the 2.0 redesign, and the process is the part I'd bring to an EM role:
 
 - **Self-critique with receipts.** `docs/research/GAP-AUDIT.md` documents 14 shortcomings in KAOS — my own sibling framework — and 13 in BENE itself, each with verbatim command-level evidence, verified against source, not docs.
-- **Research-grounded.** `docs/research/SYNTHESIS.md` mines ~100 KB entries down to 48 citations, each mapped to a specific subsystem. `docs/design/MASTERMIND-RATIONALE.md` pressure-tests all 10 key decisions through Hassabis, Sutskever, and Karpathy lenses.
+- **Research-grounded.** `docs/research/SYNTHESIS.md` mines ~100 KB entries down to 48 citations, each mapped to a specific subsystem. `docs/design/DESIGN-RATIONALE.md` argues all 10 key decisions three ways — science, compression, engineering — and records every tension with its resolution.
 - **The design itself** (`docs/design/BENE2-DESIGN.md`, kernel DDL in `KERNEL-SPEC.md`): the thesis is *everything is an engram*. Three headliners:
   - an **engram compression ladder** — tier 0 raw trace → episodic → semantic → procedural → strategic, every tier provenance-linked, so you can always ask 'which traces does this skill compress, and did they pass eval?';
   - a **kill-gated breeding program** — promotion of an evolved harness requires an ACCEPT verdict from a process-isolated verifier; `PromotionBlocked` is a kernel exception, because un-gated evolution reward-hacks;
