@@ -1,5 +1,5 @@
 ---
-title: "BENE 0.1.0 verified 5-min demo script"
+title: "BENE 0.2.0 verified 5-min demo script"
 status: active
 owner: "@EdwardTang"
 created: 2026-06-11
@@ -9,14 +9,14 @@ scope: "task-prep/apple-em/bene2-kit"
 layer: cross-cutting
 cross_cutting: true
 name: bene2-demo-script-5min
-description: Timed 5-minute live demo script on BENE 0.1.0 with real executed command outputs plus a 60s BENE 2.0 vision close.
+description: Timed 5-minute live demo script on BENE 0.2.0 with real executed command outputs plus the shipped-kernel `bene demo --no-ui` close (supersedes the old spoken 2.0 vision close).
 ---
 
-# BENE 0.1.0 — 5-Minute Live Demo Script
+# BENE 0.2.0 — 5-Minute Live Demo Script
 
 **Context:** HM screen, Engineering Manager — AI Developer Tools, Apple DevEx (req 200658219-3337). Fri 2026-06-12 11:30 AM PT.
 **Demo machine:** run from `/home/admin/gh/bene-main` (repo venv `.venv`, all commands via `uv run`).
-**Every command and output below was executed for real on 2026-06-11 against BENE 0.1.0.** ULIDs/timestamps will differ on replay — copy them from your own output. Outputs were captured through a pipe, so BENE auto-emitted JSON; on a live TTY several commands (`ls`, `checkpoint`) render Rich tables instead — same data either way.
+**Every command and output below was executed for real on 2026-06-11 against BENE 0.2.0.** ULIDs/timestamps will differ on replay — copy them from your own output. Outputs were captured through a pipe, so BENE auto-emitted JSON; on a live TTY several commands (`ls`, `checkpoint`) render Rich tables instead — same data either way.
 
 **Pre-demo setup (run before the call, off-camera):**
 
@@ -37,10 +37,10 @@ uv run bene --version
 ```
 
 ```
-bene, version 0.1.0
+bene, version 0.2.0
 ```
 
-**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 445 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
+**Say:** "BENE is a local-first multi-agent orchestration framework I built — every agent gets an isolated, auditable virtual filesystem inside one SQLite file. 614 passing tests, 37 MCP tools, CLI + web UI + TUI. Let me show you the loop in five minutes."
 
 **Cumulative: 0:15**
 
@@ -277,11 +277,13 @@ uv run bene query "SELECT event_type, COUNT(*) AS n FROM events GROUP BY event_t
 
 ---
 
-## Close — BENE 2.0, designed, build in flight (4:00 → 5:00, spoken, no commands)
+## Close (OLD — superseded) — BENE 2.0 vision (4:00 → 5:00, spoken, no commands)
 
-> Label it honestly: **"This next part is designed, not shipped — phases 4–9 are pending. I'm showing you the design docs, not running code."**
+> ⚠️ **SUPERSEDED — see "UPDATE 2026-06-11 (evening)" at the end of this file: 0.2.0 shipped, the kernel is running code. Replace this spoken close with the `uv run bene demo --no-ui` beat + 30s talking point — that new beat REPLACES this 4:00 → 5:00 slot.**
 
-"What you just saw is 0.1.0. Yesterday I finished the 2.0 redesign, and the process is the part I'd bring to an EM role:
+> ~~Label it honestly: **"This next part is designed, not shipped — phases 4–9 are pending. I'm showing you the design docs, not running code."**~~ *(superseded — the kernel shipped; see UPDATE below)*
+
+"What you just saw is 0.2.0 — and the 2.0 kernel shipped last night. Yesterday I finished the 2.0 redesign, and the process is the part I'd bring to an EM role:
 
 - **Self-critique with receipts.** `docs/research/GAP-AUDIT.md` documents 14 shortcomings in KAOS — my own sibling framework — and 13 in BENE itself, each with verbatim command-level evidence, verified against source, not docs.
 - **Research-grounded.** `docs/research/SYNTHESIS.md` mines ~100 KB entries down to 48 citations, each mapped to a specific subsystem. `docs/design/MASTERMIND-RATIONALE.md` pressure-tests all 10 key decisions through Hassabis, Sutskever, and Karpathy lenses.
@@ -327,8 +329,12 @@ rm -rf "${BENE_DB%/*}"   # cleanup
 ## UPDATE 2026-06-11 (evening) — BENE 0.2.0 SHIPPED: the 2.0 close is now LIVE
 
 The "designed, build in flight" close is obsolete in the best way: **the kernel
-shipped the same day** (v0.2.0, 613 tests passing). The strongest possible
-demo beat now exists — one command, keyless, fresh directory, ~0.5s:
+shipped the same day** (v0.2.0, 614 tests passing). The strongest possible
+demo beat now exists — one command, keyless, fresh directory, ~0.3s:
+
+**Timing: this beat REPLACES the old Close (the 4:00 → 5:00 slot).** Run
+`bene demo --no-ui` (~5s incl. typing; the command itself completes in ~0.3s)
++ the 30s talking point ≈ 0:40 — total stays under 5:00.
 
 ```bash
 uv run bene demo --no-ui

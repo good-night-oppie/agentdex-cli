@@ -21,11 +21,11 @@ description: Consolidated bilingual (EN/中文) prep doc for the Apple EM AI Dev
 
 **Role:** Engineering Manager, AI Developer Tools — Apple, Developer Experience (DevEx) org, Software & Services / Cloud & Infrastructure. Req **200658219-3337**, Seattle.
 **Next round:** Fri **2026-06-12, 11:30 AM PT** — hiring-manager (HM) screen, **first round**. HM name not yet identified.
-**One-line strategy:** Lead with the BENE redesign narrative — two frameworks built, self-audited, re-architected through three master lenses; pillar-5 developer-trust thesis is the DevEx hook.
+**One-line strategy:** Lead with the BENE redesign narrative — two frameworks built, self-audited, re-architected through three master lenses; pillar-5 developer-trust thesis is the DevEx hook — now shipped as 0.2.0 the night before (614 tests, `bene demo --no-ui`); lead with designed→shipped-in-a-day, not design-only.
 
 **岗位：** Engineering Manager, AI Developer Tools — Apple 开发者体验（DevEx）组织，Software & Services / Cloud & Infrastructure。Req **200658219-3337**，西雅图。
 **下一轮：** 周五 **2026-06-12 上午 11:30（太平洋时间）** — 招聘经理（HM）screen，**第一轮**。HM 姓名尚未确认。
-**一句话策略：** 以 BENE 重设计叙事开场——亲手构建两个框架、用证据自我审计、再通过三位大师的视角重新架构；第五支柱"开发者信任"论点就是打进 DevEx 的钩子。
+**一句话策略：** 以 BENE 重设计叙事开场——亲手构建两个框架、用证据自我审计、再通过三位大师的视角重新架构；第五支柱"开发者信任"论点就是打进 DevEx 的钩子——已于前夜以 0.2.0 发布（614 测试，`bene demo --no-ui`）；以『一日内设计→交付』开场，而非仅设计稿。
 
 ## ⚡ LATEST INTEL / 最新情报
 
@@ -76,14 +76,14 @@ TODO — fold from `artifacts/apple_external_intel.md`.
 
 - `bene2-talk-track.md` — the six interview stories (the 0.1.0 predecessor harness → KAOS/BENE → gap audit → research synthesis → three lenses → trust pillar), framed for EM signals.
 - `design-defense-cards.md` — anticipated hard questions on the 2.0 design, each with a grounded answer and a pointer into the design docs.
-- `demo-script-5min.md` — 5-minute live demo script over BENE 0.1.0's verified surface (the part that works today; never demo 2.0 features).
+- `demo-script-5min.md` — 5-minute live demo script, updated for 0.2.0: the kernel demo `bene demo --no-ui` replaces the old spoken close (see §11 status update).
 - `paper-qa-cards.md` — Q&A cards over the 48-citation research synthesis (`docs/research/SYNTHESIS.md`).
 
 **已完成作业——BENE 2.0 面试套件（2026-06-11 完成），位于 `artifacts/bene2/`：**
 
 - `bene2-talk-track.md` — 六个面试故事（the 0.1.0 predecessor harness → KAOS/BENE → 差距审计 → 研究综述 → 三大师视角 → 信任支柱），按 EM 信号组织。
 - `design-defense-cards.md` — 针对 2.0 设计的预判刁钻问题，每条配有据可依的回答和设计文档出处。
-- `demo-script-5min.md` — 基于 BENE 0.1.0 已验证能力面的 5 分钟现场演示脚本（只演示今天真实可跑的部分；绝不演示 2.0 特性）。
+- `demo-script-5min.md` — 5 分钟现场演示脚本，已更新至 0.2.0：内核演示 `bene demo --no-ui` 取代原口述收尾（见 §11 状态更新）。
 - `paper-qa-cards.md` — 围绕 48 篇引用研究综述（`docs/research/SYNTHESIS.md`）的问答卡。
 
 Remaining homework map: TODO — mirror into `artifacts/apple_finalloop_INDEX.md`.
@@ -149,24 +149,24 @@ TODO — see `artifacts/apple-prep/recruiter-followup-questions.md`.
 4. agent 什么时候获得更高自治权？→ L0–L4：可证伪门槛 + trust ledger 阈值，按领域、可撤销（§3）。
 5. 这对 Apple DevEx 为什么重要？→ trust ledger + 全链路 provenance + 经探针验证的体验承诺 = 把"采用难题"用架构解决。
 
-### Honesty rule / 诚实规则
+### Honesty rule (SUPERSEDED — see STATUS UPDATE below) / 诚实规则（旧版已被取代——见下方状态更新）
 
-**BENE 0.1.0 works today** — 445 passing tests, 37 MCP tools, VFS-per-agent SQLite, checkpoints/diff/restore, FTS5 memory+skills, LogAct shared log, tier router with 5 providers, metaharness search with Pareto frontier, Temporal runtime, storage protocol (SQLite+Postgres), web UI + TUI, obsidian export. **BENE 2.0 is a design** — designed 2026-06-11, build in flight, phases 4–9 pending. Never present a 2.0 feature as working.
+**BENE 0.2.0 works today** — 614 passing tests (+3 skipped), 37 MCP tools, kernel shipped 2026-06-11 evening (phases 4–10 done: engrams + probes + breeding + memory OS + autonomy ladder + trust ledger). The line is now: "designed in the morning, shipped by evening — with a claims audit." **Still PLANNED (per docs/design/CLAIMS-AUDIT.md):** skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS/LoopGuard, entropy-routed retrieval. Never present a planned item as working.
 
-**BENE 0.1.0 今天就能跑** — 445 个通过的测试、37 个 MCP 工具、每 agent 独立 SQLite VFS、checkpoint/diff/restore、FTS5 记忆+技能、LogAct 共享日志、5 个 provider 的分层路由、带 Pareto 前沿的 metaharness 搜索、Temporal 持久运行时、存储协议（SQLite+Postgres）、web UI + TUI、obsidian 导出。**BENE 2.0 是设计稿** — 2026-06-11 完成设计，构建进行中，第 4–9 阶段待完成。绝不把 2.0 特性说成已可用。
+**BENE 0.2.0 今天就能跑** — 614 个通过的测试（另有 3 个跳过）、37 个 MCP 工具，kernel 已于 2026-06-11 傍晚发布（第 4–10 阶段完成：engrams + 探针 + 育种 + 记忆操作系统 + 自治阶梯 + trust ledger）。诚实表述现为："早晨设计、傍晚交付，并附带 claims audit。"**仍为规划项（见 docs/design/CLAIMS-AUDIT.md）：** 技能衰减/降级、夜间整合调度器、ContextOS/LoopGuard 的 runner 接线、熵路由检索。绝不把规划项说成已可用。
 
 ### STATUS UPDATE 2026-06-11 / 当日状态更新
 
 **BENE 0.2.0 shipped the evening before the screen**: all five pillars are
-running code (613 tests; kernel = engrams + probes + breeding + memory OS +
+running code (614 tests; kernel = engrams + probes + breeding + memory OS +
 autonomy ladder). The honesty line changes from "designed, build in flight" to
 "designed in the morning, shipped by evening — with a claims audit." Demo:
-`uv run bene demo --no-ui` (~0.5s, keyless).
+`uv run bene demo --no-ui` (~0.3s, keyless).
 
-**BENE 0.2.0 已在面试前夜发布**：五大支柱全部成为可运行代码（613 个测试；
+**BENE 0.2.0 已在面试前夜发布**：五大支柱全部成为可运行代码（614 个测试；
 kernel = engrams + 探针 + 育种 + 记忆操作系统 + 自治阶梯）。诚实表述从
 "已设计、构建进行中"升级为"早晨设计、傍晚交付，并附带 claims audit"。
-演示命令：`uv run bene demo --no-ui`（约 0.5 秒，无需密钥）。
+演示命令：`uv run bene demo --no-ui`（约 0.3 秒，无需密钥）。
 
 ## 12. Drills for confirmed problems / 确认题完整演练
 

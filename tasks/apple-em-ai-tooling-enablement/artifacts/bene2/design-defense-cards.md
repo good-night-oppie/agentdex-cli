@@ -18,7 +18,7 @@ Prep for: HM screen, Engineering Manager — AI Developer Tools, Apple DevEx (re
 
 Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1–D10), `docs/design/BENE2-DESIGN.md` (pillars, subsumption table, autonomy ladder), `docs/design/KERNEL-SPEC.md`, `docs/research/GAP-AUDIT.md` (14 KAOS + 13 BENE evidenced shortcomings), `docs/research/SYNTHESIS.md` (48 citations).
 
-**Honesty line (use verbatim if pressed):** BENE 0.1.0 is built and verified — 445 passing tests, 37 MCP tools. BENE 2.0 is a completed design with implementation in flight (phases 4–9 pending). I will never present a 2.0 feature as working; the design specifies it.
+**Honesty line (use verbatim if pressed):** BENE 0.2.0 is built and verified — shipped 2026-06-11 evening, 614 passing tests (145 kernel), 37 MCP tools, kernel phases 4–10 done. The claims audit (docs/design/CLAIMS-AUDIT.md) marks the remaining gaps as planned: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS/loop guards, entropy-routed retrieval, deterministic replay. I will never present a planned feature as working — and the audit is how you can check me.
 
 ---
 
@@ -26,7 +26,7 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** You already had two frameworks. Isn't a third just churn?
 
-**A:** It isn't a third codebase — that's the point of D10. BENE 2.0 is an additive kernel inside the existing BENE repo: legacy modules stay untouched and green (445 tests at every commit), adapters mirror writes, supersession is feature-flagged. I didn't extend KAOS because my own audit (GAP-AUDIT) found its structural gaps with command-level evidence: no durable runtime (KAOS-1), SQLite hard-wired with no storage protocol (KAOS-2), an autonomy ladder that exists only as markdown — `grep autonomy kaos/ = 0 hits` (KAOS-3). BENE 0.1.0 already held exactly those surfaces (Temporal, storage protocol, runtime abstraction). The 55-row subsumption table shows 2.0 subsumes both lineages: 24 kept, 8 kept+, 8 re-derived, 15 surpassed.
+**A:** It isn't a third codebase — that's the point of D10. BENE 2.0 is an additive kernel inside the existing BENE repo: legacy modules stay untouched and green — verified at every one of the 16 commits; the full suite now sits at 614 passing with 145 new kernel tests — adapters mirror writes, supersession is feature-flagged. I didn't extend KAOS because my own audit (GAP-AUDIT) found its structural gaps with command-level evidence: no durable runtime (KAOS-1), SQLite hard-wired with no storage protocol (KAOS-2), an autonomy ladder that exists only as markdown — `grep autonomy kaos/ = 0 hits` (KAOS-3). BENE 0.1.0 already held exactly those surfaces (Temporal, storage protocol, runtime abstraction). The 55-row subsumption table shows 2.0 subsumes both lineages: 20 kept, 11 kept+, 7 re-derived, 17 surpassed.
 
 ## Card 2 — "Why local-first SQLite? Does this scale?"
 
@@ -50,7 +50,7 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** This is your personal project. What's the first thing you'd actually build for our engineers?
 
-**A:** The trust surface, not another agent. Pillar 5's thesis is the DevEx hook: engineers adopt agent tooling only when they trust it — make every claim checkable. Concretely, first quarter: provenance on agent output (what trace produced this change), a computed per-agent trust report (D8's four deterministic signals), and context-assembly manifests showing what the agent saw and dropped — layered onto whatever internal agent tooling Apple already runs, not replacing it. Second: the experience bar — first-run under 60 seconds, keyless, guidance instead of tracebacks, `--json` everywhere for composability. The design specifies these mechanisms; at Apple I'd adapt them to the existing stack rather than import my codebase.
+**A:** The trust surface, not another agent. Pillar 5's thesis is the DevEx hook: engineers adopt agent tooling only when they trust it — make every claim checkable. Concretely, first quarter: provenance on agent output (what trace produced this change), a computed per-agent trust report (D8's four deterministic signals), and context-assembly manifests showing what the agent saw and dropped — layered onto whatever internal agent tooling Apple already runs, not replacing it. Second: the experience bar — first-run under 60 seconds, keyless, guidance instead of tracebacks, `--json` everywhere for composability. These mechanisms shipped in 0.2.0 — mandatory provenance, `bene trust`, ContextOS manifests — so at Apple I'd be adapting working mechanisms to the existing stack, not importing my codebase or selling a paper design.
 
 ## Card 6 — "How would you staff and sequence this as an EM?"
 
@@ -62,25 +62,25 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** Six weeks to ship. What goes?
 
-**A:** Cut by the design's own non-goals (BENE2-DESIGN §6). Defer: the harness-layer middleware explicitly built to be deleted — debt sweeper, loop guards (pillar 4); the Postgres/scale path (D5 says it's pluggable, so it can wait); LLM-based pollution scorers, because D9 deliberately puts deterministic signals first and the scorer interface is pluggable above the kernel. Never cut: kill-gated promotion (D3 — `PromotionBlocked` is a kernel exception, not a convention), mandatory provenance, and the legacy suite staying green. The rationale's own line is the answer: a gate you can renegotiate under pressure is not a gate. Cutting verification to ship faster is how you ship slop faster.
+**A:** Cut by the design's own non-goals (BENE2-DESIGN §6) and the claims audit's planned column. Defer: the still-planned column — nightly consolidation scheduler, entropy-routed retrieval, deterministic replay, the Postgres/scale path (D5 says it's pluggable, so it can wait) — plus LLM-based pollution scorers, because D9 deliberately puts deterministic signals first and the scorer interface is pluggable above the kernel. The harness middleware (sweeper, guards) already shipped cheap and is built to be deleted, so it costs nothing to keep. Never cut: kill-gated promotion (D3 — `PromotionBlocked` is a kernel exception, not a convention), mandatory provenance, and the legacy suite staying green. The rationale's own line is the answer: a gate you can renegotiate under pressure is not a gate. Cutting verification to ship faster is how you ship slop faster.
 
 ## Card 8 — "How do you stop agents from shipping slop at scale?"
 
 **Q:** Agents generate volume. How do you keep that from rotting the codebase?
 
-**A:** Defense in depth, all in the design. Promotion gates: nothing evolved goes active without an ACCEPT verdict (D3), and the verifier is process-isolated from the evolver — AEVO observed reward hacking in 2 of 3 runs when that boundary was removed. Blast radius: the autonomy ladder (D4) keeps agents at L2 sandbox until trust is earned per capability domain; denials are recorded. Continuous GC: a scheduled debt sweeper scans for slop signatures — debug prints, stale TODOs, duplicated blocks, dead imports — emitting report engrams (pillar 4, after OpenAI's harness-engineering pt 7). Loop guards trip on repeated near-identical actions. And the default-fail stance: everything is unverified until an end-to-end check says otherwise.
+**A:** Defense in depth, all shipped in 0.2.0 (the one tracked gap: wiring loop guards into the live runner loop). Promotion gates: nothing evolved goes active without an ACCEPT verdict (D3), and the verifier is process-isolated from the evolver — AEVO observed reward hacking in 2 of 3 runs when that boundary was removed. Blast radius: the autonomy ladder (D4) keeps agents at L2 sandbox until trust is earned per capability domain; denials are recorded. Continuous GC: an on-demand debt sweeper (`bene sweep`; scheduling it is a cron line away) scans for slop signatures — debug prints, stale TODOs, duplicated blocks, dead imports — emitting report engrams (pillar 4, after OpenAI's harness-engineering pt 7). Loop guards trip on repeated near-identical actions. And the default-fail stance: everything is unverified until an end-to-end check says otherwise.
 
 ## Card 9 — "Why should an engineer trust agent output — concretely?"
 
 **Q:** Not philosophy. What does the engineer actually see?
 
-**A:** Three artifacts, all specified in pillar 5 and D8. First, `bene trust <agent>`: a computed ledger — verification coverage, audit completeness, checkpoint discipline, recency-weighted outcome reliability — per capability domain, never one magic number, formulas documented and deterministic. Trust is computed from logged events, never declared; a claim with no verifying event scores against the agent. Second, provenance: every engram requires it, so "which traces does this skill compress, and did they pass eval?" is one lineage query. Third, the context manifest: exactly what the agent saw and what was dropped when it produced the output. Goodhart is addressed: trust inputs are themselves gated verification artifacts. Status: designed; implementation in flight.
+**A:** Three artifacts, all specified in pillar 5 and D8. First, `bene trust <agent>`: a computed ledger — verification coverage, audit completeness, checkpoint discipline, recency-weighted outcome reliability — per capability domain, never one magic number, formulas documented and deterministic. Trust is computed from logged events, never declared; a claim with no verifying event scores against the agent. Second, provenance: every engram requires it, so "which traces does this skill compress, and did they pass eval?" is one lineage query. Third, the context manifest: exactly what the agent saw and what was dropped when it produced the output. Goodhart is addressed: trust inputs are themselves gated verification artifacts. Status: shipped in 0.2.0 — `bene trust` is a live CLI command, provenance is enforced at engram write time, and ContextOS emits budget-capped context manifests as a kernel module (wiring it into the live runner loop is the one tracked next step).
 
 ## Card 10 — "What's the 6-month roadmap and how do you measure it?"
 
 **Q:** Where is this in six months, and how do I know it's working?
 
-**A:** Honestly: 2.0 is designed today; phases 4–9 are pending. The roadmap is the phase-numbered port plan (KERNEL-SPEC §4): engram substrate plus adapters with the back-compat checksum test, then eval/trust, gated evolution, memory/context OS, harness layer, and the experience phase shipping as 0.2.0 at phase 9 — closing with a claims audit (phase 10) that reconciles what's mirrored versus native. Measurement is the design's own litmus tests: the 445-test legacy suite green at every commit, `bene demo` under 60 seconds keyless, probe ACCEPTs per pillar, trust ledger live and consumed by L3/L4 gating. Every milestone is a falsifiable artifact — which is also how I'd report progress upward.
+**A:** Honestly: the kernel shipped last night — phases 4–10 done, 0.2.0 out, closed with a claims audit reconciling implemented vs planned. The next six months are the audit's planned column: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS and loop guards, entropy-routed retrieval, deterministic replay tooling. Measurement stays the same litmus tests: full suite green (614 today), `bene demo` keyless in ~0.3s, probe ACCEPTs per pillar, trust ledger live and consumed by L3/L4 gating. Every milestone is a falsifiable artifact — which is also how I'd report progress upward.
 
 ## Card 11 — "Isn't this over-engineered? Ten decisions through three famous lenses sounds like decoration."
 
@@ -96,4 +96,4 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 ---
 
-*12 cards. All claims trace to docs read on disk; 2.0 features are designed, not built — phases 4–9 in flight.*
+*12 cards. All claims trace to docs read on disk; the 2.0 kernel shipped 2026-06-11 (phases 4–10, v0.2.0, 614 tests) — remaining gaps tracked as planned in CLAIMS-AUDIT.md.*
