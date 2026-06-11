@@ -68,6 +68,7 @@ cross_cutting: true
 - [sweeps/](sweeps/) — audit artifacts
 - [feedback_gap_log_review memory](~/.claude/projects/-home-admin-gh-agentdex-cli/memory/feedback_gap_log_review.md) — review cadence
 - [AAOP MVP verdicts](docs/references/2026-06-10-aaop-mvp-verdicts.md) — 16-paper corpus → 6 refuted MVPs + whitespace (phase-9 strategy anchor)
+- [EvoMap deep-dive](docs/references/2026-06-11-evomap-deep-dive.md) — adversarially-verified dossier; Gene-vs-Seed anatomy + Delta-Meter case study (#562)
 
 ## Learned notes
 
