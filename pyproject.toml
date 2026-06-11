@@ -10,6 +10,7 @@ members = [
   "packages/agentdex_engine",
   "packages/agentdex_plugin",
   "packages/adx_bridges",
+  "packages/adx_showdown",
   "packages/helios_client",
   "packages/agentdex_observe",
   "packages/kaos",
@@ -20,6 +21,7 @@ agentdex-cli     = { workspace = true }
 agentdex-engine  = { workspace = true }
 agentdex-plugin  = { workspace = true }
 adx-bridges      = { workspace = true }
+adx-showdown     = { workspace = true }
 helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }
 kaos             = { workspace = true }
@@ -31,6 +33,9 @@ kaos             = { workspace = true }
 # AGENTS.md:28 was config-only theater. Install via `uv sync --group dev`.
 [dependency-groups]
 dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "pytest-timeout>=2.3",
   "ruff>=0.13.4",
   "mypy>=1.18.2",
   "pre-commit>=4.0.0",
@@ -100,6 +105,7 @@ addopts = "--import-mode=importlib"
 norecursedirs = ["packages/kaos/tests", "vendor", ".venv", "_attic", "expeditions"]
 testpaths = [
   "packages/adx_bridges/tests",
+  "packages/adx_showdown/tests",
   "packages/agentdex_cli/tests",
   "packages/agentdex_engine/tests",
   "packages/agentdex_plugin/tests",
