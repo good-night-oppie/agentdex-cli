@@ -39,7 +39,13 @@ def test_parse_request_sanitizes_nicknames_at_boundary():
             {
                 "moves": [
                     {"id": "thunderbolt", "move": "Thunderbolt", "pp": 24, "maxpp": 24},
-                    {"id": "irontail", "move": "Iron|/Tail<inject>", "pp": 24, "maxpp": 24, "disabled": True},
+                    {
+                        "id": "irontail",
+                        "move": "Iron|/Tail<inject>",
+                        "pp": 24,
+                        "maxpp": 24,
+                        "disabled": True,
+                    },
                 ]
             }
         ],

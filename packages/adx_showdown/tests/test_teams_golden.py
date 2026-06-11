@@ -20,9 +20,7 @@ from adx_showdown.sidecar import Sidecar, sidecar_available
 from adx_showdown.sim import replay_input_log, run_battle, seeded_random_policy
 from adx_showdown.teams import starter_pack, validate_starter_pack
 
-pytestmark = pytest.mark.skipif(
-    sidecar_available() is not None, reason=str(sidecar_available())
-)
+pytestmark = pytest.mark.skipif(sidecar_available() is not None, reason=str(sidecar_available()))
 
 GOLDEN_DIR = Path(__file__).resolve().parents[3] / "tests" / "golden" / "arena"
 GOLDEN_FILES = sorted(GOLDEN_DIR.glob("battle_*.json"))

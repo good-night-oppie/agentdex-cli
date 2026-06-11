@@ -24,9 +24,7 @@ from adx_showdown.sim import (
     seeded_random_policy,
 )
 
-pytestmark = pytest.mark.skipif(
-    sidecar_available() is not None, reason=str(sidecar_available())
-)
+pytestmark = pytest.mark.skipif(sidecar_available() is not None, reason=str(sidecar_available()))
 
 
 def _battle_spec(i: int, *, seed_base: int = 1000) -> dict:

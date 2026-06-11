@@ -148,8 +148,4 @@ def move_only_choices(req: ParsedRequest) -> list[str]:
 
 def switch_only_choices(req: ParsedRequest) -> list[str]:
     """Fallback set when a move was rejected (e.g. Disable/Imprison race)."""
-    return [
-        f"switch {slot.index}"
-        for slot in req.bench
-        if not slot.active and not slot.fainted
-    ]
+    return [f"switch {slot.index}" for slot in req.bench if not slot.active and not slot.fainted]

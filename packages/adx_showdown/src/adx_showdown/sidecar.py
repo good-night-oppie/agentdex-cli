@@ -90,7 +90,7 @@ class Sidecar:
             if self._proc.returncode is None:
                 try:
                     await asyncio.wait_for(self.request("shutdown"), timeout=5)
-                except (SidecarError, asyncio.TimeoutError):
+                except (TimeoutError, SidecarError):
                     self._proc.kill()
             await asyncio.wait_for(self._proc.wait(), timeout=10)
         finally:
