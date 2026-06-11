@@ -16,7 +16,7 @@ description: Twelve challenge→answer cards defending the BENE 2.0 design decis
 
 Prep for: HM screen, Engineering Manager — AI Developer Tools, Apple DevEx (req 200658219-3337, Seattle), Fri 2026-06-12 11:30 AM PT.
 
-Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1–D10), `docs/design/BENE2-DESIGN.md` (pillars, subsumption table, autonomy ladder), `docs/design/KERNEL-SPEC.md`, `docs/research/GAP-AUDIT.md` (14 KAOS + 13 BENE evidenced shortcomings), `docs/research/SYNTHESIS.md` (48 citations).
+Sources (all on disk, all verifiable): `docs/design/DESIGN-RATIONALE.md` (D1–D10), `docs/design/BENE2-DESIGN.md` (pillars, subsumption table, autonomy ladder), `docs/design/KERNEL-SPEC.md`, `docs/research/GAP-AUDIT.md` (14 KAOS + 13 BENE evidenced shortcomings), `docs/research/SYNTHESIS.md` (48 citations).
 
 **Honesty line (use verbatim if pressed):** BENE 0.2.0 is built and verified — shipped 2026-06-11 evening, 615 passing tests (145 kernel), 37 MCP tools, kernel phases 4–10 done. The claims audit (docs/design/CLAIMS-AUDIT.md) marks the remaining gaps as planned: skill decay/demotion, nightly consolidation scheduler, runner wiring of ContextOS/loop guards, entropy-routed retrieval, deterministic replay. I will never present a planned feature as working — and the audit is how you can check me.
 
@@ -32,7 +32,7 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** A single .db file feels like a toy. How does this survive real load?
 
-**A:** D5 resolves this by separating planes. The data plane stays one auditable SQLite file because legibility is the product — a human or an agent can `sqlite3` into the whole engagement. The execution plane is already Temporal: durable, distributed, retry/replay — the edge KAOS lacks (KAOS-1). When an engagement outgrows one file, the storage protocol (idempotency keys, SQLite + Postgres backends, verified in 0.1.0) swaps the backend without touching the kernel. Scale-out is horizontal engagement sharding plus hub sync, not a cluster dependency. This was the decision Hassabis's lens pushed hardest against, and the rationale records that tension explicitly — a framework that needs a cluster to demo has already lost the demo.
+**A:** D5 resolves this by separating planes. The data plane stays one auditable SQLite file because legibility is the product — a human or an agent can `sqlite3` into the whole engagement. The execution plane is already Temporal: durable, distributed, retry/replay — the edge KAOS lacks (KAOS-1). When an engagement outgrows one file, the storage protocol (idempotency keys, SQLite + Postgres backends, verified in 0.1.0) swaps the backend without touching the kernel. Scale-out is horizontal engagement sharding plus hub sync, not a cluster dependency. This was the decision the scale instinct pushed hardest against, and the rationale records that tension explicitly — a framework that needs a cluster to demo has already lost the demo.
 
 ## Card 3 — "Why evolve harness text instead of fine-tuning the model?"
 
@@ -44,7 +44,7 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** Everyone uses benchmarks. Why invent your own evaluation religion?
 
-**A:** Because benchmark score and real-world generalization demonstrably disconnect — that's Sutskever's sharpest criticism, and Karpathy publicly lost trust in benchmarks in 2025 (D6). A probe is a pre-registered, sha256-locked spec with kill gates yielding ACCEPT/REJECT/VOID; tampering makes it refuse to run, and the admissibility self-test voids any probe whose baseline can't trigger a kill — dishonest probes are cheap to detect. Benchmarks aren't discarded: they remain fitness signals *inside* evolution, never promotion evidence. The discipline has a track record: KAOS v0.9 evaluated six candidates under it and shipped zero — REJECT counted as success. No retune-and-rerun: a gate you can renegotiate after seeing results is not a gate.
+**A:** Because benchmark score and real-world generalization demonstrably disconnect — the eval-vs-reality disconnect is one of the field's best-documented embarrassments, and 2025 was the year much of the field admitted it out loud (D6). A probe is a pre-registered, sha256-locked spec with kill gates yielding ACCEPT/REJECT/VOID; tampering makes it refuse to run, and the admissibility self-test voids any probe whose baseline can't trigger a kill — dishonest probes are cheap to detect. Benchmarks aren't discarded: they remain fitness signals *inside* evolution, never promotion evidence. The discipline has a track record: KAOS v0.9 evaluated six candidates under it and shipped zero — REJECT counted as success. No retune-and-rerun: a gate you can renegotiate after seeing results is not a gate.
 
 ## Card 5 — "How does this translate to Apple DevEx? What would you build first?"
 
@@ -56,7 +56,7 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 **Q:** Team shape and milestones — walk me through it.
 
-**A:** I'd run the sequence I actually ran: evidence first (GAP-AUDIT-style audit of existing tooling, with command-level receipts), then design with recorded tensions (D1–D10 each document who pushed back and how it resolved), then additive build — existing surface green at every commit (D10), phase-numbered port plan (KERNEL-SPEC §4), claims audit at the end. Team shape: small and ownership-based — a substrate/platform owner, an eval-and-trust owner, an experience/CLI owner — mirroring the pillars. Sequencing follows Hassabis's 70/30: most capacity keeps the working system scaling while the new core grows beside it, and you pivot hard only at the proof point — after the win, not before. Milestones are gated on probe ACCEPTs, not demos.
+**A:** I'd run the sequence I actually ran: evidence first (GAP-AUDIT-style audit of existing tooling, with command-level receipts), then design with recorded tensions (D1–D10 each document who pushed back and how it resolved), then additive build — existing surface green at every commit (D10), phase-numbered port plan (KERNEL-SPEC §4), claims audit at the end. Team shape: small and ownership-based — a substrate/platform owner, an eval-and-trust owner, an experience/CLI owner — mirroring the pillars. Sequencing follows a 70/30 dual-track: most capacity keeps the working system scaling while the new core grows beside it, and you pivot hard only at the proof point — after the win, not before. Milestones are gated on probe ACCEPTs, not demos.
 
 ## Card 7 — "What would you cut under deadline pressure?"
 
@@ -84,9 +84,9 @@ Sources (all on disk, all verifiable): `docs/design/MASTERMIND-RATIONALE.md` (D1
 
 ## Card 11 — "Isn't this over-engineered? Ten decisions through three famous lenses sounds like decoration."
 
-**Q:** Engram ladders, autonomy ladders, three masterminds — is this architecture astronautics?
+**Q:** Engram ladders, autonomy ladders, a three-lens rationale — is this architecture astronautics?
 
-**A:** The lenses are falsifiable heuristics, and the proof they're not decoration is that several decisions came out *differently* than a single-lens design would: in D10, Sutskever's clean-rewrite purity loses to Karpathy-plus-Hassabis deployment realism; in D5, Hassabis's scale instinct loses to separation of planes. Karpathy's "don't be a hero" anti-over-engineering pushback is itself built into the architecture — D1 keeps the substrate deliberately thin (kind, tier, payload-ref, provenance, links) precisely because a universal store risks doing nothing well, and D10 forbids the big-bang rewrite. Every tension is recorded with its resolution, which is the project's thesis applied to itself: make every claim checkable, including the design's own.
+**A:** The lenses are three questions — what would prove this wrong (science), what's the smallest representation that still works (compression), what breaks at the tail (engineering) — and the proof they're not decoration is that several decisions came out *differently* than a single-lens design would: in D10, the compression lens's clean-rewrite purity loses to deployment realism; in D5, the scale instinct loses to separation of planes. The anti-over-engineering pushback is itself built into the architecture — D1 keeps the substrate deliberately thin (kind, tier, payload-ref, provenance, links) precisely because a universal store risks doing nothing well, and D10 forbids the big-bang rewrite. Every tension is recorded with its resolution, which is the project's thesis applied to itself: make every claim checkable, including the design's own.
 
 ## Card 12 — "What failed in v1? What did your own audit find?"
 
