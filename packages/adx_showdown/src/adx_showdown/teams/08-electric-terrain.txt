@@ -1,0 +1,60 @@
+Pincurchin @ Terrain Extender
+Ability: Electric Surge
+Tera Type: Water
+EVs: 252 HP / 252 Atk / 4 SpD
+Adamant Nature
+- Zing Zap
+- Spikes
+- Toxic Spikes
+- Memento
+
+Hawlucha @ Grassy Seed
+Ability: Unburden
+Tera Type: Fighting
+EVs: 252 Atk / 4 SpD / 252 Spe
+Adamant Nature
+- Swords Dance
+- Close Combat
+- Acrobatics
+- Encore
+
+Iron Valiant @ Booster Energy
+Ability: Quark Drive
+Tera Type: Electric
+EVs: 252 SpA / 4 SpD / 252 Spe
+Timid Nature
+- Moonblast
+- Thunderbolt
+- Aura Sphere
+- Calm Mind
+
+Raging Bolt @ Booster Energy
+Ability: Protosynthesis
+Tera Type: Electric
+EVs: 252 HP / 252 SpA / 4 SpD
+Modest Nature
+IVs: 20 Atk
+- Thunderclap
+- Thunderbolt
+- Draco Meteor
+- Calm Mind
+
+Kingambit @ Leftovers
+Ability: Supreme Overlord
+Tera Type: Dark
+EVs: 252 Atk / 4 SpD / 252 Spe
+Adamant Nature
+- Kowtow Cleave
+- Sucker Punch
+- Iron Head
+- Swords Dance
+
+Great Tusk @ Heavy-Duty Boots
+Ability: Protosynthesis
+Tera Type: Steel
+EVs: 252 Atk / 4 SpD / 252 Spe
+Jolly Nature
+- Headlong Rush
+- Knock Off
+- Rapid Spin
+- Stealth Rock

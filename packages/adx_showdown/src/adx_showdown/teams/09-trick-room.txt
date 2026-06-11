@@ -1,0 +1,65 @@
+Hatterene @ Life Orb
+Ability: Magic Bounce
+Tera Type: Psychic
+EVs: 252 HP / 252 SpA / 4 SpD
+Quiet Nature
+IVs: 0 Atk / 0 Spe
+- Trick Room
+- Expanding Force
+- Draining Kiss
+- Mystical Fire
+
+Indeedee @ Choice Specs
+Ability: Psychic Surge
+Tera Type: Psychic
+EVs: 252 HP / 252 SpA / 4 SpD
+Quiet Nature
+IVs: 0 Atk / 0 Spe
+- Expanding Force
+- Hyper Voice
+- Shadow Ball
+- Trick
+
+Ursaluna @ Flame Orb
+Ability: Guts
+Tera Type: Normal
+EVs: 252 HP / 252 Atk / 4 SpD
+Brave Nature
+IVs: 0 Spe
+- Facade
+- Headlong Rush
+- Fire Punch
+- Swords Dance
+
+Iron Hands @ Assault Vest
+Ability: Quark Drive
+Tera Type: Water
+EVs: 252 HP / 252 Atk / 4 SpD
+Brave Nature
+IVs: 0 Spe
+- Drain Punch
+- Thunder Punch
+- Ice Punch
+- Heavy Slam
+
+Glowking @ Heavy-Duty Boots
+Ability: Regenerator
+Tera Type: Water
+EVs: 252 HP / 16 Def / 240 SpD
+Sassy Nature
+IVs: 0 Atk / 0 Spe
+- Trick Room
+- Future Sight
+- Sludge Bomb
+- Slack Off
+
+Great Tusk @ Heavy-Duty Boots
+Ability: Protosynthesis
+Tera Type: Steel
+EVs: 252 HP / 252 Atk / 4 SpD
+Brave Nature
+IVs: 0 Spe
+- Headlong Rush
+- Knock Off
+- Rapid Spin
+- Stealth Rock
