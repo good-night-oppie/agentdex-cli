@@ -1,0 +1,62 @@
+Tyranitar @ Leftovers
+Ability: Sand Stream
+Tera Type: Fairy
+EVs: 252 HP / 4 Atk / 252 SpD
+Careful Nature
+- Stealth Rock
+- Knock Off
+- Stone Edge
+- Thunder Wave
+
+Excadrill @ Leftovers
+Ability: Sand Rush
+Tera Type: Steel
+EVs: 252 Atk / 4 SpD / 252 Spe
+Jolly Nature
+- Earthquake
+- Iron Head
+- Rapid Spin
+- Swords Dance
+
+Rotom-Wash @ Leftovers
+Ability: Levitate
+Tera Type: Electric
+EVs: 252 HP / 252 Def / 4 SpD
+Bold Nature
+IVs: 0 Atk
+- Hydro Pump
+- Volt Switch
+- Will-O-Wisp
+- Pain Split
+
+Amoonguss @ Heavy-Duty Boots
+Ability: Regenerator
+Tera Type: Water
+EVs: 252 HP / 168 Def / 88 SpD
+Bold Nature
+IVs: 0 Atk
+- Stun Spore
+- Giga Drain
+- Sludge Bomb
+- Clear Smog
+
+Skarmory @ Rocky Helmet
+Ability: Sturdy
+Tera Type: Dragon
+EVs: 252 HP / 252 Def / 4 SpD
+Impish Nature
+- Brave Bird
+- Spikes
+- Roost
+- Whirlwind
+
+Hatterene @ Leftovers
+Ability: Magic Bounce
+Tera Type: Water
+EVs: 252 HP / 252 Def / 4 SpD
+Bold Nature
+IVs: 0 Atk
+- Psychic Noise
+- Draining Kiss
+- Calm Mind
+- Nuzzle

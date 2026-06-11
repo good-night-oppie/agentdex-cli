@@ -1,0 +1,61 @@
+Dragapult @ Choice Band
+Ability: Clear Body
+Tera Type: Dragon
+EVs: 252 Atk / 4 SpD / 252 Spe
+Jolly Nature
+- Dragon Darts
+- Phantom Force
+- U-turn
+- Sucker Punch
+
+Dragonite @ Heavy-Duty Boots
+Ability: Multiscale
+Tera Type: Normal
+EVs: 252 Atk / 4 SpD / 252 Spe
+Adamant Nature
+- Dragon Dance
+- Extreme Speed
+- Earthquake
+- Roost
+
+Hydrapple @ Heavy-Duty Boots
+Ability: Regenerator
+Tera Type: Steel
+EVs: 252 HP / 252 Def / 4 SpD
+Bold Nature
+IVs: 0 Atk
+- Fickle Beam
+- Giga Drain
+- Nasty Plot
+- Recover
+
+Kingambit @ Leftovers
+Ability: Supreme Overlord
+Tera Type: Fairy
+EVs: 252 Atk / 4 SpD / 252 Spe
+Adamant Nature
+- Kowtow Cleave
+- Sucker Punch
+- Iron Head
+- Swords Dance
+
+Zamazenta @ Heavy-Duty Boots
+Ability: Dauntless Shield
+Tera Type: Fire
+EVs: 252 HP / 4 Atk / 252 Spe
+Jolly Nature
+- Body Press
+- Crunch
+- Iron Defense
+- Roar
+
+Primarina @ Assault Vest
+Ability: Liquid Voice
+Tera Type: Water
+EVs: 252 HP / 252 SpA / 4 SpD
+Modest Nature
+IVs: 0 Atk
+- Hyper Voice
+- Moonblast
+- Psychic Noise
+- Flip Turn

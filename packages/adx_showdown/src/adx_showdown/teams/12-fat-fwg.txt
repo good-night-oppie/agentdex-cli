@@ -1,0 +1,62 @@
+Skeledirge @ Heavy-Duty Boots
+Ability: Unaware
+Tera Type: Fairy
+EVs: 252 HP / 4 Def / 252 SpD
+Calm Nature
+IVs: 0 Atk
+- Torch Song
+- Hex
+- Will-O-Wisp
+- Slack Off
+
+Alomomola @ Heavy-Duty Boots
+Ability: Regenerator
+Tera Type: Ghost
+EVs: 252 HP / 252 Def / 4 SpD
+Impish Nature
+- Flip Turn
+- Wish
+- Protect
+- Scald
+
+Amoonguss @ Heavy-Duty Boots
+Ability: Regenerator
+Tera Type: Water
+EVs: 252 HP / 168 Def / 88 SpD
+Bold Nature
+IVs: 0 Atk
+- Stun Spore
+- Giga Drain
+- Sludge Bomb
+- Stomping Tantrum
+
+Ting-Lu @ Leftovers
+Ability: Vessel of Ruin
+Tera Type: Fairy
+EVs: 252 HP / 4 Atk / 252 SpD
+Careful Nature
+- Earthquake
+- Ruination
+- Spikes
+- Whirlwind
+
+Corviknight @ Rocky Helmet
+Ability: Pressure
+Tera Type: Dragon
+EVs: 252 HP / 252 Def / 4 SpD
+Impish Nature
+- Brave Bird
+- Body Press
+- Roost
+- Defog
+
+Hatterene @ Leftovers
+Ability: Magic Bounce
+Tera Type: Water
+EVs: 252 HP / 252 Def / 4 SpD
+Bold Nature
+IVs: 0 Atk
+- Psychic Noise
+- Draining Kiss
+- Calm Mind
+- Healing Wish

@@ -1,0 +1,10 @@
+{
+  "name": "adx-showdown-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node sidecar host for pokemon-showdown BattleStream multiplexing (driven by adx_showdown over NDJSON/stdio)",
+  "type": "module",
+  "dependencies": {
+    "pokemon-showdown": "0.11.10"
+  }
+}
