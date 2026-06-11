@@ -1,5 +1,5 @@
 ---
-title: "EvoMap.ai deep-dive dossier (adversarially verified)"
+title: "EvoMap.ai deep-dive dossier (adversarially verified) — INTERNAL ONLY"
 status: active
 owner: "@EdwardTang"
 created: 2026-06-11
@@ -11,6 +11,13 @@ cross_cutting: true
 ---
 
 # EvoMap.ai 深度拆解档案（Final Dossier）
+
+> **🔒 INTERNAL ONLY — 禁止发布 / DO NOT PUBLISH (user directive 2026-06-11).**
+> 本档案含对真实公司的竞争性评估,且对象有按「结构同构」公开发难的前科 (Nous
+> Hermes 事件)。任何对外物料 (blog / deck / 访谈) 不得引用本文措辞或结论原文;
+> 若需公开比较,走 §6.3 Option 2 的 quiet 版 (以 Tessl / claude-reflect 为对象,
+> 不点名 EvoMap),并先过一页 attribution/clean-room ADR。repo 本身 PRIVATE,
+> 但本 banner 防 repo 未来转 public / 内容被复制外流。
 
 日期：2026-06-11 ｜ 受众：Good Night Oppie CTO ｜ 证据基线：evomap.ai 站点抓取、GitHub/npm（EvoMap org）、Superlinear Academy 原帖 + 2h 访谈、本地 vendored 源码 `/home/admin/gh/agentdex-cli/vendor/aaop/evomap-evolver`（commit 49f38a8c）、公网扫描（2026-06-11）。**所有结论已经对抗性核查；核查修正优先于原始 collector 判断。**
 
