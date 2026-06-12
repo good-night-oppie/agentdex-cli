@@ -37,6 +37,7 @@ from adx_showdown.bots import heuristic_bot, max_damage_bot, random_bot
 from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
 from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, call_policy
+from adx_showdown.teams import pack_team, starter_pack, validate_team
 from agentdex_engine.modules.arena import (
     EventLog,
     Ladder,
@@ -54,6 +55,19 @@ log = logging.getLogger(__name__)
 Lane = Literal["sandbox", "rated"]
 GYM_LEADERS = ("anchor-random", "anchor-max_damage", "anchor-heuristic")
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
+
+# Break-the-mirror (#3, sandbox lane): each gym leader fields a FIXED, DISCLOSED
+# signature team drawn from the starter pack by sorted index — distinct from the
+# visitor's default (pack index 0), so even two defaults never mirror. The packed
+# team is returned in the begin response: sandbox is the open-information matchup
+# puzzle; scouting it is the point. Rated keeps the mirror until backlog #8 lands
+# the i.i.d. anchor-team defense.
+GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
+
+
+def _gym_team_name(opponent: str) -> str:
+    names = sorted(starter_pack())
+    return names[GYM_TEAM_INDEX.get(opponent, 1) % len(names)]
 
 
 def _opaque_error(status: int, exc: Exception | str) -> HTTPException:
@@ -278,8 +292,6 @@ class ArenaGateway:
         )
         team = req.team
         if team is None:
-            from adx_showdown.teams import pack_team, starter_pack
-
             team = await pack_team(sidecar, next(iter(starter_pack().values())))
         else:
             # A client-supplied team is UNTRUSTED: validate against the pinned
@@ -287,11 +299,15 @@ class ArenaGateway:
             # F3 "an invalid team simply cannot play" contract that BeginRequest.team
             # only asserted in a comment — closing the trust gap the authoring loop
             # (POST /team/draft) leans on. Ship the gate before the axis it protects.
-            from adx_showdown.teams import validate_team
-
             valid, errors = await validate_team(sidecar, team)
             if not valid:
                 raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
+        if req.lane == "sandbox":
+            gym_team_name = _gym_team_name(opponent)
+            opp_team = await pack_team(sidecar, starter_pack()[gym_team_name])
+        else:
+            gym_team_name = None
+            opp_team = team  # rated keeps the mirror until #8 (i.i.d. anchor-team defense)
         try:
             resp = await sidecar.request(
                 "start",
@@ -299,7 +315,7 @@ class ArenaGateway:
                 format="gen9ou",
                 seed=seed,
                 p1={"name": visitor, "team": team},
-                p2={"name": opponent, "team": team},  # mirror vs gym for MVP fairness
+                p2={"name": opponent, "team": opp_team},
             )
         except SidecarError as e:
             # The shared sim caps concurrent live battles. Surface that as a clear,
@@ -326,7 +342,13 @@ class ArenaGateway:
             },
         )
         state = await self._advance(session, resp["state"], visitor_choice=None)
-        return {"battle_id": battle_id, "lane": req.lane, **state}
+        out = {"battle_id": battle_id, "lane": req.lane, **state}
+        if gym_team_name is not None:
+            # Disclosed signature team (#3): scouting it and drafting a counter IS
+            # the sandbox game; this is what makes team_mutation a real lever.
+            out["opponent_team_name"] = gym_team_name
+            out["opponent_team"] = opp_team
+        return out
 
     def _expire_if_stale(self, session: BattleSession) -> None:
         if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
@@ -549,6 +571,33 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     @app.post("/enroll/confirm/{code}")
     async def enroll_confirm(code: str) -> dict:
         return gateway.enroll_confirm(code)
+
+    @app.post("/team/draft")
+    async def team_draft(body: dict) -> dict:
+        """#2 authoring loop: stateless pack+validate against the pinned banlist.
+
+        The visitor iterates export → per-slot errors → fix → revalidate until
+        legal, then passes the packed team to /battle/begin (which re-validates —
+        the gate, not this helper, is the enforcement). Errors are the server-side
+        validator's own strings, never opponent-authored text (A6)."""
+        try:
+            gateway.authority.verify(str(body.get("token", "")), scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        export = str(body.get("export", ""))[:20_000]
+        packed = str(body.get("packed", ""))[:8_000]
+        if not export and not packed:
+            raise _opaque_error(422, "provide 'export' (showdown export text) or 'packed'")
+        try:
+            sidecar = await _sidecar()
+            if export:
+                packed = await pack_team(sidecar, export)
+            valid, errors = await validate_team(sidecar, packed)
+            return {"packed": packed, "valid": valid, "errors": errors}
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(400, e) from None
 
     @app.post("/battle/start")
     async def battle_start(body: dict) -> dict:

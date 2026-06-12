@@ -301,6 +301,72 @@ def test_battle_observability_foe_hp_and_recent_turns(arena):
     )
 
 
+def test_team_draft_authoring_loop(arena):
+    """#2: stateless pack+validate — illegal export gets per-slot repair errors;
+    a legal draft round-trips into /battle/begin."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="DraftLoop")
+    bad_export = (
+        "Koraidon @ Leftovers\nAbility: Orichalcum Pulse\nTera Type: Fire\n"
+        "EVs: 252 Atk / 252 Spe\nJolly Nature\n- Flare Blitz\n- Collision Course\n"
+        "- Drain Punch\n- Swords Dance\n"
+    )
+    r = client.post("/team/draft", json={"token": token, "export": bad_export})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["valid"] is False and body["errors"], body
+    assert any("Koraidon" in e for e in body["errors"])
+    n_repair_errors = len(body["errors"])
+
+    from adx_showdown.teams import starter_pack
+
+    good_export = next(iter(starter_pack().values()))
+    r = client.post("/team/draft", json={"token": token, "export": good_export})
+    body = r.json()
+    assert body["valid"] is True and body["packed"]
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox", team=body["packed"])
+    assert state["status"] in ("your_move", "ended")
+    # no token -> refused; nothing drafted anonymously
+    r = client.post("/team/draft", json={"token": "x.y", "export": good_export})
+    assert r.status_code == 403
+    print(
+        f"\nTEAM_DRAFT: illegal export -> {n_repair_errors} repair errors; "
+        "legal draft entered battle; anonymous draft refused"
+    )
+
+
+def test_sandbox_mirror_broken_and_disclosed(arena):
+    """#3: the sandbox gym leader fields a FIXED, DISCLOSED signature team distinct
+    from the visitor's — team choice finally matters (mirror is dead)."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ScoutBot")
+
+    from adx_showdown.teams import starter_pack
+
+    default_export = next(iter(starter_pack().values()))
+    packed0 = client.post("/team/draft", json={"token": token, "export": default_export}).json()[
+        "packed"
+    ]
+
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    assert state.get("opponent_team_name") in starter_pack(), state.get("opponent_team_name")
+    assert state.get("opponent_team"), "sandbox must disclose the gym signature team"
+    assert state["opponent_team"] != packed0, "gym team must NOT mirror the visitor default"
+
+    receipt, _ = _play_to_end(client, token, state)
+    replay = client.get(receipt["replay"]).json()
+    player_lines = [ln for ln in replay["input_log"] if ln.startswith(">player")]
+    assert len(player_lines) == 2 and player_lines[0] != player_lines[1]
+    # rated still mirrors (until #8's i.i.d. anchor-team defense lands)
+    rated = _begin_battle(client, gateway, token, agent_key, lane="rated")
+    assert "opponent_team" not in rated, "rated must not pre-disclose any team info"
+    _play_to_end(client, token, rated)
+    print(
+        f"\nMIRROR_BROKEN: gym fields '{state['opponent_team_name']}' (disclosed), "
+        "visitor default differs; rated undisclosed"
+    )
+
+
 def test_enroll_rejects_placeholder_owner(arena):
     """G-04 (playtest): the owner is the human contact the out-of-band code reaches —
     a template placeholder or non-address is rejected with a self-describing 422,
