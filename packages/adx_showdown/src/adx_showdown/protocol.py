@@ -49,6 +49,7 @@ class BenchSlot(BaseModel):
     species: str = ""
     condition: str = ""
     active: bool = False
+    moves: list[str] = Field(default_factory=list)  # move ids (bench-aware bots)
 
     @property
     def fainted(self) -> bool:
@@ -86,6 +87,7 @@ def parse_request(request: dict[str, Any] | str) -> ParsedRequest:
                 species=sanitize_name(species),
                 condition=str(poke.get("condition", "")),
                 active=bool(poke.get("active", False)),
+                moves=[str(m) for m in (poke.get("moves") or [])],
             )
         )
     active_moves: list[list[ActiveMove]] = []
@@ -149,3 +151,11 @@ def move_only_choices(req: ParsedRequest) -> list[str]:
 def switch_only_choices(req: ParsedRequest) -> list[str]:
     """Fallback set when a move was rejected (e.g. Disable/Imprison race)."""
     return [f"switch {slot.index}" for slot in req.bench if not slot.active and not slot.fainted]
+
+
+def fainted_switch_choices(req: ParsedRequest) -> list[str]:
+    """Revival Blessing edge: the request demands passing to a FAINTED mon
+    (revive-target selection) — the one flow where fainted targets are the
+    legal set (measured: 'Can't switch: You have to pass to a fainted
+    Pokémon' exhausted the error budget)."""
+    return [f"switch {slot.index}" for slot in req.bench if not slot.active and slot.fainted]

@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.protocol import (
     ParsedRequest,
+    fainted_switch_choices,
     legal_choices,
     move_only_choices,
     parse_request,
@@ -44,6 +45,7 @@ class BattleContext(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=False)
     side: str
+    my_species: str | None = None
     opponent_species: str | None = None
     turns: int = 0
 
@@ -90,6 +92,7 @@ class BattleResult(BaseModel):
     winner: str  # SANITIZED player name; "" == tie
     turns: int
     input_log: list[str] = Field(default_factory=list)
+    key_lines: list[str] = Field(default_factory=list)  # signature extraction input
     choice_errors: int = 0
     steps: int = 0
 
@@ -109,7 +112,9 @@ def _fallback_choice(req: ParsedRequest | None, error: str) -> str | None:
     if req is None:
         return None
     low = error.lower()
-    if "switch" in low:
+    if "fainted" in low:
+        pool = fainted_switch_choices(req) or ["pass"]
+    elif "switch" in low:
         pool = move_only_choices(req)
     elif "move" in low:
         pool = switch_only_choices(req)
@@ -128,6 +133,7 @@ def _result_from_end(
         winner=sanitize_name(end.get("winner") or ""),
         turns=int(end.get("turns", 0)),
         input_log=list(end.get("inputLog") or []),
+        key_lines=list(end.get("keyLines") or []),
         choice_errors=choice_errors,
         steps=steps,
     )
@@ -197,6 +203,7 @@ async def run_battle(
             last_req[side] = req
             ctx = BattleContext(
                 side=side,
+                my_species=(state.get("active") or {}).get(side),
                 opponent_species=(state.get("active") or {}).get(OTHER[side]),
                 turns=int(state.get("turns", 0)),
             )
