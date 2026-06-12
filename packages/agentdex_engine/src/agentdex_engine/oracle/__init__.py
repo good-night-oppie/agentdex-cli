@@ -13,8 +13,10 @@ from agentdex_engine.oracle.base import (
     OracleVerdict,
     OracleVerdictMap,
 )
+from agentdex_engine.oracle.battle import BattleOracle
 
 __all__ = [
+    "BattleOracle",
     "Oracle",
     "OracleChain",
     "OracleVerdict",
