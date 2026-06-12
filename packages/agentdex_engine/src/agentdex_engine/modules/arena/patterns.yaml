@@ -1,0 +1,9 @@
+# Failure-signature enum (ADR-0010 phase 5). Adding a pattern is a DATA
+# change; signatures.py only counts ids listed here. Descriptions are the
+# plain-language receipt strings ("switched into obvious KO, turn 7" class).
+signatures:
+  immune_move_clicked: "clicked a move the defender is immune to"
+  resisted_move_clicked: "clicked into a resisted hit when better options existed"
+  supereffective_taken: "took a super-effective hit (matchup or switch timing)"
+  mon_fainted: "lost a Pokemon"
+  crit_taken: "took a critical hit (variance, not necessarily an error)"
