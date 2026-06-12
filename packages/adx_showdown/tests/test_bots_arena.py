@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from adx_showdown.bots import max_damage_bot, random_bot
 from adx_showdown.arena_bridge import ScriptedBattleBridge
+from adx_showdown.bots import max_damage_bot, random_bot
 from adx_showdown.sidecar import Sidecar, sidecar_available
 from adx_showdown.sim import run_battle
 
@@ -69,9 +69,9 @@ def test_battle_expedition_full_card_bundle_and_kaos_row(tmp_path: Path):
     }
     task_card = TaskCard(
         id="arena-smoke-battle",
-        source_bundle_hash=__import__("hashlib").sha256(
-            json.dumps(spec, sort_keys=True).encode()
-        ).hexdigest(),
+        source_bundle_hash=__import__("hashlib")
+        .sha256(json.dumps(spec, sort_keys=True).encode())
+        .hexdigest(),
         environment_spec={"format": spec["format"], "anchor": spec["anchor"]},
         oracle_spec_ref="battle",
         budget_token_cap=0,
@@ -108,9 +108,7 @@ def test_battle_expedition_full_card_bundle_and_kaos_row(tmp_path: Path):
     exp_dir.mkdir(parents=True)
     (exp_dir / "task_card.yaml").write_text(yaml.safe_dump(task_card.model_dump()))
     for rc in result_cards:
-        (exp_dir / f"result_card_{rc.agent_id}.yaml").write_text(
-            yaml.safe_dump(rc.model_dump())
-        )
+        (exp_dir / f"result_card_{rc.agent_id}.yaml").write_text(yaml.safe_dump(rc.model_dump()))
     (exp_dir / "pareto_verdict.yaml").write_text(yaml.safe_dump(verdict.model_dump()))
     (exp_dir / "evolution_card.yaml").write_text(yaml.safe_dump(evolution_card.model_dump()))
     for name in ("task_card", "pareto_verdict", "evolution_card"):
@@ -128,18 +126,18 @@ def test_battle_expedition_full_card_bundle_and_kaos_row(tmp_path: Path):
     assert agent_id, "KAOS lineage row not persisted"
     import sqlite3
 
-    rows = sqlite3.connect(kaos_db).execute(
-        "SELECT name FROM agents WHERE agent_id = ?", (agent_id,)
-    ).fetchall()
+    rows = (
+        sqlite3.connect(kaos_db)
+        .execute("SELECT name FROM agents WHERE agent_id = ?", (agent_id,))
+        .fetchall()
+    )
     assert rows and rows[0][0].startswith("expedition-")
     print(f"KAOS_ROW: agent_id={agent_id} name={rows[0][0]}")
 
 
 def test_bridge_report_win_field_matches_winner(tmp_path: Path):
     async def _run():
-        bridge = ScriptedBattleBridge(
-            "probe", "random", artifacts_dir=tmp_path, policy_seed=3
-        )
+        bridge = ScriptedBattleBridge("probe", "random", artifacts_dir=tmp_path, policy_seed=3)
         spec = {
             "battle_id": "probe-1",
             "format": "gen9randombattle",

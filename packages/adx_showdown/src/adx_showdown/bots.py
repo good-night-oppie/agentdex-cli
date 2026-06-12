@@ -92,9 +92,7 @@ def heuristic_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
             defender=ctx.opponent_species,
         )
         ratings: dict[str, float] = {k: float(v) for k, v in resp["ratings"].items()}
-        best_slot, best_id = max(
-            candidates, key=lambda sm: (ratings.get(sm[1], 0.0), -sm[0])
-        )
+        best_slot, best_id = max(candidates, key=lambda sm: (ratings.get(sm[1], 0.0), -sm[0]))
         if ratings.get(best_id, 0.0) < SWITCH_THRESHOLD and not req.trapped:
             switch = _first_switch(req)
             if switch is not None:
