@@ -62,3 +62,30 @@ event log:
 publication halted (the deploy phase wires the gateway to refuse rated
 publishing while the last self-test is red). Reports + event logs land under
 `$ARENA_SELFTEST_DIR` (default `/tmp/agentdex/arena-selftest/`) for audit.
+
+## Phase-7 addendum (2026-06-12) — evolution loop falsification + rollback drill
+
+House-lane evolution loop live (`adx_showdown/evolution.py`): 5-store git
+workspace (teams.json = 5th store), Distiller consumes structured signature
+bullets only, Refiner must write `change_manifest.json` BEFORE its window,
+Verdict is pure Python over NEXT-window CRN pairs — no self-certification.
+
+**Rollback chaos-drill transcript (CI-reproduced, seeded):**
+
+```
+1. healthy gen-1 window: rating=1968±110 (k=20 vs random anchor)
+2. INJECTED NERF committed for gen 2 (teams.json -> early-route mons; sha 0e94c3a1)
+3. gen-2 CRN falsification: 20 pairs, p=0.00000 -> verdict=HARMFUL
+4. rolled_back=True; teams.json restored byte-identically to best_ever (sha 4a086726 == healthy)
+```
+
+**Next-window discipline (benign 3-generation run, k=5):** gen 1 NEUTRAL
+(no prior manifest, 0 pairs); gens 2–3 falsify the previous cycle's
+memory-store edit with 5 CRN pairs each → honestly INCONCLUSIVE (team
+unchanged, all pairs concordant, p=1.0); every report carries rating±RD and
+`power=INCONCLUSIVE` at k=5 (A4 — small windows never publish deltas).
+
+**Measured falsification gotcha:** in a max-damage MIRROR the entrant loses
+most seeds — control loses identically, pairs go concordant, and a real nerf
+hides (p=0.5). Falsification opponents must be ones the baseline reliably
+beats; the CRN lane pins this choice per archetype.
