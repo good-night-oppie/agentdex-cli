@@ -26,9 +26,7 @@ HASH = "ab" * 16
 
 
 def _ev(p1: str, p2: str, winner: str, i: int = 0) -> RatingEvent:
-    return RatingEvent(
-        battle_id=f"b{i}", p1=p1, p2=p2, winner=winner, input_log_blake2b16=HASH
-    )
+    return RatingEvent(battle_id=f"b{i}", p1=p1, p2=p2, winner=winner, input_log_blake2b16=HASH)
 
 
 # ---------- glicko / ladder ----------

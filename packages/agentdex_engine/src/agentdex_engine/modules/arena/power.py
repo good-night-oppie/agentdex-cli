@@ -18,9 +18,7 @@ def elo_to_winprob(delta: float) -> float:
     return 1.0 / (1.0 + 10.0 ** (-delta / 400.0))
 
 
-def battles_to_detect(
-    p: float, *, alpha: float = 0.05, power: float = 0.80
-) -> int:
+def battles_to_detect(p: float, *, alpha: float = 0.05, power: float = 0.80) -> int:
     """n battles to distinguish win-prob p from 0.5 (two-sided binomial,
     normal approximation). Domain-generic: pass any p, not just Elo."""
     if not 0.0 < p < 1.0 or abs(p - 0.5) < 1e-9:
@@ -41,7 +39,9 @@ def power_table(
     return {d: battles_to_detect(elo_to_winprob(d), alpha=alpha, power=power) for d in deltas}
 
 
-def window_verdict(observed_delta: float, battles: int, *, alpha: float = 0.05, power: float = 0.80) -> str:
+def window_verdict(
+    observed_delta: float, battles: int, *, alpha: float = 0.05, power: float = 0.80
+) -> str:
     """'POWERED' when the window could have detected the observed delta,
     else 'INCONCLUSIVE' — printed verbatim on receipts (A4)."""
     needed = battles_to_detect(elo_to_winprob(abs(observed_delta)), alpha=alpha, power=power)

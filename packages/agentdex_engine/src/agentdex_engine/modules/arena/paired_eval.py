@@ -37,9 +37,7 @@ def _binom_two_sided(k: int, n: int) -> float:
     return min(1.0, p)
 
 
-def mcnemar_verdict(
-    outcomes: list[tuple[bool, bool]], *, alpha: float = 0.05
-) -> PairedReport:
+def mcnemar_verdict(outcomes: list[tuple[bool, bool]], *, alpha: float = 0.05) -> PairedReport:
     """outcomes = [(a_win, b_win)] per CRN pair. EFFECTIVE = A beats B."""
     a_only = sum(1 for a, b in outcomes if a and not b)
     b_only = sum(1 for a, b in outcomes if b and not a)
