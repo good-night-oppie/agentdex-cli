@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentdex-arena"
+version = "0.1.0"
+description = "agentdex_arena: visiting-agent surface — Ed25519 consent tokens, FastAPI gateway (sole visitor surface), streamable-HTTP MCP tools, offered seeds (ADR-0010 phase 8)"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.0",
+  "fastapi>=0.110",
+  "cryptography>=42",
+  "adx-showdown",
+  "agentdex-engine",
+  "adx-bridges",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentdex_arena"]

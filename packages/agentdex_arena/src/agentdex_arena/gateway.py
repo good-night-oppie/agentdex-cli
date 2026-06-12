@@ -1,0 +1,525 @@
+"""Arena gateway — the ONLY visitor surface (A1/A3/A6 anchors in code).
+
+Lanes (A3): the day-one fun loop lives in the UNRATED sandbox (gym leaders,
+disclosed seeds, same-seed rematches); published Glicko moves only via the
+RATED lane — server-matchmade vs held-out anchors, server-secret seeds
+revealed post-result. Direct challenges stay sandbox, permanently.
+
+Consent (A1): every acting endpoint takes an owner-minted token; battles
+additionally demand per-battle proof-of-possession. Enrollment REQUIRES an
+out-of-band human confirmation (the confirm code goes to the OWNER via the
+injected notifier, never into the agent-visible response).
+
+Injection (A6): all visitor strings pass sanitize_name at the boundary;
+errors are opaque ids (details server-side); battle renders re-use the
+phase-6 bounded renderer.
+
+The gateway owns the clock: a battle idle past `turn_budget_s` forfeits to
+the opponent on next touch (SLEEPING-tolerant — no background task needed).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import secrets
+import time
+import uuid
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
+
+from adx_bridges.showdown_battle_bridge import render_state
+from adx_showdown.bots import heuristic_bot, max_damage_bot, random_bot
+from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
+from adx_showdown.sidecar import Sidecar
+from adx_showdown.sim import BattleContext, call_policy
+from agentdex_engine.modules.arena import (
+    EventLog,
+    Ladder,
+    RatingEvent,
+    extract_signatures,
+    recompute_ladder,
+)
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+
+from agentdex_arena.consent import ConsentAuthority, ConsentClaims, ConsentError
+
+log = logging.getLogger(__name__)
+
+Lane = Literal["sandbox", "rated"]
+GYM_LEADERS = ("anchor-random", "anchor-max_damage", "anchor-heuristic")
+RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
+
+
+def _opaque_error(status: int, exc: Exception | str) -> HTTPException:
+    err_id = uuid.uuid4().hex[:12]
+    log.warning("arena error (ref=%s): %s", err_id, exc)
+    return HTTPException(status_code=status, detail=f"arena error (ref: {err_id})")
+
+
+def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
+    kind = name.removeprefix("anchor-")
+    if kind == "random":
+        return random_bot(seed)
+    if kind == "max_damage":
+        return max_damage_bot(sidecar, fallback_seed=seed)
+    return heuristic_bot(sidecar, fallback_seed=seed)
+
+
+@dataclass
+class BattleSession:
+    battle_id: str
+    claims_token_id: str
+    visitor_name: str
+    lane: Lane
+    opponent: str
+    seed: list[int]
+    sidecar: Sidecar
+    opponent_policy: Any
+    pending: ParsedRequest | None = None
+    turns: int = 0
+    started_at: float = field(default_factory=time.time)
+    last_touch: float = field(default_factory=time.time)
+    ended: dict[str, Any] | None = None
+    visitor_side: str = "p1"
+
+
+class EnrollRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=False)
+    owner: str = Field(min_length=3, max_length=120)
+    agent_name: str = Field(min_length=1, max_length=64)
+    agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class BeginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=False)
+    token: str
+    battle_nonce: str
+    pop_signature_hex: str
+    lane: Lane = "sandbox"
+    team: str | None = None  # packed; validated server-side; None = starter draft 1
+
+
+class ChooseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=False)
+    token: str
+    choice_index: int = Field(ge=1, le=64)
+
+
+class ArenaGateway:
+    def __init__(
+        self,
+        *,
+        authority: ConsentAuthority,
+        events_path: str | Path,
+        artifacts_dir: str | Path,
+        notify_owner: Callable[[str, str], None],
+        turn_budget_s: float = 120.0,
+        rated_seed_secret: str = "",
+        now: Callable[[], float] = time.time,
+    ) -> None:
+        self.authority = authority
+        self.events = EventLog(events_path)
+        self.artifacts_dir = Path(artifacts_dir)
+        self.notify_owner = notify_owner  # out-of-band channel (email/webhook)
+        self.turn_budget_s = turn_budget_s
+        self._rated_seed_secret = rated_seed_secret or secrets.token_hex(16)
+        self.now = now
+        self.sessions: dict[str, BattleSession] = {}
+        self.pending_enrollments: dict[str, EnrollRequest] = {}
+        self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
+        self.replays: dict[str, dict[str, Any]] = {}
+        self._registered: set[str] = set()
+        self.publication_allowed = True  # flipped by the nightly self-test
+
+    # ---------- enrollment (A1: human-in-the-loop) ----------
+
+    def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
+        code = secrets.token_urlsafe(16)
+        clean = EnrollRequest(
+            owner=req.owner,
+            agent_name=sanitize_name(req.agent_name) or "visitor",
+            agent_pubkey_hex=req.agent_pubkey_hex,
+        )
+        self.pending_enrollments[code] = clean
+        # the code goes to the OWNER out-of-band — never into this response
+        self.notify_owner(clean.owner, code)
+        return {
+            "status": "pending_owner_confirmation",
+            "detail": "confirmation code sent to the owner out-of-band",
+        }
+
+    def enroll_confirm(self, code: str) -> dict[str, Any]:
+        req = self.pending_enrollments.pop(code, None)
+        if req is None:
+            raise _opaque_error(404, "unknown/expired enrollment code")
+        claims = ConsentClaims(
+            token_id=uuid.uuid4().hex[:16],
+            owner=req.owner,
+            agent_name=req.agent_name,
+            agent_pubkey_hex=req.agent_pubkey_hex,
+            scopes=["enroll", "battle", "evolve"],
+            issued_at=self.now(),
+            expires_at=self.now() + 7 * 86_400,
+            confirmed_via=f"web-confirm:{code[:6]}…",
+        )
+        return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
+
+    # ---------- battle flow ----------
+
+    def battle_start(self, token: str) -> dict[str, Any]:
+        try:
+            claims = self.authority.verify(token, scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        nonce = secrets.token_hex(12)
+        self.battle_nonces[nonce] = claims.token_id
+        return {"battle_nonce": nonce, "pop_challenge": f"arena-pop:{claims.token_id}:{nonce}"}
+
+    async def battle_begin(self, req: BeginRequest, *, sidecar: Sidecar) -> dict[str, Any]:
+        try:
+            claims = self.authority.verify(req.token, scope="battle")
+            if self.battle_nonces.pop(req.battle_nonce, None) != claims.token_id:
+                raise ConsentError("unknown battle nonce")
+            self.authority.verify_pop(claims, req.battle_nonce, req.pop_signature_hex)
+            if req.lane == "rated":
+                self.authority.spend_quota(claims, scope="battle")
+                if not self.publication_allowed:
+                    raise ConsentError("rated lane paused: instrument self-test red")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+
+        if req.lane == "rated":
+            # server-side matchmaking vs held-out pool; seed server-secret (A3)
+            opponent = RATED_POOL[
+                int.from_bytes(
+                    hashlib.blake2b(req.battle_nonce.encode(), digest_size=2).digest(), "big"
+                )
+                % len(RATED_POOL)
+            ]
+            seed_material = hashlib.blake2b(
+                f"{self._rated_seed_secret}:{req.battle_nonce}".encode(), digest_size=8
+            ).digest()
+            seed = [int.from_bytes(seed_material[i : i + 2], "big") for i in range(0, 8, 2)]
+        else:
+            opponent = GYM_LEADERS[0]  # first gym leader; ladder of gyms post-run
+            seed = [
+                int.from_bytes(
+                    hashlib.blake2b(req.battle_nonce.encode(), digest_size=2).digest(), "big"
+                ),
+                7,
+                7,
+                7,
+            ]
+
+        battle_id = f"{req.lane}-{uuid.uuid4().hex[:10]}"
+        visitor = claims.agent_name
+        session = BattleSession(
+            battle_id=battle_id,
+            claims_token_id=claims.token_id,
+            visitor_name=visitor,
+            lane=req.lane,
+            opponent=opponent,
+            seed=seed,
+            sidecar=sidecar,
+            opponent_policy=_anchor_policy(opponent, sidecar, seed[0] + 13),
+        )
+        team = req.team
+        if team is None:
+            from adx_showdown.teams import pack_team, starter_pack
+
+            team = await pack_team(sidecar, next(iter(starter_pack().values())))
+        else:
+            # A client-supplied team is UNTRUSTED: validate against the pinned
+            # banlist server-side BEFORE it can enter a battle. This enforces the
+            # F3 "an invalid team simply cannot play" contract that BeginRequest.team
+            # only asserted in a comment — closing the trust gap the authoring loop
+            # (POST /team/draft) leans on. Ship the gate before the axis it protects.
+            from adx_showdown.teams import validate_team
+
+            valid, errors = await validate_team(sidecar, team)
+            if not valid:
+                raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
+        resp = await sidecar.request(
+            "start",
+            battle=battle_id,
+            format="gen9ou",
+            seed=seed if req.lane == "sandbox" else seed,  # rated seed stays undisclosed
+            p1={"name": visitor, "team": team},
+            p2={"name": opponent, "team": team},  # mirror vs gym for MVP fairness
+        )
+        self.sessions[battle_id] = session
+        state = await self._advance(session, resp["state"], visitor_choice=None)
+        return {"battle_id": battle_id, "lane": req.lane, **state}
+
+    def _expire_if_stale(self, session: BattleSession) -> None:
+        if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
+            session.ended = {
+                "winner": session.opponent,
+                "turns": session.turns,
+                "forfeit": "turn budget exceeded",
+            }
+
+    async def _advance(
+        self, session: BattleSession, state: dict[str, Any], *, visitor_choice: str | None
+    ) -> dict[str, Any]:
+        """Drive the step protocol: submit visitor choice (if any) + opponent
+        auto-choices until the visitor has a pending request or the battle ends."""
+        sidecar = session.sidecar
+        other = "p2" if session.visitor_side == "p1" else "p1"
+        for _ in range(200):
+            if state.get("end"):
+                return await self._finish(session, state["end"])
+            choices: dict[str, str] = {}
+            if visitor_choice is not None:
+                choices[session.visitor_side] = visitor_choice
+                visitor_choice = None
+            raw_opp = (state.get("pending") or {}).get(other)
+            if raw_opp is not None:
+                opp_req = parse_request(raw_opp)
+                ctx = BattleContext(
+                    side=other,
+                    my_species=(state.get("active") or {}).get(other),
+                    opponent_species=(state.get("active") or {}).get(session.visitor_side),
+                    turns=int(state.get("turns", 0)),
+                )
+                opp_choice = await call_policy(session.opponent_policy, opp_req, ctx)
+                if opp_choice is not None:
+                    choices[other] = opp_choice
+            raw_vis = (state.get("pending") or {}).get(session.visitor_side)
+            if raw_vis is not None and session.visitor_side not in choices:
+                vis_req = parse_request(raw_vis)
+                # A `wait` request (e.g. the visitor idles while the opponent
+                # picks a post-faint switch) carries no legal choices — do NOT
+                # prompt the agent for it; let the opponent's choice advance the
+                # step and re-evaluate. Only surface a real, actionable request.
+                if not vis_req.wait and legal_choices(vis_req):
+                    session.pending = vis_req
+                    session.turns = int(state.get("turns", 0))
+                    return self._render(session, state)
+            if not choices:
+                raise _opaque_error(500, f"{session.battle_id}: protocol stall")
+            resp = await sidecar.request("step", battle=session.battle_id, choices=choices)
+            state = resp["state"]
+        raise _opaque_error(500, f"{session.battle_id}: advance loop overrun")
+
+    def _render(self, session: BattleSession, state: dict[str, Any]) -> dict[str, Any]:
+        assert session.pending is not None
+        ctx = BattleContext(
+            side=session.visitor_side,
+            my_species=(state.get("active") or {}).get(session.visitor_side),
+            opponent_species=(state.get("active") or {}).get(
+                "p2" if session.visitor_side == "p1" else "p1"
+            ),
+            turns=session.turns,
+        )
+        return {
+            "status": "your_move",
+            "turn": session.turns,
+            "state": render_state(session.pending, ctx, scratchpad="", recent_turns=[]),
+            "n_choices": len(legal_choices(session.pending)),
+        }
+
+    async def _finish(self, session: BattleSession, end: dict[str, Any]) -> dict[str, Any]:
+        winner = sanitize_name(end.get("winner") or "")
+        input_log = list(end.get("inputLog") or [])
+        log_digest = hashlib.blake2b("\n".join(input_log).encode(), digest_size=16).hexdigest()
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
+            json.dumps(input_log, indent=1) + "\n"
+        )
+        session.ended = {"winner": winner, "turns": int(end.get("turns", 0))}
+        signatures = [
+            s.model_dump()
+            for s in extract_signatures(list(end.get("keyLines") or []), side=session.visitor_side)
+        ]
+        receipt: dict[str, Any] = {
+            "status": "ended",
+            "battle_id": session.battle_id,
+            "lane": session.lane,
+            "winner": winner,
+            "you_won": winner == session.visitor_name,
+            "turns": session.ended["turns"],
+            "failure_signatures": signatures,
+            "replay": f"/replay/{session.battle_id}",
+            "input_log_blake2b16": log_digest,
+        }
+        self.replays[session.battle_id] = {
+            "input_log": input_log,
+            "winner": winner,
+            "lane": session.lane,
+        }
+        if session.lane == "rated":
+            for name in (session.visitor_name, session.opponent):
+                if name not in self._registered:
+                    self.events.append(
+                        "register", {"name": name, "frozen": name.startswith("anchor-")}
+                    )
+                    self._registered.add(name)
+            before = recompute_ladder(self.events.path).rating(session.visitor_name)
+            self.events.append(
+                "period",
+                {
+                    "events": [
+                        RatingEvent(
+                            battle_id=session.battle_id,
+                            p1=session.visitor_name,
+                            p2=session.opponent,
+                            winner=winner,
+                            input_log_blake2b16=log_digest,
+                        ).model_dump()
+                    ]
+                },
+            )
+            after = recompute_ladder(self.events.path).rating(session.visitor_name)
+            delta = Ladder.published_delta(before, after)
+            receipt["rating"] = {
+                "rating": round(after.rating, 1),
+                "rd": round(after.rd, 1),
+                "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
+                "seed_disclosure": session.seed,  # revealed post-result (A3)
+            }
+        return receipt
+
+    # ---------- public, read-only (L0) ----------
+
+    def ladder_public(self) -> dict[str, Any]:
+        if not self.events.path.is_file():
+            return {"entrants": {}}
+        ladder = recompute_ladder(self.events.path)
+        return {
+            "entrants": {
+                name: {"rating": round(r.rating, 1), "rd": round(r.rd, 1), "games": r.games}
+                for name, r in sorted(ladder.entrants.items(), key=lambda kv: -kv[1].rating)
+            }
+        }
+
+
+def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar]) -> FastAPI:
+    @asynccontextmanager
+    async def _lifespan(app_: FastAPI) -> AsyncIterator[None]:
+        # the persistent sidecar is spawned lazily on first battle; stop it on
+        # graceful shutdown so uvicorn (and TestClient teardown) never leak the
+        # node subprocess.
+        yield
+        sidecar = app_.state.sidecar
+        if sidecar is not None:
+            await sidecar.stop()
+            app_.state.sidecar = None
+
+    app = FastAPI(title="agentdex-arena", version="0.1.0", lifespan=_lifespan)
+    app.state.gateway = gateway
+    app.state.sidecar = None
+
+    async def _sidecar() -> Sidecar:
+        if app.state.sidecar is None:
+            app.state.sidecar = sidecar_factory()
+            await app.state.sidecar.start()
+        return app.state.sidecar
+
+    @app.get("/")
+    async def health() -> dict:
+        return {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
+
+    @app.get("/ladder")
+    async def ladder() -> dict:
+        return gateway.ladder_public()
+
+    @app.get("/enrollment", response_model=None)
+    async def enrollment_doc():
+        from fastapi.responses import PlainTextResponse
+
+        doc = Path(__file__).resolve().parent / "ENROLLMENT.md"
+        return PlainTextResponse(doc.read_text(), media_type="text/markdown")
+
+    @app.post("/enroll/request")
+    async def enroll_request(req: EnrollRequest) -> dict:
+        try:
+            return gateway.enroll_request(req)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(400, e) from None
+
+    @app.post("/enroll/confirm/{code}")
+    async def enroll_confirm(code: str) -> dict:
+        return gateway.enroll_confirm(code)
+
+    @app.post("/battle/start")
+    async def battle_start(body: dict) -> dict:
+        return gateway.battle_start(str(body.get("token", "")))
+
+    @app.post("/battle/begin")
+    async def battle_begin(req: BeginRequest) -> dict:
+        try:
+            return await gateway.battle_begin(req, sidecar=await _sidecar())
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise _opaque_error(400, e) from None
+
+    @app.post("/battle/{battle_id}/choose")
+    async def battle_choose(battle_id: str, req: ChooseRequest) -> dict:
+        gw = gateway
+        session = gw.sessions.get(battle_id)
+        if session is None:
+            raise _opaque_error(404, f"no session {battle_id}")
+        try:
+            claims = gw.authority.verify(req.token, scope="battle")
+            if claims.token_id != session.claims_token_id:
+                raise ConsentError("token does not own this battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        gw._expire_if_stale(session)
+        if session.ended is not None:
+            return {"status": "ended", **session.ended}
+        if session.pending is None:
+            raise _opaque_error(409, "no pending request")
+        choices = legal_choices(session.pending)
+        if not 1 <= req.choice_index <= len(choices):
+            raise _opaque_error(422, f"choice index out of range 1..{len(choices)}")
+        choice = choices[req.choice_index - 1]
+        session.pending = None
+        session.last_touch = gw.now()
+        try:
+            sidecar = await _sidecar()
+            resp = await sidecar.request(
+                "step", battle=battle_id, choices={session.visitor_side: choice}
+            )
+            return await gw._advance(session, resp["state"], visitor_choice=None)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise _opaque_error(400, e) from None
+
+    @app.get("/replay/{battle_id}")
+    async def replay(battle_id: str) -> dict:
+        data = gateway.replays.get(battle_id)
+        if data is None:
+            raise _opaque_error(404, f"no replay {battle_id}")
+        return data
+
+    @app.post("/evolution/request")
+    async def evolution_request(body: dict) -> dict:
+        from agentdex_arena.offered_seeds import offer_seeds
+
+        try:
+            claims = gateway.authority.verify(str(body.get("token", "")), scope="evolve")
+            gateway.authority.spend_quota(claims, scope="evolve")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        try:
+            return await offer_seeds(
+                await _sidecar(),
+                current_team=str(body.get("team", "")) or None,
+                reasoning=sanitize_name(str(body.get("reasoning", "")), max_len=200),
+            )
+        except Exception as e:  # noqa: BLE001
+            raise _opaque_error(400, e) from None
+
+    return app
