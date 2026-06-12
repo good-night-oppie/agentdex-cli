@@ -67,12 +67,27 @@ def build_gateway() -> ArenaGateway:
     runtime = Path(os.environ.get("ARENA_RUNTIME_DIR", "/tmp/arena-runtime"))
     inbox = Path(os.environ.get("ARENA_OWNER_INBOX_DIR", "/tmp/arena-owner-inbox"))
     authority = ConsentAuthority(signing_key_hex=key_hex)
+
+    # Write-behind Postgres mirror (BENE-Supabase design): dev = local Postgres,
+    # prod = the Supabase transaction-mode pooler DSN (port 6543). Unset = no
+    # mirror; the local hash-chained NDJSON is always the source of truth.
+    event_sync = None
+    pg_dsn = os.environ.get("ARENA_PG_DSN", "").strip()
+    if pg_dsn:
+        from agentdex_arena.eventsync import WriteBehindSync
+
+        event_sync = WriteBehindSync(
+            pg_dsn, apply_ddl=os.environ.get("ARENA_PG_APPLY_DDL", "") == "1"
+        )
+        log.info("event mirror: write-behind to Postgres enabled")
+
     return ArenaGateway(
         authority=authority,
         events_path=runtime / "events.jsonl",
         artifacts_dir=runtime / "artifacts",
         notify_owner=_file_inbox_notifier(inbox),
         rated_seed_secret=os.environ.get("ARENA_RATED_SEED_SECRET", ""),
+        event_sync=event_sync,
     )
 
 
