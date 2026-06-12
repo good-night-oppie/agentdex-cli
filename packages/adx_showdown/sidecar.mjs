@@ -39,6 +39,7 @@ const MAX_BATTLES = Number(process.env.ADX_SIDECAR_MAX_BATTLES || 4);
 const battles = new Map(); // battleId -> entry
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
+const KEY_LINE_RE = /^\|(move|faint|switch|drag|turn|-supereffective|-resisted|-immune|-crit)\|/;
 const drain = () => new Promise((resolve) => setImmediate(resolve));
 
 function newEntry() {
@@ -46,7 +47,9 @@ function newEntry() {
     stream: new BattleStream(),
     inputLog: [],
     pending: { p1: null, p2: null },
+    submitted: { p1: false, p2: false }, // choice in flight, not yet rejected
     active: { p1: null, p2: null }, // active species per side (from |switch|/|drag|)
+    keyLines: [], // signature-relevant battle lines (phase-5 signatures.py)
     errors: [],
     winner: null, // null = in progress; '' = tie
     turns: 0,
@@ -63,6 +66,9 @@ function attachReader(battleId, entry) {
         const rest = nl === -1 ? '' : chunk.slice(nl + 1);
         if (type === 'update') {
           for (const line of rest.split('\n')) {
+            if (KEY_LINE_RE.test(line) && entry.keyLines.length < 3000) {
+              entry.keyLines.push(line);
+            }
             if (line.startsWith('|turn|')) {
               entry.turns = Number(line.split('|')[2]);
             } else if (line.startsWith('|win|')) {
@@ -83,8 +89,15 @@ function attachReader(battleId, entry) {
           const line = rest.slice(snl + 1);
           if (line.startsWith('|request|')) {
             const reqJson = line.slice('|request|'.length);
-            if (reqJson) entry.pending[side] = JSON.parse(reqJson);
+            if (reqJson) {
+              entry.pending[side] = JSON.parse(reqJson);
+              entry.submitted[side] = false;
+            }
           } else if (line.startsWith('|error|')) {
+            // rejected choice: re-expose the stored request so the driver's
+            // fallback rail can answer it (measured stall: destructive nulling
+            // left both sides pending-less with the battle waiting).
+            entry.submitted[side] = false;
             entry.errors.push({ side, error: line.slice('|error|'.length) });
           }
         }
@@ -111,8 +124,8 @@ async function settledState(entry) {
   const errors = entry.errors.splice(0);
   const state = {
     pending: {
-      p1: entry.winner === null ? entry.pending.p1 : null,
-      p2: entry.winner === null ? entry.pending.p2 : null,
+      p1: entry.winner === null && !entry.submitted.p1 ? entry.pending.p1 : null,
+      p2: entry.winner === null && !entry.submitted.p2 ? entry.pending.p2 : null,
     },
     active: entry.active,
     errors,
@@ -124,6 +137,7 @@ async function settledState(entry) {
             winner: entry.winner,
             turns: entry.turns,
             inputLog: entry.inputLog,
+            keyLines: entry.keyLines,
             streamError: entry.streamError || null,
           },
   };
@@ -166,7 +180,7 @@ async function handle(msg) {
       for (const side of ['p1', 'p2']) {
         const choice = (msg.choices || {})[side];
         if (choice != null) {
-          entry.pending[side] = null; // consumed; re-filled by the next |request|
+          entry.submitted[side] = true; // re-exposed by |error| or next |request|
           await writeBattle(entry, `>${side} ${choice}`);
         }
       }
@@ -203,6 +217,8 @@ async function handle(msg) {
       // 2^getEffectiveness x (getImmunity ? 1 : 0). Status moves rate 0.
       const defender = Dex.species.get(msg.defender || '');
       const types = defender.exists ? defender.types : [];
+      const attacker = Dex.species.get(msg.attacker || '');
+      const stabTypes = attacker.exists ? attacker.types : [];
       const ratings = {};
       for (const id of msg.moves || []) {
         const mv = Dex.moves.get(id);
@@ -214,6 +230,7 @@ async function handle(msg) {
         if (types.length) {
           mult = Dex.getImmunity(mv.type, types) ? Math.pow(2, Dex.getEffectiveness(mv.type, types)) : 0;
         }
+        if (stabTypes.includes(mv.type)) mult *= 1.5; // STAB
         ratings[id] = mv.basePower * mult;
       }
       return out({ id, ok: true, ratings });

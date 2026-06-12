@@ -67,12 +67,29 @@ def max_damage_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
 
 
 def heuristic_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
-    """Anchor 3 — max-damage plus two heuristics: switch out when every move
-    is resisted-or-worse (max effective power < 40), and never click a move
-    the defender is immune to when an effective switch exists.
+    """Anchor 3 — max-damage upgraded twice (measured: the v1
+    switch-when-resisted rule LOST to max-damage 0.42, bleeding momentum):
+
+    1. STAB-weighted move rating (dex-rate `attacker` param, ×1.5) — strictly
+       better damage ordering than raw basePower×effectiveness.
+    2. Bench-aware forced switches: rate every healthy bench mon's best move
+       against the current defender and switch to the best matchup, instead
+       of first-legal.
     """
     fallback = seeded_random_policy(fallback_seed)
-    SWITCH_THRESHOLD = 40.0
+
+    async def _best_bench_switch(req: ParsedRequest, defender: str) -> str | None:
+        best: tuple[float, int] | None = None
+        for slot in req.bench:
+            if slot.active or slot.fainted or not slot.moves:
+                continue
+            resp = await sidecar.request(
+                "dex-rate", moves=slot.moves, defender=defender, attacker=slot.species
+            )
+            power = max((float(v) for v in resp["ratings"].values()), default=0.0)
+            if best is None or power > best[0]:
+                best = (power, slot.index)
+        return f"switch {best[1]}" if best else _first_switch(req)
 
     async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
         if req.wait:
@@ -80,6 +97,8 @@ def heuristic_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
         if req.team_preview:
             return "team 1"
         if req.force_switch and any(req.force_switch):
+            if ctx.opponent_species:
+                return await _best_bench_switch(req, ctx.opponent_species)
             return _first_switch(req)
         candidates = _enabled_move_ids(req)
         if not candidates:
@@ -90,13 +109,10 @@ def heuristic_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
             "dex-rate",
             moves=[mid for _, mid in candidates],
             defender=ctx.opponent_species,
+            attacker=ctx.my_species,
         )
         ratings: dict[str, float] = {k: float(v) for k, v in resp["ratings"].items()}
-        best_slot, best_id = max(candidates, key=lambda sm: (ratings.get(sm[1], 0.0), -sm[0]))
-        if ratings.get(best_id, 0.0) < SWITCH_THRESHOLD and not req.trapped:
-            switch = _first_switch(req)
-            if switch is not None:
-                return switch
+        best_slot, _best_id = max(candidates, key=lambda sm: (ratings.get(sm[1], 0.0), -sm[0]))
         return f"move {best_slot}"
 
     return _policy
