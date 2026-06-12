@@ -13,8 +13,9 @@ this protocol has no events to race.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import random
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,8 +30,43 @@ from adx_showdown.protocol import (
 )
 from adx_showdown.sidecar import Sidecar
 
-Policy = Callable[[ParsedRequest], str | None]
-"""Maps a parsed request to a choice string (None = no action, e.g. wait)."""
+Policy = Callable[..., "str | None | Awaitable[str | None]"]
+"""Maps a parsed request to a choice string (None = no action, e.g. wait).
+
+Two call shapes, sniffed once per battle: ``policy(req)`` or
+``policy(req, ctx)`` where ctx is a :class:`BattleContext`. Either may be
+async (bots that consult the sidecar's dex-rate op are).
+"""
+
+
+class BattleContext(BaseModel):
+    """Per-step context handed to 2-arg policies (bots need the defender)."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    side: str
+    opponent_species: str | None = None
+    turns: int = 0
+
+
+def _wants_context(policy: Policy) -> bool:
+    try:
+        params = [
+            pm
+            for pm in inspect.signature(policy).parameters.values()
+            if pm.kind in (pm.POSITIONAL_ONLY, pm.POSITIONAL_OR_KEYWORD)
+        ]
+        return len(params) >= 2
+    except (TypeError, ValueError):
+        return False
+
+
+async def _call_policy(
+    policy: Policy, req: ParsedRequest, ctx: BattleContext, *, wants_ctx: bool
+) -> str | None:
+    result = policy(req, ctx) if wants_ctx else policy(req)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
 
 
 def first_legal_policy(req: ParsedRequest) -> str | None:
@@ -130,6 +166,8 @@ async def run_battle(
     state: dict[str, Any] = resp["state"]
     choice_errors = 0
     last_req: dict[str, ParsedRequest] = {}
+    wants_ctx = {side: _wants_context(policies[side]) for side in ("p1", "p2")}
+    OTHER = {"p1": "p2", "p2": "p1"}
 
     for step_n in range(1, max_steps + 1):
         if state.get("end"):
@@ -157,7 +195,12 @@ async def run_battle(
                 continue
             req = parse_request(raw)
             last_req[side] = req
-            choice = policies[side](req)
+            ctx = BattleContext(
+                side=side,
+                opponent_species=(state.get("active") or {}).get(OTHER[side]),
+                turns=int(state.get("turns", 0)),
+            )
+            choice = await _call_policy(policies[side], req, ctx, wants_ctx=wants_ctx[side])
             if choice is not None:
                 choices[side] = choice
         if not choices:
