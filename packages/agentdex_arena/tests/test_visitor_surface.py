@@ -266,6 +266,60 @@ def test_validate_on_begin_rejects_illegal_team(arena):
     print("\nVALIDATE_ON_BEGIN: banned Koraidon team refused at /battle/begin; no session")
 
 
+def test_enroll_rejects_placeholder_owner(arena):
+    """G-04 (playtest): the owner is the human contact the out-of-band code reaches —
+    a template placeholder or non-address is rejected with a self-describing 422,
+    never silently enrolled (which taught a playtest agent the wrong lesson)."""
+    client, gateway, owner_inbox, agent_key = arena
+    pub = agent_key.public_key().public_bytes_raw().hex()
+    for bad in ("{OWNER}", "owner", "no-at-sign", "has space@x.com", "trailing@dotless"):
+        r = client.post(
+            "/enroll/request", json={"owner": bad, "agent_name": "X", "agent_pubkey_hex": pub}
+        )
+        assert r.status_code == 422, (bad, r.status_code)
+    r = client.post(
+        "/enroll/request",
+        json={"owner": "real@example.com", "agent_name": "X", "agent_pubkey_hex": pub},
+    )
+    assert r.status_code == 200
+    print("\nOWNER_VALIDATION: placeholder/non-contact owners rejected; real contact accepted")
+
+
+def test_capacity_returns_retryable_503(tmp_path: Path):
+    """G-03 (playtest): when the shared sim is at its live-battle cap, /battle/begin
+    returns a clear RETRYABLE 503 — not an opaque 400 the agent reads as its own
+    fault and blind-retries."""
+    signing = Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    authority = ConsentAuthority(signing_key_hex=signing)
+    inbox: dict[str, str] = {}
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "e.jsonl",
+        artifacts_dir=tmp_path / "a",
+        notify_owner=lambda owner, code: inbox.__setitem__(owner, code),
+    )
+    app = create_app(gateway, sidecar_factory=lambda: Sidecar(max_battles=1))
+    agent_key = Ed25519PrivateKey.generate()
+    with TestClient(app, raise_server_exceptions=False) as client:
+        token = _enroll(client, inbox, agent_key, name="CapBot")
+        s1 = _begin_battle(client, gateway, token, agent_key, lane="sandbox")  # holds the 1 slot
+        assert s1["status"] == "your_move"
+        start = client.post("/battle/start", json={"token": token}).json()
+        sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+        r = client.post(
+            "/battle/begin",
+            json={
+                "token": token,
+                "battle_nonce": start["battle_nonce"],
+                "pop_signature_hex": sig,
+                "lane": "sandbox",
+            },
+        )
+        assert r.status_code == 503, r.text
+        assert "capacity" in r.json()["detail"].lower()
+        print("\nCAPACITY: at-capacity begin returns retryable 503, not opaque 400")
+
+
 def test_injection_corpus_gate(arena):
     """A6 launch-blocking gate: every payload through every writable field."""
     client, gateway, owner_inbox, agent_key = arena

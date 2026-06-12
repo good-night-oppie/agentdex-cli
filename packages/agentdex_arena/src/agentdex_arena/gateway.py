@@ -35,7 +35,7 @@ from typing import Any, Literal
 from adx_bridges.showdown_battle_bridge import render_state
 from adx_showdown.bots import heuristic_bot, max_damage_bot, random_bot
 from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
-from adx_showdown.sidecar import Sidecar
+from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, call_policy
 from agentdex_engine.modules.arena import (
     EventLog,
@@ -45,7 +45,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, ConsentError
 
@@ -94,6 +94,19 @@ class EnrollRequest(BaseModel):
     owner: str = Field(min_length=3, max_length=120)
     agent_name: str = Field(min_length=1, max_length=64)
     agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("owner")
+    @classmethod
+    def _owner_is_a_contact(cls, v: str) -> str:
+        # The owner is the HUMAN contact the out-of-band confirmation code reaches
+        # (A1). Reject template placeholders / non-addresses with a self-describing
+        # error so the arena never silently enrolls a literal "{OWNER}" and teaches
+        # the visiting agent the wrong lesson (playtest G-04).
+        if any(c in v for c in "{}<>") or any(c.isspace() for c in v):
+            raise ValueError("owner must be a contact address, not a placeholder")
+        if "@" not in v or "." not in v.rsplit("@", 1)[-1]:
+            raise ValueError("owner must be a reachable contact, e.g. name@example.com")
+        return v
 
 
 class BeginRequest(BaseModel):
@@ -245,14 +258,25 @@ class ArenaGateway:
             valid, errors = await validate_team(sidecar, team)
             if not valid:
                 raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
-        resp = await sidecar.request(
-            "start",
-            battle=battle_id,
-            format="gen9ou",
-            seed=seed if req.lane == "sandbox" else seed,  # rated seed stays undisclosed
-            p1={"name": visitor, "team": team},
-            p2={"name": opponent, "team": team},  # mirror vs gym for MVP fairness
-        )
+        try:
+            resp = await sidecar.request(
+                "start",
+                battle=battle_id,
+                format="gen9ou",
+                seed=seed,
+                p1={"name": visitor, "team": team},
+                p2={"name": opponent, "team": team},  # mirror vs gym for MVP fairness
+            )
+        except SidecarError as e:
+            # The shared sim caps concurrent live battles. Surface that as a clear,
+            # RETRYABLE 503 (not an opaque 400 a client reads as its own fault) so a
+            # visiting agent knows to finish/forfeit a battle and retry (playtest G-03).
+            if "capacity" in str(e).lower():
+                raise HTTPException(
+                    status_code=503,
+                    detail="arena at capacity — finish or forfeit an active battle, then retry",
+                ) from None
+            raise
         self.sessions[battle_id] = session
         state = await self._advance(session, resp["state"], visitor_choice=None)
         return {"battle_id": battle_id, "lane": req.lane, **state}
