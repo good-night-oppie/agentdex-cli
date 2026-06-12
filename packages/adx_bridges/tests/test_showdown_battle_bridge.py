@@ -121,7 +121,6 @@ def test_stalling_decider_auto_forfeits_quickly():
             opponent_name="anchor",
         )
 
-    t0 = asyncio.get_event_loop().time() if False else None
     import time as _time
 
     start = _time.monotonic()
