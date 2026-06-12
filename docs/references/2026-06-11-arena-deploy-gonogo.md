@@ -118,3 +118,19 @@ User green-lit takedown (2026-06-11). No self-serve DELETE exists →
 **escalation recorded: ask the ai-builders instructors to delete `meta-vex`**
 (frees the slot for the 2-service fallback if phase 9 needs it). Not blocking:
 single-service GO path needs no second slot.
+
+## Phase-6 addendum (2026-06-12) — house battler measured numbers
+
+The FIC turn-loop conditions assumed above are now measured
+(`adx_bridges/showdown_battle_bridge.py`, CI-asserted):
+
+| Probe | Result |
+|---|---|
+| Context flatness (66-turn gen9ou stall battle) | turn-30 vs turn-3 prompt drift **0.006** (criterion ≤0.10) |
+| State render worst case (69-render corpus, tiktoken cl100k) | **302 tokens** (cap 2,500; 8,000-char hard cap) |
+| Stall rail | 3 consecutive decision timeouts → forfeit in **1.3 s**, stalling side loses |
+| Decision routing | platform proxy `/chat/completions` w/ `AI_BUILDER_TOKEN`, flash-tier default; fail-closed without token; BudgetGuard caps decisions per battle |
+
+Cost implication for the ADR-0010 table: measured renders (~300 tok) are ~10×
+below the 2,500-token assumption — per-battle house cost lands well under the
+$0.03/side worst case.
