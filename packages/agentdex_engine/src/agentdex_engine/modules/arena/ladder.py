@@ -57,8 +57,7 @@ class Ladder:
         for ev in events:
             if not _HASH_RE.match(ev.input_log_blake2b16 or ""):
                 raise InvalidRatingEvent(
-                    f"{ev.battle_id}: rating event rejected — no re-simulable "
-                    f"inputLog hash (A2)"
+                    f"{ev.battle_id}: rating event rejected — no re-simulable inputLog hash (A2)"
                 )
             for name in (ev.p1, ev.p2):
                 if name not in pre:
