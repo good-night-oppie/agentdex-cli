@@ -148,6 +148,10 @@ A richer vocabulary improves the human toy AND the evolution Distiller's search 
 
 ---
 
+## Status updates
+
+- 2026-06-12 — **#1 validate-on-begin SHIPPED** (PR #43). **#2 /team/draft + #3 break-the-mirror (sandbox) SHIPPED** (arena/q1 PR): gym leaders field fixed disclosed signature teams (never the visitor default); `opponent_team{,_name}` returned in the sandbox begin response; rated keeps the mirror + discloses nothing until #8.
+
 ## Appendix — structured backlog (machine source)
 
 - **#1 [S] (phase-9)** Validate-on-begin: battle_begin calls validate_team and rejects invalid client teams with opaque 422 BEFORE sidecar start (close the latent trust gap at gateway.py:232-244).
