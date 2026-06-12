@@ -234,6 +234,17 @@ class ArenaGateway:
             from adx_showdown.teams import pack_team, starter_pack
 
             team = await pack_team(sidecar, next(iter(starter_pack().values())))
+        else:
+            # A client-supplied team is UNTRUSTED: validate against the pinned
+            # banlist server-side BEFORE it can enter a battle. This enforces the
+            # F3 "an invalid team simply cannot play" contract that BeginRequest.team
+            # only asserted in a comment — closing the trust gap the authoring loop
+            # (POST /team/draft) leans on. Ship the gate before the axis it protects.
+            from adx_showdown.teams import validate_team
+
+            valid, errors = await validate_team(sidecar, team)
+            if not valid:
+                raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
         resp = await sidecar.request(
             "start",
             battle=battle_id,

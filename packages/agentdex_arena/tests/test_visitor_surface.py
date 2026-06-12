@@ -38,6 +38,15 @@ def _payload_value(p: dict) -> str:
     return str(p["value"])
 
 
+# A structurally-valid packed team that is banlist-illegal in gen9ou (Koraidon is
+# tagged Uber). Stable for the CI-pinned pokemon-showdown version, same posture as
+# the starter-pack fixtures. Used to prove validate-on-begin rejects it server-side.
+ILLEGAL_TEAM = (
+    "Koraidon||Leftovers|OrichalcumPulse|FlareBlitz,CollisionCourse,DrainPunch,"
+    "SwordsDance|Jolly|,252,,,,252|||||,,,,,Fire"
+)
+
+
 @pytest.fixture()
 def arena(tmp_path: Path):
     signing_key = Ed25519PrivateKey.generate().private_bytes_raw().hex()
@@ -230,6 +239,31 @@ def test_turn_budget_forfeits_stale_battle(arena):
     assert body["status"] == "ended"
     assert body["winner"].startswith("anchor-"), "stale battle forfeits to the opponent"
     print(f"\nTURN_BUDGET: stale battle forfeited to {body['winner']!r}")
+
+
+def test_validate_on_begin_rejects_illegal_team(arena):
+    """F3 / defense rank-1: a client-supplied team is validated against the pinned
+    banlist server-side BEFORE it can enter a battle. A banlist-illegal team is
+    refused at /battle/begin (422) and no battle session is created."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="DraftBot")
+    start = client.post("/battle/start", json={"token": token}).json()
+    sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+    r = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start["battle_nonce"],
+            "pop_signature_hex": sig,
+            "lane": "sandbox",
+            "team": ILLEGAL_TEAM,
+        },
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"].startswith("arena error (ref:")
+    assert gateway.sessions == {}, "an illegal team must not open a battle session"
+    assert client.get("/ladder").json()["entrants"] == {}
+    print("\nVALIDATE_ON_BEGIN: banned Koraidon team refused at /battle/begin; no session")
 
 
 def test_injection_corpus_gate(arena):
