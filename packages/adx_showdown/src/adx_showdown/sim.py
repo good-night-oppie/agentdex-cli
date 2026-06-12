@@ -71,6 +71,17 @@ async def _call_policy(
     return result
 
 
+async def call_policy(policy: Policy, req: ParsedRequest, ctx: BattleContext) -> str | None:
+    """Public adapter: drive any :data:`Policy` uniformly, sniffing its call shape.
+
+    Accepts both 1-arg ``policy(req)`` and 2-arg ``policy(req, ctx)`` policies,
+    sync or async. Callers driving a hot per-turn loop should sniff once with
+    :func:`_wants_context` and use :func:`_call_policy`; one-policy-per-session
+    callers (e.g. the arena gateway's opponent) can call this directly.
+    """
+    return await _call_policy(policy, req, ctx, wants_ctx=_wants_context(policy))
+
+
 def first_legal_policy(req: ParsedRequest) -> str | None:
     choices = legal_choices(req)
     return choices[0] if choices else None

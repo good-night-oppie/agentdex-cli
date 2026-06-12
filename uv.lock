@@ -6,6 +6,7 @@ requires-python = ">=3.11, <3.14"
 members = [
     "adx-bridges",
     "adx-showdown",
+    "agentdex-arena",
     "agentdex-cli",
     "agentdex-cli-workspace",
     "agentdex-engine",
@@ -55,6 +56,29 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
+
+[[package]]
+name = "agentdex-arena"
+version = "0.1.0"
+source = { editable = "packages/agentdex_arena" }
+dependencies = [
+    { name = "adx-bridges" },
+    { name = "adx-showdown" },
+    { name = "agentdex-engine" },
+    { name = "cryptography" },
+    { name = "fastapi" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "adx-bridges", editable = "packages/adx_bridges" },
+    { name = "adx-showdown", editable = "packages/adx_showdown" },
+    { name = "agentdex-engine", editable = "packages/agentdex_engine" },
+    { name = "cryptography", specifier = ">=42" },
+    { name = "fastapi", specifier = ">=0.110" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
 

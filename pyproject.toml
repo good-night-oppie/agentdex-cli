@@ -11,6 +11,7 @@ members = [
   "packages/agentdex_plugin",
   "packages/adx_bridges",
   "packages/adx_showdown",
+  "packages/agentdex_arena",
   "packages/helios_client",
   "packages/agentdex_observe",
   "packages/kaos",
@@ -22,6 +23,7 @@ agentdex-engine  = { workspace = true }
 agentdex-plugin  = { workspace = true }
 adx-bridges      = { workspace = true }
 adx-showdown     = { workspace = true }
+agentdex-arena   = { workspace = true }
 helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }
 kaos             = { workspace = true }
@@ -107,6 +109,7 @@ norecursedirs = ["packages/kaos/tests", "vendor", ".venv", "_attic", "expedition
 testpaths = [
   "packages/adx_bridges/tests",
   "packages/adx_showdown/tests",
+  "packages/agentdex_arena/tests",
   "packages/agentdex_cli/tests",
   "packages/agentdex_engine/tests",
   "packages/agentdex_plugin/tests",
