@@ -33,7 +33,7 @@
 import { createInterface } from 'node:readline';
 import ps from 'pokemon-showdown';
 
-const { BattleStream, Teams, TeamValidator } = ps;
+const { BattleStream, Teams, TeamValidator, Dex } = ps;
 
 const MAX_BATTLES = Number(process.env.ADX_SIDECAR_MAX_BATTLES || 4);
 const battles = new Map(); // battleId -> entry
@@ -46,6 +46,7 @@ function newEntry() {
     stream: new BattleStream(),
     inputLog: [],
     pending: { p1: null, p2: null },
+    active: { p1: null, p2: null }, // active species per side (from |switch|/|drag|)
     errors: [],
     winner: null, // null = in progress; '' = tie
     turns: 0,
@@ -66,6 +67,10 @@ function attachReader(battleId, entry) {
               entry.turns = Number(line.split('|')[2]);
             } else if (line.startsWith('|win|')) {
               entry.winner = line.split('|')[2];
+            } else if (line.startsWith('|switch|') || line.startsWith('|drag|')) {
+              const parts = line.split('|');
+              const side = parts[2].slice(0, 2); // 'p1a: Nick' -> 'p1'
+              entry.active[side] = (parts[3] || '').split(',')[0];
             } else if (line === '|tie' || line.startsWith('|tie|')) {
               // NOT startsWith('|tie') — that also matches '|tier|' (measured:
               // every randombattle "tied" at turn 1 via the tier announcement).
@@ -109,6 +114,7 @@ async function settledState(entry) {
       p1: entry.winner === null ? entry.pending.p1 : null,
       p2: entry.winner === null ? entry.pending.p2 : null,
     },
+    active: entry.active,
     errors,
     turns: entry.turns,
     end:
@@ -191,6 +197,26 @@ async function handle(msg) {
       const team = Teams.import(msg.export);
       if (!team) return out({ id, ok: false, error: 'team failed to import' });
       return out({ id, ok: true, packed: Teams.pack(team) });
+    }
+    if (op === 'dex-rate') {
+      // effective power of each move id vs a defender species: basePower x
+      // 2^getEffectiveness x (getImmunity ? 1 : 0). Status moves rate 0.
+      const defender = Dex.species.get(msg.defender || '');
+      const types = defender.exists ? defender.types : [];
+      const ratings = {};
+      for (const id of msg.moves || []) {
+        const mv = Dex.moves.get(id);
+        if (!mv.exists || !mv.basePower) {
+          ratings[id] = 0;
+          continue;
+        }
+        let mult = 1;
+        if (types.length) {
+          mult = Dex.getImmunity(mv.type, types) ? Math.pow(2, Dex.getEffectiveness(mv.type, types)) : 0;
+        }
+        ratings[id] = mv.basePower * mult;
+      }
+      return out({ id, ok: true, ratings });
     }
     if (op === 'rss') {
       return out({ id, ok: true, rss: process.memoryUsage().rss, active: battles.size });

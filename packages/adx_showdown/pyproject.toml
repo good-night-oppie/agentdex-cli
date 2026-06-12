@@ -9,6 +9,7 @@ description = "adx_showdown: Pokémon Showdown battle substrate — persistent B
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.0",
+  "agentdex-engine",
 ]
 
 [tool.hatch.build.targets.wheel]
