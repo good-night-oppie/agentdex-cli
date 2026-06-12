@@ -134,6 +134,12 @@ class BattleSession:
     recent: list[str] = field(default_factory=list)
     foe_species: str | None = None
     foe_hp_pct: int | None = None
+    # Fork support (#6): the exact inputs needed to re-create this battle from
+    # its seed and branch at a turn. parent=(battle_id, fork_turn) on forks.
+    p1_team: str | None = None
+    p2_team: str | None = None
+    visitor_choices: list[str] = field(default_factory=list)
+    parent: tuple[str, int] | None = None
 
 
 class EnrollRequest(BaseModel):
@@ -290,6 +296,7 @@ class ArenaGateway:
             sidecar=sidecar,
             opponent_policy=_anchor_policy(opponent, sidecar, seed[0] + 13),
         )
+        session.p1_team = None  # set below once the visitor team is resolved
         team = req.team
         if team is None:
             team = await pack_team(sidecar, next(iter(starter_pack().values())))
@@ -308,6 +315,7 @@ class ArenaGateway:
         else:
             gym_team_name = None
             opp_team = team  # rated keeps the mirror until #8 (i.i.d. anchor-team defense)
+        session.p1_team, session.p2_team = team, opp_team
         try:
             resp = await sidecar.request(
                 "start",
@@ -471,10 +479,22 @@ class ArenaGateway:
                 "input_log_blake2b16": log_digest,
             },
         )
+        if session.parent is not None:
+            receipt["parent_battle_id"], receipt["fork_turn"] = session.parent
+        # Internal record is richer than the public /replay view (which filters to
+        # input_log/winner/lane/parent): seed+teams+choices power #6 forks; tenant
+        # scopes fork ownership. token_id never leaks publicly.
         self.replays[session.battle_id] = {
             "input_log": input_log,
             "winner": winner,
             "lane": session.lane,
+            "tenant": session.claims_token_id,
+            "seed": list(session.seed),
+            "visitor": session.visitor_name,
+            "opponent": session.opponent,
+            "teams": [session.p1_team, session.p2_team],
+            "visitor_choices": list(session.visitor_choices),
+            "parent": session.parent,
         }
         if session.lane == "rated":
             for name in (session.visitor_name, session.opponent):
@@ -507,6 +527,66 @@ class ArenaGateway:
                 "seed_disclosure": session.seed,  # revealed post-result (A3)
             }
         return receipt
+
+    # ---------- fork (#6 remix-the-loss, sandbox-only) ----------
+
+    async def battle_fork(
+        self, src_battle_id: str, src: dict[str, Any], *, turn: int, sidecar: Sidecar
+    ) -> dict[str, Any]:
+        """Branch a finished SANDBOX battle at `turn`: same seed, same teams, same
+        fresh-seeded opponent policy; the visitor's recorded choices replay through
+        the live step protocol up to the fork point, then control returns to the
+        agent. Deterministic anchors make the same-choice suffix reproduce; the
+        only free variable is the decision at the fork."""
+        battle_id = f"sandbox-fork-{uuid.uuid4().hex[:8]}"
+        session = BattleSession(
+            battle_id=battle_id,
+            claims_token_id=str(src["tenant"]),
+            visitor_name=str(src["visitor"]),
+            lane="sandbox",
+            opponent=str(src["opponent"]),
+            seed=list(src["seed"]),
+            sidecar=sidecar,
+            opponent_policy=_anchor_policy(str(src["opponent"]), sidecar, src["seed"][0] + 13),
+        )
+        session.p1_team, session.p2_team = src["teams"]
+        session.parent = (src_battle_id, turn)
+        resp = await sidecar.request(
+            "start",
+            battle=battle_id,
+            format="gen9ou",
+            seed=session.seed,
+            p1={"name": session.visitor_name, "team": session.p1_team},
+            p2={"name": session.opponent, "team": session.p2_team},
+        )
+        self.sessions[battle_id] = session
+        state = await self._advance(session, resp["state"], visitor_choice=None)
+        for ch in src.get("visitor_choices", []):
+            if session.ended is not None or session.turns >= turn:
+                break
+            if session.pending is None:
+                break
+            session.pending = None
+            step = await sidecar.request(
+                "step", battle=battle_id, choices={session.visitor_side: ch}
+            )
+            state = await self._advance(session, step["state"], visitor_choice=None)
+        self.events.append(
+            "battle_fork",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": battle_id,
+                "parent_battle_id": src_battle_id,
+                "fork_turn": turn,
+            },
+        )
+        return {
+            "battle_id": battle_id,
+            "lane": "sandbox",
+            "parent_battle_id": src_battle_id,
+            "fork_turn": turn,
+            **state,
+        }
 
     # ---------- public, read-only (L0) ----------
 
@@ -633,6 +713,7 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         if not 1 <= req.choice_index <= len(choices):
             raise _opaque_error(422, f"choice index out of range 1..{len(choices)}")
         choice = choices[req.choice_index - 1]
+        session.visitor_choices.append(choice)
         _push_recent(session, f"T{session.turns}: you → {choice}")
         gw.events.append(
             "battle",
@@ -662,7 +743,61 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         data = gateway.replays.get(battle_id)
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
-        return data
+        # public view only — seed/teams/choices/tenant stay server-side (fork fuel)
+        return {
+            "input_log": data["input_log"],
+            "winner": data["winner"],
+            "lane": data["lane"],
+            "parent": data.get("parent"),
+        }
+
+    @app.post("/battle/{battle_id}/fork")
+    async def battle_fork(battle_id: str, body: dict) -> dict:
+        """#6 remix-the-loss: branch a finished battle at turn N. SANDBOX ONLY —
+        a rated log can never be forked (replay-derived rating laundering)."""
+        try:
+            claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        data = gateway.replays.get(battle_id)
+        if data is None:
+            raise _opaque_error(404, f"no replay {battle_id}")
+        if data["lane"] != "sandbox":
+            raise _opaque_error(403, "fork denied: sandbox battles only")
+        if data.get("tenant") != claims.token_id:
+            raise _opaque_error(403, "fork denied: not your battle")
+        turn = body.get("turn", 0)
+        if not isinstance(turn, int) or not 0 <= turn <= 1000:
+            raise _opaque_error(422, f"bad fork turn {turn!r}")
+        try:
+            return await gateway.battle_fork(battle_id, data, turn=turn, sidecar=await _sidecar())
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise _opaque_error(400, e) from None
+
+    @app.post("/my/events")
+    async def my_events(body: dict) -> dict:
+        """P4 client pull: a tenant's own chain rows (battle events only), paged by
+        chain seq — the feed `local_log.pull` materializes into ~/.adx/arena.sqlite."""
+        try:
+            claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        since = body.get("since_seq", -1)
+        if not isinstance(since, int):
+            raise _opaque_error(422, "since_seq must be an int")
+        rows = []
+        for ev in gateway.events.iter_events():
+            if ev["seq"] <= since:
+                continue
+            payload = ev.get("payload") or {}
+            if payload.get("tenant_id") != claims.token_id:
+                continue
+            rows.append(ev)
+            if len(rows) >= 1000:
+                break
+        return {"events": rows, "next_since_seq": rows[-1]["seq"] if rows else since}
 
     @app.post("/evolution/request")
     async def evolution_request(body: dict) -> dict:
