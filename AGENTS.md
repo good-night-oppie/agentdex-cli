@@ -39,6 +39,7 @@ cross_cutting: true
 - [arena deploy go/no-go](docs/references/2026-06-11-arena-deploy-gonogo.md) — measured Spaces/Koyeb contract, sidecar RSS, determinism finding, durable-store choice
 - [arena calibration report](docs/references/2026-06-12-arena-calibration.md) — anchor ordering + 2·RD separation PASS in 200 battles; selftest wiring
 - [arena fun + multi-dim + reward-hack design](docs/references/2026-06-12-arena-fun-multidim-rewardhack-design.md) — Will Wright × Lilian Weng synthesis: 4 fun moves = 4 capability dimensions, each shipped with the anti-reward-hack defense it needs (phases 9–11 backlog)
+- [arena playtest dogfood](docs/references/2026-06-12-arena-playtest-dogfood.md) — 3 real agent CLIs (codex/agy/claude) played the loop; independently validated #2/#3/#6/SDK; fixed capacity-503 + owner-validation; top remaining = battle observability
 - [docs/architecture/architecture.md](docs/architecture/architecture.md) — TOOLS / ARCH / CONTEXT + invariants + guardrails
 - [docs/REPO_STRUCTURE.md](docs/REPO_STRUCTURE.md) — top-level tree
 - [docs/DEV_SETUP.md](docs/DEV_SETUP.md) — env vars + first-run + common workflows
