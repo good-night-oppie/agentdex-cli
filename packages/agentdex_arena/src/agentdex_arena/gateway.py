@@ -71,6 +71,32 @@ def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
     return heuristic_bot(sidecar, fallback_seed=seed)
 
 
+def _hp_pct(condition: str) -> int | None:
+    """'245/371 par' -> 66; '0 fnt' -> 0. Server-rendered condition strings only."""
+    if not condition:
+        return None
+    head = condition.split()[0]
+    if head == "0" or condition.endswith("fnt"):
+        return 0
+    if "/" in head:
+        try:
+            cur, mx = head.split("/", 1)
+            return max(0, min(100, round(100 * int(cur) / int(mx))))
+        except (ValueError, ZeroDivisionError):
+            return None
+    return None
+
+
+RECENT_TURNS_MAX = 8
+
+
+def _push_recent(session: BattleSession, line: str) -> None:
+    if session.recent and session.recent[-1] == line:
+        return
+    session.recent.append(line)
+    del session.recent[:-RECENT_TURNS_MAX]
+
+
 @dataclass
 class BattleSession:
     battle_id: str
@@ -87,6 +113,13 @@ class BattleSession:
     last_touch: float = field(default_factory=time.time)
     ended: dict[str, Any] | None = None
     visitor_side: str = "p1"
+    # Live observability (playtest G-01/G-02/G-10): the opponent's request —
+    # which the gateway already parses to drive the anchor policy — carries the
+    # opponent's exact HP via its bench condition strings. Server-rendered data;
+    # no sidecar change, no determinism impact.
+    recent: list[str] = field(default_factory=list)
+    foe_species: str | None = None
+    foe_hp_pct: int | None = None
 
 
 class EnrollRequest(BaseModel):
@@ -135,9 +168,10 @@ class ArenaGateway:
         turn_budget_s: float = 120.0,
         rated_seed_secret: str = "",
         now: Callable[[], float] = time.time,
+        event_sync: Callable[[dict], None] | None = None,
     ) -> None:
         self.authority = authority
-        self.events = EventLog(events_path)
+        self.events = EventLog(events_path, sync=event_sync)
         self.artifacts_dir = Path(artifacts_dir)
         self.notify_owner = notify_owner  # out-of-band channel (email/webhook)
         self.turn_budget_s = turn_budget_s
@@ -278,6 +312,19 @@ class ArenaGateway:
                 ) from None
             raise
         self.sessions[battle_id] = session
+        # Chain event (mirrors to Postgres write-behind). NO seed in the payload:
+        # mirror rows are tenant-readable and the rated seed stays secret until
+        # the post-result disclosure (A3).
+        self.events.append(
+            "battle_begin",
+            {
+                "tenant_id": claims.token_id,
+                "battle_id": battle_id,
+                "lane": req.lane,
+                "visitor": visitor,
+                "opponent": opponent,
+            },
+        )
         state = await self._advance(session, resp["state"], visitor_choice=None)
         return {"battle_id": battle_id, "lane": req.lane, **state}
 
@@ -306,6 +353,18 @@ class ArenaGateway:
             raw_opp = (state.get("pending") or {}).get(other)
             if raw_opp is not None:
                 opp_req = parse_request(raw_opp)
+                active_slot = next((s for s in opp_req.bench if s.active), None)
+                if active_slot is not None:
+                    pct = _hp_pct(active_slot.condition)
+                    species = sanitize_name(active_slot.species) or active_slot.species
+                    if pct is not None and (species, pct) != (
+                        session.foe_species,
+                        session.foe_hp_pct,
+                    ):
+                        session.foe_species, session.foe_hp_pct = species, pct
+                        _push_recent(
+                            session, f"T{int(state.get('turns', 0))}: foe {species} {pct}%"
+                        )
                 ctx = BattleContext(
                     side=other,
                     my_species=(state.get("active") or {}).get(other),
@@ -345,8 +404,13 @@ class ArenaGateway:
         return {
             "status": "your_move",
             "turn": session.turns,
-            "state": render_state(session.pending, ctx, scratchpad="", recent_turns=[]),
+            "state": render_state(
+                session.pending, ctx, scratchpad="", recent_turns=list(session.recent)
+            ),
             "n_choices": len(legal_choices(session.pending)),
+            "foe_active": session.foe_species,
+            "foe_hp_pct": session.foe_hp_pct,
+            "recent_turns": list(session.recent),
         }
 
     async def _finish(self, session: BattleSession, end: dict[str, Any]) -> dict[str, Any]:
@@ -372,7 +436,19 @@ class ArenaGateway:
             "failure_signatures": signatures,
             "replay": f"/replay/{session.battle_id}",
             "input_log_blake2b16": log_digest,
+            "recent_turns": list(session.recent),
         }
+        self.events.append(
+            "battle_end",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": session.battle_id,
+                "lane": session.lane,
+                "winner": winner,
+                "turns": session.ended["turns"],
+                "input_log_blake2b16": log_digest,
+            },
+        )
         self.replays[session.battle_id] = {
             "input_log": input_log,
             "winner": winner,
@@ -508,6 +584,17 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         if not 1 <= req.choice_index <= len(choices):
             raise _opaque_error(422, f"choice index out of range 1..{len(choices)}")
         choice = choices[req.choice_index - 1]
+        _push_recent(session, f"T{session.turns}: you → {choice}")
+        gw.events.append(
+            "battle",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": battle_id,
+                "turn": session.turns,
+                "choice": choice,
+                "foe_hp_pct": session.foe_hp_pct,
+            },
+        )
         session.pending = None
         session.last_touch = gw.now()
         try:

@@ -266,6 +266,41 @@ def test_validate_on_begin_rejects_illegal_team(arena):
     print("\nVALIDATE_ON_BEGIN: banned Koraidon team refused at /battle/begin; no session")
 
 
+def test_battle_observability_foe_hp_and_recent_turns(arena):
+    """G-01/G-02/G-10 (playtest): the per-turn response must carry the opponent's
+    HP%% and a LIVE recent-turns trail (not frozen at battle start) — derived from
+    the opponent's own request the gateway already parses; no sidecar change."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ObsBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    saw_foe_hp = state.get("foe_hp_pct") is not None
+    trails = []
+    calls = 0
+    while state.get("status") == "your_move" and calls < 200:
+        assert "foe_hp_pct" in state and "recent_turns" in state, sorted(state)
+        if state.get("foe_hp_pct") is not None:
+            saw_foe_hp = True
+        trails.append(tuple(state["recent_turns"]))
+        resp = client.post(
+            f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+        )
+        assert resp.status_code == 200, resp.text
+        nxt = resp.json()
+        nxt.setdefault("battle_id", state["battle_id"])
+        state = nxt
+        calls += 1
+    assert state.get("status") == "ended"
+    assert saw_foe_hp, "foe HP%% never surfaced across a whole battle (G-01)"
+    assert len(set(trails)) > 1, "recent_turns frozen all game (G-10)"
+    assert any("you →" in line for t in trails for line in t), "own choices missing from trail"
+    assert any("foe " in line for t in trails for line in t), "foe observations missing from trail"
+    assert state.get("recent_turns"), "receipt must carry the closing trail"
+    print(
+        f"\nOBSERVABILITY: foe HP surfaced, {len(set(trails))} distinct trails over "
+        f"{calls} turns; closing trail: {state['recent_turns'][-3:]}"
+    )
+
+
 def test_enroll_rejects_placeholder_owner(arena):
     """G-04 (playtest): the owner is the human contact the out-of-band code reaches —
     a template placeholder or non-address is rejected with a self-describing 422,

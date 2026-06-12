@@ -35,28 +35,52 @@ class EventLog:
     def __init__(self, path: str | Path, *, sync: Callable[[dict], None] | None = None) -> None:
         self.path = Path(path)
         self._sync = sync
+        # (seq, last_digest, file_size) watermark — makes append O(1) instead of two
+        # full-file rescans per event (the measured per-turn cost once battles append
+        # per-turn events). Lazily initialized from the file once; appends maintain it.
+        # A stat() size check per append detects a second writer (the pre-watermark
+        # implementation re-read the file every append, so it tolerated one) and falls
+        # back to a reload. Byte-identical lines to the pre-watermark implementation.
+        self._watermark: tuple[int, str, int] | None = None
 
-    def _last_digest(self) -> str:
+    def _load_watermark(self) -> tuple[int, str, int]:
         if not self.path.is_file():
-            return GENESIS
+            return (0, GENESIS, 0)
+        count = 0
         last = None
+        size = self.path.stat().st_size
         with self.path.open() as fh:
             for raw in fh:
                 if raw.strip():
                     last = raw.rstrip("\n")
-        return _digest(last) if last else GENESIS
+                    count += 1
+        return (count, _digest(last) if last else GENESIS, size)
+
+    def _current_watermark(self) -> tuple[int, str, int]:
+        if self._watermark is not None:
+            actual = self.path.stat().st_size if self.path.is_file() else 0
+            if actual == self._watermark[2]:
+                return self._watermark
+        self._watermark = self._load_watermark()
+        return self._watermark
+
+    def _last_digest(self) -> str:
+        return self._current_watermark()[1]
 
     def append(self, type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+        seq, prev, size = self._current_watermark()
         event = {
-            "seq": sum(1 for _ in self.iter_events()),
+            "seq": seq,
             "type": type_,
-            "prev": self._last_digest(),
+            "prev": prev,
             "payload": payload,
         }
         line = json.dumps(event, sort_keys=True, separators=(",", ":"))
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        data = line + "\n"
         with self.path.open("a") as fh:
-            fh.write(line + "\n")
+            fh.write(data)
+        self._watermark = (seq + 1, _digest(line), size + len(data.encode()))
         if self._sync is not None:
             try:
                 self._sync(event)

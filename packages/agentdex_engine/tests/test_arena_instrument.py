@@ -189,3 +189,54 @@ def test_patterns_yaml_is_the_enum():
     assert {"immune_move_clicked", "mon_fainted"} <= set(patterns)
     for sig in extract_signatures(["|move|p1a: A|X|p2a: B", "|-immune|p2a: B"], side="p1"):
         assert sig.signature in patterns
+
+
+def test_event_log_watermark_byte_identical_to_rescan_algorithm(tmp_path):
+    """P1 (BENE-Supabase design): the O(1) watermark append must write the EXACT
+    bytes the original rescan-per-append implementation wrote — golden-checked
+    by reconstructing the expected lines from the chain definition."""
+    import hashlib as _hashlib
+    import json as _json
+
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+    payloads = [{"name": f"e{i}", "frozen": False} for i in range(5)]
+    for p in payloads:
+        elog.append("register", p)
+
+    prev = "0" * 32
+    expected_lines = []
+    for seq, p in enumerate(payloads):
+        line = _json.dumps(
+            {"seq": seq, "type": "register", "prev": prev, "payload": p},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        expected_lines.append(line)
+        prev = _hashlib.blake2b(line.encode(), digest_size=16).hexdigest()
+    assert path.read_text() == "\n".join(expected_lines) + "\n"
+    assert elog.verify_chain() == 5
+
+
+def test_event_log_watermark_survives_second_writer(tmp_path):
+    """The pre-watermark implementation re-read the file every append, so it
+    tolerated a second writer on the same path; the stat-guard must keep that."""
+    path = tmp_path / "events.jsonl"
+    a, b = EventLog(path), EventLog(path)
+    a.append("register", {"name": "A", "frozen": False})
+    b.append("register", {"name": "B", "frozen": False})  # b's watermark was stale
+    a.append("register", {"name": "C", "frozen": False})  # a's watermark now stale
+    assert a.verify_chain() == 3
+
+
+def test_event_log_unknown_types_ignored_by_recompute(tmp_path):
+    """Per-turn battle events ride the same chain; recompute_ladder must ignore
+    them and verify_chain must still pass."""
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+    elog.append("battle_begin", {"tenant_id": "t1", "battle_id": "b1", "lane": "sandbox"})
+    elog.append("register", {"name": "X", "frozen": False})
+    elog.append("battle", {"tenant_id": "t1", "battle_id": "b1", "turn": 1, "choice": "move 1"})
+    elog.append("battle_end", {"tenant_id": "t1", "battle_id": "b1", "winner": "X"})
+    ladder = recompute_ladder(path)
+    assert "X" in ladder.entrants and len(ladder.entrants) == 1
