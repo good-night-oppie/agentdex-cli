@@ -94,6 +94,10 @@ The op item **`Supabase  agentdex database`** (`linqpieb5d4xuipvqfbrouneby`, vau
 
 ---
 
+## Status updates
+
+- 2026-06-12 — **P4 SHIPPED** (arena/q2 PR): `/my/events` tenant-scoped chain pull + `agentdex_arena.local_log` materializing `~/.adx/arena.sqlite` (idempotent set-union on (battle_id, seq); offline `battles()` + `recent_story()`). **#6 fork SHIPPED**: sandbox-only `POST /battle/{id}/fork` — same seed/teams/fresh-seeded opponent policy, recorded visitor choices replayed through the live step protocol to turn N; full-replay forks reproduce the original winner (determinism proof in test); rated + foreign forks 403; public `/replay` view filtered (seed/teams/choices/tenant stay server-side).
+
 ## Appendix — Rejected: browser-WASM performance modules (user-ratified 2026-06-12)
 
 Proposal considered: compile "performance modules" to WASM and run them in the user's

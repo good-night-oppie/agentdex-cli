@@ -367,6 +367,89 @@ def test_sandbox_mirror_broken_and_disclosed(arena):
     )
 
 
+def test_fork_sandbox_branches_rated_refused(arena):
+    """#6 remix-the-loss: sandbox forks replay the recorded prefix on the same
+    seed and branch; full-replay forks reproduce the original outcome; rated and
+    foreign battles are refused."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ForkBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+    src = receipt["battle_id"]
+
+    # full replay (turn beyond the end) must reproduce the original outcome
+    r = client.post(f"/battle/{src}/fork", json={"token": token, "turn": 1000})
+    assert r.status_code == 200, r.text
+    full = r.json()
+    if full.get("status") == "your_move":
+        full, _ = _play_to_end(client, token, full)
+    assert full["winner"] == receipt["winner"], "same-choice fork must reproduce the outcome"
+    assert full.get("parent_battle_id") == src and full.get("fork_turn") == 1000
+
+    # branch mid-battle: control returns to the agent at/before the fork turn
+    r = client.post(f"/battle/{src}/fork", json={"token": token, "turn": 2})
+    assert r.status_code == 200, r.text
+    branch = r.json()
+    assert branch["battle_id"].startswith("sandbox-fork-")
+    assert branch["parent_battle_id"] == src and branch["fork_turn"] == 2
+    if branch.get("status") == "your_move":
+        branch, _ = _play_to_end(client, token, branch)
+    assert branch["status"] == "ended" and "rating" not in branch
+
+    # rated battles can never be forked (rating-laundering firewall)
+    rated = _begin_battle(client, gateway, token, agent_key, lane="rated")
+    rated_receipt, _ = _play_to_end(client, token, rated)
+    r = client.post(f"/battle/{rated_receipt['battle_id']}/fork", json={"token": token, "turn": 1})
+    assert r.status_code == 403
+
+    # a stranger cannot fork your battle
+    stranger_key = Ed25519PrivateKey.generate()
+    stranger = _enroll(client, owner_inbox, stranger_key, owner="other@example.com", name="Sneak")
+    r = client.post(f"/battle/{src}/fork", json={"token": stranger, "turn": 1})
+    assert r.status_code == 403
+    assert client.get("/ladder").json()["entrants"].get("ForkBot", {}).get("games", 1) == 1
+    print(
+        f"\nFORK: full-replay reproduced winner={full['winner']!r}; branch@2 ended; "
+        "rated + foreign forks refused"
+    )
+
+
+def test_my_events_pull_into_local_sqlite(arena, tmp_path):
+    """P4: /my/events is tenant-scoped; local_log materializes ~/.adx-style SQLite
+    idempotently and rebuilds the battle story offline."""
+    from agentdex_arena import local_log
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="LocalBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+
+    r = client.post("/my/events", json={"token": token, "since_seq": -1})
+    assert r.status_code == 200
+    events = r.json()["events"]
+    assert events and all(
+        (e.get("payload") or {}).get("battle_id", "").startswith(("sandbox-",)) for e in events
+    )
+    db = tmp_path / "arena.sqlite"
+    assert local_log.store_events(events, db) == len(events)
+    assert local_log.store_events(events, db) == 0, "re-pull must be a no-op (idempotent)"
+    assert local_log.max_seq(db) == events[-1]["seq"]
+    rows = local_log.battles(db)
+    assert any(b["battle_id"] == receipt["battle_id"] for b in rows)
+    story = local_log.recent_story(receipt["battle_id"], db)
+    assert story and all(line.startswith("T") for line in story)
+
+    # tenant scoping: a second agent sees none of LocalBot's battles
+    other_key = Ed25519PrivateKey.generate()
+    other = _enroll(client, owner_inbox, other_key, owner="other2@example.com", name="OtherBot")
+    r2 = client.post("/my/events", json={"token": other, "since_seq": -1})
+    assert r2.json()["events"] == []
+    print(
+        f"\nLOCAL_LOG: {len(events)} events pulled tenant-scoped; idempotent; "
+        f"story[0..2]={story[:2]}; stranger sees 0"
+    )
+
+
 def test_enroll_rejects_placeholder_owner(arena):
     """G-04 (playtest): the owner is the human contact the out-of-band code reaches —
     a template placeholder or non-address is rejected with a self-describing 422,
