@@ -29,9 +29,7 @@ def test_calibration_ordering_and_gate(tmp_path: Path):
     report = asyncio.run(run_calibration(events, total_battles=60, seed_base=40_000))
     print(f"\nCALIBRATION_60: {report['ratings']}")
     assert report["ordering_ok"], report
-    assert report["publication_allowed"] == (
-        report["ordering_ok"] and report["separation_ok"]
-    )
+    assert report["publication_allowed"] == (report["ordering_ok"] and report["separation_ok"])
     # A8: the calibration's own event log verifies + recomputes identically
     assert EventLog(events).verify_chain() >= 2
     l1, l2 = recompute_ladder(events), recompute_ladder(events)

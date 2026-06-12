@@ -114,8 +114,7 @@ async def run_calibration(
         "battles": len(pairs),
         "periods": periods,
         "ratings": {
-            name: {"rating": rt.rating, "rd": rt.rd, "games": rt.games}
-            for name, rt in r.items()
+            name: {"rating": rt.rating, "rd": rt.rd, "games": rt.games} for name, rt in r.items()
         },
         "ordering_ok": ordering_ok,
         "separation_ok": separation_ok,
