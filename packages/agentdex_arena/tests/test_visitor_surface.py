@@ -730,6 +730,10 @@ def test_rated_turn_budget_forfeits_after_moves(arena):
     body = resp.json()
     assert body["status"] == "ended"
     assert body["forfeit"] == "turn budget exceeded"
+    assert "rating" in body
+    assert body["rating"]["published_delta"] == "INCONCLUSIVE" or isinstance(
+        body["rating"]["published_delta"], float
+    )
 
     # Moves were made, so it must be rated on the ladder
     events = list(gateway.events.iter_events())
