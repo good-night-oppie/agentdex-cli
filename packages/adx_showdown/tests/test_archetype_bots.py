@@ -3,7 +3,14 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from adx_showdown.bots import balance_bot, hyper_offense_bot, max_damage_bot, random_bot, stall_bot
+from adx_showdown.bots import (
+    balance_bot,
+    hyper_offense_bot,
+    max_damage_bot,
+    random_bot,
+    stall_bot,
+    trick_room_bot,
+)
 from adx_showdown.sidecar import Sidecar, sidecar_available
 from adx_showdown.sim import run_battle
 
@@ -66,5 +73,25 @@ def test_stall_bot_runs_to_completion():
                 seed=[301, 302, 303, 304],
             )
             assert result.winner in ("StallPlayer", "BalancePlayer")
+
+    asyncio.run(_run())
+
+
+def test_trick_room_bot_runs_to_completion():
+    """Trick Room archetype gym bot completes gen9randombattle without errors."""
+
+    async def _run():
+        async with Sidecar() as sc:
+            result = await run_battle(
+                sc,
+                battle_id="test-trick-room-bot",
+                format_id="gen9randombattle",
+                p1_name="TrickRoomPlayer",
+                p2_name="RandomPlayer",
+                p1_policy=trick_room_bot(sc, fallback_seed=401),
+                p2_policy=random_bot(402),
+                seed=[401, 402, 403, 404],
+            )
+            assert result.winner in ("TrickRoomPlayer", "RandomPlayer")
 
     asyncio.run(_run())

@@ -304,9 +304,28 @@ def stall_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
         if recovery_candidates and hp_pct < 60.0:
             return f"move {recovery_candidates[0][0]}"
 
-        protect_candidates = [(s, m) for s, m in candidates if m in PROTECT_MOVES]
-        if protect_candidates and 25.0 <= hp_pct <= 55.0:
-            return f"move {protect_candidates[0][0]}"
+        return await _stab_max_damage(sidecar, req, ctx, candidates)
+
+    return _policy
+
+
+def trick_room_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
+    """Archetype: trick-room — set Trick Room once, then slow-pressure damage."""
+    _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
+    trick_room_used = False
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        nonlocal trick_room_used
+        early, candidates = await preamble(req)
+        if early is not None:
+            return early
+        if candidates is None:
+            return None
+
+        tr_candidates = [(s, m) for s, m in candidates if m in TRICK_ROOM_MOVES]
+        if tr_candidates and not trick_room_used:
+            trick_room_used = True
+            return f"move {tr_candidates[0][0]}"
 
         return await _stab_max_damage(sidecar, req, ctx, candidates)
 
