@@ -177,7 +177,9 @@ class Arena:
         try:
             from agentdex_arena.local_log import store_events
         except ImportError as exc:
-            raise ImportError("run from the agentdex-cli workspace: uv run python arena_play.py") from exc
+            raise ImportError(
+                "run from the agentdex-cli workspace: uv run python arena_play.py"
+            ) from exc
         rows = self.events()
         if not rows:
             return 0
