@@ -968,21 +968,23 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         _push_recent(session, recent_line)
         old_pending = session.pending
         session.pending = None
+        success = False
         try:
             sidecar = await _sidecar()
             resp = await sidecar.request(
                 "step", battle=battle_id, choices={session.visitor_side: choice}
             )
+            success = True
         except HTTPException:
-            session.visitor_choices.pop()
-            session.recent = old_recent
-            session.pending = old_pending
             raise
         except Exception as e:  # noqa: BLE001
-            session.visitor_choices.pop()
-            session.recent = old_recent
-            session.pending = old_pending
             raise _opaque_error(400, e) from None
+        finally:
+            if not success:
+                if len(session.visitor_choices) > 0:
+                    session.visitor_choices.pop()
+                session.recent = old_recent
+                session.pending = old_pending
 
         try:
             gw.events.append(

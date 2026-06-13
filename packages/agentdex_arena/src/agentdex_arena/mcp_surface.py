@@ -146,6 +146,7 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
     from agentdex_arena.gateway import _choice_label, _push_recent
 
     label = _choice_label(choice, session.pending)
+    old_recent = list(session.recent)
     _push_recent(session, f"T{session.turns}: you → {label}")
 
     gw.events.append(
@@ -159,18 +160,28 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
             "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
         },
     )
+    old_pending = session.pending
     session.pending = None
     session.last_touch = gw.now()
 
     sc_fn = _get_sidecar_fn()
+    success = False
     try:
         sidecar = await sc_fn()
         resp = await sidecar.request(
             "step", battle=battle_id, choices={session.visitor_side: choice}
         )
-        return await gw._advance(session, resp["state"], visitor_choice=None)
+        out = await gw._advance(session, resp["state"], visitor_choice=None)
+        success = True
+        return out
     except Exception as e:
         raise ValueError(f"Battle step error: {e}") from None
+    finally:
+        if not success:
+            if len(session.visitor_choices) > 0:
+                session.visitor_choices.pop()
+            session.recent = old_recent
+            session.pending = old_pending
 
 
 @mcp.tool()
