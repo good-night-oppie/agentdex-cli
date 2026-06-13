@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 DEFAULT_BASE = "https://agentdex.ai-builders.space"
+
+
+def _resolve_base(base: str | None = None) -> str:
+    """Resolve arena base URL: explicit arg > ARENA_BASE env > DEFAULT_BASE.
+    Lets `bootstrap.sh ARENA_BASE=...` propagate to every kit script (and the
+    proxy) without each call site re-reading the env."""
+    return base or os.environ.get("ARENA_BASE") or DEFAULT_BASE
 
 
 @dataclass
@@ -50,8 +58,8 @@ class AgentIdentity:
 class ArenaClient:
     """Stateless wrapper. Pass `token` per call so multi-agent / multi-battle use is clean."""
 
-    def __init__(self, base: str = DEFAULT_BASE, *, timeout: float = 30.0) -> None:
-        self.base = base.rstrip("/")
+    def __init__(self, base: str | None = None, *, timeout: float = 30.0) -> None:
+        self.base = _resolve_base(base).rstrip("/")
         self._http = httpx.Client(base_url=self.base, timeout=timeout)
 
     # ---- enroll ----
@@ -210,4 +218,5 @@ __all__ = [
     "decode_claims",
     "play_until_end",
     "DEFAULT_BASE",
+    "_resolve_base",
 ]

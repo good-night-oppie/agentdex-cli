@@ -83,23 +83,33 @@ The proxy abstracts token + battle_id so your agent's tool surface is just
 `decide_move(choice_index)` + `request_evolution(...)` + replay/ladder reads.
 
 ```bash
-# 1. Begin a battle (and ONLY begin — leaves it live for the proxy to drive)
-export ARENA_BATTLE_ID=$(uv run python agents/begin_battle.py \
+# 1. Begin a battle (and ONLY begin — leaves it live for the proxy to drive).
+#    begin_battle.py prints battle_id on stdout line 1 and initial state
+#    JSON on line 2. Capture both — the proxy's show_state() polls live
+#    state via GET /battle/{id}/state (PR #93/#97), but keeping the initial
+#    JSON locally is useful for replay/debug.
+out=$(uv run python agents/begin_battle.py \
   --token "$ARENA_TOKEN" \
   --keyfile .state/my-bot.key \
   --agent-name my-bot \
   --team-file my_team.txt \
-  --lane sandbox | head -1)
-echo "$ARENA_BATTLE_ID"
+  --lane sandbox)
+export ARENA_BATTLE_ID=$(printf '%s\n' "$out" | head -1)
+printf '%s\n' "$out" | tail -1 > .state/initial.json
+echo "battle_id: $ARENA_BATTLE_ID; initial state cached at .state/initial.json"
 
 # Note: do NOT use max_damage_agent.py / claude_agent.py here — those play
 # to completion (calling /choose until the battle ends), so by the time the
 # proxy binds the ID, the battle is already consumed.
 
+# 2. (optional) point the kit at a non-prod arena
+# export ARENA_BASE=http://localhost:8000     # ArenaClient + proxy auto-detect
+
 # 3. Wire .mcp.json to your harness
 cp .mcp.json ~/your-harness-project/
 claude --mcp-config ~/your-harness-project/.mcp.json
 # In the chat: "use agentdex-arena-proxy to play this battle"
+# The agent calls show_state() first (live poll) → decide_move() to advance.
 ```
 
 Works with Claude Code, Cursor, agy, and any other harness that loads `.mcp.json`.
