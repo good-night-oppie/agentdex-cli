@@ -223,7 +223,6 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
     """Archetype: balance — hazards, pivots, selective setup, then damage."""
     _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
     hazards_laid = 0
-    setup_counts: dict[str, int] = {}
 
     async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
         nonlocal hazards_laid
@@ -234,7 +233,6 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
             return None
 
         hp_pct = _active_hp_pct(req)
-        species = _active_species(req)
 
         hazard_candidates = [(s, m) for s, m in candidates if m in HAZARD_MOVES]
         if hazard_candidates and hazards_laid < 1:
@@ -246,10 +244,83 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
         if pivot_candidates and has_bench and hp_pct >= 40.0:
             return f"move {pivot_candidates[0][0]}"
 
-        setup_candidates = [(s, m) for s, m in candidates if m in SETUP_MOVES]
-        if setup_candidates and hp_pct >= 65.0 and setup_counts.get(species, 0) < 1:
-            setup_counts[species] = setup_counts.get(species, 0) + 1
-            return f"move {setup_candidates[0][0]}"
+        return await _stab_max_damage(sidecar, req, ctx, candidates)
+
+    return _policy
+
+
+def hyper_offense_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
+    """Archetype: hyper-offense — setup aggressively, then STAB-weighted sweep."""
+    _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        early, candidates = await preamble(req)
+        if early is not None:
+            return early
+        if candidates is None:
+            return None
+
+        return await _stab_max_damage(sidecar, req, ctx, candidates)
+
+    return _policy
+
+
+def stall_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
+    """Archetype: stall — hazards, status, recovery, protect, then damage."""
+    _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
+    hazards_laid = 0
+    statused_opponents: set[str] = set()
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        nonlocal hazards_laid
+        early, candidates = await preamble(req)
+        if early is not None:
+            return early
+        if candidates is None:
+            return None
+
+        hp_pct = _active_hp_pct(req)
+
+        hazard_candidates = [(s, m) for s, m in candidates if m in HAZARD_MOVES]
+        if hazard_candidates and hazards_laid < 3:
+            hazards_laid += 1
+            return f"move {hazard_candidates[0][0]}"
+
+        status_candidates = [(s, m) for s, m in candidates if m in STATUS_MOVES]
+        if (
+            status_candidates
+            and ctx.opponent_species
+            and ctx.opponent_species not in statused_opponents
+        ):
+            statused_opponents.add(ctx.opponent_species)
+            return f"move {status_candidates[0][0]}"
+
+        recovery_candidates = [(s, m) for s, m in candidates if m in RECOVERY_MOVES]
+        if recovery_candidates and hp_pct < 60.0:
+            return f"move {recovery_candidates[0][0]}"
+
+        return await _stab_max_damage(sidecar, req, ctx, candidates)
+
+    return _policy
+
+
+def trick_room_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
+    """Archetype: trick-room — set Trick Room once, then slow-pressure damage."""
+    _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
+    trick_room_used = False
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        nonlocal trick_room_used
+        early, candidates = await preamble(req)
+        if early is not None:
+            return early
+        if candidates is None:
+            return None
+
+        tr_candidates = [(s, m) for s, m in candidates if m in TRICK_ROOM_MOVES]
+        if tr_candidates and not trick_room_used:
+            trick_room_used = True
+            return f"move {tr_candidates[0][0]}"
 
         return await _stab_max_damage(sidecar, req, ctx, candidates)
 

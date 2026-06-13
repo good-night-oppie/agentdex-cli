@@ -33,7 +33,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 from adx_bridges.showdown_battle_bridge import render_state
-from adx_showdown.bots import balance_bot, heuristic_bot, max_damage_bot, random_bot
+from adx_showdown.bots import (
+    balance_bot,
+    heuristic_bot,
+    hyper_offense_bot,
+    max_damage_bot,
+    random_bot,
+    stall_bot,
+    trick_room_bot,
+)
 from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
 from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, call_policy
@@ -58,12 +66,18 @@ GYM_LEADERS = (
     "anchor-max_damage",
     "anchor-heuristic",
     "gym-balance",
+    "gym-hyper-offense",
+    "gym-stall",
+    "gym-trick-room",
 )
 GYM_BADGES = {
     "anchor-random": "Boulder Badge",
     "anchor-max_damage": "Cascade Badge",
     "anchor-heuristic": "Thunder Badge",
     "gym-balance": "Balance Badge",
+    "gym-hyper-offense": "Hyper Offense Badge",
+    "gym-stall": "Stall Badge",
+    "gym-trick-room": "Trick Room Badge",
 }
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
 
@@ -75,6 +89,9 @@ RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking p
 # the i.i.d. anchor-team defense.
 ARCHETYPE_GYM_TEAMS = {
     "gym-balance": "01-balance-tusk-gambit",
+    "gym-hyper-offense": "02-hyper-offense",
+    "gym-stall": "03-stall",
+    "gym-trick-room": "04-trick-room",
 }
 GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
 
@@ -118,6 +135,12 @@ def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
 def _opponent_policy(name: str, sidecar: Sidecar, seed: int):
     if name == "gym-balance":
         return balance_bot(sidecar, fallback_seed=seed)
+    if name == "gym-hyper-offense":
+        return hyper_offense_bot(sidecar, fallback_seed=seed)
+    if name == "gym-stall":
+        return stall_bot(sidecar, fallback_seed=seed)
+    if name == "gym-trick-room":
+        return trick_room_bot(sidecar, fallback_seed=seed)
     return _anchor_policy(name, sidecar, seed)
 
 
