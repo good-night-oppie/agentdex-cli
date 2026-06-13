@@ -68,19 +68,25 @@ class EventLog:
         return self._current_watermark()[1]
 
     def append(self, type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        seq, prev, size = self._current_watermark()
-        event = {
-            "seq": seq,
-            "type": type_,
-            "prev": prev,
-            "payload": payload,
-        }
-        line = json.dumps(event, sort_keys=True, separators=(",", ":"))
+        lock_path = self.path.parent / f"{self.path.name}.lock"
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = line + "\n"
-        with self.path.open("a") as fh:
-            fh.write(data)
-        self._watermark = (seq + 1, _digest(line), size + len(data.encode()))
+        import fcntl
+
+        with open(lock_path, "w") as lock_fh:
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)
+            seq, prev, size = self._current_watermark()
+            event = {
+                "seq": seq,
+                "type": type_,
+                "prev": prev,
+                "payload": payload,
+            }
+            line = json.dumps(event, sort_keys=True, separators=(",", ":"))
+            data = line + "\n"
+            with self.path.open("a") as fh:
+                fh.write(data)
+            self._watermark = (seq + 1, _digest(line), size + len(data.encode()))
+
         if self._sync is not None:
             try:
                 self._sync(event)
