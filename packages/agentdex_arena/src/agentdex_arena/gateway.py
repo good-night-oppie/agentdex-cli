@@ -742,6 +742,7 @@ class ArenaGateway:
                 "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
                 "seed_disclosure": session.seed,  # revealed post-result (A3)
             }
+        session.ended = receipt
         return receipt
 
     # ---------- fork (#6 remix-the-loss, sandbox-only) ----------
