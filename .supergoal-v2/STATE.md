@@ -13,7 +13,7 @@ cross_cutting: true
 # State: Agentdex Arena — Pokémon Showdown co-opetition platform
 
 **Status:** SUPERGOAL_RUN_COMPLETE
-**Work queue:** QUEUE_DRAINED (2026-06-12, adx-cli-4) — [Q1] #2 team-draft + #3 break-the-mirror MERGED PR #46 (2ea6dae5); [Q2] #6 sandbox fork + P4 client SQLite local_log MERGED PR #47 (75da5da2); [Q3] BENE PgEngramConnection engram-half adaptor MERGED to bene-main local main (6334fd4 — repo has NO git remote, local branch+full-gate merge is the PR-equivalent; 723 passed + 1 skipped, ruff clean). Next candidates (not queued): re-run 3-agent playtest vs new observability+draft+mirror; #4 archetype gym bots; #8 rated break-mirror w/ i.i.d. defense; mcp_surface.py.
+**Work queue:** QUEUE_DRAINED (2026-06-13, adx-cli-5) — Phase 10 archetype work complete: [Q4] #4 archetype gym bots MERGED (PRs #83-86: balance/hyper-offense/stall/trick-room); [Q5] #8 rated break-mirror w/ i.i.d. defense MERGED (PR #87 + hotfix 9c145fa6). 247 tests pass. Remaining optional: re-run 3-agent playtest vs new archetypes; mcp_surface.py polish.
 **Current phase:** completed
 **Started:** 2026-06-11
 **Last update:** 2026-06-13
@@ -32,14 +32,14 @@ cross_cutting: true
 | 7 | Evolution loop, house lane | done | 2026-06-12 | 2026-06-12 | PR #42 merged; nerf->HARMFUL in 20 CRN pairs p~0; byte-identical rollback; next-window-only verdicts; EvolutionCard KAOS chain |
 | 8 | Visiting-agent surface | done | 2026-06-12 | 2026-06-13 | streamable-HTTP MCP surface tools for visitor agent completed & merged (PR #50) |
 | 9 | Deploy (discovery-gated) | done | 2026-06-12 | 2026-06-13 | `python -m agentdex_arena` deploy entrypoint shipped (#44); 3-agent playtest (OgBot/AgentBot/CodexBot2) ran registers→team/draft→play→fork→events; sidecar.mjs fixes (PRs #58-#62) verified end-to-end. |
-| 10 | Polish & Harden | done | 2026-06-13 | 2026-06-13 | Polished replays with deterministic signatures, added public methodology page, and implemented opt-in Gym Leader sandbox battles + badges. |
+| 10 | Polish & Harden | done | 2026-06-13 | 2026-06-13 | Polished replays with deterministic signatures, added public methodology page, and implemented opt-in Gym Leader sandbox battles + badges. Archetype gym bots (balance/hyper-offense/stall/trick-room) + rated i.i.d. mirror-break SHIPPED (PRs #83-87). |
 
 ## Engineering check status
 
 - Build: green (uv workspace)
 - Typecheck: green (mypy via pre-commit)
 - Lint: green (ruff + doc-lint 0 BLOCK)
-- Tests: 218 pass + 8 gated skips (phase-9 close)
+- Tests: 247 pass + 7 gated skips (phase-10 archetype + mirror-break)
 
 ## Notable events
 
