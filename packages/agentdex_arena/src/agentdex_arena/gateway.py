@@ -53,7 +53,7 @@ from agentdex_engine.modules.arena import (
     extract_signatures,
     recompute_ladder,
 )
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -953,6 +953,26 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
 
         doc = Path(__file__).resolve().parent / "SKILL.md"
         return PlainTextResponse(doc.read_text(), media_type="text/markdown")
+
+    @app.get("/whoami")
+    async def whoami(authorization: str | None = Header(default=None)) -> dict:
+        """Live-token probe: verifies the bearer is signed + not expired + not revoked,
+        returns a safe summary of the claims for SKILL.md Layer 1.1 recovery."""
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer token required")
+        token = authorization[len("Bearer ") :]
+        try:
+            claims = gateway.authority.verify(token, scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        return {
+            "agent_name": claims.agent_name,
+            "owner": claims.owner,
+            "scopes": list(claims.scopes),
+            "issued_at": claims.issued_at,
+            "expires_at": claims.expires_at,
+            "expires_in_sec": max(0, int(claims.expires_at - gateway.now())),
+        }
 
     @app.post("/enroll/request")
     async def enroll_request(req: EnrollRequest) -> dict:

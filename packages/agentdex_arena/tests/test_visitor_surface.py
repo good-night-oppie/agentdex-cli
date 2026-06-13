@@ -1073,6 +1073,39 @@ def test_nightly_self_test_halts_publication(arena, monkeypatch, tmp_path):
     assert r2.status_code == 200
 
 
+def test_whoami_endpoint_probes_live_token(arena):
+    """GET /whoami verifies a bearer is live + returns safe claims summary.
+
+    SKILL.md Layer 1.1 recovery uses this to detect stale tokens BEFORE trying
+    /battle/* (the recovered-credential probe). Public read-only doc endpoints
+    like /enrollment cannot serve this role — they 200 regardless of token.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+
+    # 1. No header → 401
+    resp = client.get("/whoami")
+    assert resp.status_code == 401, resp.text
+
+    # 2. Garbage bearer → 403
+    resp = client.get("/whoami", headers={"Authorization": "Bearer not-a-real-token"})
+    assert resp.status_code == 403
+
+    # 3. Valid token → 200 with safe claims summary (no secret material)
+    token = _enroll(client, owner_inbox, agent_key)
+    resp = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["agent_name"] == "PartnerBot"
+    assert body["owner"] == "eddie@oppie.xyz"
+    assert set(body["scopes"]) == {"enroll", "battle", "evolve"}
+    assert "issued_at" in body and "expires_at" in body
+    assert body["expires_in_sec"] > 0
+    # No raw bearer / signing-key material leaked
+    assert "token" not in body
+    assert "signing_key" not in body
+    assert "pubkey" not in body
+
+
 def test_methodology_endpoint(arena):
     """Test that GET /methodology returns the methodology Markdown file content."""
     client, gateway, owner_inbox, agent_key = arena
