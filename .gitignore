@@ -64,3 +64,8 @@ sweeps/_kaos-digests/
 
 # Python build artifacts (anchored — already covered above with /dist /build)
 *.whl
+
+# Git worktrees
+.worktrees/
+worktrees/
+
