@@ -661,3 +661,33 @@ def test_enroll_rejects_reserved_and_duplicate_names(arena):
         json={"owner": "real@example.com", "agent_name": "LoneAgent", "agent_pubkey_hex": pub},
     )
     assert r.status_code == 409
+
+
+def test_rated_turn_budget_forfeits_on_ladder(arena):
+    from agentdex_engine.modules.arena.events import recompute_ladder
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="StaleBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="rated")
+
+    # Now jump past the 120s budget
+    gateway.now = lambda: time.time() + 1_000
+
+    resp = client.post(
+        f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+    )
+    body = resp.json()
+    assert body["status"] == "ended"
+    assert body["forfeit"] == "turn budget exceeded"
+
+    # Now check if the event log has been updated with "register" and "period" for StaleBot
+    events = list(gateway.events.iter_events())
+    types = [e["type"] for e in events]
+    assert "battle_end" in types
+    assert "register" in types
+    assert "period" in types
+
+    # Recompute the ladder and check if StaleBot is registered
+    ladder = recompute_ladder(gateway.events.path)
+    assert "StaleBot" in ladder.entrants
+    print("\nTURN_BUDGET_RATED: rated stale battle forfeited and rated on ladder")
