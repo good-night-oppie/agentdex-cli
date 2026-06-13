@@ -121,9 +121,14 @@ class ArenaClient:
 
     def battle_state(self, token: str, battle_id: str) -> dict[str, Any]:
         """Poll current state without choosing. Returns same shape as
-        battle_begin / battle_choose, OR {'status':'ended', ...} if ended."""
+        battle_begin / battle_choose, OR {'status':'ended', ...} if ended.
+        Token passed via Authorization header (NOT query string) so it never
+        appears in access logs / caches / referer headers."""
         return (
-            self._http.get(f"/battle/{battle_id}/state", params={"token": token})
+            self._http.get(
+                f"/battle/{battle_id}/state",
+                headers={"Authorization": f"Bearer {token}"},
+            )
             .raise_for_status()
             .json()
         )

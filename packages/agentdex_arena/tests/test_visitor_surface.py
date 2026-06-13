@@ -1134,15 +1134,18 @@ def test_battle_state_endpoint_polls_without_choosing(arena):
     """GET /battle/{id}/state returns same shape as begin/choose, without advancing the sim.
 
     Closes the kit's `arena_mcp_proxy.show_state` gap — agents (and clients without
-    MCP access) can observe mid-battle state without burning a turn.
+    MCP access) can observe mid-battle state without burning a turn. Token MUST
+    be passed via Authorization header (PR #93 review P2: query-string tokens leak
+    to access logs).
     """
     client, gateway, owner_inbox, agent_key = arena
     token = _enroll(client, owner_inbox, agent_key)
     initial = _begin_battle(client, gateway, token, agent_key)
     battle_id = initial["battle_id"]
+    auth = {"Authorization": f"Bearer {token}"}
 
     # 1. Poll without choosing → same shape as initial state, same turn number
-    resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
+    resp = client.get(f"/battle/{battle_id}/state", headers=auth)
     assert resp.status_code == 200, resp.text
     polled = resp.json()
     assert polled["status"] == "your_move"
@@ -1150,19 +1153,48 @@ def test_battle_state_endpoint_polls_without_choosing(arena):
     assert polled["n_choices"] == initial["n_choices"]
     assert polled.get("recent_turns") == initial.get("recent_turns")
 
-    # 2. Token-ownership gate: a different visitor's token gets 403
+    # 2. Token via query string → 401 (Bearer header required, not query)
+    resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
+    assert resp.status_code == 401, "query-string token must be rejected to avoid log leak"
+
+    # 3. Missing/empty Authorization header → 401
+    resp = client.get(f"/battle/{battle_id}/state")
+    assert resp.status_code == 401
+
+    # 4. Wrong scheme → 401
+    resp = client.get(f"/battle/{battle_id}/state", headers={"Authorization": token})
+    assert resp.status_code == 401
+
+    # 5. Token-ownership gate: a different visitor's token gets 403
     other_key = Ed25519PrivateKey.generate()
     other_token = _enroll(client, owner_inbox, other_key, name="OtherBot", owner="other@oppie.xyz")
-    resp = client.get(f"/battle/{battle_id}/state", params={"token": other_token})
+    resp = client.get(
+        f"/battle/{battle_id}/state", headers={"Authorization": f"Bearer {other_token}"}
+    )
     assert resp.status_code == 403, resp.text
 
-    # 3. Unknown battle id → 404
-    resp = client.get("/battle/no-such-battle/state", params={"token": token})
+    # 6. Unknown battle id → 404
+    resp = client.get("/battle/no-such-battle/state", headers=auth)
     assert resp.status_code == 404
 
-    # 4. After play-to-end the state endpoint returns the ended payload
-    final, _ = _play_to_end(client, token, initial)
-    resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
+    # 7. Stale session: when time advances past turn_budget_s the poll should
+    #    forfeit the battle before returning state (not return a live your_move).
+    stale_initial = _begin_battle(client, gateway, token, agent_key)
+    stale_battle_id = stale_initial["battle_id"]
+    # Bump time past the turn budget; _expire_if_stale fires inside the poll.
+    original_now = gateway.now
+    gateway.now = lambda: original_now() + gateway.turn_budget_s + 1
+    try:
+        resp = client.get(f"/battle/{stale_battle_id}/state", headers=auth)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body.get("status") == "ended", body
+    finally:
+        gateway.now = original_now
+
+    # 8. After play-to-end the state endpoint returns the ended payload
+    _final, _ = _play_to_end(client, token, initial)
+    resp = client.get(f"/battle/{battle_id}/state", headers=auth)
     assert resp.status_code == 200
     ended = resp.json()
     assert ended.get("status") == "ended"
