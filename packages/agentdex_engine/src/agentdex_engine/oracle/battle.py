@@ -57,9 +57,9 @@ class BattleOracle:
                     evidence=f"unparseable battle report: {str(response)[:160]!r}",
                 )
             }
-        win = bool(report.get("win", False))
         winner = str(report.get("winner", ""))
         me = str(report.get("me", ""))
+        win = (winner == me) and bool(winner)
         verdicts: OracleVerdictMap = {
             "battle.win": OracleVerdict(
                 kind="hard",
