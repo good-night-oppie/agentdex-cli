@@ -63,7 +63,17 @@ def main() -> int:
     ap.add_argument(
         "--gym-leader",
         default=None,
-        choices=[None, "balance", "hyper_offense", "stall", "trick_room"],
+        choices=[
+            None,
+            "gym-balance",
+            "gym-hyper-offense",
+            "gym-stall",
+            "gym-trick-room",
+            "anchor-random",
+            "anchor-max_damage",
+            "anchor-heuristic",
+        ],
+        help="canonical gym leader / anchor ID accepted by the gateway",
     )
     ap.add_argument("--model", default="claude-haiku-4-5-20251001")
     args = ap.parse_args()
