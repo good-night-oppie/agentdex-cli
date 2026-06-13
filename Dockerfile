@@ -17,8 +17,20 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 COPY packages/ ./packages/
 
-# Install python packages
+# Install python packages and sync workspace
 RUN uv sync --frozen --no-dev
+
+# Install all workspace packages as editable installs
+RUN uv pip install --frozen \
+    -e packages/adx_bridges \
+    -e packages/agentdex_cli \
+    -e packages/agentdex_observe \
+    -e packages/agentdex_engine \
+    -e packages/kaos \
+    -e packages/agentdex_arena \
+    -e packages/adx_showdown \
+    -e packages/helios_client \
+    -e packages/agentdex_plugin
 
 # Install npm dependencies for sidecar
 RUN cd packages/adx_showdown && npm ci --omit=dev
