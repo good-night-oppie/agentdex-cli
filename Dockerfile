@@ -38,6 +38,16 @@ RUN cd packages/adx_showdown && npm ci --omit=dev
 # BENE landing + docs (static, served at /bene/ by the gateway when present).
 COPY site/ ./site/
 
+# Strip dev-only tools that the bene-main → agentdex-cli site/ sync carries
+# along but that have no business reaching production users via /bene/:
+#   - build-docs.py: deterministic Markdown→HTML builder (build-time only)
+#   - check-i18n-parity.mjs: en↔zh key-tree diff (dev/CI only)
+#   - test-harness.html: headless-chromium render-verify harness (its own
+#     comment self-declares "not linked from the site")
+# Source-of-truth in bene-main/site/ is unchanged; this just keeps them out
+# of the deploy image. (round-3 claim-audit: public-exposure-scan dim.)
+RUN rm -f site/build-docs.py site/check-i18n-parity.mjs site/test-harness.html
+
 # Expose port (PORT will be set at runtime by Koyeb)
 EXPOSE 8000
 
