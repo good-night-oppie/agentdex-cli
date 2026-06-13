@@ -1068,6 +1068,13 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         data = gateway.replays.get(battle_id)
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
+        gateway.events.append(
+            "dispute",
+            {
+                "battle_id": battle_id,
+                "timestamp": gateway.now(),
+            },
+        )
         input_log = data.get("input_log")
         if not input_log:
             log_file = gateway.artifacts_dir / f"{battle_id}.inputlog.json"
