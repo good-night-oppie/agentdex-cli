@@ -54,7 +54,7 @@ def _scores(rc: ResultCard) -> dict[str, float]:
 
 
 def _rank_within(values: list[tuple[str, float]], *, ascending: bool) -> dict[str, int]:
-    ordered = sorted(values, key=lambda kv: (kv[1] if ascending else -kv[1]))
+    ordered = sorted(values, key=lambda kv: kv[1] if ascending else -kv[1])
     return {agent_id: idx + 1 for idx, (agent_id, _) in enumerate(ordered)}
 
 
