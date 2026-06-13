@@ -761,6 +761,7 @@ def test_choose_step_failure_safety(arena):
 
     choices_len_before = len(session.visitor_choices)
     events_len_before = len(list(gateway.events.iter_events()))
+    recent_len_before = len(session.recent)
 
     original_request = session.sidecar.request
 
@@ -778,6 +779,7 @@ def test_choose_step_failure_safety(arena):
 
     assert len(session.visitor_choices) == choices_len_before
     assert len(list(gateway.events.iter_events())) == events_len_before
+    assert len(session.recent) == recent_len_before
 
 
 @pytest.mark.timeout(90)
