@@ -169,3 +169,45 @@ def test_mcp_surface_mount(arena):
     # Check that the /mcp endpoint exists on the app
     routes = [r.path for r in client.app.routes if hasattr(r, "path")]
     assert any(p.startswith("/mcp") for p in routes)
+
+
+def test_mcp_surface_opaque_errors(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    # 1. Invalid token should raise ValueError with generic opaque error
+    with pytest.raises(ValueError, match=r"arena error \(ref: [0-9a-f]+\)"):
+        _call_tool(client, "get_battle_state", token="invalid-token", battle_id="some-id")
+
+
+def test_mcp_surface_multi_instance_context(tmp_path: Path):
+    # Create two gateways and two apps
+    k1 = Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    a1 = ConsentAuthority(signing_key_hex=k1)
+    inbox1 = {}
+    g1 = ArenaGateway(
+        authority=a1,
+        events_path=tmp_path / "events1.jsonl",
+        artifacts_dir=tmp_path / "arena1",
+        notify_owner=inbox1.__setitem__,
+    )
+    app1 = create_app(g1, sidecar_factory=Sidecar)
+
+    k2 = Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    a2 = ConsentAuthority(signing_key_hex=k2)
+    inbox2 = {}
+    g2 = ArenaGateway(
+        authority=a2,
+        events_path=tmp_path / "events2.jsonl",
+        artifacts_dir=tmp_path / "arena2",
+        notify_owner=inbox2.__setitem__,
+    )
+    app2 = create_app(g2, sidecar_factory=Sidecar)
+
+    # They should not interfere because of ContextVar
+    with TestClient(app1, raise_server_exceptions=False) as c1:
+        with TestClient(app2, raise_server_exceptions=False) as c2:
+            key1 = Ed25519PrivateKey.generate()
+            t1 = _enroll(c1, inbox1, key1, name="Bot1")
+
+            # Request to app2 using t1 should fail with opaque error since t1 is invalid for app2's authority
+            with pytest.raises(ValueError, match=r"arena error \(ref: [0-9a-f]+\)"):
+                _call_tool(c2, "get_my_ladder_history", token=t1)

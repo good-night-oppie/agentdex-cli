@@ -815,9 +815,8 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         # the persistent sidecar is spawned lazily on first battle; stop it on
         # graceful shutdown so uvicorn (and TestClient teardown) never leak the
         # node subprocess.
-        from agentdex_arena.mcp_surface import mcp
 
-        async with mcp._session_manager.run():
+        async with app_.state.mcp_session_manager.run():
             yield
             sidecar = app_.state.sidecar
             if sidecar is not None:
@@ -827,6 +826,18 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     app = FastAPI(title="agentdex-arena", version="0.1.0", lifespan=_lifespan)
     app.state.gateway = gateway
     app.state.sidecar = None
+
+    from agentdex_arena.mcp_surface import current_gateway, current_sidecar_fn
+
+    @app.middleware("http")
+    async def set_mcp_context(request, call_next):
+        t1 = current_gateway.set(gateway)
+        t2 = current_sidecar_fn.set(_sidecar)
+        try:
+            return await call_next(request)
+        finally:
+            current_gateway.reset(t1)
+            current_sidecar_fn.reset(t2)
 
     async def _sidecar() -> Sidecar:
         if app.state.sidecar is None:
@@ -1111,8 +1122,10 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     from agentdex_arena.mcp_surface import init_mcp, mcp
 
     mcp._session_manager = None
+    mcp_app = mcp.streamable_http_app()
+    app.state.mcp_session_manager = mcp._session_manager
     init_mcp(gateway, _sidecar)
-    app.mount("/mcp", mcp.streamable_http_app())
+    app.mount("/mcp", mcp_app)
 
     return app
 

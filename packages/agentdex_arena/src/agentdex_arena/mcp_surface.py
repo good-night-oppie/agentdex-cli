@@ -7,7 +7,9 @@ and sleeping-tolerant.
 
 from __future__ import annotations
 
+import contextvars
 import logging
+import uuid
 from typing import Any
 
 from adx_showdown.protocol import legal_choices, sanitize_name
@@ -26,9 +28,54 @@ mcp.settings.json_response = True
 mcp.settings.stateless_http = True
 mcp.settings.transport_security.enable_dns_rebinding_protection = False
 
-# Global references set at runtime
+# Global references set at runtime (as a fallback)
 _gateway: ArenaGateway | None = None
 _sidecar_fn: Any = None
+
+# Context variables for isolated multi-app support (P2 PR #50 comment follow-up)
+current_gateway: contextvars.ContextVar[ArenaGateway | None] = contextvars.ContextVar(
+    "current_gateway", default=None
+)
+current_sidecar_fn: contextvars.ContextVar[Any] = contextvars.ContextVar(
+    "current_sidecar_fn", default=None
+)
+
+
+def _get_gateway() -> ArenaGateway:
+    gw = current_gateway.get()
+    if gw is not None:
+        return gw
+    if _gateway is not None:
+        return _gateway
+    raise ValueError("Gateway not initialized")
+
+
+def _get_sidecar_fn() -> Any:
+    sc = current_sidecar_fn.get()
+    if sc is not None:
+        return sc
+    if _sidecar_fn is not None:
+        return _sidecar_fn
+    raise ValueError("Sidecar function not initialized")
+
+
+def _verify_token_opaque(
+    gateway: ArenaGateway, token: str, scope: str, spend_quota_scope: str | None = None
+) -> Any:
+    """Verify bearer consent token, returning claims.
+
+    Converts malformed, expired, revoked, or wrong-scope ConsentErrors into
+    a generic opaque error to prevent leak of inner details (P2 PR #50 comment follow-up).
+    """
+    try:
+        claims = gateway.authority.verify(token, scope=scope)
+        if spend_quota_scope:
+            gateway.authority.spend_quota(claims, scope=spend_quota_scope)
+        return claims
+    except ConsentError as e:
+        err_id = uuid.uuid4().hex[:12]
+        logger.warning("mcp auth error (ref=%s): %s", err_id, e)
+        raise ValueError(f"arena error (ref: {err_id})") from None
 
 
 def get_mcp_app(gateway: ArenaGateway) -> FastMCP:
@@ -46,21 +93,17 @@ def init_mcp(gateway: ArenaGateway, sidecar_fn: Any) -> None:
 @mcp.tool()
 async def get_battle_state(token: str, battle_id: str) -> dict[str, Any]:
     """Get the current state of a battle session. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
-    session = _gateway.sessions.get(battle_id)
+    session = gw.sessions.get(battle_id)
     if session is None:
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:
         raise ValueError("Unauthorized: token does not own this battle")
 
-    _gateway._expire_if_stale(session)
+    gw._expire_if_stale(session)
     if session.ended is not None:
         return {"status": "ended", **session.ended}
 
@@ -70,27 +113,23 @@ async def get_battle_state(token: str, battle_id: str) -> dict[str, Any]:
     if session.last_state is None:
         raise ValueError("No state available to render")
 
-    return _gateway._render(session, session.last_state)
+    return gw._render(session, session.last_state)
 
 
 @mcp.tool()
 async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[str, Any]:
     """Choose an action in a battle session by index. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
-    session = _gateway.sessions.get(battle_id)
+    session = gw.sessions.get(battle_id)
     if session is None:
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:
         raise ValueError("Unauthorized: token does not own this battle")
 
-    _gateway._expire_if_stale(session)
+    gw._expire_if_stale(session)
     if session.ended is not None:
         return {"status": "ended", **session.ended}
 
@@ -109,7 +148,7 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
     label = _choice_label(choice, session.pending)
     _push_recent(session, f"T{session.turns}: you → {label}")
 
-    _gateway.events.append(
+    gw.events.append(
         "battle",
         {
             "tenant_id": session.claims_token_id,
@@ -117,21 +156,19 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
             "turn": session.turns,
             "choice": choice,
             "choice_label": label,
-            "foe_hp_pct": session.foe_hp_pct,
+            "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
         },
     )
     session.pending = None
-    session.last_touch = _gateway.now()
+    session.last_touch = gw.now()
 
-    if _sidecar_fn is None:
-        raise ValueError("Sidecar factory not registered")
-
+    sc_fn = _get_sidecar_fn()
     try:
-        sidecar = await _sidecar_fn()
+        sidecar = await sc_fn()
         resp = await sidecar.request(
             "step", battle=battle_id, choices={session.visitor_side: choice}
         )
-        return await _gateway._advance(session, resp["state"], visitor_choice=None)
+        return await gw._advance(session, resp["state"], visitor_choice=None)
     except Exception as e:
         raise ValueError(f"Battle step error: {e}") from None
 
@@ -139,14 +176,10 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
 @mcp.tool()
 async def read_scratchpad(token: str, battle_id: str) -> dict[str, Any]:
     """Read the agent's scratchpad for this battle. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
-    session = _gateway.sessions.get(battle_id)
+    session = gw.sessions.get(battle_id)
     if session is None:
         raise ValueError(f"Battle session not found: {battle_id}")
 
@@ -159,14 +192,10 @@ async def read_scratchpad(token: str, battle_id: str) -> dict[str, Any]:
 @mcp.tool()
 async def write_scratchpad(token: str, battle_id: str, text: str) -> dict[str, Any]:
     """Write to the agent's scratchpad for this battle. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
-    session = _gateway.sessions.get(battle_id)
+    session = gw.sessions.get(battle_id)
     if session is None:
         raise ValueError(f"Battle session not found: {battle_id}")
 
@@ -180,19 +209,12 @@ async def write_scratchpad(token: str, battle_id: str, text: str) -> dict[str, A
 @mcp.tool()
 async def request_evolution(token: str, team: str, reasoning: str) -> dict[str, Any]:
     """Request evolution seeds for a team. Required scope: 'evolve'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="evolve")
-        _gateway.authority.spend_quota(claims, scope="evolve")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    _verify_token_opaque(gw, token, scope="evolve", spend_quota_scope="evolve")
 
-    if _sidecar_fn is None:
-        raise ValueError("Sidecar factory not registered")
-
+    sc_fn = _get_sidecar_fn()
     try:
-        sidecar = await _sidecar_fn()
+        sidecar = await sc_fn()
         return await offer_seeds(
             sidecar,
             current_team=team or None,
@@ -205,16 +227,12 @@ async def request_evolution(token: str, team: str, reasoning: str) -> dict[str, 
 @mcp.tool()
 async def get_my_ladder_history(token: str) -> dict[str, Any]:
     """Get the battle and ladder history for this agent. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
     events = []
-    if _gateway.events.path.is_file():
-        for ev in _gateway.events.iter_events():
+    if gw.events.path.is_file():
+        for ev in gw.events.iter_events():
             payload = ev.get("payload") or {}
             if payload.get("tenant_id") == claims.token_id:
                 events.append(ev)
@@ -224,9 +242,8 @@ async def get_my_ladder_history(token: str) -> dict[str, Any]:
 @mcp.tool()
 async def get_battle_replay(battle_id: str) -> dict[str, Any]:
     """Get the public replay data for a battle."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    data = _gateway.replays.get(battle_id)
+    gw = _get_gateway()
+    data = gw.replays.get(battle_id)
     if data is None:
         raise ValueError(f"Replay not found: {battle_id}")
     return {
@@ -240,14 +257,10 @@ async def get_battle_replay(battle_id: str) -> dict[str, Any]:
 @mcp.tool()
 async def get_evolution_diff(token: str) -> dict[str, Any]:
     """Get the Glicko rating evolution difference for the agent. Required scope: 'battle'."""
-    if _gateway is None:
-        raise ValueError("Gateway not initialized")
-    try:
-        claims = _gateway.authority.verify(token, scope="battle")
-    except ConsentError as e:
-        raise ValueError(f"Unauthorized: {e}") from None
+    gw = _get_gateway()
+    claims = _verify_token_opaque(gw, token, scope="battle")
 
-    if not _gateway.events.path.is_file():
+    if not gw.events.path.is_file():
         return {
             "agent_name": claims.agent_name,
             "current_rating": 1500.0,
@@ -255,7 +268,7 @@ async def get_evolution_diff(token: str) -> dict[str, Any]:
             "note": "No games played yet",
         }
 
-    ladder = recompute_ladder(_gateway.events.path)
+    ladder = recompute_ladder(gw.events.path)
     r = ladder.entrants.get(claims.agent_name)
     if r is None:
         return {
