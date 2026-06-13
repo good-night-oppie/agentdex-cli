@@ -1255,6 +1255,60 @@ def test_offline_resim_audit_job(arena):
 
 
 @pytest.mark.timeout(90)
+def test_offline_resim_audit_detects_hash_mismatch(arena):
+    import sys
+    from pathlib import Path
+
+    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.append(str(scripts_dir))
+    from resim_audit import run_audit
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="HashAuditBot")
+
+    # Start and play a rated battle to completion
+    state = _begin_battle(client, gateway, token, agent_key, lane="rated")
+    receipt, _ = _play_to_end(client, token, state)
+    battle_id = receipt["battle_id"]
+
+    # Append a battle_end event with a mismatched hash
+    gateway.events.append(
+        "battle_end",
+        {
+            "battle_id": battle_id,
+            "winner": receipt["winner"],
+            "turns": receipt["turns"],
+            "input_log_blake2b16": "falsified_hash_123",
+        },
+    )
+
+    # Manually log a dispute event
+    gateway.events.append(
+        "dispute",
+        {
+            "battle_id": battle_id,
+            "timestamp": gateway.now(),
+        },
+    )
+
+    # Run the offline audit job
+    import asyncio
+
+    ret = asyncio.run(run_audit(gateway.events.path, gateway.artifacts_dir, audit_rate=0.0))
+    assert ret == 0
+
+    # Verify that a quarantine event was logged due to hash mismatch
+    events = list(gateway.events.iter_events())
+    assert any(
+        e.get("type") == "quarantine"
+        and e.get("payload", {}).get("battle_id") == battle_id
+        and "audit hash mismatch (dispute)" in e.get("payload", {}).get("reason", "")
+        for e in events
+    )
+
+
+@pytest.mark.timeout(90)
 def test_offline_resim_audit_skips_sandbox(arena):
     import sys
     from pathlib import Path

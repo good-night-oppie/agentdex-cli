@@ -10,6 +10,7 @@ Quarantines any battle where the re-simulated winner does not match the reported
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import sys
@@ -33,7 +34,7 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
     elog = EventLog(events_path)
 
     # Scan events to find battle_end, dispute, and quarantine events
-    completed_battles = {}  # battle_id -> reported_winner
+    completed_battles = {}  # battle_id -> {"winner": winner, "hash": input_log_blake2b16}
     disputed_ids = set()
     quarantined_ids = set()
 
@@ -46,7 +47,10 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
         if etype == "battle_end":
             if payload.get("lane") == "sandbox" or bid.startswith("sandbox-"):
                 continue
-            completed_battles[bid] = payload.get("winner")
+            completed_battles[bid] = {
+                "winner": payload.get("winner"),
+                "hash": payload.get("input_log_blake2b16"),
+            }
         elif etype == "dispute":
             disputed_ids.add(bid)
         elif etype == "quarantine":
@@ -54,13 +58,13 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
 
     # Find battles to audit
     to_audit = []
-    for bid, reported_winner in completed_battles.items():
+    for bid, info in completed_battles.items():
         if bid in quarantined_ids:
             continue
         is_disputed = bid in disputed_ids
         is_sampled = _audit_sampled(bid, audit_rate)
         if is_disputed or is_sampled:
-            to_audit.append((bid, reported_winner, "dispute" if is_disputed else "sampled"))
+            to_audit.append((bid, info, "dispute" if is_disputed else "sampled"))
 
     if not to_audit:
         log.info("No battles require auditing.")
@@ -70,7 +74,9 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
 
     async with Sidecar() as sidecar:
         mismatches = 0
-        for bid, reported_winner, reason in to_audit:
+        for bid, info, reason in to_audit:
+            reported_winner = info.get("winner")
+            recorded_hash = info.get("hash")
             log.info("Auditing battle %s (%s)...", bid, reason)
             log_file = artifacts_dir / f"{bid}.inputlog.json"
             if not log_file.is_file():
@@ -82,6 +88,28 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
             except Exception as e:
                 log.error("Failed to parse input log for %s: %r", bid, e)
                 continue
+
+            if recorded_hash:
+                actual_hash = hashlib.blake2b(
+                    "\n".join(input_log).encode(), digest_size=16
+                ).hexdigest()
+                if actual_hash != recorded_hash:
+                    log.warning(
+                        "Input log hash mismatch for battle %s: actual=%r, recorded=%r. Quarantining.",
+                        bid,
+                        actual_hash,
+                        recorded_hash,
+                    )
+                    elog.append(
+                        "quarantine",
+                        {
+                            "battle_id": bid,
+                            "reason": f"audit hash mismatch ({reason}): actual {actual_hash!r} != recorded {recorded_hash!r}",
+                            "timestamp": time.time(),
+                        },
+                    )
+                    mismatches += 1
+                    continue
 
             try:
                 res = await replay_input_log(sidecar, battle_id=f"{bid}-audit", input_log=input_log)
