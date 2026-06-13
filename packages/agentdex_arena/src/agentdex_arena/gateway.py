@@ -463,15 +463,10 @@ class ArenaGateway:
             # Rated lane: i.i.d. anchor-team matchmaking (#8). Draw opponent team
             # from RATED_ANCHOR_TEAMS via extended nonce hash, independent of visitor
             # team. Seed and opponent team disclosed post-result.
-            anchor_team_idx = (
-                int.from_bytes(
-                    hashlib.blake2b(
-                        f"team:{req.battle_nonce}".encode(), digest_size=2
-                    ).digest(),
-                    "big",
-                )
-                % len(RATED_ANCHOR_TEAMS)
-            )
+            anchor_team_idx = int.from_bytes(
+                hashlib.blake2b(f"team:{req.battle_nonce}".encode(), digest_size=2).digest(),
+                "big",
+            ) % len(RATED_ANCHOR_TEAMS)
             gym_team_name = RATED_ANCHOR_TEAMS[anchor_team_idx]
             opp_team = await pack_team(sidecar, starter_pack()[gym_team_name])
         session.p1_team, session.p2_team = team, opp_team
