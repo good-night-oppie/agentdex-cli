@@ -1358,3 +1358,46 @@ def test_offline_resim_audit_skips_sandbox(arena):
         e.get("type") == "quarantine" and e.get("payload", {}).get("battle_id") == battle_id
         for e in events
     )
+
+
+@pytest.mark.timeout(90)
+def test_offline_resim_audit_fails_on_missing_or_corrupt_log(arena):
+    import sys
+    from pathlib import Path
+
+    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.append(str(scripts_dir))
+    from resim_audit import run_audit
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="AuditFailBot")
+
+    # Start and play a rated battle to completion
+    state = _begin_battle(client, gateway, token, agent_key, lane="rated")
+    receipt, _ = _play_to_end(client, token, state)
+    battle_id = receipt["battle_id"]
+
+    # Manually log a dispute event
+    gateway.events.append(
+        "dispute",
+        {
+            "battle_id": battle_id,
+            "timestamp": gateway.now(),
+        },
+    )
+
+    # 1. Remove the input log file to test FileNotFoundError
+    log_file = gateway.artifacts_dir / f"{battle_id}.inputlog.json"
+    if log_file.is_file():
+        log_file.unlink()
+
+    import asyncio
+
+    with pytest.raises(FileNotFoundError, match="Input log file not found"):
+        asyncio.run(run_audit(gateway.events.path, gateway.artifacts_dir, audit_rate=0.0))
+
+    # 2. Write invalid JSON to test ValueError
+    log_file.write_text("not a valid json {")
+    with pytest.raises(ValueError, match="Failed to parse input log"):
+        asyncio.run(run_audit(gateway.events.path, gateway.artifacts_dir, audit_rate=0.0))

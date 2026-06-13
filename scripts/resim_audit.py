@@ -80,14 +80,12 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
             log.info("Auditing battle %s (%s)...", bid, reason)
             log_file = artifacts_dir / f"{bid}.inputlog.json"
             if not log_file.is_file():
-                log.warning("Input log file not found for battle %s: %s", bid, log_file)
-                continue
+                raise FileNotFoundError(f"Input log file not found for battle {bid}: {log_file}")
 
             try:
                 input_log = json.loads(log_file.read_text(encoding="utf-8"))
             except Exception as e:
-                log.error("Failed to parse input log for %s: %r", bid, e)
-                continue
+                raise ValueError(f"Failed to parse input log for {bid}: {e}") from e
 
             if recorded_hash:
                 actual_hash = hashlib.blake2b(
