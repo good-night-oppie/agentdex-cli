@@ -35,6 +35,9 @@ RUN uv pip install \
 # Install npm dependencies for sidecar
 RUN cd packages/adx_showdown && npm ci --omit=dev
 
+# BENE landing + docs (static, served at /bene/ by the gateway when present).
+COPY site/ ./site/
+
 # Expose port (PORT will be set at runtime by Koyeb)
 EXPOSE 8000
 

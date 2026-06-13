@@ -54,6 +54,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, ConsentError
@@ -1217,6 +1218,12 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     app.state.mcp_session_manager = mcp._session_manager
     init_mcp(gateway, _sidecar)
     app.mount("/mcp", mcp_app)
+
+    # BENE landing + docs (static). Mounted only when the site/ tree was bundled
+    # into the image — preserves local-dev runs that don't ship the site files.
+    _bene_site = Path("site")
+    if _bene_site.is_dir():
+        app.mount("/bene", StaticFiles(directory=str(_bene_site), html=True), name="bene")
 
     return app
 
