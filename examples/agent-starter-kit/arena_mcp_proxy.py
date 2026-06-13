@@ -34,16 +34,12 @@ mcp = FastMCP("agentdex-arena-proxy")
 
 @mcp.tool()
 def show_state() -> dict[str, Any]:
-    """Fetch current battle state. Returns turn, state-text, n_choices, foe_active, foe_hp_pct, recent_turns."""
+    """Fetch current battle state via GET /battle/{id}/state. Returns turn, state-text,
+    n_choices, foe_active, foe_hp_pct, recent_turns — same shape as decide_move's
+    response. If the battle has ended, returns {'status':'ended', ...}."""
     if not _BATTLE:
         return {"error": "no battle bound; set ARENA_BATTLE_ID before starting proxy"}
-    # /battle/{id}/choose with sentinel doesn't poll; we re-derive via a no-op pattern below.
-    # Simplest: query via the gateway's view (requires the visitor to have just chosen, or use MCP get_battle_state).
-    # For pure HTTP, poll by re-choosing turn 0 isn't valid; require the caller to invoke decide_move first.
-    return {
-        "battle_id": _BATTLE,
-        "note": "use decide_move(idx) to advance; the response is the new state",
-    }
+    return _client.battle_state(_TOKEN, _BATTLE)
 
 
 @mcp.tool()

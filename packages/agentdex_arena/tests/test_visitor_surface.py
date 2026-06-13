@@ -1097,6 +1097,44 @@ def test_skill_md_endpoint(arena):
     assert "proof-of-possession failed" in resp.text
 
 
+def test_battle_state_endpoint_polls_without_choosing(arena):
+    """GET /battle/{id}/state returns same shape as begin/choose, without advancing the sim.
+
+    Closes the kit's `arena_mcp_proxy.show_state` gap — agents (and clients without
+    MCP access) can observe mid-battle state without burning a turn.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key)
+    initial = _begin_battle(client, gateway, token, agent_key)
+    battle_id = initial["battle_id"]
+
+    # 1. Poll without choosing → same shape as initial state, same turn number
+    resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
+    assert resp.status_code == 200, resp.text
+    polled = resp.json()
+    assert polled["status"] == "your_move"
+    assert polled["turn"] == initial["turn"]
+    assert polled["n_choices"] == initial["n_choices"]
+    assert polled.get("recent_turns") == initial.get("recent_turns")
+
+    # 2. Token-ownership gate: a different visitor's token gets 403
+    other_key = Ed25519PrivateKey.generate()
+    other_token = _enroll(client, owner_inbox, other_key, name="OtherBot", owner="other@oppie.xyz")
+    resp = client.get(f"/battle/{battle_id}/state", params={"token": other_token})
+    assert resp.status_code == 403, resp.text
+
+    # 3. Unknown battle id → 404
+    resp = client.get("/battle/no-such-battle/state", params={"token": token})
+    assert resp.status_code == 404
+
+    # 4. After play-to-end the state endpoint returns the ended payload
+    final, _ = _play_to_end(client, token, initial)
+    resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
+    assert resp.status_code == 200
+    ended = resp.json()
+    assert ended.get("status") == "ended"
+
+
 def test_gym_leader_selection_rules(arena):
     """Test that we can select a specific gym leader in sandbox, and that
 
