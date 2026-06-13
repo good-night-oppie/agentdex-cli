@@ -570,6 +570,57 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_setenv.set_defaults(func=cmd_pool_set_env)
 
+    # ---- deploy: deploy entrypoint ----
+    deploy = subs.add_parser(
+        "deploy",
+        help="Deploy the FastAPI service to the AI Builder platform",
+    )
+    deploy.add_argument(
+        "--service-name",
+        default="agentdex",
+        help="Unique subdomain (default: agentdex)",
+    )
+    deploy.add_argument(
+        "--repo-url",
+        help="Public Git repository URL (auto-detected if not specified)",
+    )
+    deploy.add_argument(
+        "--branch",
+        help="Git branch to deploy (auto-detected if not specified)",
+    )
+    deploy.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Container port (default: 8000)",
+    )
+    deploy.add_argument(
+        "--env-vars",
+        help="Comma-separated KEY=VALUE env vars",
+    )
+    deploy.add_argument(
+        "--token",
+        help="AI Builder API token (defaults to AI_BUILDER_TOKEN env var)",
+    )
+    deploy.add_argument(
+        "--no-poll",
+        action="store_true",
+        help="Queue the deployment and exit without polling status",
+    )
+    deploy.add_argument(
+        "--poll-interval",
+        type=int,
+        default=10,
+        help="Status polling interval in seconds (default: 10)",
+    )
+    deploy.add_argument(
+        "--poll-timeout",
+        type=int,
+        default=600,
+        help="Status polling timeout in seconds (default: 600)",
+    )
+    deploy.set_defaults(func=cmd_deploy)
+
     return p
 
 
@@ -667,6 +718,184 @@ def cmd_pool_set_env(args: argparse.Namespace) -> int:
     print(f"wrote {path}")
     print(body, end="")
     return 0
+
+
+def cmd_deploy(args: argparse.Namespace) -> int:
+    import subprocess
+    import time
+
+    import httpx
+
+    # Determine token
+    token = args.token or os.environ.get("AI_BUILDER_TOKEN")
+    if not token:
+        token = os.environ.get("AI_BUILDERS_KEY")
+    if not token:
+        print(
+            "ERROR: AI_BUILDER_TOKEN (or AI_BUILDERS_KEY) not set in environment or passed via --token.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Base URL
+    base_url = os.environ.get(
+        "ADX_BUILDER_PROXY_URL", "https://space.ai-builders.com/backend/v1"
+    ).rstrip("/")
+
+    # Detect repo_url
+    repo_url = args.repo_url
+    if not repo_url:
+        try:
+            repo_url = subprocess.check_output(
+                ["git", "config", "--get", "remote.origin.url"], text=True
+            ).strip()
+            if repo_url.startswith("git@"):
+                parts = repo_url.split(":")
+                if len(parts) == 2:
+                    host = parts[0].split("@")[1]
+                    path = parts[1]
+                    if path.endswith(".git"):
+                        path = path[:-4]
+                    repo_url = f"https://{host}/{path}"
+            elif repo_url.endswith(".git"):
+                pass
+        except Exception as e:
+            print(
+                f"ERROR: Could not auto-detect git remote origin URL ({e}). Please specify --repo-url.",
+                file=sys.stderr,
+            )
+            return 1
+
+    # Detect branch
+    branch = args.branch
+    if not branch:
+        try:
+            branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True
+            ).strip()
+        except Exception:
+            branch = "main"
+
+    # Env vars
+    env_vars = {}
+    # 1. Load any env vars starting with ARENA_ from current environment
+    for k, v in os.environ.items():
+        if k.startswith("ARENA_"):
+            env_vars[k] = v
+
+    # 2. Add custom env vars from --env-vars
+    if args.env_vars:
+        for pair in args.env_vars.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                env_vars[k.strip()] = v.strip()
+            else:
+                print(
+                    f"WARNING: Invalid env-var pair {pair!r}, expected KEY=VALUE. Skipping.",
+                    file=sys.stderr,
+                )
+
+    # Let's do a sanity check on ARENA_SIGNING_KEY_HEX
+    if "ARENA_SIGNING_KEY_HEX" not in env_vars:
+        print(
+            "WARNING: ARENA_SIGNING_KEY_HEX is not set in --env-vars or environment. Deployed service will generate an ephemeral key on each restart.",
+            file=sys.stderr,
+        )
+
+    # Trigger deployment
+    payload = {
+        "repo_url": repo_url,
+        "service_name": args.service_name,
+        "branch": branch,
+        "port": args.port,
+        "env_vars": env_vars,
+    }
+
+    print(f"Triggering deployment for service {args.service_name!r}...")
+    print(f"  Repo URL: {repo_url}")
+    print(f"  Branch:   {branch}")
+    print(f"  Port:     {args.port}")
+    if env_vars:
+        print(f"  Env Vars: {', '.join(f'{k}=***' for k in env_vars.keys())}")
+
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    try:
+        resp = httpx.post(f"{base_url}/deployments", json=payload, headers=headers, timeout=120.0)
+        if resp.status_code not in (200, 202):
+            print(
+                f"ERROR: Deployment failed to trigger. Status: {resp.status_code}", file=sys.stderr
+            )
+            print(resp.text, file=sys.stderr)
+            return 1
+
+        data = resp.json()
+        status = data.get("status")
+        message = data.get("message")
+        public_url = data.get("public_url")
+        print(f"Deployment queued. Status: {status}")
+        print(f"Message: {message}")
+        if data.get("streaming_logs"):
+            print("\n--- Initial build logs ---")
+            print(data.get("streaming_logs"))
+            print("--------------------------\n")
+
+        if args.no_poll:
+            print("Not polling status. Check deployment status at:")
+            print(f"  GET {base_url}/deployments/{args.service_name}")
+            return 0
+
+        # Start polling
+        print("Polling deployment status...")
+        start_time = time.time()
+        last_status = None
+        while time.time() - start_time < args.poll_timeout:
+            poll_resp = httpx.get(
+                f"{base_url}/deployments/{args.service_name}", headers=headers, timeout=30.0
+            )
+            if poll_resp.status_code == 200:
+                poll_data = poll_resp.json()
+                status = poll_data.get("status")
+                message = poll_data.get("message")
+                public_url = poll_data.get("public_url")
+
+                if status != last_status:
+                    print(f"[{time.strftime('%H:%M:%S')}] Status: {status} - {message}")
+                    last_status = status
+
+                if status == "HEALTHY":
+                    print(f"\nSUCCESS: Service deployed successfully to: {public_url}")
+                    return 0
+                elif status in ("UNHEALTHY", "DEGRADED", "ERROR"):
+                    print(f"\nFAILURE: Deployment failed with status: {status}")
+                    # Try to fetch logs
+                    try:
+                        logs_resp = httpx.get(
+                            f"{base_url}/deployments/{args.service_name}/logs",
+                            params={"log_type": "build", "timeout": 10},
+                            headers=headers,
+                            timeout=30.0,
+                        )
+                        if logs_resp.status_code == 200:
+                            print("\n--- Build Logs ---")
+                            print(logs_resp.json().get("logs", ""))
+                            print("-------------------\n")
+                    except Exception as le:
+                        print(f"Could not retrieve build logs: {le}", file=sys.stderr)
+                    return 1
+            else:
+                print(
+                    f"[{time.strftime('%H:%M:%S')}] Warning: GET /deployments/{args.service_name} returned status {poll_resp.status_code}"
+                )
+
+            time.sleep(args.poll_interval)
+
+        print(f"\nTIMEOUT: Deployment polling timed out after {args.poll_timeout} seconds.")
+        return 1
+
+    except Exception as e:
+        print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
 
 
 def cmd_langfuse_ensure(args: argparse.Namespace) -> int:
