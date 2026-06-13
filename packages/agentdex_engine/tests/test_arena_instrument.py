@@ -267,3 +267,36 @@ def test_event_log_tail_edit_verification(tmp_path):
     # But with expected_digest, it MUST fail
     with pytest.raises(ChainError, match="expected digest mismatch at tail"):
         tampered_elog.verify_chain(expected_digest=true_digest)
+
+
+def test_event_log_append_serialization_lock(tmp_path):
+    import threading
+    import time
+
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+
+    threads = []
+    errors = []
+
+    def target(index):
+        try:
+            for k in range(20):
+                elog.append("register", {"name": f"thread-{index}-{k}"})
+                time.sleep(0.001)
+        except Exception as e:
+            errors.append(e)
+
+    for i in range(5):
+        t = threading.Thread(target=target, args=(i,))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    assert not errors, f"Errors in threads: {errors}"
+
+    lock_file = tmp_path / "events.jsonl.lock"
+    assert lock_file.is_file()
+    assert elog.verify_chain() == 100
