@@ -85,6 +85,20 @@ def main() -> int:
         print("error: set ANTHROPIC_API_KEY", file=sys.stderr)
         return 2
 
+    # Build the decider BEFORE opening a battle so a missing `anthropic` dep
+    # (i.e. the user did `uv sync` without the `[claude]` extra) fails fast
+    # without consuming arena capacity (and rated quota if --lane rated).
+    try:
+        decide = make_decider(args.model)
+    except ModuleNotFoundError as e:
+        print(
+            f"error: {e.name} is not installed. Install the claude extra:\n"
+            f"  uv sync --extra claude\n"
+            f"or: uv pip install anthropic",
+            file=sys.stderr,
+        )
+        return 2
+
     agent = AgentIdentity.load(args.agent_name, args.keyfile)
     export = Path(args.team_file).read_text()
 
@@ -102,8 +116,6 @@ def main() -> int:
         )
         battle_id = initial["battle_id"]
         print(f"battle_id = {battle_id}", file=sys.stderr)
-
-        decide = make_decider(args.model)
         final = play_until_end(client, args.token, battle_id, decide, initial_state=initial)
         print(json.dumps(final, indent=2))
         return 0
