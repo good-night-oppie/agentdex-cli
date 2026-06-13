@@ -691,3 +691,34 @@ def test_rated_turn_budget_forfeits_on_ladder(arena):
     ladder = recompute_ladder(gateway.events.path)
     assert "StaleBot" in ladder.entrants
     print("\nTURN_BUDGET_RATED: rated stale battle forfeited and rated on ladder")
+
+
+def test_choose_step_failure_safety(arena):
+    from adx_showdown.sidecar import SidecarError
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="SafetyBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    session = gateway.sessions[battle_id]
+
+    choices_len_before = len(session.visitor_choices)
+    events_len_before = len(list(gateway.events.iter_events()))
+
+    original_request = session.sidecar.request
+
+    async def mock_request_fail(method, **kwargs):
+        if method == "step":
+            raise SidecarError("mock step failure")
+        return await original_request(method, **kwargs)
+
+    session.sidecar.request = mock_request_fail
+
+    resp = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
+    assert resp.status_code == 400
+
+    session.sidecar.request = original_request
+
+    assert len(session.visitor_choices) == choices_len_before
+    assert len(list(gateway.events.iter_events())) == events_len_before
