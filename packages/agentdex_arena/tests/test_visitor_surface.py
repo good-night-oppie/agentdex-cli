@@ -782,6 +782,39 @@ def test_choose_step_failure_safety(arena):
     assert len(session.recent) == recent_len_before
 
 
+def test_choose_step_failure_safety_at_max_recent_turns(arena):
+    from adx_showdown.sidecar import SidecarError
+    from agentdex_arena.gateway import RECENT_TURNS_MAX
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="SafetyMaxBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    session = gateway.sessions[battle_id]
+
+    # Pre-fill recent turns up to maximum capacity
+    session.recent = [f"T{i}: dummy turn line" for i in range(RECENT_TURNS_MAX)]
+    old_recent = list(session.recent)
+
+    original_request = session.sidecar.request
+
+    async def mock_request_fail(method, **kwargs):
+        if method == "step":
+            raise SidecarError("mock step failure")
+        return await original_request(method, **kwargs)
+
+    session.sidecar.request = mock_request_fail
+
+    resp = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
+    assert resp.status_code == 400
+
+    session.sidecar.request = original_request
+
+    # Verify that the entire buffer is restored and the oldest element is not lost
+    assert session.recent == old_recent
+
+
 def test_choose_event_write_failure_safety(arena):
     client, gateway, owner_inbox, agent_key = arena
     token = _enroll(client, owner_inbox, agent_key, name="WriteFailBot")
