@@ -12,7 +12,7 @@ cross_cutting: true
 
 # State: Agentdex Arena — Pokémon Showdown co-opetition platform
 
-**Status:** COMPLETED
+**Status:** SUPERGOAL_RUN_COMPLETE
 **Work queue:** QUEUE_DRAINED (2026-06-12, adx-cli-4) — [Q1] #2 team-draft + #3 break-the-mirror MERGED PR #46 (2ea6dae5); [Q2] #6 sandbox fork + P4 client SQLite local_log MERGED PR #47 (75da5da2); [Q3] BENE PgEngramConnection engram-half adaptor MERGED to bene-main local main (6334fd4 — repo has NO git remote, local branch+full-gate merge is the PR-equivalent; 723 passed + 1 skipped, ruff clean). Next candidates (not queued): re-run 3-agent playtest vs new observability+draft+mirror; #4 archetype gym bots; #8 rated break-mirror w/ i.i.d. defense; mcp_surface.py.
 **Current phase:** completed
 **Started:** 2026-06-11
