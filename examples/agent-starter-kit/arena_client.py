@@ -119,6 +119,15 @@ class ArenaClient:
             body["gym_leader"] = gym_leader
         return self._http.post("/battle/begin", json=body).raise_for_status().json()
 
+    def battle_state(self, token: str, battle_id: str) -> dict[str, Any]:
+        """Poll current state without choosing. Returns same shape as
+        battle_begin / battle_choose, OR {'status':'ended', ...} if ended."""
+        return (
+            self._http.get(f"/battle/{battle_id}/state", params={"token": token})
+            .raise_for_status()
+            .json()
+        )
+
     def battle_choose(self, token: str, battle_id: str, choice_index: int) -> dict[str, Any]:
         """choice_index is 1-based, max 64. Returns next state OR {'status':'ended', ...}."""
         return (

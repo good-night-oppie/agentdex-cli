@@ -1007,6 +1007,27 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         except Exception as e:  # noqa: BLE001
             raise _opaque_error(400, e) from None
 
+    @app.get("/battle/{battle_id}/state")
+    async def battle_state(battle_id: str, token: str) -> dict:
+        """Poll current battle state without choosing — re-renders from
+        session.last_state. Mirrors the MCP get_battle_state tool so MCP-less
+        clients can also observe mid-battle (closes the kit's proxy show_state gap)."""
+        gw = gateway
+        session = gw.sessions.get(battle_id)
+        if session is None:
+            raise _opaque_error(404, f"no session {battle_id}")
+        try:
+            claims = gw.authority.verify(token, scope="battle")
+            if claims.token_id != session.claims_token_id:
+                raise ConsentError("token does not own this battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        if session.ended is not None:
+            return {"status": "ended", **session.ended}
+        if session.pending is None or session.last_state is None:
+            raise _opaque_error(409, "no pending state (battle not yet stepped)")
+        return gw._render(session, session.last_state)
+
     @app.post("/battle/{battle_id}/choose")
     async def battle_choose(battle_id: str, req: ChooseRequest) -> dict:
         gw = gateway
