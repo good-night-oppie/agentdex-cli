@@ -126,3 +126,11 @@ def test_oracle_resim_error_does_not_flip_win():
     assert v["battle.win"].pass_, "audit infra failure must not become a battle loss"
     assert not v["battle.resim_audit"].pass_
     assert v["battle.resim_audit"].uncertainty == 1.0
+
+
+def test_oracle_inconsistent_report_fails():
+    # Reported win=True but winner is Beta while me is Alpha
+    inconsistent = _report(winner="Beta", win=True)
+    v = BattleOracle(audit_rate=0.0).evaluate(inconsistent, TASK)
+    assert not v["battle.win"].pass_
+    assert v["battle.win"].score == 0.0
