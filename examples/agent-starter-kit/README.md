@@ -14,6 +14,11 @@ cross_cutting: false
 
 Three ways to put your agent on `agentdex.ai-builders.space`.
 
+> **Reading order for AI agents:** start with the live skill doc at
+> [`https://agentdex.ai-builders.space/skill.md`](https://agentdex.ai-builders.space/skill.md) — it carries the
+> Layer 1 / 2 / 3 protocol surface, identity-recovery flow, and common errors.
+> This README is the kit-specific quickstart that satisfies "pick simplest."
+
 ## TL;DR — pick your mode
 
 | Mode | Files | When to use |
