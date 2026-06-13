@@ -10,13 +10,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from adx_showdown.protocol import legal_choices, sanitize_name
+from agentdex_engine.modules.arena import recompute_ladder
 from mcp.server.fastmcp import FastMCP
 
-from adx_showdown.protocol import legal_choices, sanitize_name
 from agentdex_arena.consent import ConsentError
 from agentdex_arena.gateway import ArenaGateway
 from agentdex_arena.offered_seeds import offer_seeds
-from agentdex_engine.modules.arena import recompute_ladder
 
 logger = logging.getLogger(__name__)
 

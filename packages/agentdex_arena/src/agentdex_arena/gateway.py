@@ -404,6 +404,22 @@ class ArenaGateway:
         for _ in range(200):
             if state.get("end"):
                 return await self._finish(session, state["end"])
+            # Observability updates: update foe active details and log events
+            active_info = state.get("active") or {}
+            active_hp_info = state.get("active_hp") or {}
+            foe_species = active_info.get(other)
+            if foe_species:
+                session.foe_species = sanitize_name(foe_species) or foe_species
+            foe_pct = active_hp_info.get(other)
+            if foe_pct is not None:
+                session.foe_hp_pct = foe_pct
+
+            log_events = state.get("log_events") or []
+            for line in log_events:
+                formatted = _format_log_line(line, session.visitor_side)
+                if formatted:
+                    _push_recent(session, f"T{int(state.get('turns', 0))}: {formatted}")
+
             choices: dict[str, str] = {}
             if visitor_choice is not None:
                 choices[session.visitor_side] = visitor_choice
@@ -411,18 +427,6 @@ class ArenaGateway:
             raw_opp = (state.get("pending") or {}).get(other)
             if raw_opp is not None:
                 opp_req = parse_request(raw_opp)
-                active_slot = next((s for s in opp_req.bench if s.active), None)
-                if active_slot is not None:
-                    pct = _hp_pct(active_slot.condition)
-                    species = sanitize_name(active_slot.species) or active_slot.species
-                    if pct is not None and (species, pct) != (
-                        session.foe_species,
-                        session.foe_hp_pct,
-                    ):
-                        session.foe_species, session.foe_hp_pct = species, pct
-                        _push_recent(
-                            session, f"T{int(state.get('turns', 0))}: foe {species} {pct}%"
-                        )
                 ctx = BattleContext(
                     side=other,
                     my_species=(state.get("active") or {}).get(other),
@@ -861,3 +865,81 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     app.mount("/mcp", mcp.streamable_http_app())
 
     return app
+
+
+def _format_log_line(line: str, visitor_side: str) -> str | None:
+    if not line.startswith("|"):
+        return None
+    parts = line.split("|")
+    if len(parts) < 2:
+        return None
+    op = parts[1]
+
+    def clean_name(pokemon_str: str) -> str:
+        side = pokemon_str[:2]
+        name = pokemon_str.split(": ")[-1]
+        if side in ("p1", "p2"):
+            if side != visitor_side:
+                return f"foe {name}"
+        return name
+
+    if op == "move":
+        attacker = clean_name(parts[2])
+        move = parts[3]
+        if len(parts) >= 5 and parts[4]:
+            target = clean_name(parts[4])
+            return f"{attacker} used {move} (vs {target})"
+        return f"{attacker} used {move}"
+    elif op in ("switch", "drag"):
+        pokemon = clean_name(parts[2])
+        hp_str = parts[4].split(" ")[0] if len(parts) >= 5 else "100/100"
+        return f"{pokemon} switched in ({hp_str})"
+    elif op == "faint":
+        pokemon = clean_name(parts[2])
+        return f"{pokemon} fainted"
+    elif op == "-supereffective":
+        pokemon = clean_name(parts[2])
+        return f"It's super effective on {pokemon}!"
+    elif op == "-resisted":
+        pokemon = clean_name(parts[2])
+        return f"It's not very effective on {pokemon}."
+    elif op == "-crit":
+        pokemon = clean_name(parts[2])
+        return f"A critical hit on {pokemon}!"
+    elif op == "-immune":
+        pokemon = clean_name(parts[2])
+        return f"It doesn't affect {pokemon}."
+    elif op == "-damage":
+        pokemon = clean_name(parts[2])
+        hp_str = parts[3].split(" ")[0] if len(parts) >= 4 else ""
+        from_str = ""
+        for p in parts[4:]:
+            if p.startswith("[from]"):
+                from_str = f" ({p[6:].strip()})"
+                break
+        return f"{pokemon} was damaged to {hp_str}{from_str}"
+    elif op == "-heal":
+        pokemon = clean_name(parts[2])
+        hp_str = parts[3].split(" ")[0] if len(parts) >= 4 else ""
+        from_str = ""
+        for p in parts[4:]:
+            if p.startswith("[from]"):
+                from_str = f" ({p[6:].strip()})"
+                break
+        return f"{pokemon} was healed to {hp_str}{from_str}"
+    elif op == "-status":
+        pokemon = clean_name(parts[2])
+        status = parts[3]
+        return f"{pokemon} was inflicted with status {status}"
+    elif op == "cant":
+        pokemon = clean_name(parts[2])
+        reason = parts[3] if len(parts) >= 4 else ""
+        if reason:
+            return f"{pokemon} can't move: {reason}"
+        return f"{pokemon} can't move"
+    elif op in ("detailschange", "-formechange"):
+        pokemon = clean_name(parts[2])
+        new_details = parts[3].split(",")[0]
+        return f"{pokemon} changed form to {new_details}"
+
+    return None

@@ -78,19 +78,21 @@ def _call_tool(client, name: str, **kwargs) -> dict:
         },
         headers={"Accept": "application/json"},
     )
-    assert resp.status_code == 200, f"Tool {name} HTTP status: {resp.status_code}, response: {resp.text}"
+    assert resp.status_code == 200, (
+        f"Tool {name} HTTP status: {resp.status_code}, response: {resp.text}"
+    )
     body = resp.json()
     if "error" in body:
         raise ValueError(body["error"]["message"])
-    
+
     result = body.get("result", {})
     if result.get("isError"):
         text_content = result.get("content", [{}])[0].get("text", "Unknown tool error")
         raise ValueError(text_content)
-        
+
     if "structuredContent" in result:
         return result["structuredContent"]
-        
+
     return result
 
 
@@ -101,7 +103,9 @@ def test_mcp_surface_tools_e2e(arena):
     token = _enroll(client, owner_inbox, agent_key, name="McpBot")
 
     # 2. Test request_evolution before playing
-    evo = _call_tool(client, "request_evolution", token=token, team="", reasoning="testing mcp evolve")
+    evo = _call_tool(
+        client, "request_evolution", token=token, team="", reasoning="testing mcp evolve"
+    )
     assert "team_candidates" in evo
     assert len(evo["team_candidates"]) > 0
     assert "advisory_seeds" in evo
@@ -115,7 +119,9 @@ def test_mcp_surface_tools_e2e(arena):
     assert sp["scratchpad"] == ""
 
     # 5. Write to scratchpad
-    wsp = _call_tool(client, "write_scratchpad", token=token, battle_id=battle_id, text="my test strategy")
+    wsp = _call_tool(
+        client, "write_scratchpad", token=token, battle_id=battle_id, text="my test strategy"
+    )
     assert wsp["ok"] is True
     assert wsp["scratchpad"] == "my test strategy"
 

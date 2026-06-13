@@ -40,6 +40,20 @@ const battles = new Map(); // battleId -> entry
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
 const KEY_LINE_RE = /^\|(move|faint|switch|drag|turn|-supereffective|-resisted|-immune|-crit)\|/;
+const OBSERVABILITY_LINE_RE = /^\|(move|faint|switch|drag|turn|-supereffective|-resisted|-immune|-crit|-damage|-heal|-status|-unboost|-boost|-weather|-fieldstart|-fieldend|-activate|cant|detailschange|-start|-end)\|/;
+
+function parseHp(hpStr) {
+  if (!hpStr) return 100;
+  const hpPart = hpStr.split(' ')[0];
+  if (hpPart === '0' || hpPart === '0/100') return 0;
+  if (!hpPart.includes('/')) {
+    const val = Number(hpPart);
+    return Number.isNaN(val) ? 100 : val;
+  }
+  const [cur, max] = hpPart.split('/').map(Number);
+  if (!max) return 0;
+  return Math.ceil((cur / max) * 100);
+}
 const drain = () => new Promise((resolve) => setImmediate(resolve));
 
 function newEntry() {
@@ -49,6 +63,8 @@ function newEntry() {
     pending: { p1: null, p2: null },
     submitted: { p1: false, p2: false }, // choice in flight, not yet rejected
     active: { p1: null, p2: null }, // active species per side (from |switch|/|drag|)
+    active_hp: { p1: 100, p2: 100 },
+    turnLines: [],
     keyLines: [], // signature-relevant battle lines (phase-5 signatures.py)
     errors: [],
     winner: null, // null = in progress; '' = tie
@@ -69,6 +85,9 @@ function attachReader(battleId, entry) {
             if (KEY_LINE_RE.test(line) && entry.keyLines.length < 3000) {
               entry.keyLines.push(line);
             }
+            if (OBSERVABILITY_LINE_RE.test(line)) {
+              entry.turnLines.push(line);
+            }
             if (line.startsWith('|turn|')) {
               entry.turns = Number(line.split('|')[2]);
             } else if (line.startsWith('|win|')) {
@@ -77,10 +96,37 @@ function attachReader(battleId, entry) {
               const parts = line.split('|');
               const side = parts[2].slice(0, 2); // 'p1a: Nick' -> 'p1'
               entry.active[side] = (parts[3] || '').split(',')[0];
+              if (parts[4]) {
+                entry.active_hp[side] = parseHp(parts[4]);
+              }
             } else if (line === '|tie' || line.startsWith('|tie|')) {
               // NOT startsWith('|tie') — that also matches '|tier|' (measured:
               // every randombattle "tied" at turn 1 via the tier announcement).
               entry.winner = '';
+            } else if (line.startsWith('|-damage|') || line.startsWith('|-heal|') || line.startsWith('|-sethp|')) {
+              const parts = line.split('|');
+              if (parts.length >= 4) {
+                const side = parts[2].slice(0, 2);
+                if (side === 'p1' || side === 'p2') {
+                  entry.active_hp[side] = parseHp(parts[3]);
+                }
+              }
+            } else if (line.startsWith('|faint|')) {
+              const parts = line.split('|');
+              if (parts.length >= 3) {
+                const side = parts[2].slice(0, 2);
+                if (side === 'p1' || side === 'p2') {
+                  entry.active_hp[side] = 0;
+                }
+              }
+            } else if (line.startsWith('|detailschange|') || line.startsWith('|-formechange|')) {
+              const parts = line.split('|');
+              if (parts.length >= 4) {
+                const side = parts[2].slice(0, 2);
+                if (side === 'p1' || side === 'p2') {
+                  entry.active[side] = (parts[3] || '').split(',')[0];
+                }
+              }
             }
           }
         } else if (type === 'sideupdate') {
@@ -122,12 +168,15 @@ async function settledState(entry) {
   await drain();
   await drain();
   const errors = entry.errors.splice(0);
+  const turnLines = entry.turnLines.splice(0);
   const state = {
     pending: {
       p1: entry.winner === null && !entry.submitted.p1 ? entry.pending.p1 : null,
       p2: entry.winner === null && !entry.submitted.p2 ? entry.pending.p2 : null,
     },
     active: entry.active,
+    active_hp: entry.active_hp,
+    log_events: turnLines,
     errors,
     turns: entry.turns,
     end:
