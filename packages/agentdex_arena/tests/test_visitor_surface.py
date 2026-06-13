@@ -870,6 +870,71 @@ def test_collusion_forensics_quarantine(arena):
     )
 
 
+def test_collusion_heuristics_unit(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    from agentdex_arena.gateway import BattleSession
+
+    # 1. Low entropy check
+    session = BattleSession(
+        battle_id="test-collusion-1",
+        claims_token_id="tenant-1",
+        lane="rated",
+        visitor_name="BotA",
+        opponent="BotB",
+        seed=[1, 2, 3, 4],
+        sidecar=None,
+        opponent_policy=None,
+        p1_team=None,
+        p2_team=None,
+        visitor_side="p1",
+    )
+    session.visitor_choices = ["move 1", "move 1", "move 1", "move 1", "move 1"]
+    session.ended = {"turns": 5}
+    reason1 = gateway._check_collusion(session)
+    assert reason1 is not None
+    assert "low-entropy" in reason1
+
+    # 2. Win-transfer check
+    for i in range(5):
+        bid = f"battle-{i}"
+        gateway.events.append(
+            "battle_begin",
+            {
+                "battle_id": bid,
+                "visitor": "BotA",
+                "opponent": "BotB",
+                "lane": "rated",
+                "tenant_id": "tenant-1",
+            },
+        )
+        gateway.events.append(
+            "battle_end",
+            {
+                "battle_id": bid,
+                "winner": "BotA",
+                "turns": 4,
+            },
+        )
+
+    session2 = BattleSession(
+        battle_id="test-collusion-2",
+        claims_token_id="tenant-1",
+        lane="rated",
+        visitor_name="BotA",
+        opponent="BotB",
+        seed=[1, 2, 3, 4],
+        sidecar=None,
+        opponent_policy=None,
+        p1_team=None,
+        p2_team=None,
+        visitor_side="p1",
+    )
+    session2.ended = {"turns": 4}
+    reason2 = gateway._check_collusion(session2)
+    assert reason2 is not None
+    assert "win-transfer" in reason2
+
+
 @pytest.mark.timeout(90)
 def test_dispute_endpoint_success(arena):
     client, gateway, owner_inbox, agent_key = arena
