@@ -69,6 +69,7 @@ dependencies = [
     { name = "agentdex-engine" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "mcp" },
     { name = "pydantic" },
 ]
 
@@ -79,6 +80,7 @@ requires-dist = [
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "cryptography", specifier = ">=42" },
     { name = "fastapi", specifier = ">=0.110" },
+    { name = "mcp" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
 

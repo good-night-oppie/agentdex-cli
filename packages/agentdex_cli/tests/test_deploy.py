@@ -9,30 +9,36 @@ Tests:
 
 from __future__ import annotations
 
-import argparse
-import os
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 from agentdex_cli.cli import build_parser, cmd_deploy
 
 
 def test_deploy_parser_arguments():
     parser = build_parser()
     # Test typical args parsing
-    args = parser.parse_args([
-        "deploy",
-        "--service-name", "my-test-service",
-        "--repo-url", "https://github.com/test/repo",
-        "--branch", "feature-branch",
-        "--port", "9000",
-        "--env-vars", "FOO=bar,BAZ=qux",
-        "--token", "test-token",
-        "--no-poll",
-        "--poll-interval", "5",
-        "--poll-timeout", "30",
-    ])
+    args = parser.parse_args(
+        [
+            "deploy",
+            "--service-name",
+            "my-test-service",
+            "--repo-url",
+            "https://github.com/test/repo",
+            "--branch",
+            "feature-branch",
+            "--port",
+            "9000",
+            "--env-vars",
+            "FOO=bar,BAZ=qux",
+            "--token",
+            "test-token",
+            "--no-poll",
+            "--poll-interval",
+            "5",
+            "--poll-timeout",
+            "30",
+        ]
+    )
     assert args.cmd == "deploy"
     assert args.service_name == "my-test-service"
     assert args.repo_url == "https://github.com/test/repo"
@@ -85,7 +91,7 @@ def test_cmd_deploy_success_path(mock_check_output, mock_get, mock_post, monkeyp
     monkeypatch.setenv("AI_BUILDER_TOKEN", "fake-token")
     parser = build_parser()
     args = parser.parse_args(["deploy", "--poll-interval", "0"])
-    
+
     with patch("time.sleep", return_value=None):
         exit_code = cmd_deploy(args)
 
@@ -113,7 +119,7 @@ def test_cmd_deploy_failure_path(mock_get, mock_post, monkeypatch):
         "status": "ERROR",
         "message": "Deployment crashed",
     }
-    
+
     # Mock GET /deployments/agentdex/logs
     mock_get_logs = MagicMock()
     mock_get_logs.status_code = 200
@@ -125,12 +131,16 @@ def test_cmd_deploy_failure_path(mock_get, mock_post, monkeypatch):
     # Run command
     monkeypatch.setenv("AI_BUILDER_TOKEN", "fake-token")
     parser = build_parser()
-    args = parser.parse_args([
-        "deploy", 
-        "--repo-url", "https://github.com/test/repo",
-        "--branch", "main",
-    ])
-    
+    args = parser.parse_args(
+        [
+            "deploy",
+            "--repo-url",
+            "https://github.com/test/repo",
+            "--branch",
+            "main",
+        ]
+    )
+
     exit_code = cmd_deploy(args)
 
     assert exit_code == 1
@@ -141,13 +151,17 @@ def test_cmd_deploy_failure_path(mock_get, mock_post, monkeypatch):
 def test_cmd_deploy_fails_if_no_token(monkeypatch):
     monkeypatch.delenv("AI_BUILDER_TOKEN", raising=False)
     monkeypatch.delenv("AI_BUILDERS_KEY", raising=False)
-    
+
     parser = build_parser()
-    args = parser.parse_args([
-        "deploy",
-        "--repo-url", "https://github.com/test/repo",
-        "--branch", "main",
-    ])
-    
+    args = parser.parse_args(
+        [
+            "deploy",
+            "--repo-url",
+            "https://github.com/test/repo",
+            "--branch",
+            "main",
+        ]
+    )
+
     exit_code = cmd_deploy(args)
     assert exit_code == 1
