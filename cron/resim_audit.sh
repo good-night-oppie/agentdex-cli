@@ -5,8 +5,9 @@
 # of completed battles by re-simulating them, quarantining any mismatches.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-EVENTS_PATH="${ARENA_EVENTS_PATH:-/tmp/arena-runtime/events.jsonl}"
-ARTIFACTS_DIR="${ARENA_ARTIFACTS_DIR:-/tmp/arena-runtime/artifacts}"
+RUNTIME_DIR="${ARENA_RUNTIME_DIR:-/tmp/arena-runtime}"
+EVENTS_PATH="${ARENA_EVENTS_PATH:-$RUNTIME_DIR/events.jsonl}"
+ARTIFACTS_DIR="${ARENA_ARTIFACTS_DIR:-$RUNTIME_DIR/artifacts}"
 AUDIT_RATE="${ARENA_AUDIT_RATE:-0.10}"
 
 echo "Running re-simulation audit job..."
