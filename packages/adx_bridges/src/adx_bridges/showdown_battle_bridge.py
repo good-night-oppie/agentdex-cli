@@ -27,6 +27,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import httpx
 from adx_showdown.protocol import ParsedRequest, legal_choices
 from adx_showdown.sidecar import Sidecar
 from adx_showdown.sim import BattleContext, BattleResult, Policy, run_battle
@@ -207,7 +208,7 @@ class LlmBattlePolicy:
         try:
             raw, usage = await asyncio.wait_for(self.decider(prompt), timeout=self.decide_timeout_s)
             self.consecutive_timeouts = 0
-        except TimeoutError:
+        except (TimeoutError, httpx.TimeoutException):
             self.consecutive_timeouts += 1
             self._record(
                 {

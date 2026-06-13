@@ -208,3 +208,26 @@ def test_render_state_hard_cap():
         recent_turns=["r" * 9_999] * 3,
     )
     assert len(text) <= 8_000
+
+
+def test_httpx_timeout_decider_forfeits():
+    """Verify that httpx.TimeoutException counts towards consecutive timeouts and is handled."""
+    import httpx
+
+    async def _httpx_timeout(prompt: str) -> tuple[str, dict]:
+        raise httpx.ReadTimeout("Mock HTTPX ReadTimeout")
+
+    async def _run():
+        policy = LlmBattlePolicy(decider=_httpx_timeout, decide_timeout_s=10.0)
+        return await play_house_battle(
+            battle_id="httpx-timeout-probe",
+            format_id="gen9randombattle",
+            seed=[92_000, 1, 2, 3],
+            policy=policy,
+            opponent=random_bot(7),
+            my_name="staller",
+            opponent_name="anchor",
+        )
+
+    result = asyncio.run(_run())
+    assert result.winner == "anchor", "httpx timeout side must forfeit and lose"
