@@ -33,7 +33,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 from adx_bridges.showdown_battle_bridge import render_state
-from adx_showdown.bots import heuristic_bot, max_damage_bot, random_bot
+from adx_showdown.bots import (
+    balance_bot,
+    heuristic_bot,
+    hyper_offense_bot,
+    max_damage_bot,
+    random_bot,
+    stall_bot,
+    trick_room_bot,
+)
 from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
 from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, call_policy
@@ -53,8 +61,23 @@ from agentdex_arena.consent import ConsentAuthority, ConsentClaims, ConsentError
 log = logging.getLogger(__name__)
 
 Lane = Literal["sandbox", "rated"]
-GYM_LEADERS = ("anchor-random", "anchor-max_damage", "anchor-heuristic")
+# Sandbox gym ladder: archetype bots + legacy calibration anchors (rated-only pool).
+# Default leader is gym-hyper-offense so the visitor's default starter (sorted
+# pack index 0 = balance) never mirrors the gym signature team.
+GYM_LEADERS = (
+    "gym-hyper-offense",
+    "gym-balance",
+    "gym-stall",
+    "gym-trick-room",
+    "anchor-random",
+    "anchor-max_damage",
+    "anchor-heuristic",
+)
 GYM_BADGES = {
+    "gym-hyper-offense": "Hyper Offense Badge",
+    "gym-balance": "Balance Badge",
+    "gym-stall": "Stall Badge",
+    "gym-trick-room": "Trick Room Badge",
     "anchor-random": "Boulder Badge",
     "anchor-max_damage": "Cascade Badge",
     "anchor-heuristic": "Thunder Badge",
@@ -62,11 +85,15 @@ GYM_BADGES = {
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
 
 # Break-the-mirror (#3, sandbox lane): each gym leader fields a FIXED, DISCLOSED
-# signature team drawn from the starter pack by sorted index — distinct from the
-# visitor's default (pack index 0), so even two defaults never mirror. The packed
-# team is returned in the begin response: sandbox is the open-information matchup
-# puzzle; scouting it is the point. Rated keeps the mirror until backlog #8 lands
-# the i.i.d. anchor-team defense.
+# signature team from the starter pack — distinct from the visitor's default
+# (pack index 0). The packed team is returned in the begin response: sandbox is
+# the open-information matchup puzzle. Rated keeps the mirror until backlog #8.
+ARCHETYPE_GYM_TEAMS = {
+    "gym-balance": "01-balance-tusk-gambit",
+    "gym-hyper-offense": "02-hyper-offense",
+    "gym-stall": "03-stall",
+    "gym-trick-room": "09-trick-room",
+}
 GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
 
 
@@ -85,6 +112,8 @@ def sanitize_packed_team(packed: str) -> str:
 
 
 def _gym_team_name(opponent: str) -> str:
+    if opponent in ARCHETYPE_GYM_TEAMS:
+        return ARCHETYPE_GYM_TEAMS[opponent]
     names = sorted(starter_pack())
     return names[GYM_TEAM_INDEX.get(opponent, 1) % len(names)]
 
@@ -102,6 +131,18 @@ def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
     if kind == "max_damage":
         return max_damage_bot(sidecar, fallback_seed=seed)
     return heuristic_bot(sidecar, fallback_seed=seed)
+
+
+def _opponent_policy(name: str, sidecar: Sidecar, seed: int):
+    if name == "gym-balance":
+        return balance_bot(sidecar, fallback_seed=seed)
+    if name == "gym-hyper-offense":
+        return hyper_offense_bot(sidecar, fallback_seed=seed)
+    if name == "gym-stall":
+        return stall_bot(sidecar, fallback_seed=seed)
+    if name == "gym-trick-room":
+        return trick_room_bot(sidecar, fallback_seed=seed)
+    return _anchor_policy(name, sidecar, seed)
 
 
 def _hp_pct(condition: str) -> int | None:
@@ -389,7 +430,7 @@ class ArenaGateway:
             opponent=opponent,
             seed=seed,
             sidecar=sidecar,
-            opponent_policy=_anchor_policy(opponent, sidecar, seed[0] + 13),
+            opponent_policy=_opponent_policy(opponent, sidecar, seed[0] + 13),
         )
         session.p1_team = None  # set below once the visitor team is resolved
         team = req.team

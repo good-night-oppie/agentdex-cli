@@ -239,7 +239,7 @@ def test_turn_budget_forfeits_stale_battle(arena):
     )
     body = resp.json()
     assert body["status"] == "ended"
-    assert body["winner"].startswith("anchor-"), "stale battle forfeits to the opponent"
+    assert body["winner"] != "SlowBot", "stale battle forfeits to the opponent"
     print(f"\nTURN_BUDGET: stale battle forfeited to {body['winner']!r}")
 
 
