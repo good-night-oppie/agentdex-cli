@@ -70,6 +70,20 @@ RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking p
 GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
 
 
+def sanitize_packed_team(packed: str) -> str:
+    if not packed:
+        return packed
+    mons = []
+    for mon in packed.split("]"):
+        if not mon:
+            continue
+        parts = mon.split("|")
+        if parts:
+            parts[0] = sanitize_name(parts[0])
+        mons.append("|".join(parts))
+    return "]".join(mons)
+
+
 def _gym_team_name(opponent: str) -> str:
     names = sorted(starter_pack())
     return names[GYM_TEAM_INDEX.get(opponent, 1) % len(names)]
@@ -376,6 +390,8 @@ class ArenaGateway:
         if team is None:
             team = await pack_team(sidecar, next(iter(starter_pack().values())))
         else:
+            # Sanitize team nicknames (P1 PR #51 comment follow-up)
+            team = sanitize_packed_team(team)
             # A client-supplied team is UNTRUSTED: validate against the pinned
             # banlist server-side BEFORE it can enter a battle. This enforces the
             # F3 "an invalid team simply cannot play" contract that BeginRequest.team

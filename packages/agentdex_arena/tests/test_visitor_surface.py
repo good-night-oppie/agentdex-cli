@@ -954,3 +954,18 @@ async def test_gym_leader_badge_awarding(arena):
     ladder_data = gateway.ladder_public()
     assert "badge-winner" in ladder_data["entrants"]
     assert ladder_data["entrants"]["badge-winner"]["badges"] == ["Boulder Badge"]
+
+
+def test_sanitize_packed_team_helper():
+    """Test that sanitize_packed_team helper strips protocol injection characters from nicknames."""
+    from agentdex_arena.gateway import sanitize_packed_team
+
+    # Nickname has a script tag '<script>' and special characters
+    malicious = "MyNick<script>|Pikachu|||Thunderbolt"
+    sanitized = sanitize_packed_team(malicious)
+    # The script tag should be stripped.
+    assert sanitized == "MyNickscript|Pikachu|||Thunderbolt"
+
+    # Empty nickname should remain empty
+    clean = "|Pikachu|||Thunderbolt"
+    assert sanitize_packed_team(clean) == "|Pikachu|||Thunderbolt"
