@@ -41,9 +41,8 @@ import json
 import time
 
 from bene import Bene
-from bene.router.tier import TierRouter
 from bene.ccr.runner import ClaudeCodeRunner
-
+from bene.router.tier import TierRouter
 
 BASE_TRAIN_PY = """\
 import math
