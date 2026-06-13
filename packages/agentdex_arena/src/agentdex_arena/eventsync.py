@@ -119,6 +119,7 @@ class WriteBehindSync:
         self.dropped = 0
         self.mirrored = 0
         self.last_error: str | None = None
+        self._closed = False
         self._thread = threading.Thread(target=self._run, name="arena-event-mirror", daemon=True)
         self._thread.start()
 
@@ -149,15 +150,20 @@ class WriteBehindSync:
 
     async def _drain_forever(self) -> None:
         conn = None
+        pending_retry: list[dict[str, Any]] = []
         while True:
             batch: list[dict[str, Any]] = []
-            try:
-                first = await asyncio.to_thread(self._q.get)
-            except Exception:
-                return
-            if first is None:
-                break
-            batch.append(first)
+            if pending_retry:
+                batch.extend(pending_retry)
+                pending_retry.clear()
+            else:
+                try:
+                    first = await asyncio.to_thread(self._q.get)
+                except Exception:
+                    return
+                if first is None:
+                    break
+                batch.append(first)
             while len(batch) < self._batch_max:
                 try:
                     nxt = self._q.get_nowait()
@@ -168,6 +174,7 @@ class WriteBehindSync:
                     break
                 batch.append(nxt)
             rows = [_event_row(e) for e in batch]
+            success = False
             for attempt in (1, 2, 3):
                 try:
                     if conn is None or conn.is_closed():
@@ -175,6 +182,7 @@ class WriteBehindSync:
                     await conn.executemany(_INSERT, rows)
                     self.mirrored += len(rows)
                     self.last_error = None
+                    success = True
                     break
                 except Exception as e:  # noqa: BLE001 — mirror must never crash the app
                     self.last_error = f"{type(e).__name__}: {e}"
@@ -183,11 +191,20 @@ class WriteBehindSync:
                     )
                     conn = None
                     await asyncio.sleep(min(2.0 * attempt, self._flush_interval_s * 4))
+            if not success:
+                pending_retry.extend(batch)
+                if self._closed:
+                    log.error(
+                        "event mirror failed all flush attempts during shutdown; dropping %d events",
+                        len(pending_retry),
+                    )
+                    break
             await asyncio.sleep(self._flush_interval_s)
         if conn is not None and not conn.is_closed():
             await conn.close()
 
     def close(self, *, timeout_s: float = 10.0) -> None:
         """Flush the queue and stop the drainer (tests / graceful shutdown)."""
+        self._closed = True
         self._q.put(None)
         self._thread.join(timeout=timeout_s)

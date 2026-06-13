@@ -153,3 +153,39 @@ def test_write_behind_mirrors_idempotently_and_rls_scopes(tmp_path):
     print(
         f"\nEVENT_MIRROR: 4 rows mirrored, replay idempotent, RLS isolates {tenant_a[:8]}/{tenant_b[:8]}, immutable trigger holds"
     )
+
+
+def test_write_behind_sync_retry_and_preserve():
+    from unittest.mock import AsyncMock
+
+    sync = WriteBehindSync("postgresql://dummy", flush_interval_s=0.01)
+
+    # Mock _connect to fail initially
+    sync._connect = AsyncMock(side_effect=Exception("Database down"))
+
+    # Enqueue a dummy event
+    sync({"seq": 1, "type": "dummy", "prev": "a", "payload": {}})
+
+    # Wait for the attempts to fail (attempts sleep for 2s, 4s, etc., wait, let's check:
+    # min(2.0 * attempt, self._flush_interval_s * 4) -> min(2.0, 0.04) -> 0.04s!
+    # So 3 attempts will sleep 0.02s, 0.04s, 0.04s, which is very fast in this test!
+    # Let's wait a bit to ensure all 3 attempts have failed.
+    time.sleep(0.3)
+
+    assert sync._connect.call_count >= 3
+    assert sync.last_error is not None and "Database down" in sync.last_error
+    assert sync.mirrored == 0
+
+    # Now make it succeed
+    mock_conn = AsyncMock()
+    mock_conn.is_closed = lambda: False
+    sync._connect = AsyncMock(return_value=mock_conn)
+
+    deadline = time.time() + 5
+    while time.time() < deadline and sync.mirrored == 0:
+        time.sleep(0.05)
+
+    sync.close()
+
+    assert sync.mirrored == 1
+    assert mock_conn.executemany.call_count >= 1
