@@ -13,6 +13,16 @@ __pycache__/
 *.db-shm
 *.db-wal
 
+# BENE landing dev-tooling — bene-main → agentdex-cli site/ syncs pull these
+# in, but they're build-time/dev-only tools that have no business shipping with
+# the /bene/ deploy. The Dockerfile RUN rm already strips them from the image;
+# this keeps the working-copy tree consistent + prevents future bulk-syncs
+# from re-tracking them. See bene-main commit 1718297 for the wrong-tree
+# sentinel that fail-fasts if build-docs.py is still invoked here.
+site/build-docs.py
+site/check-i18n-parity.mjs
+site/test-harness.html
+
 # KAOS docs/demos/blog culled from vendored subtree (per A8)
 demo_*/
 blog/
