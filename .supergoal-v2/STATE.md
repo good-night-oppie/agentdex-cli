@@ -1,6 +1,6 @@
 ---
 title: State - Agentdex Arena
-status: archived
+status: validated
 owner: etang
 created: 2026-06-11
 updated: 2026-06-13
