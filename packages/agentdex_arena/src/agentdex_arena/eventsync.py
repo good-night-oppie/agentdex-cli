@@ -151,7 +151,7 @@ class WriteBehindSync:
     async def _drain_forever(self) -> None:
         conn = None
         pending_retry: list[dict[str, Any]] = []
-        while True:
+        while not self._closed:
             batch: list[dict[str, Any]] = []
             if pending_retry:
                 batch.extend(pending_retry)
@@ -170,7 +170,10 @@ class WriteBehindSync:
                 except queue.Empty:
                     break
                 if nxt is None:
-                    self._q.put(None)
+                    try:
+                        self._q.put_nowait(None)
+                    except queue.Full:
+                        pass
                     break
                 batch.append(nxt)
             rows = [_event_row(e) for e in batch]
@@ -206,5 +209,8 @@ class WriteBehindSync:
     def close(self, *, timeout_s: float = 10.0) -> None:
         """Flush the queue and stop the drainer (tests / graceful shutdown)."""
         self._closed = True
-        self._q.put(None)
+        try:
+            self._q.put_nowait(None)
+        except queue.Full:
+            pass
         self._thread.join(timeout=timeout_s)

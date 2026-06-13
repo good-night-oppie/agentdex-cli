@@ -189,3 +189,30 @@ def test_write_behind_sync_retry_and_preserve():
 
     assert sync.mirrored == 1
     assert mock_conn.executemany.call_count >= 1
+
+
+def test_write_behind_sync_close_deadlock_when_queue_full():
+    """Test that WriteBehindSync.close() does not deadlock when the queue is full and database is unreachable."""
+    from unittest.mock import AsyncMock
+
+    # Create a sync instance with a tiny queue maxsize
+    sync = WriteBehindSync("postgresql://dummy", maxsize=3, flush_interval_s=0.1)
+
+    # Mock _connect to fail so the worker is stuck retrying/failing
+    sync._connect = AsyncMock(side_effect=Exception("Database down"))
+
+    # Fill the queue (size is 3)
+    sync({"seq": 1, "type": "dummy", "prev": "a", "payload": {}})
+    sync({"seq": 2, "type": "dummy", "prev": "a", "payload": {}})
+    sync({"seq": 3, "type": "dummy", "prev": "a", "payload": {}})
+
+    # Wait a moment to ensure worker starts trying
+    time.sleep(0.15)
+
+    # Close the sync instance with a timeout, this should return without deadlocking
+    start = time.time()
+    sync.close(timeout_s=2.0)
+    duration = time.time() - start
+
+    assert duration < 2.0, f"close() deadlocked for {duration:.2f} seconds"
+    assert sync._closed is True
