@@ -1067,12 +1067,14 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         the battle is quarantined (rating quarantine) and marked as disputed.
         """
         try:
-            gateway.authority.verify(str(body.get("token", "")), scope="battle")
+            claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         data = gateway.replays.get(battle_id)
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
+        if claims.token_id != data.get("tenant"):
+            raise _opaque_error(403, "Forbidden: token does not own this battle")
         gateway.events.append(
             "dispute",
             {

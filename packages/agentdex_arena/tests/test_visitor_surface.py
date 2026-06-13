@@ -1012,6 +1012,12 @@ def test_dispute_endpoint_success(arena):
         for e in events
     )
 
+    # Dispute with an unauthorized token (from a different agent/tenant) should fail with 403
+    token2 = _enroll(client, owner_inbox, agent_key, name="StrangerBot")
+    r_unauthorized = client.post(f"/battle/{battle_id}/dispute", json={"token": token2})
+    assert r_unauthorized.status_code == 403
+    assert "arena error" in r_unauthorized.json()["detail"]
+
 
 @pytest.mark.timeout(90)
 def test_nightly_self_test_halts_publication(arena, monkeypatch, tmp_path):
