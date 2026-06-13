@@ -640,8 +640,17 @@ def test_enroll_rejects_reserved_and_duplicate_names(arena):
     client, gateway, owner_inbox, agent_key = arena
     pub = agent_key.public_key().public_bytes_raw().hex()
 
-    # 1. Reject reserved names starting with "anchor-" or equal to visitor/foe/_house/_ladder
-    for bad_name in ("anchor-bot", "visitor", "foe", "_house", "_ladder"):
+    # 1. Reject reserved names case-insensitively
+    for bad_name in (
+        "anchor-bot",
+        "visitor",
+        "foe",
+        "_house",
+        "_ladder",
+        "Anchor-Bot",
+        "Visitor",
+        "FOE",
+    ):
         r = client.post(
             "/enroll/request",
             json={"owner": "real@example.com", "agent_name": bad_name, "agent_pubkey_hex": pub},

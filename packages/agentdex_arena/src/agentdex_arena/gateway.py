@@ -279,8 +279,9 @@ class ArenaGateway:
     def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
         code = secrets.token_urlsafe(16)
         agent_name = sanitize_name(req.agent_name) or "visitor"
-        # Reject reserved names (anchor- prefix, visitor, foe, _house, _ladder)
-        if agent_name.startswith("anchor-") or agent_name in (
+        # Reject reserved names case-insensitively (anchor- prefix, visitor, foe, _house, _ladder) (P2 PR #56 comment follow-up)
+        name_lower = agent_name.lower()
+        if name_lower.startswith("anchor-") or name_lower in (
             "visitor",
             "foe",
             "_house",
