@@ -44,6 +44,8 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
         if not bid:
             continue
         if etype == "battle_end":
+            if payload.get("lane") == "sandbox" or bid.startswith("sandbox-"):
+                continue
             completed_battles[bid] = payload.get("winner")
         elif etype == "dispute":
             disputed_ids.add(bid)
