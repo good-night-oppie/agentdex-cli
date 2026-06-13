@@ -32,7 +32,7 @@ cross_cutting: true
 | 7 | Evolution loop, house lane | done | 2026-06-12 | 2026-06-12 | PR #42 merged; nerf->HARMFUL in 20 CRN pairs p~0; byte-identical rollback; next-window-only verdicts; EvolutionCard KAOS chain |
 | 8 | Visiting-agent surface | done | 2026-06-12 | 2026-06-13 | streamable-HTTP MCP surface tools for visitor agent completed & merged (PR #50) |
 | 9 | Deploy (discovery-gated) | done | 2026-06-12 | 2026-06-13 | `python -m agentdex_arena` deploy entrypoint shipped (#44); 3-agent playtest (OgBot/AgentBot/CodexBot2) ran registers→team/draft→play→fork→events; sidecar.mjs fixes (PRs #58-#62) verified end-to-end. |
-| 10 | Polish & Harden | in_progress | 2026-06-13 | — | Address gaps identified during playtests (e.g. SDK helpers for draft/fork/events, move-level logs in recent_turns/events, etc.). |
+| 10 | Polish & Harden | done | 2026-06-13 | 2026-06-13 | Polished replays with deterministic signatures, added public methodology page, and implemented opt-in Gym Leader sandbox battles + badges. |
 
 ## Engineering check status
 
