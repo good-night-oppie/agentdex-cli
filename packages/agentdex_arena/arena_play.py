@@ -175,15 +175,26 @@ class Arena:
         Requires agentdex_arena.local_log to be importable (install the package).
         """
         try:
-            from agentdex_arena.local_log import store_events
+            from agentdex_arena.local_log import max_seq, store_events
         except ImportError as exc:
             raise ImportError(
                 "run from the agentdex-cli workspace: uv run python arena_play.py"
             ) from exc
-        rows = self.events()
-        if not rows:
-            return 0
-        return store_events(rows, db_path)
+        total = 0
+        since = max_seq(db_path)
+        while True:
+            r = self.c.post("/my/events", json={"token": self.token, "since_seq": since})
+            r.raise_for_status()
+            body = r.json()
+            rows = body.get("events", [])
+            if not rows:
+                break
+            total += store_events(rows, db_path)
+            next_seq = body.get("next_since_seq")
+            if next_seq is None:
+                break
+            since = int(next_seq)
+        return total
 
 
 def _demo(owner: str, name: str) -> None:
