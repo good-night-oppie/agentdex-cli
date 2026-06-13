@@ -311,6 +311,11 @@ class ArenaGateway:
             raise _opaque_error(404, "unknown/expired enrollment code")
         if req.agent_name in self._registered:
             raise _opaque_error(409, "agent name already registered")
+
+        # Record confirmed names before issuing tokens (P2 PR #56 comment follow-up)
+        self.events.append("register", {"name": req.agent_name, "frozen": False})
+        self._registered.add(req.agent_name)
+
         claims = ConsentClaims(
             token_id=uuid.uuid4().hex[:16],
             owner=req.owner,
@@ -806,6 +811,7 @@ class ArenaGateway:
                     "badges": ladder.badges.get(name, []),
                 }
                 for name, r in sorted(ladder.entrants.items(), key=lambda kv: -kv[1].rating)
+                if r.games > 0 or len(ladder.badges.get(name, [])) > 0
             }
         }
 

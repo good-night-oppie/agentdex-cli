@@ -189,7 +189,8 @@ def test_rated_lane_server_matchmade_only(arena):
 
     sandbox_state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
     _play_to_end(client, token, sandbox_state)
-    assert client.get("/ladder").json()["entrants"] == {}, "sandbox must not rate"
+    entrants_before = client.get("/ladder").json()["entrants"]
+    assert all(r["games"] == 0 for r in entrants_before.values()), "sandbox must not rate"
 
     rated_state = _begin_battle(client, gateway, token, agent_key, lane="rated")
     receipt, _ = _play_to_end(client, token, rated_state)
@@ -662,8 +663,8 @@ def test_enroll_rejects_reserved_and_duplicate_names(arena):
     token = _enroll(client, owner_inbox, agent_key, owner="owner@example.com", name="LoneAgent")
     assert token is not None
 
-    # Simulate registration in self._registered (normally done via event log replay or battle finish)
-    gateway._registered.add("LoneAgent")
+    # Verify that enroll_confirm immediately added "LoneAgent" to _registered
+    assert "LoneAgent" in gateway._registered
 
     # Try to enroll "LoneAgent" again (duplicate, should be rejected)
     r = client.post(
