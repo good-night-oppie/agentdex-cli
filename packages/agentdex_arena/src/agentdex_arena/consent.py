@@ -11,6 +11,17 @@ set as a platform env var at deploy — never in the repo). Token format is
 deliberately boring: base64url(payload-json) + "." + base64url(signature).
 Separate from AgentsRegistry by design (security refutation: registry surface
 must not be a forgery accelerant).
+
+Call-order contract for gated endpoints (ADR-0011 §Membership gate call order):
+
+    claims = authority.verify(token, scope=X)        # signature + expiry + scope
+    authority.verify_membership(claims)              # paid-feature gate (post 11b)
+    authority.spend_quota(claims, scope=X)           # daily cap
+    # ... then run the business logic
+
+verify_membership is a no-op for free endpoints (callers don't invoke it);
+the membership table is keyed by normalized owner so it survives the 7-day
+token rotation (re-enrolling does not lose membership).
 """
 
 from __future__ import annotations
@@ -18,6 +29,7 @@ from __future__ import annotations
 import base64
 import os
 import time
+import unicodedata
 from typing import Literal
 
 from cryptography.exceptions import InvalidSignature
@@ -29,6 +41,32 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Scope = Literal["enroll", "battle", "evolve"]
 SIGNING_KEY_ENV = "ARENA_SIGNING_KEY_HEX"
+_OWNER_MAX_LEN = 254  # RFC 5321 email maximum
+
+
+def _normalize_owner(s: str) -> str:
+    """Canonical key for the memberships table (ADR-0011).
+
+    Strategy: NFKC-normalize Unicode (collapses width/compat variants), strip
+    surrounding whitespace, lowercase. Bound to RFC 5321 email max (254 chars).
+    Reject empty + control characters (those produce silently-disjoint
+    memberships for the same owner when stored as dict keys).
+
+    Applied at:
+      - EnrollRequest validation (every owner the gateway accepts as input)
+      - AdminAuthority grant-membership request validation
+      - verify_membership lookup (so case/whitespace mismatch can't bypass)
+    """
+    if not isinstance(s, str):
+        raise ValueError("owner must be a string")
+    norm = unicodedata.normalize("NFKC", s).strip().lower()
+    if not norm:
+        raise ValueError("owner cannot be empty")
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in norm):
+        raise ValueError("owner contains control characters")
+    if len(norm) > _OWNER_MAX_LEN:
+        raise ValueError(f"owner exceeds {_OWNER_MAX_LEN} char max")
+    return norm
 
 
 def _b64e(data: bytes) -> str:
@@ -72,6 +110,7 @@ class ConsentAuthority:
         signing_key_hex: str | None = None,
         revoked: set[str] | None = None,
         quota_used: dict[str, int] | None = None,
+        memberships: dict[str, float] | None = None,
         now: callable = time.time,
     ) -> None:
         key_hex = signing_key_hex or os.environ.get(SIGNING_KEY_ENV, "")
@@ -81,6 +120,12 @@ class ConsentAuthority:
         self.public_key_hex = self._key.public_key().public_bytes_raw().hex()
         self.revoked = revoked if revoked is not None else set()
         self.quota_used = quota_used if quota_used is not None else {}
+        # Per-owner membership table (ADR-0011, 11b). Keyed by normalized owner
+        # (NFKC + strip + lowercase). Value is the unix epoch the membership
+        # expires (lazy expiry: verify_membership checks _now() each call;
+        # no cron sweep). Gateway hydrates from EventLog at boot (membership_grant
+        # events replay into this dict).
+        self.memberships = memberships if memberships is not None else {}
         self._now = now
 
     # ---- minting (owner-side; the gateway exposes this ONLY behind the
@@ -122,6 +167,31 @@ class ConsentAuthority:
 
     def revoke(self, token_id: str) -> None:
         self.revoked.add(token_id)
+
+    # ---- per-owner monthly membership gate (ADR-0011, 11b) ----
+
+    def verify_membership(self, claims: ConsentClaims) -> None:
+        """Raise ConsentError('membership required') unless the claims' owner
+        has an active membership (valid_until_epoch > now). Lazy expiry —
+        no cron, no separate sweep. Keyed by normalized owner so it survives
+        7-day token rotation. Free endpoints DO NOT call this; only paid-feature
+        routes do."""
+        owner_key = _normalize_owner(claims.owner)
+        valid_until = self.memberships.get(owner_key)
+        if valid_until is None or valid_until <= self._now():
+            raise ConsentError("membership required")
+
+    def grant_membership(self, owner: str, valid_until_epoch: float) -> str:
+        """Helper used by both the admin endpoint and the EventLog replay path.
+
+        Returns the normalized owner key (so callers can include it in the
+        emitted event payload truthfully). Last-write-wins on (owner) — caller
+        is responsible for ordering events at replay time (EventLog iter is
+        chronological, so replay naturally satisfies this).
+        """
+        owner_key = _normalize_owner(owner)
+        self.memberships[owner_key] = float(valid_until_epoch)
+        return owner_key
 
     # ---- per-battle proof-of-possession (A1: leaked bearer is useless) ----
 
