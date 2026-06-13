@@ -223,7 +223,6 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
     """Archetype: balance — hazards, pivots, selective setup, then damage."""
     _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
     hazards_laid = 0
-    setup_counts: dict[str, int] = {}
 
     async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
         nonlocal hazards_laid
@@ -234,7 +233,6 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
             return None
 
         hp_pct = _active_hp_pct(req)
-        species = _active_species(req)
 
         hazard_candidates = [(s, m) for s, m in candidates if m in HAZARD_MOVES]
         if hazard_candidates and hazards_laid < 1:
@@ -254,7 +252,6 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
 def hyper_offense_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
     """Archetype: hyper-offense — setup aggressively, then STAB-weighted sweep."""
     _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
-    setup_counts: dict[str, int] = {}
 
     async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
         early, candidates = await preamble(req)
@@ -263,8 +260,6 @@ def hyper_offense_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
         if candidates is None:
             return None
 
-        hp_pct = _active_hp_pct(req)
-        species = _active_species(req)
         return await _stab_max_damage(sidecar, req, ctx, candidates)
 
     return _policy
