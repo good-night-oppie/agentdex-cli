@@ -242,37 +242,37 @@ const dict = {
   zh: {
     nav: { landing: '主页', docs: '文档', reference: '文档库', github: '源码' },
     hero: {
-      title: '让你的 AI 编程智能体可以倒带、可以 diff、可以重跑。',
-      forWho: '献给智能体搞坏了东西、却没办法 undo 的工程师。',
-      trustLine: '整套 harness 就是一份 SQLite 文件，可以 cp，可以 git diff。零密钥。不上云。',
-      tagline: '每个智能体隔离、每一步 checkpoint，每条声明都能重跑。',
+      title: 'agent 把生产改炸的那 30 秒，可以倒回来。',
+      forWho: '上一次 agent 改炸 prod、你 git stash 一回头发现栈是空的——这工具写给你。',
+      trustLine: 'agent 这一 turn 写过的代码、读过的文件、跑过的 probe，全 append 到 `bene.db`。`cp` 留底，`sqlite3` 当场查，不联网。',
+      tagline: '写入前 `bene checkpoint`，diff 在本地，restore 退一 turn——不是 git ritual，是一条命令。',
       stats: ['一条命令倒带一次坏 turn', '兼容 Claude Code / Cursor / Aider', '37 个 MCP 工具'],
       ctaCode: '# 任何人今天就能跑：\ngit clone https://github.com/EdwardTang/bene-site && cd bene-site\nless docs/design/CLAIMS-AUDIT.md            # 凭据链，可离线读\n# 框架 checkout（私有预览）里：\nuv run bene init && uv run bene demo --no-ui   # 0.3 秒，零密钥 —— 即下方 GIF',
     },
     sections: {
       watch: {
         kicker: '01 · 眼见为实',
-        title: '这页上的每条声明，在你笔记本上一分钟内就能验。',
-        body: '一条命令，零密钥、零注册、不上云。bene demo --no-ui 在本地重放内核的完整故事——trace 被压缩、策略进化一轮、probe 过 kill-gate、越权动作被拒、信任分数被算出。它恰好 0.3 秒跑完，但快不是重点：重点是在你和「验证我们说的话」之间，什么都不挡。',
+        title: '上次试新工具光填 API key 就 12 分钟。这一页不那样。',
+        body: '`bene demo --no-ui`，0.3 秒跑完。不用 key，不注册，不联网。trace 在你机器上压缩了一次，probe 真的去过 kill-gate，越权动作真的被拒了，信任分数真的算出来了——不是 staged 视频，是命令在你笔记本上的输出。',
         demo: 'assets/demos/demo-keyless.gif',
         caption: '对当前 bene-main HEAD 实跑录制，未做剪辑。',
       },
       builders: {
         kicker: '01.5 · 这对 Builder 意味着什么',
-        title: '把 Context Engineering 落到一份 SQLite 文件里。',
-        body: '每一次 checkpoint 都是下一个智能体能读的 scratchpad。每一段 engram 都是跨 session 复利的 lessons-learned。Skill 在需要之前就在智能体之间传播。这就是 scratchpad + lessons-learned + 持久化记忆 三件套——拧在一起，落在硬盘上，一份文件。',
+        title: '别的 harness 教 agent 怎么记忆；BENE 教 agent 怎么被审计。',
+        body: '你把 lessons-learned 塞进 prompt——下一个 session 的 agent 看不见；你写到临时文件——它不知道哪份是最新；你写到文档——它根本不读。这三件事 append 到 `bene.db`：下一个 agent 进来 `grep` 一遍上一个 agent 在哪一 turn 改了哪一行、为什么改、跑没跑过 probe——证据链，不是 context。',
       },
       rewind: {
         kicker: '02 · 倒带一次失败的智能体动作',
-        title: '智能体把生产搞挂了。一条命令滚回去。',
-        body: '每次写入都可 checkpoint，每次 diff 都在本地，每次回滚就是一个动词。智能体把 replicas: 3 → 0（炸了线上）；你看见它改了什么，然后回到 green。',
+        title: 'agent 把生产改炸了。一条命令退回去。',
+        body: 'agent 把 replicas 从 3 改成 0。`git stash` 没用——它写的是 helm values，不在你 tree 里。`git revert` 也没用——那不是一次 commit。`bene restore <checkpoint>` 把它写过的字节倒回去，并告诉你它在哪一 turn、读了什么、为什么决定这么改。',
         demo: 'assets/demos/demo-litany.gif',
         caption: '不靠 git、不靠在线服务、不靠云。整条 rewind 就在那份本地 SQLite 里。',
       },
       receipts: {
         kicker: '03 · 所有声明都有凭据',
-        title: '你的 tech lead 可以一条命令重跑每一个 check。',
-        body: 'probe 规约在跑之前 sha256 锁定。每个 gate 都有 ACCEPT/REJECT 裁决，附触发它的数值。新来的智能体读到的是一份「已知什么」的清单，不是空白。',
+        title: '你的 tech lead 不必相信我们。他自己花 40 秒重跑一遍就行。',
+        body: 'clone repo，`uv run bene probe verify`：ACCEPT 或 REJECT 都带着触发它的那个数值一起打印出来——spec 的 `sha256` 在跑之前就锁了，谁都改不了分。要是他不信任这些数，他根本不需要信任我们。',
         demo: 'assets/demos/demo-honesty.gif',
         caption: 'experiments ls → experiments show → senses --md：接进来的智能体继承到的审计链与简报。',
         links: [
@@ -284,7 +284,7 @@ const dict = {
       interop: {
         kicker: '04 · 接进你已经在用的工具',
         title: 'Claude Code、Cursor、Aider、任何兼容 MCP 的智能体。',
-        body: '37 个工具走 MCP / stdio，agent 配置里加一行就完事。每个 CLI 表面同样支持 --json（直接 jq）。零 glue code；N×M 的 IDE-agent 集成税收敛到 N+M。',
+        body: '37 个工具走 MCP / stdio，agent 配置里加一行。同一套表面也支持 `--json`，jq 直接吃。Claude Code、Cursor、Aider 共用同一份 bene.db——不必给每个 IDE 各写一遍适配器。',
         snippet: 'claude mcp add bene -- uv run bene serve --transport stdio',
         capabilities: [
           '自己 checkpoint 自己的 turn，输出不好时 restore 一下，不必去碰 git。',
@@ -295,8 +295,8 @@ const dict = {
       },
       build: {
         kicker: '04.5 · 造你的第一个可审计智能体',
-        title: '三份 recipe，发布之前都真实跑过。',
-        body: '每份 recipe 都在框架 checkout（私有预览）里对一个全新的 bene.db 跑。创建智能体走 Python API 或 MCP 工具（agent_spawn / agent_write）；倒带动词是纯 CLI。把变量换成你的任务即可——harness 机理不变。',
+        title: '三份 recipe，命令是从 framework checkout 里抄出来的，不是写出来的。',
+        body: '每份 recipe 都对一个全新的 `bene.db` 跑过——不是 staged 输出，是终端的回显。创建 agent 走 Python API 或 MCP 工具（`agent_spawn` / `agent_write`），倒带几条动词是纯 CLI。把变量换成你的任务，机制相同。',
         recipes: [
           {
             title: '把一段不稳的 shell 脚本包成 checkpointed agent',
@@ -325,7 +325,7 @@ const dict = {
       },
       origin: {
         kicker: '关于这个名字（Bene Gesserit）',
-        body: 'BENE 是个 backronym（Breeding-program · Evolutionary · Nexus · Engrams），但更好的解释是：Bene Gesserit 是 Frank Herbert 笔下那个有耐心的策略师姐妹会 —— 她们让人在恐惧面前不动，不是靠勇敢，而是靠一个面对失败、让它穿过、自己留下来的方法。这就是 BENE 的核心循环：checkpoint、diff、restore。这个母题是一层框架，不是护城河 —— 每个 Dune 名字背后都有一个平白的名词（Other Memory → 可检索的执行追踪；Litany Against Fear → checkpoint/diff/restore；The Breeding Program → 进化型 meta-harness 搜索）。',
+        body: 'BENE 是个 backronym（Breeding-program · Evolutionary · Nexus · Engrams）。但起名的时候先用的是 Dune 里的 Bene Gesserit——一个姐妹会，她们的方法是面对失败、让它过去、人留下来。这跟 checkpoint / diff / restore 的循环对得上。引用是包装，事实在工具里：Other Memory → 可搜索的执行 trace；Litany Against Fear → checkpoint / diff / restore；The Breeding Program → 进化型 meta-harness 搜索。',
         litany: '我需心无所惧。恐惧是思想的屠者，恐惧是渐噬的湮灭。我将直面心之所惧，任它穿略，内观所及。恐惧所经之处，一片虚无。唯我将立。',
       },
     },
