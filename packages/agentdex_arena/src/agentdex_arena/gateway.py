@@ -166,6 +166,8 @@ class BattleSession:
     p2_team: str | None = None
     visitor_choices: list[str] = field(default_factory=list)
     parent: tuple[str, int] | None = None
+    scratchpad: str = ""
+    last_state: dict[str, Any] | None = None
 
 
 class EnrollRequest(BaseModel):
@@ -449,6 +451,7 @@ class ArenaGateway:
 
     def _render(self, session: BattleSession, state: dict[str, Any]) -> dict[str, Any]:
         assert session.pending is not None
+        session.last_state = state
         ctx = BattleContext(
             side=session.visitor_side,
             my_species=(state.get("active") or {}).get(session.visitor_side),
@@ -461,7 +464,10 @@ class ArenaGateway:
             "status": "your_move",
             "turn": session.turns,
             "state": render_state(
-                session.pending, ctx, scratchpad="", recent_turns=list(session.recent)
+                session.pending,
+                ctx,
+                scratchpad=session.scratchpad,
+                recent_turns=list(session.recent),
             ),
             "n_choices": len(legal_choices(session.pending)),
             "foe_active": session.foe_species,
@@ -634,11 +640,14 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         # the persistent sidecar is spawned lazily on first battle; stop it on
         # graceful shutdown so uvicorn (and TestClient teardown) never leak the
         # node subprocess.
-        yield
-        sidecar = app_.state.sidecar
-        if sidecar is not None:
-            await sidecar.stop()
-            app_.state.sidecar = None
+        from agentdex_arena.mcp_surface import mcp
+
+        async with mcp._session_manager.run():
+            yield
+            sidecar = app_.state.sidecar
+            if sidecar is not None:
+                await sidecar.stop()
+                app_.state.sidecar = None
 
     app = FastAPI(title="agentdex-arena", version="0.1.0", lifespan=_lifespan)
     app.state.gateway = gateway
@@ -844,5 +853,11 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             )
         except Exception as e:  # noqa: BLE001
             raise _opaque_error(400, e) from None
+
+    from agentdex_arena.mcp_surface import init_mcp, mcp
+
+    mcp._session_manager = None
+    init_mcp(gateway, _sidecar)
+    app.mount("/mcp", mcp.streamable_http_app())
 
     return app
