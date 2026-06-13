@@ -211,8 +211,8 @@ class ClaudeBridge(LongRunningCliBridge):
         )
         out, err = await proc.communicate()
         if proc.returncode != 0:
-            stderr_excerpt = err.decode(errors="replace")[:400]
-            stdout_excerpt = out.decode(errors="replace")[:400]
+            stderr_excerpt = err.decode(errors="replace")[:4000]
+            stdout_excerpt = out.decode(errors="replace")[:4000]
             # PR #19: surface stdout too when stderr is empty so silent
             # subprocess hangs (e.g. permission-prompt wait) produce a
             # diagnosable error instead of `cold shot failed:` with nothing

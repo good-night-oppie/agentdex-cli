@@ -156,4 +156,11 @@ def recompute_ladder(
             ]
             if filtered:
                 ladder.rate_period(filtered)
+        elif event["type"] == "badge":
+            agent_name = payload["agent_name"]
+            badge = payload["badge"]
+            if agent_name not in ladder.badges:
+                ladder.badges[agent_name] = []
+            if badge not in ladder.badges[agent_name]:
+                ladder.badges[agent_name].append(badge)
     return ladder

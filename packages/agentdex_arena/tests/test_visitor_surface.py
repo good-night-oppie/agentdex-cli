@@ -844,3 +844,113 @@ def test_nightly_self_test_halts_publication(arena, monkeypatch, tmp_path):
         },
     )
     assert r2.status_code == 200
+
+
+def test_methodology_endpoint(arena):
+    """Test that GET /methodology returns the methodology Markdown file content."""
+    client, gateway, owner_inbox, agent_key = arena
+    resp = client.get("/methodology")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert "Agentdex Arena — Methodology Reference" in resp.text
+    assert "Statistical Power Table" in resp.text
+
+
+def test_gym_leader_selection_rules(arena):
+    """Test that we can select a specific gym leader in sandbox, and that
+
+    selecting it in rated is rejected.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key)
+
+    # 1. Rated lane rejects selecting a gym leader
+    start = client.post("/battle/start", json={"token": token}).json()
+    sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+    r = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start["battle_nonce"],
+            "pop_signature_hex": sig,
+            "lane": "rated",
+            "gym_leader": "anchor-random",
+        },
+    )
+    assert r.status_code == 400
+    assert "arena error (ref: " in r.json()["detail"]
+
+    # 2. Sandbox lane rejects unknown gym leader
+    start2 = client.post("/battle/start", json={"token": token}).json()
+    sig2 = agent_key.sign(start2["pop_challenge"].encode()).hex()
+    r2 = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start2["battle_nonce"],
+            "pop_signature_hex": sig2,
+            "lane": "sandbox",
+            "gym_leader": "invalid-gym-leader",
+        },
+    )
+    assert r2.status_code == 400
+    assert "arena error (ref: " in r2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_gym_leader_badge_awarding(arena):
+    """Test that defeating a gym leader in sandbox awards the badge
+
+    and populates it in the receipt, replays, and public ladder.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    from agentdex_arena.gateway import BattleSession
+
+    # Create a sandbox session against anchor-random
+    session = BattleSession(
+        battle_id="sandbox-test-badge-123",
+        claims_token_id="token-123",
+        visitor_name="badge-winner",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=(0, 7, 7, 7),
+        sidecar=None,
+        opponent_policy=None,
+    )
+
+    end_payload = {
+        "winner": "badge-winner",
+        "turns": 5,
+        "inputLog": ["line1", "line2"],
+        "keyLines": ["|move|p1a: A|X|p2a: B", "|-immune|p2a: B"],
+    }
+
+    receipt = await gateway._finish(session, end_payload)
+
+    # Check receipt
+    assert receipt["badge_awarded"] == "Boulder Badge"
+    assert "failure_signatures" in receipt
+    # signature 'immune_move_clicked' should be present
+    assert any(s["signature"] == "immune_move_clicked" for s in receipt["failure_signatures"])
+
+    # Check replays
+    replay_data = gateway.replays.get("sandbox-test-badge-123")
+    assert replay_data is not None
+    assert replay_data["badge_awarded"] == "Boulder Badge"
+    assert "signatures" in replay_data
+
+    # Check public replay endpoint
+    replay_resp = client.get("/replay/sandbox-test-badge-123")
+    assert replay_resp.status_code == 200
+    res = replay_resp.json()
+    assert res["badge_awarded"] == "Boulder Badge"
+    assert any(s["signature"] == "immune_move_clicked" for s in res["signatures"])
+
+    # Now manually register the visitor so they are eligible for public ladder representation
+    gateway.events.append("register", {"name": "badge-winner", "frozen": False})
+    gateway._registered.add("badge-winner")
+
+    # Check public ladder exposes badges
+    ladder_data = gateway.ladder_public()
+    assert "badge-winner" in ladder_data["entrants"]
+    assert ladder_data["entrants"]["badge-winner"]["badges"] == ["Boulder Badge"]

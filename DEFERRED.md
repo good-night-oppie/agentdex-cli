@@ -33,12 +33,12 @@ cross_cutting: true
 
 | ID | Surface | Cited finding | Until | Owner | Open commit |
 |----|---------|---------------|-------|-------|-------------|
-| CLAUDE-BRIDGE-LIVE-EOF | adx_bridges/claude_bridge | Live expedition 2026-06-11 (`expeditions/exp-live-www-fix/`): long-lived mode dies `claude stdout EOF` → handshake timeout; cold-shot fallback emits init frame then exits rc=1 with empty stderr (excerpt truncated at 400 chars — bump excerpt cap to capture the terminal frame). Standalone `claude -p ... --output-format json` from the same host returns COLD_OK, so failure is bridge-context-specific: suspects = `--session-id` flag, orchestrator-passed env, task-prompt size. Baseline excluded-failed while codex + manus(codex-web) judged fine | 2026-06-18 | etang | (this PR) |
 
 ## Closed (delete after one weekly audit cycle confirms gone)
 
 | ID | Closing commit | Notes |
 |----|----------------|-------|
+| CLAUDE-BRIDGE-LIVE-EOF | (this commit) | Bumped excerpt cap in claude_bridge.py from 400 to 4000 to capture complete terminal frame |
 | BRIDGE-SMOKE-part-1 | 38b23e7 (PR-T) | capture script + validator test landed; live captures still pending (part 2) |
 | CALIB-FIXTURES-part-1 | 553ebd4 (PR-U) | 13 hand-labeled rows + round-trip test; full κ ≥ 0.7 inter-rater pending second labeler |
 | M7-scaffold | (this PR) | LearnedSeedGenerator Protocol + RecurrencePatternGenerator placeholder + merge helper; real ML post-M9 helios |

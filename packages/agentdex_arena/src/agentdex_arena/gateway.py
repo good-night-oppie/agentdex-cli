@@ -54,6 +54,11 @@ log = logging.getLogger(__name__)
 
 Lane = Literal["sandbox", "rated"]
 GYM_LEADERS = ("anchor-random", "anchor-max_damage", "anchor-heuristic")
+GYM_BADGES = {
+    "anchor-random": "Boulder Badge",
+    "anchor-max_damage": "Cascade Badge",
+    "anchor-heuristic": "Thunder Badge",
+}
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
 
 # Break-the-mirror (#3, sandbox lane): each gym leader fields a FIXED, DISCLOSED
@@ -197,6 +202,7 @@ class BeginRequest(BaseModel):
     pop_signature_hex: str
     lane: Lane = "sandbox"
     team: str | None = None  # packed; validated server-side; None = starter draft 1
+    gym_leader: str | None = None  # opt-in gym leader challenge in sandbox
 
 
 class ChooseRequest(BaseModel):
@@ -327,6 +333,8 @@ class ArenaGateway:
             raise _opaque_error(403, e) from None
 
         if req.lane == "rated":
+            if req.gym_leader is not None:
+                raise _opaque_error(400, "cannot select gym leader in rated lane")
             # server-side matchmaking vs held-out pool; seed server-secret (A3)
             opponent = RATED_POOL[
                 int.from_bytes(
@@ -339,7 +347,9 @@ class ArenaGateway:
             ).digest()
             seed = [int.from_bytes(seed_material[i : i + 2], "big") for i in range(0, 8, 2)]
         else:
-            opponent = GYM_LEADERS[0]  # first gym leader; ladder of gyms post-run
+            if req.gym_leader is not None and req.gym_leader not in GYM_LEADERS:
+                raise _opaque_error(400, f"unknown gym leader: {req.gym_leader}")
+            opponent = req.gym_leader or GYM_LEADERS[0]
             seed = [
                 int.from_bytes(
                     hashlib.blake2b(req.battle_nonce.encode(), digest_size=2).digest(), "big"
@@ -584,6 +594,25 @@ class ArenaGateway:
             session.ended["quarantined"] = True
             session.ended["quarantine_reason"] = collusion_reason
 
+        # Check if they earned a gym badge in sandbox
+        badge_awarded = None
+        if (
+            session.lane == "sandbox"
+            and session.opponent in GYM_BADGES
+            and winner == session.visitor_name
+        ):
+            badge_name = GYM_BADGES[session.opponent]
+            badge_awarded = badge_name
+            self.events.append(
+                "badge",
+                {
+                    "agent_name": session.visitor_name,
+                    "badge": badge_name,
+                    "battle_id": session.battle_id,
+                    "timestamp": self.now(),
+                },
+            )
+
         signatures = [
             s.model_dump()
             for s in extract_signatures(list(end.get("keyLines") or []), side=session.visitor_side)
@@ -603,6 +632,8 @@ class ArenaGateway:
         if collusion_reason:
             receipt["quarantined"] = True
             receipt["quarantine_reason"] = collusion_reason
+        if badge_awarded:
+            receipt["badge_awarded"] = badge_awarded
 
         self.events.append(
             "battle_end",
@@ -640,7 +671,10 @@ class ArenaGateway:
             "teams": [session.p1_team, session.p2_team],
             "visitor_choices": list(session.visitor_choices),
             "parent": session.parent,
+            "signatures": signatures,
         }
+        if badge_awarded:
+            self.replays[session.battle_id]["badge_awarded"] = badge_awarded
         if session.lane == "rated":
             for name in (session.visitor_name, session.opponent):
                 if name not in self._registered:
@@ -741,7 +775,12 @@ class ArenaGateway:
         ladder = recompute_ladder(self.events.path)
         return {
             "entrants": {
-                name: {"rating": round(r.rating, 1), "rd": round(r.rd, 1), "games": r.games}
+                name: {
+                    "rating": round(r.rating, 1),
+                    "rd": round(r.rd, 1),
+                    "games": r.games,
+                    "badges": ladder.badges.get(name, []),
+                }
                 for name, r in sorted(ladder.entrants.items(), key=lambda kv: -kv[1].rating)
             }
         }
@@ -785,6 +824,13 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         from fastapi.responses import PlainTextResponse
 
         doc = Path(__file__).resolve().parent / "ENROLLMENT.md"
+        return PlainTextResponse(doc.read_text(), media_type="text/markdown")
+
+    @app.get("/methodology", response_model=None)
+    async def methodology_doc():
+        from fastapi.responses import PlainTextResponse
+
+        doc = Path(__file__).resolve().parent / "METHODOLOGY.md"
         return PlainTextResponse(doc.read_text(), media_type="text/markdown")
 
     @app.post("/enroll/request")
@@ -902,12 +948,16 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
         # public view only — seed/teams/choices/tenant stay server-side (fork fuel)
-        return {
+        res = {
             "input_log": data["input_log"],
             "winner": data["winner"],
             "lane": data["lane"],
             "parent": data.get("parent"),
+            "signatures": data.get("signatures") or [],
         }
+        if "badge_awarded" in data:
+            res["badge_awarded"] = data["badge_awarded"]
+        return res
 
     @app.post("/battle/{battle_id}/fork")
     async def battle_fork(battle_id: str, body: dict) -> dict:

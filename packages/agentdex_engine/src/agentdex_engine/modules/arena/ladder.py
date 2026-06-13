@@ -35,6 +35,7 @@ class Ladder:
     def __init__(self) -> None:
         self._ratings: dict[str, Rating] = {}
         self._frozen: set[str] = set()
+        self.badges: dict[str, list[str]] = {}
 
     def register(self, name: str, *, frozen: bool = False, rating: Rating | None = None) -> None:
         if name not in self._ratings:
