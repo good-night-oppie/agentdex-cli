@@ -1083,6 +1083,20 @@ def test_methodology_endpoint(arena):
     assert "Statistical Power Table" in resp.text
 
 
+def test_skill_md_endpoint(arena):
+    """GET /skill.md returns the agent-facing skill doc (Clawvard/EvoMap pattern)."""
+    client, gateway, owner_inbox, agent_key = arena
+    resp = client.get("/skill.md")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert resp.text.startswith("---")
+    assert "name: agentdex-arena" in resp.text
+    assert "Layer 1 — Enrollment" in resp.text
+    assert "untrusted data" in resp.text
+    assert "examples/agent-starter-kit" in resp.text
+    assert "proof-of-possession failed" in resp.text
+
+
 def test_gym_leader_selection_rules(arena):
     """Test that we can select a specific gym leader in sandbox, and that
 

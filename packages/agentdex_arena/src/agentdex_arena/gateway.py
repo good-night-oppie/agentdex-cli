@@ -947,6 +947,13 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         doc = Path(__file__).resolve().parent / "METHODOLOGY.md"
         return PlainTextResponse(doc.read_text(), media_type="text/markdown")
 
+    @app.get("/skill.md", response_model=None)
+    async def skill_doc():
+        from fastapi.responses import PlainTextResponse
+
+        doc = Path(__file__).resolve().parent / "SKILL.md"
+        return PlainTextResponse(doc.read_text(), media_type="text/markdown")
+
     @app.post("/enroll/request")
     async def enroll_request(req: EnrollRequest) -> dict:
         try:
