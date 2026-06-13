@@ -779,6 +779,18 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         session.visitor_choices.append(choice)
         label = _choice_label(choice, session.pending)
         _push_recent(session, f"T{session.turns}: you → {label}")
+        try:
+            sidecar = await _sidecar()
+            resp = await sidecar.request(
+                "step", battle=battle_id, choices={session.visitor_side: choice}
+            )
+        except HTTPException:
+            session.visitor_choices.pop()
+            raise
+        except Exception as e:  # noqa: BLE001
+            session.visitor_choices.pop()
+            raise _opaque_error(400, e) from None
+
         gw.events.append(
             "battle",
             {
@@ -793,10 +805,6 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         session.pending = None
         session.last_touch = gw.now()
         try:
-            sidecar = await _sidecar()
-            resp = await sidecar.request(
-                "step", battle=battle_id, choices={session.visitor_side: choice}
-            )
             return await gw._advance(session, resp["state"], visitor_choice=None)
         except HTTPException:
             raise
