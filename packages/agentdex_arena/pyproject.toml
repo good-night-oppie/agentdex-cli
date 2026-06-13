@@ -14,6 +14,7 @@ dependencies = [
   "adx-showdown",
   "agentdex-engine",
   "adx-bridges",
+  "mcp",
 ]
 
 [tool.hatch.build.targets.wheel]
