@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextvars
 import logging
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from adx_showdown.protocol import legal_choices, sanitize_name
 from agentdex_engine.modules.arena import recompute_ladder
@@ -26,7 +26,8 @@ mcp = FastMCP("agentdex-arena")
 mcp.settings.streamable_http_path = "/"
 mcp.settings.json_response = True
 mcp.settings.stateless_http = True
-mcp.settings.transport_security.enable_dns_rebinding_protection = False
+if mcp.settings.transport_security is not None:
+    mcp.settings.transport_security.enable_dns_rebinding_protection = False
 
 # Global references set at runtime (as a fallback)
 _gateway: ArenaGateway | None = None
@@ -60,7 +61,10 @@ def _get_sidecar_fn() -> Any:
 
 
 def _verify_token_opaque(
-    gateway: ArenaGateway, token: str, scope: str, spend_quota_scope: str | None = None
+    gateway: ArenaGateway,
+    token: str,
+    scope: Literal["enroll", "battle", "evolve"],
+    spend_quota_scope: Literal["enroll", "battle", "evolve"] | None = None,
 ) -> Any:
     """Verify bearer consent token, returning claims.
 
