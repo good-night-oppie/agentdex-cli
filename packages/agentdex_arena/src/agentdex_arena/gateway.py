@@ -960,6 +960,7 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         session.visitor_choices.append(choice)
         label = _choice_label(choice, session.pending)
         recent_line = f"T{session.turns}: you → {label}"
+        old_recent = list(session.recent)
         _push_recent(session, recent_line)
         old_pending = session.pending
         session.pending = None
@@ -970,14 +971,12 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             )
         except HTTPException:
             session.visitor_choices.pop()
-            if session.recent and session.recent[-1] == recent_line:
-                session.recent.pop()
+            session.recent = old_recent
             session.pending = old_pending
             raise
         except Exception as e:  # noqa: BLE001
             session.visitor_choices.pop()
-            if session.recent and session.recent[-1] == recent_line:
-                session.recent.pop()
+            session.recent = old_recent
             session.pending = old_pending
             raise _opaque_error(400, e) from None
 
