@@ -69,6 +69,8 @@ class Sidecar:
             env["ADX_SIDECAR_MAX_BATTLES"] = str(self._max_battles)
         self._proc = await asyncio.create_subprocess_exec(
             "node",
+            "--expose-gc",
+            "--max-old-space-size=96",
             str(SIDECAR_MJS),
             cwd=str(_PKG_ROOT),
             stdin=asyncio.subprocess.PIPE,

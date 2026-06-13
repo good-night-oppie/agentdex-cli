@@ -285,6 +285,9 @@ async function handle(msg) {
       return out({ id, ok: true, ratings });
     }
     if (op === 'rss') {
+      if (global.gc) {
+        global.gc();
+      }
       return out({ id, ok: true, rss: process.memoryUsage().rss, active: battles.size });
     }
     if (op === 'stop') {
