@@ -460,7 +460,11 @@ class ArenaGateway:
             input_log = []
             if session.sidecar is not None:
                 try:
-                    resp = await session.sidecar.request("stop", battle=session.battle_id)
+                    resp = await session.sidecar.request(
+                        "stop",
+                        battle=session.battle_id,
+                        forfeit_side=session.visitor_side,
+                    )
                     if len(session.visitor_choices) > 0:
                         input_log = list(resp.get("inputLog") or [])
                 except Exception:  # noqa: BLE001

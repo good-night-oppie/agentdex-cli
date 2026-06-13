@@ -735,6 +735,13 @@ def test_rated_turn_budget_forfeits_after_moves(arena):
         body["rating"]["published_delta"], float
     )
 
+    # Re-simulation/dispute verification: re-simulation must match the reported winner (not quarantine)
+    dis_r = client.post(f"/battle/{state['battle_id']}/dispute", json={"token": token})
+    assert dis_r.status_code == 200
+    dis_body = dis_r.json()
+    assert dis_body["disputed"] is False
+    assert dis_body["match"] is True
+
     # Moves were made, so it must be rated on the ladder
     events = list(gateway.events.iter_events())
     types = [e["type"] for e in events]

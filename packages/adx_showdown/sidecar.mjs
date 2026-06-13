@@ -295,7 +295,12 @@ async function handle(msg) {
       let inputLog = [];
       if (entry) {
         inputLog = entry.inputLog;
-        await writeBattle(entry, `>forcetie`);
+        const forfeit = msg.forfeit_side;
+        if (forfeit === 'p1' || forfeit === 'p2') {
+          await writeBattle(entry, `>forcelose ${forfeit}`);
+        } else {
+          await writeBattle(entry, `>forcetie`);
+        }
         battles.delete(msg.battle);
       }
       return out({ id, ok: true, inputLog });
