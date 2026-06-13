@@ -21,7 +21,7 @@ COPY packages/ ./packages/
 RUN uv sync --frozen --no-dev
 
 # Install all workspace packages as editable installs
-RUN uv pip install --frozen \
+RUN uv pip install \
     -e packages/adx_bridges \
     -e packages/agentdex_cli \
     -e packages/agentdex_observe \
@@ -39,4 +39,4 @@ RUN cd packages/adx_showdown && npm ci --omit=dev
 EXPOSE 8000
 
 # Start application
-CMD sh -c "HOST=0.0.0.0 uv run --frozen python -m agentdex_arena"
+CMD sh -c "HOST=0.0.0.0 uv run --no-dev --frozen python -m agentdex_arena"
