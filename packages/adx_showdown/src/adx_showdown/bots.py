@@ -246,8 +246,27 @@ def balance_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
         if pivot_candidates and has_bench and hp_pct >= 40.0:
             return f"move {pivot_candidates[0][0]}"
 
+        return await _stab_max_damage(sidecar, req, ctx, candidates)
+
+    return _policy
+
+
+def hyper_offense_bot(sidecar: Sidecar, *, fallback_seed: int = 0) -> Policy:
+    """Archetype: hyper-offense — setup aggressively, then STAB-weighted sweep."""
+    _fallback, preamble = _archetype_base(sidecar, fallback_seed=fallback_seed)
+    setup_counts: dict[str, int] = {}
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        early, candidates = await preamble(req)
+        if early is not None:
+            return early
+        if candidates is None:
+            return None
+
+        hp_pct = _active_hp_pct(req)
+        species = _active_species(req)
         setup_candidates = [(s, m) for s, m in candidates if m in SETUP_MOVES]
-        if setup_candidates and hp_pct >= 65.0 and setup_counts.get(species, 0) < 1:
+        if setup_candidates and hp_pct >= 45.0 and setup_counts.get(species, 0) < 2:
             setup_counts[species] = setup_counts.get(species, 0) + 1
             return f"move {setup_candidates[0][0]}"
 
