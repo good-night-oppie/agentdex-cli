@@ -103,7 +103,7 @@ async def get_battle_state(token: str, battle_id: str) -> dict[str, Any]:
     if claims.token_id != session.claims_token_id:
         raise ValueError("Unauthorized: token does not own this battle")
 
-    gw._expire_if_stale(session)
+    await gw._expire_if_stale(session)
     if session.ended is not None:
         return {"status": "ended", **session.ended}
 
@@ -129,7 +129,7 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
     if claims.token_id != session.claims_token_id:
         raise ValueError("Unauthorized: token does not own this battle")
 
-    gw._expire_if_stale(session)
+    await gw._expire_if_stale(session)
     if session.ended is not None:
         return {"status": "ended", **session.ended}
 
