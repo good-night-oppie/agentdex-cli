@@ -1153,11 +1153,22 @@ def test_battle_state_endpoint_polls_without_choosing(arena):
     assert polled["n_choices"] == initial["n_choices"]
     assert polled.get("recent_turns") == initial.get("recent_turns")
 
-    # 2. Token via query string → 401 (Bearer header required, not query)
+    # 2. Token via query string → 400 (query parameter forbidden, fails before
+    #    the auth check so the URL leak is flagged loudly even without a header).
     resp = client.get(f"/battle/{battle_id}/state", params={"token": token})
-    assert resp.status_code == 401, "query-string token must be rejected to avoid log leak"
+    assert resp.status_code == 400, "query-string token must be rejected to avoid log leak"
 
-    # 3. Missing/empty Authorization header → 401
+    # 2b. Belt-and-suspenders: `?token=...` + valid Authorization header still 400
+    #     (PR #97 review P2 — buggy clients that send BOTH must be flagged, not
+    #     silently succeed and leak the bearer into URL logs).
+    resp = client.get(
+        f"/battle/{battle_id}/state",
+        params={"token": token},
+        headers=auth,
+    )
+    assert resp.status_code == 400, "query+header must reject — silent success masks the leak"
+
+    # 3. Missing/empty Authorization header (no query token either) → 401
     resp = client.get(f"/battle/{battle_id}/state")
     assert resp.status_code == 401
 
