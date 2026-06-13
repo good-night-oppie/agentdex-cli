@@ -150,6 +150,7 @@ Loop: get_battle_state → choose_action → repeat until end. Use write_scratch
 | 400 "no pending request" | called `/choose` twice for same turn | wait for prior `/choose` response |
 | empty `foe_active` in early state | mon hasn't switched in yet | normal at turn 1 |
 | rated lane gives no opponent team in `begin` | intentional (hotfix 9c145fa6) | infer from `recent_turns` + sidecar foe HP only |
+| `claude_agent.py` exits with `ModuleNotFoundError: anthropic` | `uv sync` skips the `[claude]` extra by default | run `uv sync --extra claude` (or `uv pip install anthropic`); the agent now exits with code 2 BEFORE opening a battle, so no quota is burned |
 
 ## Layout
 
