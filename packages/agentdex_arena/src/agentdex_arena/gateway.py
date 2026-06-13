@@ -53,7 +53,7 @@ from agentdex_engine.modules.arena import (
     extract_signatures,
     recompute_ladder,
 )
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -1029,7 +1029,9 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
 
     @app.get("/battle/{battle_id}/state")
     async def battle_state(
-        battle_id: str, authorization: str | None = Header(default=None)
+        battle_id: str,
+        request: Request,
+        authorization: str | None = Header(default=None),
     ) -> dict:
         """Poll current battle state without choosing — re-renders from
         session.last_state. Mirrors the MCP get_battle_state tool so MCP-less
@@ -1038,6 +1040,15 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         Auth: bearer token via Authorization header — NEVER as a query-string
         parameter (PR #93 review P2: query-string tokens leak into access logs,
         caches, browser history, and proxied diagnostics)."""
+        # Belt-and-suspenders (PR #97 review P2): reject `?token=...` even
+        # when a valid Authorization header is also present. Otherwise a
+        # buggy client that sends BOTH still leaks the bearer into URL logs
+        # while the request succeeds, silently masking the defect.
+        if "token" in request.query_params:
+            raise _opaque_error(
+                400,
+                "token query parameter is forbidden — pass via Authorization: Bearer header only",
+            )
         if not authorization or not authorization.startswith("Bearer "):
             raise _opaque_error(401, "Bearer token required")
         token = authorization[len("Bearer ") :]
