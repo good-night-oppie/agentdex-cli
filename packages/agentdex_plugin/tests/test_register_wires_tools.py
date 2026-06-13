@@ -50,23 +50,32 @@ def test_register_wires_five_tools(monkeypatch, tmp_path) -> None:
     assert all(c["description"] for c in ctx.calls)
 
 
-def test_only_run_expedition_is_async(monkeypatch, tmp_path) -> None:
+def test_async_and_sync_tool_flags(monkeypatch, tmp_path) -> None:
     ctx = _registered_ctx(monkeypatch, tmp_path)
     async_flags = {c["name"]: c["is_async"] for c in ctx.calls}
-    assert async_flags.pop("agentdex_run_expedition") is True
-    assert not any(async_flags.values())
-    run_handler = next(c["handler"] for c in ctx.calls if c["name"] == "agentdex_run_expedition")
-    assert asyncio.iscoroutinefunction(run_handler)
+    assert async_flags["agentdex_run_expedition"] is True
+    assert async_flags["agentdex_route_to_subagent"] is True
+    assert async_flags["agentdex_route_to_cli"] is True
+    assert async_flags["agentdex_register_subagent"] is False
+    assert async_flags["agentdex_list_subagents"] is False
+
+    for name in ["agentdex_run_expedition", "agentdex_route_to_subagent", "agentdex_route_to_cli"]:
+        handler = next(c["handler"] for c in ctx.calls if c["name"] == name)
+        assert asyncio.iscoroutinefunction(handler)
 
 
 def test_registry_handlers_share_one_registry(monkeypatch, tmp_path) -> None:
+    import json
+
     ctx = _registered_ctx(monkeypatch, tmp_path)
     by_name = {c["name"]: c["handler"] for c in ctx.calls}
 
-    out = by_name["agentdex_register_subagent"](
+    out_raw = by_name["agentdex_register_subagent"](
         {"name": "probe", "kind": "cli", "bridge_port": 49999}
     )
+    out = json.loads(out_raw)
     assert out["ok"] is True
 
-    listed = by_name["agentdex_list_subagents"]({})
+    listed_raw = by_name["agentdex_list_subagents"]({})
+    listed = json.loads(listed_raw)
     assert [a["name"] for a in listed["agents"]] == ["probe"]

@@ -74,8 +74,6 @@ def register(ctx: Any = None) -> dict[str, Any]:
     from agentdex_cli.tools.route_to_subagent import (
         AGENTDEX_ROUTE_TO_CLI_SCHEMA,
         AGENTDEX_ROUTE_TO_SUBAGENT_SCHEMA,
-        handle_route_to_cli,
-        handle_route_to_subagent,
     )
 
     from agentdex_plugin.tools import (
@@ -85,11 +83,73 @@ def register(ctx: Any = None) -> dict[str, Any]:
 
     registry = AgentsRegistry()  # honors HERMES_HOME; one instance shared by handlers
 
+    import json
+    import time
+
+    def _sync_adapter(h):
+        def _wrapped(args: dict, **kwargs) -> str:
+            res = h(args)
+            return json.dumps(res)
+
+        return _wrapped
+
+    def _async_adapter(h):
+        async def _wrapped(args: dict, **kwargs) -> str:
+            res = await h(args)
+            return json.dumps(res)
+
+        return _wrapped
+
+    async def handle_route_to_subagent_async(args: dict) -> dict:
+        from agentdex_cli.tools.route_to_subagent import _call_hermes_agent
+
+        target = registry.get(args["target"])
+        if not target:
+            return {"ok": False, "error": f"unknown target {args['target']!r}"}
+        if target.kind != "hermes-agent":
+            return {
+                "ok": False,
+                "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_cli",
+            }
+        t0 = time.time()
+        ok = False
+        try:
+            result = await _call_hermes_agent(
+                target, args["prompt"], args.get("session_id"), args.get("extra") or {}
+            )
+            ok = bool(result.get("ok"))
+            return result
+        finally:
+            registry.record_call(target.name, latency_ms=(time.time() - t0) * 1000.0, ok=ok)
+
+    async def handle_route_to_cli_async(args: dict) -> dict:
+        from agentdex_cli.tools.route_to_subagent import _call_cli_bridge
+
+        target = registry.get(args["target"])
+        if not target:
+            return {"ok": False, "error": f"unknown target {args['target']!r}"}
+        if target.kind != "cli":
+            return {
+                "ok": False,
+                "error": f"target {target.name!r} kind={target.kind}; use agentdex_route_to_subagent",
+            }
+        t0 = time.time()
+        ok = False
+        try:
+            result = await _call_cli_bridge(
+                target, args["prompt"], args.get("session_id"), args.get("extra") or {}
+            )
+            ok = bool(result.get("ok"))
+            return {"ok": True, **result}
+        finally:
+            registry.record_call(target.name, latency_ms=(time.time() - t0) * 1000.0, ok=ok)
+
     sync_tools = [
-        (AGENTDEX_REGISTER_SUBAGENT_SCHEMA, partial(handle_register_subagent, registry)),
-        (AGENTDEX_LIST_SUBAGENTS_SCHEMA, partial(handle_list_subagents, registry)),
-        (AGENTDEX_ROUTE_TO_SUBAGENT_SCHEMA, partial(handle_route_to_subagent, registry)),
-        (AGENTDEX_ROUTE_TO_CLI_SCHEMA, partial(handle_route_to_cli, registry)),
+        (
+            AGENTDEX_REGISTER_SUBAGENT_SCHEMA,
+            _sync_adapter(partial(handle_register_subagent, registry)),
+        ),
+        (AGENTDEX_LIST_SUBAGENTS_SCHEMA, _sync_adapter(partial(handle_list_subagents, registry))),
     ]
     for schema, handler in sync_tools:
         ctx.register_tool(
@@ -101,11 +161,25 @@ def register(ctx: Any = None) -> dict[str, Any]:
             description=schema["description"],
         )
 
+    async_tools = [
+        (AGENTDEX_ROUTE_TO_SUBAGENT_SCHEMA, _async_adapter(handle_route_to_subagent_async)),
+        (AGENTDEX_ROUTE_TO_CLI_SCHEMA, _async_adapter(handle_route_to_cli_async)),
+    ]
+    for schema, handler in async_tools:
+        ctx.register_tool(
+            name=schema["name"],
+            toolset="agentdex",
+            schema=schema,
+            handler=handler,
+            is_async=True,
+            description=schema["description"],
+        )
+
     ctx.register_tool(
         name=AGENTDEX_RUN_EXPEDITION_SCHEMA["name"],
         toolset="agentdex",
         schema=AGENTDEX_RUN_EXPEDITION_SCHEMA,
-        handler=handle_run_expedition,
+        handler=_async_adapter(handle_run_expedition),
         is_async=True,  # full Expedition awaits bridges sequentially
         description=AGENTDEX_RUN_EXPEDITION_SCHEMA["description"],
     )
