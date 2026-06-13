@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from adx_showdown.bots import balance_bot, random_bot
+from adx_showdown.bots import balance_bot, hyper_offense_bot, max_damage_bot, random_bot
 from adx_showdown.sidecar import Sidecar, sidecar_available
 from adx_showdown.sim import run_battle
 
@@ -26,5 +26,25 @@ def test_balance_bot_runs_to_completion():
                 seed=[101, 102, 103, 104],
             )
             assert result.winner in ("BalancePlayer", "RandomPlayer")
+
+    asyncio.run(_run())
+
+
+def test_hyper_offense_bot_runs_to_completion():
+    """Hyper-offense archetype gym bot completes gen9randombattle without errors."""
+
+    async def _run():
+        async with Sidecar() as sc:
+            result = await run_battle(
+                sc,
+                battle_id="test-hyper-offense-bot",
+                format_id="gen9randombattle",
+                p1_name="HyperPlayer",
+                p2_name="MaxDmgPlayer",
+                p1_policy=hyper_offense_bot(sc, fallback_seed=201),
+                p2_policy=max_damage_bot(sc, fallback_seed=202),
+                seed=[201, 202, 203, 204],
+            )
+            assert result.winner in ("HyperPlayer", "MaxDmgPlayer")
 
     asyncio.run(_run())
