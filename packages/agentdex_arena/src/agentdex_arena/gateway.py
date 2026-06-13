@@ -86,8 +86,13 @@ RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking p
 # signature team drawn from the starter pack by sorted index — distinct from the
 # visitor's default (pack index 0), so even two defaults never mirror. The packed
 # team is returned in the begin response: sandbox is the open-information matchup
-# puzzle; scouting it is the point. Rated keeps the mirror until backlog #8 lands
-# the i.i.d. anchor-team defense.
+# puzzle; scouting it is the point.
+#
+# Break-the-mirror (#8, rated lane): i.i.d. anchor-team matchmaking. The opponent
+# is drawn from RATED_POOL via nonce hash (unchanged). The opponent TEAM is drawn
+# i.i.d. from RATED_ANCHOR_TEAMS via an extended nonce hash, so the matchmaker
+# samples anchor team independently of the visitor's team. Seed and opponent team
+# disclosed post-result via the existing seed-disclosure rail.
 ARCHETYPE_GYM_TEAMS = {
     "gym-balance": "01-balance-tusk-gambit",
     "gym-hyper-offense": "02-hyper-offense",
@@ -95,6 +100,11 @@ ARCHETYPE_GYM_TEAMS = {
     "gym-trick-room": "04-trick-room",
 }
 GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
+RATED_ANCHOR_TEAMS = (
+    "10-pivot-spam",
+    "11-dragon-spam",
+    "12-fat-fwg",
+)  # held-out i.i.d. pool for rated mirror-break
 
 
 def sanitize_packed_team(packed: str) -> str:
@@ -451,8 +461,15 @@ class ArenaGateway:
             gym_team_name = _gym_team_name(opponent)
             opp_team = await pack_team(sidecar, starter_pack()[gym_team_name])
         else:
-            gym_team_name = None
-            opp_team = team  # rated keeps the mirror until #8 (i.i.d. anchor-team defense)
+            # Rated lane: i.i.d. anchor-team matchmaking (#8). Draw opponent team
+            # from RATED_ANCHOR_TEAMS via extended nonce hash, independent of visitor
+            # team. Seed and opponent team disclosed post-result.
+            anchor_team_idx = int.from_bytes(
+                hashlib.blake2b(f"team:{req.battle_nonce}".encode(), digest_size=2).digest(),
+                "big",
+            ) % len(RATED_ANCHOR_TEAMS)
+            gym_team_name = RATED_ANCHOR_TEAMS[anchor_team_idx]
+            opp_team = await pack_team(sidecar, starter_pack()[gym_team_name])
         session.p1_team, session.p2_team = team, opp_team
         try:
             resp = await sidecar.request(
@@ -786,6 +803,7 @@ class ArenaGateway:
                 "rd": round(after.rd, 1),
                 "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
                 "seed_disclosure": session.seed,  # revealed post-result (A3)
+                "opponent_team_disclosure": session.p2_team,  # i.i.d. team revealed post-result (#8)
             }
         session.ended = receipt
         return receipt
