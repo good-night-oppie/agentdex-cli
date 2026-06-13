@@ -404,13 +404,19 @@ class ArenaGateway:
             out["opponent_team"] = opp_team
         return out
 
-    def _expire_if_stale(self, session: BattleSession) -> None:
+    async def _expire_if_stale(self, session: BattleSession) -> None:
         if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
-            session.ended = {
-                "winner": session.opponent,
-                "turns": session.turns,
-                "forfeit": "turn budget exceeded",
-            }
+            await self._finish(
+                session,
+                {
+                    "winner": session.opponent,
+                    "turns": session.turns,
+                    "inputLog": [],
+                    "keyLines": [],
+                },
+            )
+            if session.ended is not None:
+                session.ended["forfeit"] = "turn budget exceeded"
 
     async def _advance(
         self, session: BattleSession, state: dict[str, Any], *, visitor_choice: str | None
@@ -761,7 +767,7 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
                 raise ConsentError("token does not own this battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
-        gw._expire_if_stale(session)
+        await gw._expire_if_stale(session)
         if session.ended is not None:
             return {"status": "ended", **session.ended}
         if session.pending is None:
