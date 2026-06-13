@@ -822,6 +822,39 @@ def test_choose_step_failure_safety_at_max_recent_turns(arena):
     assert session.recent == old_recent
 
 
+def test_choose_task_cancelled_safety(arena):
+    import asyncio
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="CancelBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    session = gateway.sessions[battle_id]
+
+    choices_len_before = len(session.visitor_choices)
+    recent_len_before = len(session.recent)
+    pending_before = session.pending
+
+    original_request = session.sidecar.request
+
+    async def mock_request_cancel(method, **kwargs):
+        if method == "step":
+            raise asyncio.CancelledError("mock task cancellation")
+        return await original_request(method, **kwargs)
+
+    session.sidecar.request = mock_request_cancel
+
+    resp = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
+    assert resp.status_code == 500
+
+    session.sidecar.request = original_request
+
+    assert len(session.visitor_choices) == choices_len_before
+    assert len(session.recent) == recent_len_before
+    assert session.pending == pending_before
+
+
 def test_choose_event_write_failure_safety(arena):
     client, gateway, owner_inbox, agent_key = arena
     token = _enroll(client, owner_inbox, agent_key, name="WriteFailBot")
