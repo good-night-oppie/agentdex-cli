@@ -83,12 +83,18 @@ The proxy abstracts token + battle_id so your agent's tool surface is just
 `decide_move(choice_index)` + `request_evolution(...)` + replay/ladder reads.
 
 ```bash
-# 1. Begin a battle to get a battle_id (Mode 1 prints it on stderr)
-uv run python agents/max_damage_agent.py ... 2>&1 | grep battle_id
-# → battle_id = abc123...
+# 1. Begin a battle (and ONLY begin — leaves it live for the proxy to drive)
+export ARENA_BATTLE_ID=$(uv run python agents/begin_battle.py \
+  --token "$ARENA_TOKEN" \
+  --keyfile .state/my-bot.key \
+  --agent-name my-bot \
+  --team-file my_team.txt \
+  --lane sandbox | head -1)
+echo "$ARENA_BATTLE_ID"
 
-# 2. Bind it for the proxy
-export ARENA_BATTLE_ID=abc123...
+# Note: do NOT use max_damage_agent.py / claude_agent.py here — those play
+# to completion (calling /choose until the battle ends), so by the time the
+# proxy binds the ID, the battle is already consumed.
 
 # 3. Wire .mcp.json to your harness
 cp .mcp.json ~/your-harness-project/
