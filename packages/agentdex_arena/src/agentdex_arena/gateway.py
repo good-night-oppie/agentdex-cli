@@ -1028,10 +1028,19 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             raise _opaque_error(400, e) from None
 
     @app.get("/battle/{battle_id}/state")
-    async def battle_state(battle_id: str, token: str) -> dict:
+    async def battle_state(
+        battle_id: str, authorization: str | None = Header(default=None)
+    ) -> dict:
         """Poll current battle state without choosing — re-renders from
         session.last_state. Mirrors the MCP get_battle_state tool so MCP-less
-        clients can also observe mid-battle (closes the kit's proxy show_state gap)."""
+        clients can also observe mid-battle (closes the kit's proxy show_state gap).
+
+        Auth: bearer token via Authorization header — NEVER as a query-string
+        parameter (PR #93 review P2: query-string tokens leak into access logs,
+        caches, browser history, and proxied diagnostics)."""
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer token required")
+        token = authorization[len("Bearer ") :]
         gw = gateway
         session = gw.sessions.get(battle_id)
         if session is None:
@@ -1042,6 +1051,10 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
                 raise ConsentError("token does not own this battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        # Mirror the choose/start path — expire stale sessions BEFORE returning
+        # the state. Otherwise HTTP-only pollers see a live `your_move` payload
+        # for a battle that should already be forfeited (PR #93 review P2).
+        await gw._expire_if_stale(session)
         if session.ended is not None:
             return {"status": "ended", **session.ended}
         if session.pending is None or session.last_state is None:
