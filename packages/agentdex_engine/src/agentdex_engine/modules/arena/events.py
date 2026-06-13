@@ -96,11 +96,13 @@ class EventLog:
                 if raw.strip():
                     yield json.loads(raw)
 
-    def verify_chain(self) -> int:
+    def verify_chain(self, expected_digest: str | None = None) -> int:
         """Returns event count; raises ChainError on any break (A8)."""
         prev = GENESIS
         count = 0
         if not self.path.is_file():
+            if expected_digest is not None and expected_digest != GENESIS:
+                raise ChainError("expected digest mismatch: empty log")
             return 0
         with self.path.open() as fh:
             for raw in fh:
@@ -112,6 +114,10 @@ class EventLog:
                     raise ChainError(f"chain break at seq={event.get('seq')}")
                 prev = _digest(raw)
                 count += 1
+        if expected_digest is not None and prev != expected_digest:
+            raise ChainError(
+                f"expected digest mismatch at tail: got {prev}, expected {expected_digest}"
+            )
         return count
 
 
@@ -119,6 +125,7 @@ def recompute_ladder(
     log_path: str | Path,
     *,
     frozen: set[str] | None = None,
+    expected_digest: str | None = None,
 ) -> Ladder:
     """Replay the event log into a fresh Ladder — byte-identical recompute.
 
@@ -126,7 +133,7 @@ def recompute_ladder(
     rating events applied as ONE Glicko-2 rating period.
     """
     elog = EventLog(log_path)
-    elog.verify_chain()
+    elog.verify_chain(expected_digest=expected_digest)
     ladder = Ladder()
     for event in elog.iter_events():
         payload = event["payload"]

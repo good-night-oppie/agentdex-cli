@@ -240,3 +240,30 @@ def test_event_log_unknown_types_ignored_by_recompute(tmp_path):
     elog.append("battle_end", {"tenant_id": "t1", "battle_id": "b1", "winner": "X"})
     ladder = recompute_ladder(path)
     assert "X" in ladder.entrants and len(ladder.entrants) == 1
+
+
+def test_event_log_tail_edit_verification(tmp_path):
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+    elog.append("register", {"name": "a"})
+    elog.append("register", {"name": "b"})
+
+    # Save the true last digest (watermark/head digest)
+    true_digest = elog._last_digest()
+
+    # Verification should succeed with correct digest
+    assert elog.verify_chain(expected_digest=true_digest) == 2
+
+    # Tamper with the last line in-place
+    lines = path.read_text().splitlines()
+    # Change payload of the second event without breaking its prev hash pointer
+    lines[1] = lines[1].replace('"b"', '"tampered"')
+    path.write_text("\n".join(lines) + "\n")
+
+    # Re-instantiate so caches are clean
+    tampered_elog = EventLog(path)
+
+    # Without expected_digest, verify_chain might still pass (tail edit isn't noticed internally)
+    # But with expected_digest, it MUST fail
+    with pytest.raises(ChainError, match="expected digest mismatch at tail"):
+        tampered_elog.verify_chain(expected_digest=true_digest)
