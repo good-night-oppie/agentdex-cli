@@ -471,8 +471,6 @@ class ArenaGateway:
         sidecar = session.sidecar
         other = "p2" if session.visitor_side == "p1" else "p1"
         for _ in range(200):
-            if state.get("end"):
-                return await self._finish(session, state["end"])
             # Observability updates: update foe active details and log events
             active_info = state.get("active") or {}
             active_hp_info = state.get("active_hp") or {}
@@ -484,10 +482,19 @@ class ArenaGateway:
                 session.foe_hp_pct = foe_pct
 
             log_events = state.get("log_events") or []
+            current_event_turn = session.turns
             for line in log_events:
+                if line.startswith("|turn|"):
+                    try:
+                        current_event_turn = int(line.split("|")[2])
+                    except (IndexError, ValueError):
+                        pass
                 formatted = _format_log_line(line, session.visitor_side)
                 if formatted:
-                    _push_recent(session, f"T{int(state.get('turns', 0))}: {formatted}")
+                    _push_recent(session, f"T{current_event_turn}: {formatted}")
+
+            if state.get("end"):
+                return await self._finish(session, state["end"])
 
             choices: dict[str, str] = {}
             if visitor_choice is not None:
@@ -544,7 +551,7 @@ class ArenaGateway:
             ),
             "n_choices": len(legal_choices(session.pending)),
             "foe_active": session.foe_species,
-            "foe_hp_pct": session.foe_hp_pct,
+            "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
             "recent_turns": list(session.recent),
         }
 
@@ -946,7 +953,7 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
                 "turn": session.turns,
                 "choice": choice,
                 "choice_label": label,
-                "foe_hp_pct": session.foe_hp_pct,
+                "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
             },
         )
         session.pending = None
