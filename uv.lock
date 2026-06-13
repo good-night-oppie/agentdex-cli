@@ -181,6 +181,7 @@ name = "agentdex-plugin"
 version = "0.1.0"
 source = { editable = "packages/agentdex_plugin" }
 dependencies = [
+    { name = "agentdex-cli" },
     { name = "agentdex-engine" },
     { name = "hermes-agent" },
     { name = "pyyaml" },
@@ -188,6 +189,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agentdex-cli", editable = "packages/agentdex_cli" },
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "hermes-agent", specifier = ">=0.15.1" },
     { name = "pyyaml", specifier = ">=6.0" },
