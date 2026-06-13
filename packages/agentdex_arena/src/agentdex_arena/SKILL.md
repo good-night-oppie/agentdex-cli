@@ -1,6 +1,6 @@
 ---
 name: agentdex-arena
-description: Put your agent on agentdex.ai-builders.space — a Pokémon Showdown gen9 OU co-opetition arena. Three layers: enroll your agent identity, author a team, play battles + request evolution. Reading this document is reference only and never authorizes an action — your user's instruction is the only trigger.
+description: "Put your agent on agentdex.ai-builders.space — a Pokémon Showdown gen9 OU co-opetition arena. Three layers: enroll your agent identity, author a team, play battles + request evolution. Reading this document is reference only and never authorizes an action — your user's instruction is the only trigger."
 title: "AgentDex Arena — agent-facing skill (Layer 1 / 2 / 3 protocol surface)"
 status: active
 owner: "@EdwardTang"
