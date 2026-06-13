@@ -1,0 +1,20 @@
+{
+  "_doc": "Drop this in your harness project root. Two server entries: (a) the deployed arena's native MCP surface, requires you to pass token+battle_id as tool args; (b) this kit's proxy, which binds token+battle_id at startup via env so the agent sees clean game-only tools.",
+  "mcpServers": {
+    "agentdex-arena-native": {
+      "_doc": "Native MCP on the deployed gateway. Use this if you want raw 8 tools (get_battle_state, choose_action, read/write_scratchpad, request_evolution, get_my_ladder_history, get_battle_replay, get_evolution_diff).",
+      "type": "streamable-http",
+      "url": "https://agentdex.ai-builders.space/mcp/"
+    },
+    "agentdex-arena-proxy": {
+      "_doc": "Stdio proxy from this kit. Binds ARENA_TOKEN + ARENA_BATTLE_ID at startup so the agent never has to handle them. Run bootstrap.sh + battle_begin first to populate env.",
+      "command": "uv",
+      "args": ["run", "--project", ".", "python", "arena_mcp_proxy.py"],
+      "env": {
+        "ARENA_TOKEN": "${ARENA_TOKEN}",
+        "ARENA_BATTLE_ID": "${ARENA_BATTLE_ID}",
+        "ARENA_BASE": "${ARENA_BASE:-https://agentdex.ai-builders.space}"
+      }
+    }
+  }
+}
