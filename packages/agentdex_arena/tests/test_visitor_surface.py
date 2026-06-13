@@ -633,3 +633,31 @@ def test_consent_unit_rails():
     bad = mallory.sign(ConsentAuthority.pop_challenge("nonce1", claims.token_id)).hex()
     with pytest.raises(ConsentError, match="possession"):
         auth2.verify_pop(claims, "nonce1", bad)
+
+
+def test_enroll_rejects_reserved_and_duplicate_names(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    pub = agent_key.public_key().public_bytes_raw().hex()
+
+    # 1. Reject reserved names starting with "anchor-" or equal to visitor/foe/_house/_ladder
+    for bad_name in ("anchor-bot", "visitor", "foe", "_house", "_ladder"):
+        r = client.post(
+            "/enroll/request",
+            json={"owner": "real@example.com", "agent_name": bad_name, "agent_pubkey_hex": pub},
+        )
+        assert r.status_code == 400
+
+    # 2. Reject duplicate names
+    # First, register "LoneAgent" successfully
+    token = _enroll(client, owner_inbox, agent_key, owner="owner@example.com", name="LoneAgent")
+    assert token is not None
+
+    # Simulate registration in self._registered (normally done via event log replay or battle finish)
+    gateway._registered.add("LoneAgent")
+
+    # Try to enroll "LoneAgent" again (duplicate, should be rejected)
+    r = client.post(
+        "/enroll/request",
+        json={"owner": "real@example.com", "agent_name": "LoneAgent", "agent_pubkey_hex": pub},
+    )
+    assert r.status_code == 409

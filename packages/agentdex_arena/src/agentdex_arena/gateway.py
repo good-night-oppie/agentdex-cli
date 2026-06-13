@@ -220,6 +220,10 @@ class ArenaGateway:
     ) -> None:
         self.authority = authority
         self.events = EventLog(events_path, sync=event_sync)
+        self._registered: set[str] = set()
+        for event in self.events.iter_events():
+            if event.get("type") == "register":
+                self._registered.add(event["payload"]["name"])
         self.artifacts_dir = Path(artifacts_dir)
         self.notify_owner = notify_owner  # out-of-band channel (email/webhook)
         self.turn_budget_s = turn_budget_s
@@ -229,16 +233,28 @@ class ArenaGateway:
         self.pending_enrollments: dict[str, EnrollRequest] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
         self.replays: dict[str, dict[str, Any]] = {}
-        self._registered: set[str] = set()
         self.publication_allowed = True  # flipped by the nightly self-test
 
     # ---------- enrollment (A1: human-in-the-loop) ----------
 
     def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
         code = secrets.token_urlsafe(16)
+        agent_name = sanitize_name(req.agent_name) or "visitor"
+        # Reject reserved names (anchor- prefix, visitor, foe, _house, _ladder)
+        if agent_name.startswith("anchor-") or agent_name in (
+            "visitor",
+            "foe",
+            "_house",
+            "_ladder",
+        ):
+            raise _opaque_error(400, "reserved agent name")
+        # Reject duplicate names
+        if agent_name in self._registered:
+            raise _opaque_error(409, "agent name already registered")
+
         clean = EnrollRequest(
             owner=req.owner,
-            agent_name=sanitize_name(req.agent_name) or "visitor",
+            agent_name=agent_name,
             agent_pubkey_hex=req.agent_pubkey_hex,
         )
         self.pending_enrollments[code] = clean
@@ -253,6 +269,8 @@ class ArenaGateway:
         req = self.pending_enrollments.pop(code, None)
         if req is None:
             raise _opaque_error(404, "unknown/expired enrollment code")
+        if req.agent_name in self._registered:
+            raise _opaque_error(409, "agent name already registered")
         claims = ConsentClaims(
             token_id=uuid.uuid4().hex[:16],
             owner=req.owner,
