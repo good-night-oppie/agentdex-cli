@@ -134,11 +134,26 @@ def recompute_ladder(
     """
     elog = EventLog(log_path)
     elog.verify_chain(expected_digest=expected_digest)
+
+    # Pre-scan log to find all quarantined battle IDs
+    quarantined: set[str] = set()
+    for event in elog.iter_events():
+        if event.get("type") == "quarantine":
+            bid = event.get("payload", {}).get("battle_id")
+            if bid:
+                quarantined.add(bid)
+
     ladder = Ladder()
     for event in elog.iter_events():
         payload = event["payload"]
         if event["type"] == "register":
             ladder.register(payload["name"], frozen=bool(payload.get("frozen", False)))
         elif event["type"] == "period":
-            ladder.rate_period([RatingEvent(**ev) for ev in payload["events"]])
+            filtered = [
+                RatingEvent(**ev)
+                for ev in payload["events"]
+                if ev.get("battle_id") not in quarantined
+            ]
+            if filtered:
+                ladder.rate_period(filtered)
     return ladder

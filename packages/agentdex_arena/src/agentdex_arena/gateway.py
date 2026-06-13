@@ -233,7 +233,26 @@ class ArenaGateway:
         self.pending_enrollments: dict[str, EnrollRequest] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
         self.replays: dict[str, dict[str, Any]] = {}
-        self.publication_allowed = True  # flipped by the nightly self-test
+        self._publication_allowed_override = True
+
+    @property
+    def publication_allowed(self) -> bool:
+        import os
+
+        selftest_dir = Path(os.environ.get("ARENA_SELFTEST_DIR", "/tmp/agentdex/arena-selftest"))
+        if selftest_dir.is_dir():
+            reports = sorted(selftest_dir.glob("*.report.json"))
+            if reports:
+                try:
+                    report = json.loads(reports[-1].read_text())
+                    return bool(report.get("publication_allowed", True))
+                except Exception:
+                    pass
+        return self._publication_allowed_override
+
+    @publication_allowed.setter
+    def publication_allowed(self, val: bool) -> None:
+        self._publication_allowed_override = val
 
     # ---------- enrollment (A1: human-in-the-loop) ----------
 
@@ -503,6 +522,52 @@ class ArenaGateway:
             "recent_turns": list(session.recent),
         }
 
+    def _check_collusion(self, session: BattleSession) -> str | None:
+        """Run collusion forensics heuristics: win-transfer, low-entropy choices, early forfeits."""
+        turns = session.ended.get("turns", 0) if session.ended else 0
+        if turns < 3:
+            return "early forfeit (< 3 turns)"
+
+        if len(session.visitor_choices) >= 5 and len(set(session.visitor_choices)) == 1:
+            return (
+                f"low-entropy sequence (repeatedly clicked choice: {session.visitor_choices[0]!r})"
+            )
+
+        # Win-transfer: build participant map and check history of matches between this pair
+        begin_map = {}
+        for ev in self.events.iter_events():
+            if ev.get("type") == "battle_begin":
+                p = ev.get("payload") or {}
+                bid = p.get("battle_id")
+                if bid:
+                    begin_map[bid] = (p.get("visitor"), p.get("opponent"))
+
+        visitor = session.visitor_name
+        opponent = session.opponent
+        visitor_wins = 0
+        opponent_wins = 0
+        total_matches = 0
+
+        for ev in self.events.iter_events():
+            if ev.get("type") == "battle_end":
+                p = ev.get("payload") or {}
+                bid = p.get("battle_id")
+                if bid in begin_map:
+                    vis, opp = begin_map[bid]
+                    if (vis == visitor and opp == opponent) or (vis == opponent and opp == visitor):
+                        winner = p.get("winner")
+                        total_matches += 1
+                        if winner == visitor:
+                            visitor_wins += 1
+                        elif winner == opponent:
+                            opponent_wins += 1
+
+        if total_matches >= 5:
+            if visitor_wins == total_matches or opponent_wins == total_matches:
+                return f"win-transfer: one-sided results over {total_matches} matches ({visitor_wins} - {opponent_wins})"
+
+        return None
+
     async def _finish(self, session: BattleSession, end: dict[str, Any]) -> dict[str, Any]:
         winner = sanitize_name(end.get("winner") or "")
         input_log = list(end.get("inputLog") or [])
@@ -512,6 +577,13 @@ class ArenaGateway:
             json.dumps(input_log, indent=1) + "\n"
         )
         session.ended = {"winner": winner, "turns": int(end.get("turns", 0))}
+
+        # Check collusion forensics
+        collusion_reason = self._check_collusion(session)
+        if collusion_reason:
+            session.ended["quarantined"] = True
+            session.ended["quarantine_reason"] = collusion_reason
+
         signatures = [
             s.model_dump()
             for s in extract_signatures(list(end.get("keyLines") or []), side=session.visitor_side)
@@ -528,6 +600,10 @@ class ArenaGateway:
             "input_log_blake2b16": log_digest,
             "recent_turns": list(session.recent),
         }
+        if collusion_reason:
+            receipt["quarantined"] = True
+            receipt["quarantine_reason"] = collusion_reason
+
         self.events.append(
             "battle_end",
             {
@@ -539,6 +615,15 @@ class ArenaGateway:
                 "input_log_blake2b16": log_digest,
             },
         )
+        if collusion_reason:
+            self.events.append(
+                "quarantine",
+                {
+                    "battle_id": session.battle_id,
+                    "reason": collusion_reason,
+                    "timestamp": self.now(),
+                },
+            )
         if session.parent is not None:
             receipt["parent_battle_id"], receipt["fork_turn"] = session.parent
         # Internal record is richer than the public /replay view (which filters to
@@ -848,6 +933,66 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             raise
         except Exception as e:  # noqa: BLE001
             raise _opaque_error(400, e) from None
+
+    @app.post("/battle/{battle_id}/dispute")
+    async def battle_dispute(battle_id: str, body: dict) -> dict:
+        """Dispute a battle result. Re-runs the input log re-simulation.
+        If the re-simulated winner does not match the reported winner,
+        the battle is quarantined (rating quarantine) and marked as disputed.
+        """
+        try:
+            gateway.authority.verify(str(body.get("token", "")), scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        data = gateway.replays.get(battle_id)
+        if data is None:
+            raise _opaque_error(404, f"no replay {battle_id}")
+        input_log = data.get("input_log")
+        if not input_log:
+            log_file = gateway.artifacts_dir / f"{battle_id}.inputlog.json"
+            if log_file.is_file():
+                try:
+                    input_log = json.loads(log_file.read_text())
+                except Exception:
+                    pass
+        if not input_log:
+            raise _opaque_error(404, f"input log not found for {battle_id}")
+        from adx_showdown.sim import replay_input_log
+
+        try:
+            sidecar = await _sidecar()
+            res = await replay_input_log(
+                sidecar, battle_id=f"{battle_id}-dispute", input_log=input_log
+            )
+            resim_winner = sanitize_name(res.winner)
+            reported_winner = sanitize_name(data["winner"])
+            match = resim_winner == reported_winner
+            if not match:
+                gateway.events.append(
+                    "quarantine",
+                    {
+                        "battle_id": battle_id,
+                        "reason": f"dispute successful: resim winner {resim_winner!r} != reported {reported_winner!r}",
+                        "timestamp": gateway.now(),
+                    },
+                )
+                return {
+                    "disputed": True,
+                    "match": False,
+                    "resim_winner": resim_winner,
+                    "reported_winner": reported_winner,
+                    "detail": "dispute successful: battle quarantined, ratings adjusted",
+                }
+            else:
+                return {
+                    "disputed": False,
+                    "match": True,
+                    "resim_winner": resim_winner,
+                    "reported_winner": reported_winner,
+                    "detail": "dispute rejected: re-simulation matches reported outcome",
+                }
+        except Exception as e:
+            raise _opaque_error(500, f"re-simulation audit failed: {e!r}") from None
 
     @app.post("/my/events")
     async def my_events(body: dict) -> dict:

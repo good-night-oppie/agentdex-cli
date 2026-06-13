@@ -11,6 +11,7 @@ Criteria:
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -722,3 +723,124 @@ def test_choose_step_failure_safety(arena):
 
     assert len(session.visitor_choices) == choices_len_before
     assert len(list(gateway.events.iter_events())) == events_len_before
+
+
+@pytest.mark.timeout(90)
+def test_collusion_forensics_quarantine(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="CollusionBot")
+
+    # 1. Test early forfeit collusion (turns < 3)
+    # Start a rated battle and end it immediately by forcing a timeout or early exit.
+    state = _begin_battle(client, gateway, token, agent_key, lane="rated")
+
+    # Simulate a turn budget exceed / early forfeit
+    gateway.now = lambda: time.time() + 1000
+    resp = client.post(
+        f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+    )
+    assert resp.status_code == 200
+    receipt = resp.json()
+    assert receipt["status"] == "ended"
+    assert receipt.get("quarantined") is True
+    assert "early forfeit" in receipt.get("quarantine_reason", "")
+
+    # Ensure quarantine event is written
+    events = list(gateway.events.iter_events())
+    assert any(
+        e.get("type") == "quarantine"
+        and e.get("payload", {}).get("battle_id") == state["battle_id"]
+        for e in events
+    )
+
+
+@pytest.mark.timeout(90)
+def test_dispute_endpoint_success(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="DisputeBot")
+
+    # Start and play a sandbox battle to completion
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+    battle_id = receipt["battle_id"]
+
+    # Dispute with correct winner (should be rejected since it matches)
+    r = client.post(f"/battle/{battle_id}/dispute", json={"token": token})
+    assert r.status_code == 200
+    res = r.json()
+    assert res["disputed"] is False
+    assert res["match"] is True
+
+    # Falsify the winner in replays memory to trigger a mismatch
+    gateway.replays[battle_id]["winner"] = "FalsifiedWinner"
+
+    # Dispute again (now should succeed because of winner mismatch)
+    r2 = client.post(f"/battle/{battle_id}/dispute", json={"token": token})
+    assert r2.status_code == 200
+    res2 = r2.json()
+    assert res2["disputed"] is True
+    assert res2["match"] is False
+    assert "dispute successful" in res2["detail"]
+
+    # Verify quarantine event was written
+    events = list(gateway.events.iter_events())
+    assert any(
+        e.get("type") == "quarantine"
+        and e.get("payload", {}).get("battle_id") == battle_id
+        and "dispute successful" in e.get("payload", {}).get("reason", "")
+        for e in events
+    )
+
+
+@pytest.mark.timeout(90)
+def test_nightly_self_test_halts_publication(arena, monkeypatch, tmp_path):
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="HaltBot")
+
+    # Set ARENA_SELFTEST_DIR to our tmp_path using monkeypatch
+    monkeypatch.setenv("ARENA_SELFTEST_DIR", str(tmp_path / "selftest"))
+
+    # Default should be publication allowed (True) since no report file exists yet
+    assert gateway.publication_allowed is True
+
+    # 1. Create a failing report
+    selftest_dir = tmp_path / "selftest"
+    selftest_dir.mkdir(parents=True, exist_ok=True)
+    report_file = selftest_dir / "20260613T010000Z.report.json"
+    report_file.write_text(json.dumps({"publication_allowed": False}))
+
+    # Verify gateway publication_allowed is now False
+    assert gateway.publication_allowed is False
+
+    # Try to start a rated battle -> should fail with 403 (rated lane paused: instrument self-test red)
+    start = client.post("/battle/start", json={"token": token}).json()
+    sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+    r = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start["battle_nonce"],
+            "pop_signature_hex": sig,
+            "lane": "rated",
+        },
+    )
+    assert r.status_code == 403
+    assert "arena error (ref: " in r.json()["detail"]
+
+    # 2. Write a passing report
+    report_file.write_text(json.dumps({"publication_allowed": True}))
+    assert gateway.publication_allowed is True
+
+    # Rated battle begin should now succeed (needs a fresh nonce since the first was consumed/popped)
+    start2 = client.post("/battle/start", json={"token": token}).json()
+    sig2 = agent_key.sign(start2["pop_challenge"].encode()).hex()
+    r2 = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start2["battle_nonce"],
+            "pop_signature_hex": sig2,
+            "lane": "rated",
+        },
+    )
+    assert r2.status_code == 200
