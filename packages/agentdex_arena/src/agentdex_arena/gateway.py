@@ -981,17 +981,29 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             session.pending = old_pending
             raise _opaque_error(400, e) from None
 
-        gw.events.append(
-            "battle",
-            {
-                "tenant_id": session.claims_token_id,
-                "battle_id": battle_id,
-                "turn": session.turns,
-                "choice": choice,
-                "choice_label": label,
-                "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
-            },
-        )
+        try:
+            gw.events.append(
+                "battle",
+                {
+                    "tenant_id": session.claims_token_id,
+                    "battle_id": battle_id,
+                    "turn": session.turns,
+                    "choice": choice,
+                    "choice_label": label,
+                    "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
+                },
+            )
+        except Exception as e:
+            session.ended = {
+                "winner": "",
+                "turns": session.turns,
+                "reason": f"fatal: event log write failed: {e!r}",
+            }
+            try:
+                await sidecar.request("stop", battle=battle_id)
+            except Exception:
+                pass
+            raise _opaque_error(500, f"event log write failed: {e!r}") from None
         session.pending = None
         session.last_touch = gw.now()
         try:

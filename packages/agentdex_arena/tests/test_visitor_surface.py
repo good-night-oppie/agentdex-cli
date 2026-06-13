@@ -782,6 +782,32 @@ def test_choose_step_failure_safety(arena):
     assert len(session.recent) == recent_len_before
 
 
+def test_choose_event_write_failure_safety(arena):
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="WriteFailBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    session = gateway.sessions[battle_id]
+
+    original_append = gateway.events.append
+
+    def mock_append_fail(event_type, payload):
+        if event_type == "battle":
+            raise OSError("mock write failure")
+        return original_append(event_type, payload)
+
+    gateway.events.append = mock_append_fail
+
+    resp = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
+    assert resp.status_code == 500
+
+    gateway.events.append = original_append
+
+    assert session.ended is not None
+    assert "event log write failed" in session.ended.get("reason", "")
+
+
 @pytest.mark.timeout(90)
 def test_collusion_forensics_quarantine(arena):
     client, gateway, owner_inbox, agent_key = arena
