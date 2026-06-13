@@ -1,0 +1,6 @@
+.state/
+*.token
+*.key
+.venv/
+__pycache__/
+*.egg-info/
