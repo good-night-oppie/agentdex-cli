@@ -26,8 +26,6 @@ def test_deploy_parser_arguments():
             "https://github.com/test/repo",
             "--branch",
             "feature-branch",
-            "--port",
-            "9000",
             "--env-vars",
             "FOO=bar,BAZ=qux",
             "--token",
@@ -43,7 +41,6 @@ def test_deploy_parser_arguments():
     assert args.service_name == "my-test-service"
     assert args.repo_url == "https://github.com/test/repo"
     assert args.branch == "feature-branch"
-    assert args.port == 9000
     assert args.env_vars == "FOO=bar,BAZ=qux"
     assert args.token == "test-token"
     assert args.no_poll is True
@@ -165,3 +162,45 @@ def test_cmd_deploy_fails_if_no_token(monkeypatch):
 
     exit_code = cmd_deploy(args)
     assert exit_code == 1
+
+
+@patch("httpx.post")
+@patch("subprocess.check_output")
+def test_cmd_deploy_credentials_stripping_and_detached_head(
+    mock_check_output, mock_post, monkeypatch
+):
+    monkeypatch.setenv("AI_BUILDER_TOKEN", "fake-token")
+    # Simulate a git remote URL with credentials, and a detached HEAD branch outputting 'HEAD'
+    mock_check_output.side_effect = (
+        lambda cmd, **kwargs: {
+            (
+                "git",
+                "config",
+                "--get",
+                "remote.origin.url",
+            ): "https://username:secretpassword@github.com/origin/repo.git\n",  # pragma: allowlist secret
+            ("git", "rev-parse", "--abbrev-ref", "HEAD"): "HEAD\n",
+        }[tuple(cmd)]
+    )
+
+    mock_post_resp = MagicMock()
+    mock_post_resp.status_code = 202
+    mock_post_resp.json.return_value = {
+        "status": "queued",
+        "message": "Deployment queued",
+    }
+    mock_post.return_value = mock_post_resp
+
+    parser = build_parser()
+    args = parser.parse_args(["deploy", "--no-poll"])
+    exit_code = cmd_deploy(args)
+
+    assert exit_code == 0
+    mock_post.assert_called_once()
+    called_payload = mock_post.call_args[1]["json"]
+    # Credentials should be stripped from the URL
+    assert called_payload["repo_url"] == "https://github.com/origin/repo.git"
+    # Detached HEAD should be treated as main
+    assert called_payload["branch"] == "main"
+    # port should not be in the payload
+    assert "port" not in called_payload

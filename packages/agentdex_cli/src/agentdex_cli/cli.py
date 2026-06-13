@@ -588,12 +588,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--branch",
         help="Git branch to deploy (auto-detected if not specified)",
     )
-    deploy.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Container port (default: 8000)",
-    )
+
     deploy.add_argument(
         "--env-vars",
         help="Comma-separated KEY=VALUE env vars",
@@ -766,6 +761,19 @@ def cmd_deploy(args: argparse.Namespace) -> int:
             )
             return 1
 
+    # Strip credentials from detected repo URLs (P2 PR #52 comment follow-up)
+    from urllib.parse import urlparse, urlunparse
+
+    try:
+        parsed = urlparse(repo_url)
+        if parsed.username or parsed.password:
+            netloc = parsed.hostname
+            if parsed.port:
+                netloc = f"{netloc}:{parsed.port}"
+            repo_url = urlunparse(parsed._replace(netloc=netloc))
+    except Exception:
+        pass
+
     # Detect branch
     branch = args.branch
     if not branch:
@@ -773,6 +781,9 @@ def cmd_deploy(args: argparse.Namespace) -> int:
             branch = subprocess.check_output(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True
             ).strip()
+            # Treat detached HEAD as missing branch (P2 PR #52 comment follow-up)
+            if branch == "HEAD":
+                branch = "main"
         except Exception:
             branch = "main"
 
@@ -802,19 +813,17 @@ def cmd_deploy(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
-    # Trigger deployment
+    # Trigger deployment (unsupported port field dropped — P2 PR #52 comment follow-up)
     payload = {
         "repo_url": repo_url,
         "service_name": args.service_name,
         "branch": branch,
-        "port": args.port,
         "env_vars": env_vars,
     }
 
     print(f"Triggering deployment for service {args.service_name!r}...")
     print(f"  Repo URL: {repo_url}")
     print(f"  Branch:   {branch}")
-    print(f"  Port:     {args.port}")
     if env_vars:
         print(f"  Env Vars: {', '.join(f'{k}=***' for k in env_vars.keys())}")
 
