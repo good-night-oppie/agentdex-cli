@@ -691,17 +691,58 @@ def test_rated_turn_budget_forfeits_on_ladder(arena):
     assert body["status"] == "ended"
     assert body["forfeit"] == "turn budget exceeded"
 
-    # Now check if the event log has been updated with "register" and "period" for StaleBot
+    # With no moves made (turn 0 timeout), it must NOT be rated (P1 PR #57 comment follow-up)
     events = list(gateway.events.iter_events())
     types = [e["type"] for e in events]
     assert "battle_end" in types
-    assert "register" in types
-    assert "period" in types
+    assert "period" not in types
 
-    # Recompute the ladder and check if StaleBot is registered
+    # Recompute the ladder and check if StaleBot is registered (from enrollment) but has 0 games
     ladder = recompute_ladder(gateway.events.path)
     assert "StaleBot" in ladder.entrants
-    print("\nTURN_BUDGET_RATED: rated stale battle forfeited and rated on ladder")
+    assert ladder.entrants["StaleBot"].games == 0
+    print("\nTURN_BUDGET_RATED: rated stale battle forfeited with no moves is not rated")
+
+
+def test_rated_turn_budget_forfeits_after_moves(arena):
+    from agentdex_engine.modules.arena.events import recompute_ladder
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ActiveStaleBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="rated")
+
+    # Play 5 turns successfully
+    for _ in range(5):
+        resp = client.post(
+            f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+        )
+        assert resp.status_code == 200
+        if resp.json()["status"] == "ended":
+            break
+
+    # Now jump past the 120s budget
+    gateway.now = lambda: time.time() + 1_000
+
+    # The next choice will trigger forfeit/timeout
+    resp = client.post(
+        f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+    )
+    body = resp.json()
+    assert body["status"] == "ended"
+    assert body["forfeit"] == "turn budget exceeded"
+
+    # Moves were made, so it must be rated on the ladder
+    events = list(gateway.events.iter_events())
+    types = [e["type"] for e in events]
+    assert "battle_end" in types
+    assert "period" in types
+
+    ladder = recompute_ladder(gateway.events.path)
+    assert "ActiveStaleBot" in ladder.entrants
+    assert ladder.entrants["ActiveStaleBot"].games == 1
+    print(
+        "\nTURN_BUDGET_RATED_WITH_MOVES: rated stale battle with moves forfeited and rated on ladder"
+    )
 
 
 def test_choose_step_failure_safety(arena):

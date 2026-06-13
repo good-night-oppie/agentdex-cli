@@ -457,12 +457,20 @@ class ArenaGateway:
 
     async def _expire_if_stale(self, session: BattleSession) -> None:
         if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
+            input_log = []
+            if session.sidecar is not None:
+                try:
+                    resp = await session.sidecar.request("stop", battle=session.battle_id)
+                    if len(session.visitor_choices) > 0:
+                        input_log = list(resp.get("inputLog") or [])
+                except Exception:  # noqa: BLE001
+                    pass
             await self._finish(
                 session,
                 {
                     "winner": session.opponent,
                     "turns": session.turns,
-                    "inputLog": [],
+                    "inputLog": input_log,
                     "keyLines": [],
                 },
             )
@@ -704,7 +712,7 @@ class ArenaGateway:
         }
         if badge_awarded:
             self.replays[session.battle_id]["badge_awarded"] = badge_awarded
-        if session.lane == "rated":
+        if session.lane == "rated" and len(input_log) > 0:
             for name in (session.visitor_name, session.opponent):
                 if name not in self._registered:
                     self.events.append(

@@ -289,11 +289,13 @@ async function handle(msg) {
     }
     if (op === 'stop') {
       const entry = battles.get(msg.battle);
+      let inputLog = [];
       if (entry) {
+        inputLog = entry.inputLog;
         await writeBattle(entry, `>forcetie`);
         battles.delete(msg.battle);
       }
-      return out({ id, ok: true });
+      return out({ id, ok: true, inputLog });
     }
     if (op === 'shutdown') {
       out({ id, ok: true });
