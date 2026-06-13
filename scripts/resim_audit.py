@@ -12,13 +12,13 @@ import argparse
 import asyncio
 import json
 import logging
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
+from adx_showdown.protocol import sanitize_name
 from adx_showdown.sidecar import Sidecar
 from adx_showdown.sim import replay_input_log
-from adx_showdown.protocol import sanitize_name
 from agentdex_engine.modules.arena import EventLog
 from agentdex_engine.oracle.battle import _audit_sampled
 
@@ -82,9 +82,7 @@ async def run_audit(events_path: Path, artifacts_dir: Path, audit_rate: float) -
                 continue
 
             try:
-                res = await replay_input_log(
-                    sidecar, battle_id=f"{bid}-audit", input_log=input_log
-                )
+                res = await replay_input_log(sidecar, battle_id=f"{bid}-audit", input_log=input_log)
                 resim_winner = sanitize_name(res.winner)
                 reported = sanitize_name(reported_winner or "")
                 if resim_winner != reported:
