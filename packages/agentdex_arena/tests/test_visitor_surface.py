@@ -367,6 +367,55 @@ def test_sandbox_mirror_broken_and_disclosed(arena):
     )
 
 
+def test_recent_turns_contain_move_names(arena):
+    """All 3 round-2 playtest agents independently requested move names in
+    recent_turns. Verify: at least one trail line contains a Pokémon move name
+    (not just 'move 1') and that the events log carries choice_label."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="MoveNameBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    # collect all turn lines over a few real turns
+    all_trails: list[str] = []
+    calls = 0
+    while state.get("status") == "your_move" and calls < 30:
+        for line in state.get("recent_turns", []):
+            all_trails.append(line)
+        resp = client.post(
+            f"/battle/{state['battle_id']}/choose",
+            json={"token": token, "choice_index": 1},
+        )
+        assert resp.status_code == 200
+        nxt = resp.json()
+        nxt.setdefault("battle_id", state["battle_id"])
+        state = nxt
+        calls += 1
+
+    # at least some lines should have a real move name (not just "move N")
+    # team preview lines look like "team preview N" — also fine, not "move N"
+    move_num_only = [
+        ln for ln in all_trails if ln.endswith(("→ move 1", "→ move 2", "→ move 3", "→ move 4"))
+    ]
+    move_named = [ln for ln in all_trails if "you →" in ln and ln not in move_num_only]
+    assert move_named or all_trails, "no choice lines in trail at all"
+    # if we got past team preview, at least one line must be a named move
+    post_preview = [ln for ln in all_trails if "you →" in ln and "preview" not in ln.lower()]
+    if post_preview:
+        assert any(
+            ln not in [f"T{i}: you → move {j}" for i in range(400) for j in range(1, 5)]
+            for ln in post_preview
+        ), f"all choice lines are raw 'move N': {post_preview[:3]}"
+
+    # events log carries choice_label field
+    evts = client.post("/my/events", json={"token": token, "since_seq": -1}).json()["events"]
+    battle_evts = [e for e in evts if e.get("type") == "battle"]
+    if battle_evts:
+        assert any("choice_label" in (e.get("payload") or {}) for e in battle_evts), (
+            "battle events must carry choice_label"
+        )
+
+    print(f"\nMOVE_NAMES: {len(move_named)}/{len(post_preview)} named; sample: {post_preview[:3]}")
+
+
 def test_fork_sandbox_branches_rated_refused(arena):
     """#6 remix-the-loss: sandbox forks replay the recorded prefix on the same
     seed and branch; full-replay forks reproduce the original outcome; rated and

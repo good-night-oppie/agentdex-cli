@@ -111,6 +111,32 @@ def _push_recent(session: BattleSession, line: str) -> None:
     del session.recent[:-RECENT_TURNS_MAX]
 
 
+def _choice_label(choice: str, pending: Any) -> str:
+    """Resolve a PS choice string to a human-readable label.
+
+    'move 1' -> 'Earthquake'; 'switch 3' -> 'switch to Dragonite'.
+    Falls back to the raw choice string if the request is unavailable or the
+    slot is out of range — this must never raise.
+    """
+    try:
+        if choice.startswith("move ") and pending is not None:
+            slot = int(choice.split()[1])
+            for moves in (pending.active_moves or [])[:1]:
+                for mv in moves:
+                    if mv.slot == slot:
+                        return mv.id or choice
+        if choice.startswith("switch ") and pending is not None:
+            slot = int(choice.split()[1])
+            for s in pending.bench:
+                if s.index == slot:
+                    return f"switch → {s.species or slot}"
+        if choice == "team preview" or choice.startswith("team "):
+            return f"team preview {choice.split()[-1]}"
+    except Exception:  # noqa: BLE001 — telemetry path must never crash
+        pass
+    return choice
+
+
 @dataclass
 class BattleSession:
     battle_id: str
@@ -714,7 +740,8 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             raise _opaque_error(422, f"choice index out of range 1..{len(choices)}")
         choice = choices[req.choice_index - 1]
         session.visitor_choices.append(choice)
-        _push_recent(session, f"T{session.turns}: you → {choice}")
+        label = _choice_label(choice, session.pending)
+        _push_recent(session, f"T{session.turns}: you → {label}")
         gw.events.append(
             "battle",
             {
@@ -722,6 +749,7 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
                 "battle_id": battle_id,
                 "turn": session.turns,
                 "choice": choice,
+                "choice_label": label,
                 "foe_hp_pct": session.foe_hp_pct,
             },
         )
