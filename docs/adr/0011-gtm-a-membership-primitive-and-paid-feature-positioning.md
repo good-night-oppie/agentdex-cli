@@ -27,6 +27,16 @@ enforced_by:
     test: "packages/agentdex_arena/tests/test_enroll_reissue_durable_mapping.py (ships register_v2 + reissue PR, blocks 11e)"
   - claim: "§3b V1 binding constraint 4: export selection closes under parent_battle_id (forks included) and joins period rows via payload.events[*].battle_id (rating receipts included)"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_fork_battles_included_in_export + ::test_period_rating_receipts_included_in_export (ships 11e)"
+  - claim: "§3b V1 binding constraint 4c: batched period rows are filtered to matching nested events before export — never ship the unmutated row"
+    test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_period_filter_no_cross_agent_leak + ::test_empty_filtered_periods_dropped (ships 11e)"
+  - claim: "§3b V1 binding constraint 4 Step 3: export includes register/register_v2 rows for EVERY name (p1/p2) referenced in a kept period — exported log replays through recompute_ladder"
+    test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_includes_anchor_opponent_register_rows + ::test_exported_log_replays_through_recompute_ladder (ships 11e)"
+  - claim: "§3b V1 binding constraint 4d: sparse export is re-chained with fresh prev digests before emit; EventLog(export).verify_chain() accepts the result"
+    test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_round_trips_through_recompute_ladder (ships 11e)"
+  - claim: "§3b V1 binding constraint 5e: spend_quota keys on (_normalize_owner(claims.owner), scope, day) so /enroll/reissue does NOT reset the daily rated-battle bucket"
+    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py::test_reissue_does_not_reset_daily_rated_quota (ships with /enroll/reissue PR)"
+  - claim: "§3b V1 binding constraint 5f: legacy {name, frozen} agents with unexpired tokens are upgradable via POST /enroll/upgrade (idempotent, emits register_v2, no membership gate); anchor- agents are NOT eligible"
+    test: "packages/agentdex_arena/tests/test_enroll_upgrade_legacy_backfill.py (ships with register_v2 + /enroll/upgrade PR, blocks reissue)"
   - claim: "§3d no silent free->paid data reinterpretation; new ConsentClaims scope contribute_aggregate required (ships V2+)"
     test: "deferred to V2+ when scope lands"
 ---
@@ -121,6 +131,9 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
    #     cross-domain replay if reused. See constraint 2 for the helper definition.
    authority.verify_export_pop(claims, export_nonce, requested_agent_name, pop_signature_hex)
    authority.spend_quota(claims, scope="battle")                 # 5. daily cap (shares battle budget)
+   # NB: post-constraint-5e, spend_quota's day-bucket is keyed on
+   # _normalize_owner(claims.owner) — NOT claims.token_id — so /enroll/reissue
+   # cannot bypass the per-owner daily cap. See §5e below.
    # ... assemble export ...
    ```
 
@@ -218,15 +231,55 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
            )
        return False
 
-   rows = [
-       ev for ev in gateway.events.iter_events()
-       if (
-           _touches_agent(ev)
-           or (ev["type"] == "register"    and ev["payload"].get("name") == requested_agent_name)
-           or (ev["type"] == "register_v2" and ev["payload"].get("name") == requested_agent_name)
-           or (ev["type"] == "badge"       and ev["payload"].get("agent_name") == requested_agent_name)
-       )
-   ]
+   # Sub-constraint 4c: filter nested period["events"] before emit. _touches_agent
+   # is row-level KEEP gate — for batched periods (the substrate supports
+   # generation-sized lists; calibration.py:97-102 exercises it; recompute_ladder
+   # accepts a filtered list at events.py:157-164) it returns True as soon as
+   # ONE nested event matches. Emitting the row unmutated leaks every co-batched
+   # agent's battle_id / p1 / p2 / winner / input_log_blake2b16. Deep-copy + filter:
+   import copy
+
+   def _filtered_row(ev: dict) -> dict | None:
+       if ev["type"] == "period":
+           kept = [
+               sub for sub in ev["payload"].get("events", [])
+               if sub.get("battle_id") in agent_battle_ids
+           ]
+           if not kept:
+               return None  # all-other-agents period → drop entirely
+           row = copy.deepcopy(ev)
+           row["payload"]["events"] = kept
+           row["payload"]["_filtered_for_agent"] = requested_agent_name
+           return row
+       if _touches_agent(ev):
+           return ev
+       if ev["type"] == "register"    and ev["payload"].get("name") in referenced_names:
+           return ev
+       if ev["type"] == "register_v2" and ev["payload"].get("name") in referenced_names:
+           return ev
+       if ev["type"] == "badge"       and ev["payload"].get("agent_name") == requested_agent_name:
+           return ev
+       return None
+
+   # Step 3: opponent register backfill. recompute_ladder seeds entrants ONLY
+   # from `register` events (events.py:152-164), and Ladder.rate_period rejects
+   # a period whose p1 or p2 was never registered in the SAME log
+   # (ladder.py:53-66, raises InvalidRatingEvent("unknown entrant ...")).
+   # Anchor-* and RATED_POOL opponents are auto-registered at gateway.py:849-855
+   # under their own `register` rows — those rows MUST come along, otherwise
+   # replay aborts at the first period row in the export. The anchor's `frozen`
+   # flag is also set only at register time (ladder.py:40-44), so dropping
+   # anchor register rows would silently un-freeze anchors on replay.
+   referenced_names: set[str] = {requested_agent_name}
+   for ev in gateway.events.iter_events():
+       if ev["type"] != "period" or not _touches_agent(ev):
+           continue
+       for sub in ev.get("payload", {}).get("events", []):
+           if sub.get("p1"): referenced_names.add(sub["p1"])
+           if sub.get("p2"): referenced_names.add(sub["p2"])
+
+   # Final selection (sparse — re-chained in sub-constraint 4d below).
+   selected_rows = [r for ev in gateway.events.iter_events() if (r := _filtered_row(ev)) is not None]
 
    # WRONG (1): flat visitor filter — drops battle_end / period / quarantine rows.
    #   if ev["payload"].get("visitor") == requested_agent_name
@@ -242,13 +295,54 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
    # WRONG (4): top-level battle_id filter only — silently drops EVERY
    #   `period` row, because period nests battle_id at
    #   payload["events"][i]["battle_id"] (gateway.py:857-870, mirrored by
-   #   events.py:157-164). Period rows carry the rating math; without them,
-   #   the export has begins/ends but no Glicko deltas, which downstream
-   #   recompute cannot reconstruct.
+   #   events.py:157-164).
    #       if ev["payload"].get("battle_id") in agent_battle_ids   # ← misses period
+   #
+   # WRONG (5): keep the period row unmutated when _touches_agent matches —
+   #   leaks every co-batched agent's battle_id + p1 + p2 + winner +
+   #   input_log_blake2b16. Forward-defensive even though production today
+   #   emits length-1 events lists (gateway.py:849-870); the substrate
+   #   already supports batched periods. Fix in 4c above.
+   #
+   # WRONG (6): keep register rows only for `requested_agent_name`. Drops
+   #   every anchor-* / RATED_POOL opponent register row, so replay aborts
+   #   at ladder.py:65 ("unknown entrant '<opponent>'") on the first period
+   #   the export carries. Step 3 above walks the kept periods' (p1, p2)
+   #   pairs and includes register rows for exactly those names — no more.
+   #       (ev["type"] == "register" and ev["payload"].get("name") == requested_agent_name)
+   #
+   # WRONG (7): emit selected_rows verbatim with their original `prev` digests.
+   #   ChainError raises inside recompute_ladder BEFORE any RatingEvent is
+   #   consumed because the first selected row whose original predecessor was
+   #   filtered out has a `prev` that no longer matches the row above it in
+   #   the export. The "round-trippable" promise is unachievable without the
+   #   rechain pass in sub-constraint 4d below.
    ```
 
-   The agent-name check in §3b §1 above is what makes the canonical-identity join safe: only callers whose active token names `agent_name` can request that agent's full historical record. The Step 1b closure surfaces the `/battle/{id}/fork` "remix-the-loss" affordance — owner-created alternate timelines stay visible to the owner. Fork inclusion does NOT touch §3a: forks are sandbox-only (gateway.py:1306) and emit no `period` events (gateway.py:849), so the fork rows added to the export carry no rating math. The nested-period join, conversely, is what makes the export round-trippable through `recompute_ladder` — without it the agent's Glicko deltas are gone.
+   **Sub-constraint 4d: re-chain the sparse export with fresh `prev` digests before emit.** The `EventLog` is hash-chained: every on-disk row's `prev` field is the `blake2b16` digest of the immediately preceding row's canonical-JSON line (events.py:78-88), starting from `GENESIS = "0" * 32`. `EventLog.verify_chain` walks rows in file order asserting `prev` continuity (events.py:113-122), and `recompute_ladder` calls `verify_chain` BEFORE replaying any `register` / `period` rows (events.py:142). Sparse export rows carry `prev` digests pointing at predecessors *in the original log* — the first kept row whose original predecessor was filtered out trips `ChainError` and the round-trip is unachievable. The export emitter MUST therefore re-chain:
+
+   ```python
+   # in agentdex_arena/export.py — new helper, tests in test_bulk_export_owner_scope.py
+   from agentdex_engine.modules.arena.events import GENESIS, _digest
+   import json
+
+   def rechain_export(selected_rows: list[dict]) -> list[str]:
+       """Rewrite only seq + prev; payload bytes are preserved verbatim so
+       every signed/derived field (battle_id, input_log_blake2b16, etc.)
+       round-trips unchanged. Returns canonical-JSON lines (no trailing \\n)."""
+       out: list[str] = []
+       prev = GENESIS
+       for new_seq, row in enumerate(selected_rows):
+           event = {"seq": new_seq, "type": row["type"], "prev": prev, "payload": row["payload"]}
+           line = json.dumps(event, sort_keys=True, separators=(",", ":"))
+           out.append(line)
+           prev = _digest(line)
+       return out
+   ```
+
+   Round-trip semantics this preserves: `EventLog(export_path).verify_chain()` accepts the result and returns `len(selected_rows)`; `recompute_ladder(export_path).rating(requested_agent_name)` matches the source ladder reading (the nested-period join carries the deltas; rechain makes verify_chain accept them). Quarantine semantics survive — `quarantine` rows are included by `_touches_agent` and the pre-scan in `recompute_ladder` (events.py:144-150) walks them. NOT preserved: outsider-verifiable cryptographic link to the source log — re-chaining produces a chain valid in isolation only. Outsider subset-proofs (Merkle / inclusion) are V2+; V1 11e exports are honest round-trippable subsets, not proofs of canonical-log membership. The integration test asserts `verify_chain` ACCEPTS the export and asserts ladder-equality with the source for `requested_agent_name`; it does NOT assert tail-digest equivalence.
+
+   The agent-name check in §3b §1 above is what makes the canonical-identity join safe: only callers whose active token names `agent_name` can request that agent's full historical record. The Step 1b closure surfaces the `/battle/{id}/fork` "remix-the-loss" affordance — owner-created alternate timelines stay visible to the owner. Fork inclusion does NOT touch §3a: forks are sandbox-only (gateway.py:1306) and emit no `period` events (gateway.py:849), so the fork rows added to the export carry no rating math. The 4c nested-period filter prevents cross-agent leak in batched periods; Step 3 backfills the opponent register rows the replay validator demands; 4d re-chains so `recompute_ladder` actually accepts the result. Together these make the §3b "battles, ratings, evolution lineage" round-trip honest — and the export is **event-level audit-replayable** (every kept `input_log_blake2b16` survives byte-for-byte), NOT a cryptographic subset proof against the canonical log.
 
 5. **V1 covers UNEXPIRED tokens only; reissue is a V1 11e prerequisite that requires a NEW durable mapping (`register_v2`) shipped FIRST.** `ConsentAuthority.verify` rejects past-`expires_at` tokens (consent.py:151-152) before returning claims; both enrollment paths reject duplicate `agent_name` (gateway.py:413-415, gateway.py:434-435). A paid owner whose 7-day token has expired before 11e ships therefore cannot present a matching token and cannot re-enroll under the same name. The token-reissue endpoint flagged "planned post-MVP" in `SKILL.md` Layer 1.2 is promoted to a **V1 11e prerequisite** — BUT the current substrate does not yet support it safely, and §3b must not pretend otherwise.
 
@@ -285,6 +379,69 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
    c. **`register_v2` ships BEFORE 11e bulk export ships, and `POST /enroll/reissue` ships BEFORE OR WITH 11e.** Doing it in any other order leaves a gap where paid owners whose token expired during the 11e rollout window have no recovery path except a name change.
 
    d. **Reissue is free, not paid.** It is an identity-recovery primitive, not an enriched feature. Per §3a, gating recovery on membership would be pay-to-rank-by-proxy (a free user who lets a token expire could not resume their rated battles). The `/enroll/reissue` and `/enroll/reissue/start` routes MUST NOT carry `@require_membership`.
+
+   e. **Reissue MUST NOT reset the per-owner daily rated-battle bucket — re-key `spend_quota` on `(_normalize_owner(claims.owner), scope, day)`.** The current `ConsentAuthority.spend_quota` keys its day-bucket on `claims.token_id` (consent.py:159-160). A fresh-minted reissue token carries a fresh `token_id` → a fresh bucket key → the same-day used-count silently resets to 0. A paid OR free owner who exhausts today's 5 rated battles could therefore call `/enroll/reissue` (5b), receive a fresh token, and obtain 5 MORE rated `period` emissions within the same UTC day. Because rated battle count drives `Ladder.rate_period` (gateway.py:849-870 → events.py:153-164 → glicko `update_rating`), this is precisely the §3a "rating-ceiling-equality" violation — by token-rotation rather than by membership tier, but equally forbidden.
+
+      `verify_membership` already keys on `_normalize_owner(claims.owner)` precisely so it "survives 7-day token rotation" (consent.py:179-180, CLAUDE.md "Membership keyed by normalized owner, not by token_id"). The same rationale applies to every daily cap that gates rated emissions. The reissue PR MUST also land this single-line change:
+
+      ```python
+      # in consent.py, spend_quota — replace the keying line only:
+      def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> int:
+          day = time.strftime("%Y%m%d", time.gmtime(self._now()))
+          owner_key = _normalize_owner(claims.owner)           # NEW
+          key = f"{owner_key}:{scope}:{day}"                   # NEW — was claims.token_id
+          used = self.quota_used.get(key, 0)
+          cap = claims.quotas.get(scope, 0)
+          if used >= cap:
+              raise ConsentError(f"{scope} quota exhausted ({used}/{cap} today)")
+          self.quota_used[key] = used + 1
+          return cap - used - 1
+      ```
+
+      Constraint 3 already locks `quotas["battle"]` symmetric across tiers; 5e locks the daily bucket KEYING symmetric across token rotations. Both are required — 3 alone prevents a higher cap; 5e alone prevents bypassing the cap by minting fresh ids. Together they make "5 rated battles per UTC day per owner" the load-bearing §3a per-owner ceiling regardless of how many tokens the owner has issued today.
+
+      *Durable-quota note (V1 known limitation, NOT a §3b prerequisite).* `ConsentAuthority.quota_used` is in-memory; gateway restart clears the day's count. The operator runbook (`docs/runbooks/membership-admin.md`) MUST note this as a V1 limitation. A future "rebuild quota_used from EventLog on boot" pass (walks `battle_begin` where `lane == "rated"` + joins via `register_v2` durable mapping + groups by `(owner_email_hash, UTC-day)`) lands separately; no §3a violation is possible within a single boot once 5e is in place.
+
+   f. **Legacy-agent backfill — `register_v2` ships with a boot sweep + `POST /enroll/upgrade` route.** Subsections (a)-(e) define the future-enrollment path. Every agent enrolled under PRs #101–#105 (plus auto-anchor registrations at gateway.py:849-855) carries ONLY `register {name, frozen}` — `_pubkey_by_name` and `_owner_hash_by_name` are empty for them. Without backfill the 5b reissue handler returns `404 unknown agent` for every legacy enrollee whose 7-day token expires after `register_v2` ships, which is precisely the stranding 5c's "in any other order" warning is supposed to prevent. The V1 contract is therefore three-pronged:
+
+      i. **Boot sweep at `register_v2` deploy.** First gateway boot after `register_v2` ships sweeps `pending_enrollments` AND iterates currently-live `self.sessions[*].claims_token_id → ConsentClaims`, emitting a NEW `register_v2` event for every `(name, agent_pubkey_hex, sha256(_normalize_owner(owner)))` triple it can prove from an UNEXPIRED token. Idempotent — skips names already in `_pubkey_by_name`. Catches every legacy owner whose token has not yet expired at deploy time.
+
+      ii. **`POST /enroll/upgrade`** — owners not in an active session at deploy time use a self-upgrade route shaped:
+
+      ```python
+      class UpgradeRequest(BaseModel):
+          model_config = ConfigDict(extra="forbid", strict=True)
+          token: str  # the legacy unexpired ConsentClaims-bearing token
+
+      def enroll_upgrade(req: UpgradeRequest) -> dict:
+          claims = self.authority.verify(req.token, scope="battle")
+          if claims.agent_name in self._pubkey_by_name:
+              return {"status": "already_upgraded"}  # idempotent, no event emitted
+          self.events.append("register_v2", {
+              "name": claims.agent_name,
+              "frozen": False,
+              "agent_pubkey_hex": claims.agent_pubkey_hex,
+              "owner_email_hash": sha256(_normalize_owner(claims.owner).encode()).hexdigest(),
+          })
+          self._pubkey_by_name[claims.agent_name] = claims.agent_pubkey_hex
+          self._owner_hash_by_name[claims.agent_name] = sha256(_normalize_owner(claims.owner).encode()).hexdigest()
+          return {"status": "upgraded"}
+      ```
+
+      Free per 5d (identity recovery never gated on membership), idempotent (already-upgraded returns 200 without event), additive (replay code is unified across `register` + `register_v2`). Published on SKILL.md Layer 1 as the recommended pre-expiry one-time action for every legacy agent.
+
+      iii. **Explicit no-recovery populations.** **Anchors** (`name.startswith("anchor-")`) MUST NOT be eligible for `register_v2` or reissue — they have no human-side keypair; the 404 from `_pubkey_by_name.get` is correct. **Post-expiry-stranded humans** whose token expired before (i) ran and who did NOT call `/enroll/upgrade` in their valid window must re-enroll under a new agent name. Their old `register` row keeps replaying for `recompute_ladder` (ladder history preserved); they cannot reclaim the old `agent_name`. This is documented in `docs/runbooks/membership-admin.md` as a one-time migration cost, NOT ongoing V1 policy.
+
+      **Shipping order tightens to:**
+
+      ```
+      register_v2 event + replay side-tables + boot sweep + POST /enroll/upgrade   →   ships FIRST
+      consent.py spend_quota re-keying (5e)                                        →   ships WITH reissue
+      POST /enroll/reissue                                                         →   ships SECOND (depends on 5e)
+      11e bulk export                                                              →   ships THIRD (depends on reissue + 4c/4d backfill)
+      ```
+
+      Any gap between (i)+(ii) and (iii) is bounded at 7 days for any individual owner who refreshes a token in the meantime. After that window every still-active human-owned agent is on `register_v2` and the 5b reissue handler works as written.
 
 Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d). V2's relaxation to single-token multi-agent export is gated on the §3d `contribute_aggregate` scope landing — the `register_v2` durable mapping above is the substrate enabler, NOT the broadened data-flow consent.
 
