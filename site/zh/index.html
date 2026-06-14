@@ -222,26 +222,26 @@ const Hero = () => (
   <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
     <div className="max-w-6xl mx-auto px-6 w-full">
       <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tight leading-[1.1] mb-6 max-w-4xl">
-        你的 eval 给上一个 prompt 打了分。<br />
-        <span className="text-bene-muted">它照样上线了。</span>
+        eval「评测」给上一个 prompt 打了高分。<br />
+        <span className="text-bene-muted">它还是把线上带沟里了。</span>
       </h1>
       <p className="text-xl md:text-2xl text-bene-muted max-w-3xl leading-snug mb-12">
-        给已经在生产里跑过 LangGraph、CrewAI、AutoGen，亲手发现「eval 跑通」跟「拦住一个 bad ship」是两码事的工程师。
+        写给已经在线上跑过 LangGraph、CrewAI、AutoGen 的工程师：你们最清楚，eval 跑通是一回事，真拦住一次上线翻车，完全是另一回事。
       </p>
       <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
         <div>
           <p className="text-lg leading-relaxed mb-6">
-            事发后第二天凌晨 3 点，oncall 用 sqlite3 打开 <code className="text-bene-text">bene.db</code>，把 agent 试过的每一次 retry 的 engram 看了一遍 — 还有那道放 bad prompt 过去的 locked probe。{' '}
-            <span className="text-bene-text font-medium">没有 vendor portal。没有还在转圈的 dashboard。</span>
+            事故后第二天凌晨 3 点，oncall 用 sqlite3 打开 <code className="text-bene-text">bene.db</code>，把 agent「智能体」每一次 retry「重试」留下的 engram「记忆轨迹」翻了一遍。那道放过烂 prompt 的 locked probe「锁定探针」还在，连它当时怎么判的都能查。{' '}
+            <span className="text-bene-text font-medium">不用进厂商门户，也不用盯着还在转圈的看板。</span>
           </p>
           <p className="text-sm text-bene-muted leading-relaxed font-mono">
-            下一次上线要先过的就是那道 gate。<code className="text-bene-text">promote()</code> 在没拿到 sha256-locked probe 的 ACCEPT 之前就 raise <code className="text-bene-text">PromotionBlocked</code> — CI 在这个 exception 上停。
+            下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。
           </p>
         </div>
         <div className="flex flex-col gap-3">
-          <Pill>30 秒：装上、跑通、grep 你 agent 的记忆</Pill>
+          <Pill>30 秒：装好、跑通、grep 出 agent 的记忆</Pill>
           <Pill>一份 bene.db，不上云、不要 API key</Pill>
-          <Pill>兼容 Claude Code / Cursor / Aider</Pill>
+          <Pill>能塞进 Claude Code / Cursor / Aider</Pill>
         </div>
       </div>
       <Terminal copyText="uv add bene && uv run bene init && uv run bene demo --no-ui">
@@ -271,39 +271,39 @@ const Hero = () => (
 // ─── 01 · The Gap ───────────────────────────────────────────────────
 const TheGap = () => (
   <Section id="gap">
-    <Kicker number="01" title="现状的 Gap" />
+    <Kicker number="01" title="四个卡点" />
     <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">
-      学术界已经走过去的四个生产 gap。<br />
-      <span className="text-bene-muted">多数 agent stack 还没接上。</span>
+      论文里早翻过去的四个线上卡点。<br />
+      <span className="text-bene-muted">多数 Agent 技术栈还没接住。</span>
     </h2>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
       <Card className="md:col-span-12 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Gap 1：跑过 eval ≠ 拦住上线</h3>
+        <h3 className="font-mono text-bene-accent mb-4">卡点 1：eval 跑过了，线上不一定扛得住</h3>
         <p className="text-bene-muted leading-relaxed">
-          一个新 prompt 或 strategy 通过了 offline eval。那个分数本身不会拒绝 ship 一个 regression — pipeline 里总有一个人或一个 deploy script 在做最后那一下决定。BENE 把这个 gate 写成代码：<code className="text-bene-text">promote()</code> 在没拿到 sha256-locked probe 的 ACCEPT 之前就 raise <code className="text-bene-text">PromotionBlocked</code>，CI 在这个 exception 上停。
+          新 prompt 或 strategy「策略」过了 offline eval「离线评测」，分数只说明它在题库里表现不错。regression「回归问题」能不能混进上线链路，最后还得看 pipeline「流水线」里那个人，或者那段 deploy script「部署脚本」。BENE 把这一步写死在代码里：<code className="text-bene-text">promote()</code> 没拿到 sha256-locked probe 的 ACCEPT 就抛 <code className="text-bene-text">PromotionBlocked</code>，CI 看到 exception 直接停。
         </p>
       </Card>
       <Card className="md:col-span-6 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Gap 2：跨 agent 的记忆 + 可溯源 provenance</h3>
+        <h3 className="font-mono text-bene-accent mb-4">卡点 2：跨 agent 的记忆，得带 provenance「溯源」</h3>
         <p className="text-bene-muted leading-relaxed">
-          对话历史和单 agent 的 memory block 已经常见；少见的是 typed、provenance-linked、分 5 tier 的 engram — 三个月后另一个 agent grep 进来还能信。BENE 默认把每一轮都写成这种 engram。
+          对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。BENE 默认把每轮交互都写成这种 engram。
         </p>
       </Card>
       <Card className="md:col-span-6 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Gap 3：autonomy 不该是 YAML 一行开关</h3>
+        <h3 className="font-mono text-bene-accent mb-4">卡点 3：autonomy「自主等级」不能靠 YAML 一行放飞</h3>
         <p className="text-bene-muted leading-relaxed">
-          多数 autonomy flag 住在 config 文件里 — 易设、易忘。BENE 把四个 signal 合成 [0,1] 的 trust score；想拿 L4，必须 <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code>，否则 API 直接 raise。提权路径是 observable，不是 declarative。
+          很多 autonomy flag「自主开关」躺在 config「配置」里，打开很快，忘掉更快。BENE 把四个 signal「信号」合成 [0,1] 的 trust score「信任分」；想拿 L4，必须写 <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code>，少一个字 API「接口」就抛错。提权这条链路能查、能审，不靠一句配置自证清白。
         </p>
       </Card>
       <Card className="md:col-span-12 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Gap 4：source of truth 是磁盘上的一个文件</h3>
+        <h3 className="font-mono text-bene-accent mb-4">卡点 4：source of truth「事实来源」最好就是磁盘上一个文件</h3>
         <p className="text-bene-muted leading-relaxed">
-          凌晨 3 点出 incident，你想看到底上线的是哪个 prompt — 你要的是磁盘上一个文件，不是一个还在转圈的 dashboard。BENE 的 <code className="text-bene-text">bene.db</code> 就是这个文件：cp、rsync、diff、用 sqlite3 直接打开都行。
+          凌晨 3 点出了 incident「事故」，你想查当时到底上线了哪个 prompt。你要的是磁盘上一个能打开的文件，不是一个还在转圈的看板。BENE 的 <code className="text-bene-text">bene.db</code> 就是这个文件：cp、rsync、diff、sqlite3 直接打开，都行。
         </p>
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-      四个 production primitive，落在磁盘上，跟你已经在跑的那一套可以组合。
+      四个生产可用的 primitive「原语」，落在磁盘上，跟你已经在跑的那一套能拼起来。
     </p>
   </Section>
 );
@@ -311,17 +311,17 @@ const TheGap = () => (
 // ─── 02 · The Contract ──────────────────────────────────────────────
 const Contract = () => {
   const inv = [
-    { n: '1', t: 'agent 之间不会意外共享 state', d: '每个 agent 拥有一份 SQLite-backed 虚拟文件系统，可以 diff、可以 restore。跨 agent 的 read 必须显式声明；跨 agent 的 decision 走 SharedLog（intent → vote → decide）。Isolation 是结构上的 — 不用维护 ACL。' },
-    { n: '2', t: '下一个 agent 走进来就能 grep 上一个学到了什么', d: '每次 run 落下 5 tier 的 typed engram：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。Promote 一律不动 source。Provenance 必填。' },
-    { n: '3', t: '一个 bad prompt 不能只靠跑过 eval 就上线', d: "任何想 evolve 的东西，先过 sha256-locked falsifiable probe。改 spec 就 refuse。一个 baseline 都打不死的 gate 注册为 VOID。Verdict 本身也是 engram，三个月后还能再读。" },
-    { n: '4', t: 'L4 是唯一一个由人按名字 grant 的层级', d: "四个 signal 合成 [0,1] 的 composite。要拿 L4，必须 granted_by='human:<name>'，不然 API raise。没有 self-promotion。没有 YAML 开关。" },
+    { n: '1', t: 'agent 之间，不会莫名其妙串了状态', d: '每个 agent 自带一份 SQLite-backed 的 VFS「虚拟文件系统」，能 diff、能 restore。跨 agent 想读数据，先显式声明；跨 agent 想拍板，必须走 SharedLog「共享日志」的 intent → vote → decide。隔离写在结构里——不靠运维半夜补 ACL。' },
+    { n: '2', t: '下一个 agent 进场，grep 一把就知道上一个学到了啥', d: '每一次 run 落 5 tier 的带类型 engram：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。promote 只写新结论，不动源数据。provenance 强制入库，少一个字段都过不了。' },
+    { n: '3', t: '烂 prompt 别想着跑过 eval 就溜上线', d: "任何想 evolve 的东西，先过一道 sha256-locked probe。spec 一动，直接拒。连 baseline 都打不穿的 gate，只配注册成 VOID，没资格拿 ACCEPT。verdict 也会写成 engram，三个月后翻出来，还能复盘当时为啥放行。" },
+    { n: '4', t: 'L4 这一档，只能由人按名字签发', d: "四个 signal 合成 [0,1] 区间的 composite「合成分」。想拿 L4，granted_by 必须写 human:<name>，不然 API 当场抛错。没有自动晋升，也没有 YAML 旋钮可以偷偷拧。" },
   ];
   return (
     <Section id="contract">
-      <Kicker number="02" title="Contract — 四个不变量" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">四条 harness 不肯让步的 invariant</h2>
+      <Kicker number="02" title="底线 — 四条不变量" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">harness「调度框架」绝不让步的四条底线</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        在加任何 feature 之前，BENE 对四件事先许诺 — 对每个 agent、每次 run、每个 promotion candidate、每次 L4 grant。
+        在加任何新 feature 之前，BENE 先把底盘焊死：每个 agent、每次 run、每个想 promote 的 candidate、每次 L4 签发，都吃同一套约束。先定边界，再谈加速。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {inv.map((i) => (
@@ -334,7 +334,7 @@ const Contract = () => {
           </Card>
         ))}
       </div>
-      <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">剩下的，都是管道。</p>
+      <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">剩下那些活儿，基本都在接管子。</p>
     </Section>
   );
 };
@@ -342,38 +342,38 @@ const Contract = () => {
 // ─── 03 · Plays well with your toolbox ──────────────────────────────
 const Comparison = () => {
   const recipes = [
-    { n: 'LangGraph',     r: '把 node 的输出包成 engram；下一次 graph run 之前，candidate prompt 必过 promote() gate。' },
-    { n: 'CrewAI',        r: 'crew.kickoff() → engram batch；新的 role config 只在 probe ACCEPT 之后才 promote。' },
-    { n: 'AutoGen',       r: 'on_message hook → engram；跨 agent 的 decision 走 SharedLog；probe 守住 conversational hand-off。' },
-    { n: 'smolagents',    r: '你的 loop 不动；engram + probe 在底下跑，agent body 不用改。' },
-    { n: 'DSPy',          r: '把 DSPy.compile 的 output 注册为 candidate；五行 probe 对你的 metric 跑；promote() 直接替代 deploy.py。' },
-    { n: 'Letta',         r: '把 Letta memory block 映射成 tier-2 engram；跨 agent 复用走 probe + gate。' },
+    { n: 'LangGraph',     r: '把 node 的输出顺手包成 engram；下一次 graph 跑起来之前，candidate prompt 必过 promote() 这道闸。' },
+    { n: 'CrewAI',        r: 'crew.kickoff() → 一批 engram；新的 role config 只在 probe ACCEPT 之后才允许 promote。' },
+    { n: 'AutoGen',       r: 'on_message hook → engram；跨 agent 的决策走 SharedLog；probe 守住 conversational hand-off「对话交接」。' },
+    { n: 'smolagents',    r: '你的 loop 一行不改；engram + probe 在底下跑，agent body 完全不动。' },
+    { n: 'DSPy',          r: '把 DSPy.compile 出来的产物注册成 candidate；五行 probe 对着你定的 metric 跑；promote() 直接替掉 deploy.py。' },
+    { n: 'Letta',         r: '把 Letta 的 memory block 映射成 tier-2 engram；跨 agent 复用全走 probe + gate。' },
   ];
   const adds = [
-    '上线前过 hash-locked kill gate',
-    '5 tier 的 typed engram ladder，每次升 tier 都过 probe gate',
-    'Per-agent VFS isolation；跨 agent 的 read 始终显式',
-    'SharedLog 跑 intent → vote → decide 做跨 agent decision',
-    'L0–L4 的 trust ladder（四 signal 合成 [0,1] composite）',
-    'Breeding program：genome + Pareto front + gated promote()',
-    '一份本地 SQLite 文件做 audit substrate',
+    '上线前过一道 hash-locked kill gate「卡点闸门」',
+    '5 tier 的带类型 engram ladder「记忆梯度」——每次升 tier 都得过 probe gate',
+    'Per-agent VFS 隔离，跨 agent 读必须显式',
+    'SharedLog 跑 intent → vote → decide，做跨 agent 决策的唯一路径',
+    'L0–L4 的 trust ladder「信任梯度」（四个 signal 合成 [0,1] 的 composite）',
+    'Breeding program「繁育流水线」：genome + Pareto front + gated promote()',
+    '一份本地 SQLite 文件，当审计底座',
   ];
   return (
     <Section id="comparison">
-      <Kicker number="03" title="跟你已有的工具盒兼容" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">你的 crew 留着。下面加一层 substrate。</h2>
+      <Kicker number="03" title="跟你已有的工具箱拼" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">你那套 crew「智能体团队」留着。BENE 只往底下补一块基座。</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
-        你已经在跑 LangGraph、CrewAI，或者其他刚好适合你团队的某个东西。留着。BENE 走到那一层 orchestration 下面 — 同一份 graph，同一队 agent，同一组 provider — 然后把 engram、gate、trust signal 写在你这次 run 的旁边。
+        你已经在跑 LangGraph、CrewAI，或者别的更顺手的 orchestration「编排层」。别迁，没必要。BENE 贴在这一层下面——同一份 graph、同一队 agent、同一组 provider，run 照常跑；旁边顺手把 engram、gate、trust signal 记下来。
       </p>
       <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
-        <h3 className="font-mono text-bene-accent text-sm mb-4">Substrate 给你这些</h3>
+        <h3 className="font-mono text-bene-accent text-sm mb-4">底层基座白送你这些</h3>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm text-bene-text">
           {adds.map((a, i) => (
             <li key={i} className="flex gap-3"><span className="text-bene-accent">+</span>{a}</li>
           ))}
         </ul>
       </div>
-      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">集成 recipe</h3>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">接入配方</h3>
       <div className="border border-bene-dim bg-bene-surface mb-16">
         {recipes.map((r, i) => (
           <div key={r.n} className={'flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4 ' + (i < recipes.length - 1 ? 'border-b border-bene-dim' : '')}>
@@ -384,11 +384,11 @@ const Comparison = () => {
       </div>
       <div className="space-y-6">
         <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-          Framework 自带，provider 自带。在下面加一层 substrate，一份 bene.db 上线。
+          Framework 你自己挑，provider 你自己挑。底下垫 BENE 这块基座，一份 bene.db 直接进生产。
         </p>
         <div className="pt-8 border-t border-bene-dim flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-bene-muted max-w-2xl">
-            受测受限的细节在下面的 docs 里；这一节不是 scorecard。
+            受测细节和限制都在下面 docs 里；这一节只讲接入姿势，不做榜单。
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
@@ -404,21 +404,21 @@ const Comparison = () => {
 const Proof = () => {
   const [a, setA] = useState(0);
   const tabs = [
-    { l: 'Tab 1：装上 + 跑通', c: '第一次 value：不要 API key，不上云。',
+    { l: 'Tab 1：装好 + 跑通', c: '第一口 value：不要 API key，也不上云。',
       r: (<><span>$ uv add bene && uv run bene init && uv run bene demo --no-ui</span><br/><span className="text-bene-muted">[trace]</span> initializing harness...<br/><span className="text-bene-accent">[probe]</span> running baseline evaluation...<br/><span className="text-bene-muted">[evolve]</span> generating candidate strategies...<br/><span className="text-bene-muted">[trace]</span> complete. 12 engrams written.</>) },
-    { l: 'Tab 2：Planner + Executor', c: '两个 agent，一份 bene.db。共享 decision 只能走 intent → vote → decide 这一条路径。',
+    { l: 'Tab 2：Planner + Executor', c: '两个 agent，共吃一份 bene.db。协同决策只认 intent → vote → decide 这条链路。',
       r: (<><span className="text-bene-accent">from</span> bene <span className="text-bene-accent">import</span> Bene, Agent<br/><br/>harness = Bene()<br/>planner = Agent(name=<span className="text-[#A3E635]">'planner'</span>)<br/>executor = Agent(name=<span className="text-[#A3E635]">'executor'</span>)<br/><br/><span className="text-bene-muted"># Write to VFS</span><br/>planner.vfs.write(<span className="text-[#A3E635]">'/plan.md'</span>, <span className="text-[#A3E635]">'1. init\n2. run'</span>)<br/><br/><span className="text-bene-muted"># Intent → Vote → Decide</span><br/>harness.log.propose(intent=<span className="text-[#A3E635]">'execute_plan'</span>)</>) },
-    { l: 'Tab 3：grep engram', c: "你 agent 的 memory 是一张 table。你跟上线那一刻之间，没有 vendor API。",
+    { l: 'Tab 3：grep engram', c: "你 agent 的 memory 就是一张 table。从写入到上线，中间没有厂商 API 插队。",
       r: (<>$ sqlite3 bene.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY ts DESC LIMIT 5;"</span><br/><br/>4|strategy|Use exponential backoff for rate limits...<br/>3|procedural|Retry logic implementation details...<br/>2|semantic|Anthropic API rate limit characteristics...<br/>1|episodic|Failed request to claude-3-opus at 14:32...<br/>0|trace|HTTP 429 Too Many Requests...</>) },
-    { l: 'Tab 4：probe ACCEPT vs REJECT', c: "改 spec → LockTamperError。一个 baseline 都打不死的 gate 注册成 VOID，不是 ACCEPT。",
+    { l: 'Tab 4：probe ACCEPT vs REJECT', c: "改 spec，直接 LockTamperError。连 baseline 都打不穿的 gate，只能记 VOID，别想混成 ACCEPT。",
       r: (<><span className="text-bene-accent">def</span> <span className="text-[#60A5FA]">test_candidate</span>(eval_run):<br/>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">if</span> eval_run.quality &lt; <span className="text-[#FBBF24]">0.70</span>:<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">raise</span> PromotionBlocked(<span className="text-[#A3E635]">'Quality regression'</span>)<br/><br/><span className="text-bene-muted"># Run 1: quality=0.71</span><br/><span className="text-[#A3E635]">ACCEPT</span>: Candidate promoted to tier 4.<br/><br/><span className="text-bene-muted"># Run 2: quality=0.62</span><br/><span className="text-bene-accent">PromotionBlocked</span>: Quality regression. Promotion aborted.</>) },
   ];
   return (
     <Section id="proof">
-      <Kicker number="04" title="30 秒 proof" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">装上、跑通、grep、过 gate</h2>
+      <Kicker number="04" title="30 秒看见证据" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">装好、跑通、grep、过闸</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        四个 tab。Tab 1 装上就跑。Tab 2 拉起 planner + executor 走 SharedLog。Tab 3 用 sqlite3 打开 bene.db SELECT 前面 tab 写下的 engram。Tab 4 启一个 probe，看着它 block 一次不该的 promote。
+        四个 tab 够看全链路。Tab 1 装完就跑。Tab 2 拉起 planner 和 executor，协同只走 SharedLog。Tab 3 用 sqlite3 打开 bene.db，把前几个 tab 留下的 engram SELECT 出来。Tab 4 启一道 probe，现场拦住一次不该过的 promote。
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-8">
         <div className="flex overflow-x-auto border-b border-bene-dim hide-scrollbar">
@@ -431,7 +431,7 @@ const Proof = () => {
         </div>
       </div>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        跑 <code className="text-bene-accent">uv run bene dashboard</code>。同一份 .db 驱动一个 live TUI，不用额外加 instrumentation。
+        再跑一句 <code className="text-bene-accent">uv run bene dashboard</code>。还是那份 .db，直接撑起实时 TUI，不补埋点。
       </p>
     </Section>
   );
@@ -452,9 +452,9 @@ const Recipes = () => {
   return (
     <Section id="recipes">
       <Kicker number="05" title="Recipe" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">八个 recipe — 方法论以动词形态出现</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">八个 recipe，方法论先落成动词</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        你能给你的 task 起个名字，它大概率是这八个里的某一个。每个 recipe 都以一个 verify 命令收尾。verify 没跑，这个 recipe 就没完。
+        你的 task 只要能起名字，大概率就落在这八个 recipe 里。每个 recipe 都用一条 verify 命令收口。verify 没跑，闭环就没关上。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {rs.map(r => (
@@ -520,9 +520,9 @@ const Architecture = () => {
   return (
     <Section id="architecture">
       <Kicker number="06" title="架构" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">什么场景下你会伸手去拿什么</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">什么场景下，该伸手拿什么</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        第一天你不会同时碰到这五个。下面是 substrate 的几个 piece，按多数项目实际遇到的顺序排 — 先描述那个 moment，再说哪个 subsystem 起作用。
+        第一天不用把五件家伙全摸一遍。下面这组 substrate piece，按多数项目真正撞上的顺序排：先讲你会遇到的 moment，再讲哪个 subsystem 接手。
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-16">
         {subsystems.map((s, i) => (
@@ -565,7 +565,7 @@ const Architecture = () => {
         Substrate 从 Python（<code className="text-bene-text font-mono">from bene import Bene</code>）、CLI（<code className="text-bene-text font-mono">bene --json ls | jq</code>）、MCP（<code className="text-bene-text font-mono">bene serve --transport stdio</code>）三个面进 — 底下是同一份 <code className="text-bene-text font-mono">bene.db</code>。
       </p>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        BENE 用 mh_search 繁育 BENE 自己的 prompt。harness 跑在自己身上 — 这就是 case study。
+        BENE 用 mh_search 繁育自己的 prompt。harness 落到自己身上跑，这个 case study 才算有含金量。
       </p>
     </Section>
   );
@@ -584,7 +584,7 @@ const Limits = () => {
       <Kicker number="07" title="什么时候不要用 BENE" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">四条诚实的边界</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        你的 task 落进这四个之一 — 用更简单的工具。等你需要 provenance 再回来。
+        你的 task 如果落进这四条，先用更轻的工具，别硬上。等你真的需要 provenance，再把 BENE 请回来。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {ls.map((l,i) => (
@@ -667,7 +667,7 @@ const Lore = () => {
       <Kicker number="08" title="名字的来历 · 怎么参与" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">为什么叫它 BENE</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        Dune 的比喻放在 demo、comparison、limits 之后才出场，是它该有的位置。每一个 Bene Gesserit 的 beat 都对应一个真的 CLI verb。
+        Dune 的比喻放在 demo、comparison、limits 后面才出场，这个顺序才稳。每一个 Bene Gesserit 的 beat，都能落到一个真的 CLI verb。
       </p>
       <div className="grid md:grid-cols-2 gap-16 mb-24">
         <div className="border border-bene-dim bg-bene-surface">
