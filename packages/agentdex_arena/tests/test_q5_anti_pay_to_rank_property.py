@@ -41,13 +41,10 @@ _NOW = 1_700_000_000.0
 # ---- structural invariants (fail at import / signature inspection) ----
 
 
-# Aliases used by every structural guard below. The earlier sets covered the
-# explicit (membership / is_member / tier / paid) shape, but a future refactor
-# could attach owner / tenant_id / member / premium / plan to the rating path
-# and satisfy those denylists while still letting the rating pipeline join
-# against membership state. Centralising the alias set means a single edit
-# tightens every guard (RatingEvent fields, recompute_ladder signature, Ladder
-# state) consistently.
+# Forbidden EXACT names — multi-token denylist entries kept as exact matches
+# because the snake-case-token splitter below would not catch them (e.g.
+# `valid_until_epoch` splits into ["valid", "until", "epoch"], none of which
+# would be in the single-word token set on their own).
 _FORBIDDEN_RATING_FIELDS = frozenset(
     {
         # explicit membership shapes
@@ -72,70 +69,116 @@ _FORBIDDEN_RATING_FIELDS = frozenset(
     }
 )
 
+# Single-word forbidden TOKENS — caught at any position inside a snake-case
+# name. Without this set, the earlier exact-name intersection let compound
+# aliases slip through:
+#   - `paid_owner`   carries `paid` AND `owner` but matches neither exactly
+#   - `member_until` carries `member` but matches no exact entry
+#   - `tier_level`   carries `tier`   but matches no exact entry
+#   - `_owner_email` (private attr) → splits to ["owner", "email"]; `owner` matches
+# A future `update_rating(..., paid_owner=False)` or `Rating(.., member_until=0)`
+# now trips the guard. The set is conservative — only the *unambiguous* paid/
+# membership/identity tokens; legitimately-overloaded words (e.g. "rating",
+# "ladder") are NOT included.
+_FORBIDDEN_RATING_TOKENS = frozenset(
+    {
+        "membership",
+        "memberships",
+        "member",
+        "premium",
+        "subscription",
+        "tier",
+        "paid",
+        "owner",
+        "tenant",
+        "plan",
+    }
+)
+
+
+def _snake_tokens(name: str) -> set[str]:
+    """Lowercased snake_case tokens, stripping any leading underscores so
+    private-attr `_owner_email` tokenises the same as public `owner_email`.
+    `"_paid_owner"` → `{"paid", "owner"}`; `"tier"` → `{"tier"}`."""
+    return {tok for tok in name.lower().lstrip("_").split("_") if tok}
+
+
+def _leaks_membership_shape(name: str) -> bool:
+    """True if `name` is an EXACT denylist entry OR carries a single-word
+    forbidden token in its snake_case split. This is the combined check
+    every structural guard now uses — exact-name coverage for multi-token
+    entries (`valid_until_epoch`, `actor_hash`) plus token coverage for
+    compound aliases (`paid_owner`, `member_until`, `tier_level`)."""
+    lowered = name.lower()
+    if lowered in _FORBIDDEN_RATING_FIELDS or lowered.lstrip("_") in _FORBIDDEN_RATING_FIELDS:
+        return True
+    return bool(_snake_tokens(name) & _FORBIDDEN_RATING_TOKENS)
+
 
 def test_rating_event_has_no_membership_field():
-    """RatingEvent schema must not reference membership / paid / tier / etc.
+    """RatingEvent schema must not reference membership / paid / tier / etc.,
+    including compound aliases like `paid_owner` or `member_until` that
+    would slip through an exact-name intersection.
 
     If a future refactor adds such a field, this test catches it before any
     paid-feature route can read it — encoding the anti-pay-to-rank-by-proxy
     invariant at the type-system level."""
-    fields = set(RatingEvent.model_fields.keys())
-    leak = fields & _FORBIDDEN_RATING_FIELDS
+    leak = {f for f in RatingEvent.model_fields if _leaks_membership_shape(f)}
     assert not leak, f"RatingEvent leaks membership-shaped field(s): {leak}"
 
 
 def test_rating_model_has_no_membership_field():
     """`Rating` (glicko.py) carries the per-player score state — `rating`,
     `rd`, `vol`, `games`. A future paid-by-proxy field added directly to
-    the model (e.g. `tier`, `owner_email`, `is_paid`) would let the rating
-    pipeline join against membership state at the type-system level even
-    without any membership import, so `test_rating_path_does_not_import_
-    admin_or_consent` would silently pass.
+    the model (e.g. `tier`, `owner_email`, `paid_owner`, `member_until`)
+    would let the rating pipeline join against membership state at the
+    type-system level even without any membership import.
 
-    This is the score-state companion to
-    `test_rating_event_has_no_membership_field` (the event side). Both run
-    `Rating.model_fields` / `RatingEvent.model_fields` against the same
-    `_FORBIDDEN_RATING_FIELDS` set so the denylist scales atomically across
-    both sides of the rating path."""
-    fields = set(Rating.model_fields.keys())
-    leak = fields & _FORBIDDEN_RATING_FIELDS
+    Score-state companion to `test_rating_event_has_no_membership_field`
+    (the event side); both run their model fields through the same
+    `_leaks_membership_shape` matcher so the denylist + token set scale
+    atomically across both sides of the rating path."""
+    leak = {f for f in Rating.model_fields if _leaks_membership_shape(f)}
     assert not leak, f"Rating leaks membership-shaped field(s): {leak}"
 
 
 def test_update_rating_signature_takes_no_membership_input():
     """`update_rating(player: Rating, results: list[tuple[Rating, float]])`
     is the per-player math `Ladder.rate_period` delegates to. A future
-    signature addition like `membership=None`, `tier="free"`, or
-    `paid_owner=False` would let the math branch on payment status at the
-    most load-bearing function in the rating pipeline.
+    signature addition like `membership=None`, `tier="free"`, or the
+    reviewer's exact regression case `paid_owner=False` would let the math
+    branch on payment status at the most load-bearing function in the
+    rating pipeline.
 
     Parallel to `test_recompute_ladder_signature_takes_no_membership_input`
     one level up the call chain."""
     sig = inspect.signature(update_rating)
-    leak = set(sig.parameters.keys()) & _FORBIDDEN_RATING_FIELDS
+    leak = {p for p in sig.parameters if _leaks_membership_shape(p)}
     assert not leak, f"update_rating signature leaks membership params: {leak}"
 
 
 def test_recompute_ladder_signature_takes_no_membership_input():
     """recompute_ladder must depend only on (log_path, frozen, expected_digest).
 
-    Any future signature addition of membership/paid/tier means the rating
-    pipeline now branches on payment status — pay-to-rank-by-proxy."""
+    Any future signature addition of membership/paid/tier — or any compound
+    alias carrying those tokens — means the rating pipeline now branches on
+    payment status, pay-to-rank-by-proxy."""
     sig = inspect.signature(recompute_ladder)
-    leak = set(sig.parameters.keys()) & _FORBIDDEN_RATING_FIELDS
+    leak = {p for p in sig.parameters if _leaks_membership_shape(p)}
     assert not leak, f"recompute_ladder signature leaks membership params: {leak}"
 
 
 def test_ladder_class_has_no_membership_state():
-    """Ladder._ratings / _frozen / badges — no membership store. If you
-    add one (paid users get rating boost / decay protection / etc.), this
-    test fires."""
-    public_attrs = {a for a in dir(Ladder()) if not a.startswith("_")}
-    private_attrs = {a for a in dir(Ladder()) if a.startswith("_") and not a.startswith("__")}
-    # Match the alias set against both public and leading-underscore private
-    # names so a hypothetical `_owner_email` fires identically to `owner_email`.
-    forbidden = _FORBIDDEN_RATING_FIELDS | {f"_{name}" for name in _FORBIDDEN_RATING_FIELDS}
-    leak = (public_attrs | private_attrs) & forbidden
+    """`Ladder._ratings` / `_frozen` / `badges` — no membership store. If
+    a future engineer adds one (paid users get rating boost / decay
+    protection / etc.) — public name like `tier` or compound private like
+    `_paid_owner_cache` — this test fires.
+
+    Both public and leading-underscore-private attribute names are run
+    through the same matcher; `_snake_tokens()` strips leading underscores
+    so `_owner_email` tokenises identically to `owner_email`."""
+    all_attrs = {a for a in dir(Ladder()) if not a.startswith("__")}
+    leak = {a for a in all_attrs if _leaks_membership_shape(a)}
     assert not leak, f"Ladder leaks membership state: {leak}"
 
 
