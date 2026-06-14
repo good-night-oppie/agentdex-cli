@@ -17,8 +17,13 @@ tailwind.config = {
     extend: {
       colors: {
         bene: {
-          bg: '#0A0A0A', surface: '#0E0E0E', accent: '#FF5C24',
-          text: '#EDEDED', dim: '#1A1A1A', med: '#222222', muted: '#888888',
+          bg: 'rgb(var(--bg) / <alpha-value>)',
+          surface: 'rgb(var(--surface) / <alpha-value>)',
+          accent: 'rgb(var(--accent) / <alpha-value>)',
+          text: 'rgb(var(--text) / <alpha-value>)',
+          dim: 'rgb(var(--dim) / <alpha-value>)',
+          med: 'rgb(var(--med) / <alpha-value>)',
+          muted: 'rgb(var(--muted) / <alpha-value>)',
         },
       },
       fontFamily: {
@@ -31,11 +36,31 @@ tailwind.config = {
 }
 </script>
 <style>
-body { background:#0A0A0A; color:#EDEDED; font-family:'Inter',sans-serif; }
+:root, :root[data-theme="dark"] {
+  --bg: 10 10 10;       /* #0A0A0A */
+  --surface: 14 14 14;  /* #0E0E0E */
+  --accent: 255 92 36;  /* #FF5C24 */
+  --text: 237 237 237;  /* #EDEDED */
+  --dim: 26 26 26;      /* #1A1A1A */
+  --med: 34 34 34;      /* #222222 */
+  --muted: 136 136 136; /* #888888 */
+  --term: 5 5 5;        /* terminal background */
+}
+:root[data-theme="light"] {
+  --bg: 250 250 250;    /* #FAFAFA */
+  --surface: 245 245 245;/* #F5F5F5 */
+  --accent: 194 84 27;  /* #C2541B (AA on light) */
+  --text: 26 26 26;     /* #1A1A1A */
+  --dim: 229 229 229;   /* #E5E5E5 */
+  --med: 204 204 204;   /* #CCCCCC */
+  --muted: 102 102 102; /* #666666 */
+  --term: 14 11 22;     /* terminals stay dark in both themes */
+}
+body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Inter',sans-serif; transition: background-color .15s, color .15s; }
 ::-webkit-scrollbar { width:6px; }
-::-webkit-scrollbar-track { background:#0E0E0E; }
-::-webkit-scrollbar-thumb { background:#222; border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:#FF5C24; }
+::-webkit-scrollbar-track { background: rgb(var(--surface)); }
+::-webkit-scrollbar-thumb { background: rgb(var(--med)); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent)); }
 .hide-scrollbar::-webkit-scrollbar { display:none; }
 .hide-scrollbar { scrollbar-width:none; }
 </style>
@@ -43,7 +68,7 @@ body { background:#0A0A0A; color:#EDEDED; font-family:'Inter',sans-serif; }
 <body>
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
-const { useState } = React;
+const { useState, useEffect } = React;
 
 // ─── Patagon-style helpers ──────────────────────────────────────────
 const Section = ({ id, children, className = '', noBorder = false }) => (
@@ -66,7 +91,7 @@ const Card = ({ children, className = '' }) => (
 
 const Terminal = ({ children, caption }) => (
   <div className="flex flex-col gap-3">
-    <div className="bg-[#050505] border border-bene-dim rounded-sm overflow-hidden">
+    <div className="bg-[rgb(var(--term))] border border-bene-dim rounded-sm overflow-hidden">
       <div className="flex items-center px-4 py-2.5 border-b border-bene-dim bg-bene-surface">
         <div className="flex gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-bene-med" />
@@ -90,11 +115,11 @@ const Pill = ({ children }) => (
 );
 
 // ─── Nav ────────────────────────────────────────────────────────────
-const Nav = () => {
+const Nav = ({ theme, setTheme }) => {
   const links = [
     { id: 'gap', label: '01 Gap' },
     { id: 'contract', label: '02 Contract' },
-    { id: 'comparison', label: '03 vs' },
+    { id: 'comparison', label: '03 Integrates' },
     { id: 'proof', label: '04 Proof' },
     { id: 'recipes', label: '05 Recipes' },
     { id: 'architecture', label: '06 Arch' },
@@ -118,6 +143,11 @@ const Nav = () => {
           ))}
           <a href="docs/index.html" className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">Docs</a>
           <a href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">GitHub</a>
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors border border-bene-dim rounded-sm px-2 py-1"
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+            {theme === 'dark' ? '◐ light' : '◑ dark'}
+          </button>
         </div>
       </div>
     </nav>
@@ -237,69 +267,53 @@ const Contract = () => {
   );
 };
 
-// ─── 03 · vs rivals ─────────────────────────────────────────────────
+// ─── 03 · Integrates with your toolbox ──────────────────────────────
 const Comparison = () => {
-  const columns = ['LangGraph','CrewAI','AutoGen','smolagents','DSPy','Letta'];
-  const rows = [
-    { label: 'Hash-locked kill gate before promotion', others: [false,false,false,false,false,false] },
-    { label: '5-tier typed engram ladder with probe-gated tier promotion', others: [false,false,false,false,false,false] },
-    { label: 'Per-agent VFS isolation', others: [false,false,false,false,false,false] },
-    { label: 'SharedLog intent → vote → decide', others: [false,false,false,false,false,false] },
-    { label: 'Computed L0–L4 trust ladder', others: [false,false,false,false,false,false] },
-    { label: 'Breeding program (genome + Pareto + gated promote)', others: [false,false,false,false,false,false] },
-    { label: 'Single-file local substrate (one bene.db)', others: [false,false,false,false,false,'partial'] },
+  const pairs = [
+    { n: 'LangGraph', s: 'Stateful graph orchestration with HITL, persistent memory across sessions, streaming, hierarchical multi-agent flows. The right tool to model an agent as a graph.', a: 'Pair BENE on top: every node-output that becomes a promotion candidate runs through a hash-locked probe. Conversation memory keeps doing its job; the engram ladder (trace → episodic → semantic → procedural → strategic) adds typed provenance the next graph run can grep.' },
+    { n: 'CrewAI', s: 'Roles and crews at enterprise scale — 450M+ workflows/month, Fortune 500 adoption, slick lifecycle.', a: 'BENE wraps each crew run as an engram batch. A new prompt version is a candidate genome; promote() ships it only when a probe says ACCEPT. The crew stays your orchestration — the gate becomes your CI.' },
+    { n: 'AutoGen', s: 'Event-driven conversation at scale — Studio (no-code), AgentChat (Python), distributed Core. Strong for conversational multi-agent apps.', a: 'BENE catches the run before it evaporates: every turn lands as a typed engram, every decision rides SharedLog, every promotion candidate from your event-driven loop gets a sha256-locked probe before it ships.' },
+    { n: 'smolagents', s: '~1K-LoC thin loop, first-class Code Agents, sandboxed execution. Radically simple, easy to read.', a: 'Keep the thin loop. BENE adds the substrate underneath — engrams compound across runs, probes gate the next prompt version, sandbox boundaries stay where they were.' },
+    { n: 'DSPy', s: '"Program, don’t prompt" — typed signatures, modular composition, automatic optimization of prompts and weights against a metric.', a: 'The two-line adoption: register DSPy.compile output as a candidate, write a 5-line probe against your existing metric, replace deploy.py with promote(). DSPy keeps optimizing. BENE refuses to let a regression ship.' },
+    { n: 'Letta (MemGPT)', s: 'Memory-first agents — Context Repositories, Git-based memory, "context is selfhood." The right tool for one long-running digital person.', a: 'Letta keeps memory for one agent. BENE makes it a multi-agent substrate: engrams promote between tiers only if a hash-locked probe ACCEPTs, so one agent’s lesson can’t poison another’s memory without passing a falsifiable test the next agent can re-run.' },
   ];
-  const caveats = [
-    { n: 'LangGraph', s: 'Stateful graph orchestration with HITL, persistent memory across sessions, streaming, hierarchical multi-agent flows.', b: 'Conversation memory is not provenance-linked engrams on a typed ladder, and no probe refuses to ship. A bad prompt promotes because the graph ran, not because a gate said ACCEPT.' },
-    { n: 'CrewAI', s: 'Roles and crews at enterprise scale — 450M+ workflows/month.', b: 'No genome, no Pareto, no probe that can refuse. The crew runs; nothing selects across generations.' },
-    { n: 'AutoGen', s: 'Event-driven conversation at scale — Studio, AgentChat, distributed Core.', b: 'Runs evaporate. Nothing carries forward as Other Memory. The next session inherits nothing the prior one paid for.' },
-    { n: 'smolagents', s: '~1K-LoC thin loop, first-class Code Agents, sandboxed execution. Radically simple.', b: 'A toy. No persistent memory, no probes, no promotion gate.' },
-    { n: 'DSPy', s: "'Program, don't prompt' — typed signatures, automatic optimization.", b: 'Single-program optimizer. Smallest BENE adoption: register your DSPy.compile output as a candidate, write a 5-line probe, replace deploy.py with promote(). Two-line diff, kill-gated CI.' },
-    { n: 'Letta (MemGPT)', s: "Memory-first agents — Context Repositories, 'context is selfhood.'", b: "Letta's memory blocks survive the context window for ONE agent. BENE engrams promote between tiers only if a hash-locked probe ACCEPTs, so one agent's lesson can't poison another's memory unless it passes a falsifiable test the next agent can re-run." },
+  const adds = [
+    'Hash-locked kill gate before promotion',
+    '5-tier typed engram ladder with probe-gated tier promotion',
+    'Per-agent VFS isolation + cross-agent reads stay explicit',
+    'SharedLog intent → vote → decide for shared decisions',
+    'Computed L0–L4 trust ladder (4 signals → [0,1] composite)',
+    'Breeding program: genome + Pareto + gated promote()',
+    'One local SQLite file as the audit substrate',
   ];
   return (
     <Section id="comparison">
-      <Kicker number="03" title="vs the frameworks you already know" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">BENE vs LangGraph, CrewAI, AutoGen, smolagents, DSPy, Letta</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        Six rivals. One table. Seven rows where BENE is the row that holds all seven on one SQLite file.
+      <Kicker number="03" title="Integrates with your toolbox" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">BENE is the production layer that turns frontier research into engineering tools.</h2>
+      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
+        Not a replacement for your orchestration framework. A substrate that drops in alongside it. The job is to take engrams, kill gates, autonomy ladders, and breeding-program search out of the research papers and put them on one local SQLite file you can grep at 03:00.
       </p>
-      <div className="overflow-x-auto mb-16 pb-4">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="border-b border-bene-dim">
-              <th className="py-4 px-4 font-mono text-xs font-normal text-bene-muted w-1/3">Feature</th>
-              <th className="py-4 px-4 font-mono text-xs font-normal text-bene-text">BENE</th>
-              {columns.map(c => <th key={c} className="py-4 px-4 font-mono text-xs font-normal text-bene-muted">{c}</th>)}
-            </tr>
-          </thead>
-          <tbody className="font-mono text-xs">
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-bene-dim/50 hover:bg-bene-surface/50 transition-colors">
-                <td className="py-4 px-4 text-bene-text">{r.label}</td>
-                <td className="py-4 px-4 text-bene-accent">yes</td>
-                {r.others.map((v, j) => (
-                  <td key={j} className="py-4 px-4 text-bene-dim">
-                    {v === 'partial' ? <span className="text-bene-muted">partial</span> : '—'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
+        <h3 className="font-mono text-bene-accent text-sm mb-4">What BENE adds when you bolt it on</h3>
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm text-bene-text">
+          {adds.map((a, i) => (
+            <li key={i} className="flex gap-3"><span className="text-bene-accent">+</span>{a}</li>
+          ))}
+        </ul>
       </div>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">Six frameworks. Six integration paths.</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-        {caveats.map(c => (
-          <Card key={c.n} className="h-full p-6">
-            <h3 className="font-mono text-bene-text mb-4 pb-4 border-b border-bene-dim">{c.n}</h3>
+        {pairs.map(p => (
+          <Card key={p.n} className="h-full p-6">
+            <h3 className="font-mono text-bene-text mb-4 pb-4 border-b border-bene-dim">{p.n}</h3>
             <div className="space-y-4 text-sm">
               <div>
-                <span className="text-bene-muted block mb-1">steelman:</span>
-                <p className="text-bene-text leading-relaxed">"{c.s}"</p>
+                <span className="text-bene-muted block mb-1">what it’s great at:</span>
+                <p className="text-bene-text leading-relaxed">{p.s}</p>
               </div>
               <div>
-                <span className="text-bene-muted block mb-1">where it breaks:</span>
-                <p className="text-bene-text leading-relaxed">"{c.b}"</p>
+                <span className="text-bene-muted block mb-1">what BENE adds on top:</span>
+                <p className="text-bene-text leading-relaxed">{p.a}</p>
               </div>
             </div>
           </Card>
@@ -307,11 +321,11 @@ const Comparison = () => {
       </div>
       <div className="space-y-6">
         <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-          BENE gates promotion with a hash-locked kill probe. It also breeds better strategies across generations — all on one SQLite file.
+          The orchestration layer you already chose stays. BENE adds the gate, the engrams, the trust ledger. Everything ships through one bene.db.
         </p>
         <div className="pt-8 border-t border-bene-dim flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-bene-muted max-w-2xl">
-            Comparison is structural, not a claim of superiority on every axis. The phrase 'BENE supersedes' is banned in our own report.
+            Niche: productionize frontier LLM + AI-agent research into engineering tools. Bring your own framework. Bring your own provider. Keep your own orchestration. Add the production substrate.
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
@@ -388,7 +402,7 @@ const Recipes = () => {
             </div>
             <p className="text-sm text-bene-muted mb-6 flex-1">{r.d}</p>
             <div className="space-y-3">
-              <div className="bg-[#050505] border border-bene-dim p-3 rounded-sm">
+              <div className="bg-[rgb(var(--term))] border border-bene-dim p-3 rounded-sm">
                 <code className="font-mono text-xs text-bene-muted">{r.c}</code>
               </div>
               <div className="flex items-start gap-2">
@@ -546,7 +560,7 @@ const Lore = () => {
               <div className="sm:w-1/2 font-sans text-sm text-bene-text font-medium">{it.l}</div>
               <div className="sm:w-1/2 flex flex-wrap gap-2">
                 {it.v.map((vb, j) => (
-                  <code key={j} className="font-mono text-xs text-bene-muted bg-[#050505] px-1.5 py-0.5 rounded-sm border border-bene-dim">{vb}</code>
+                  <code key={j} className="font-mono text-xs text-bene-muted bg-[rgb(var(--term))] px-1.5 py-0.5 rounded-sm border border-bene-dim">{vb}</code>
                 ))}
               </div>
             </div>
@@ -595,9 +609,16 @@ const Lore = () => {
 
 // ─── App ────────────────────────────────────────────────────────────
 function App() {
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('bene-theme') || 'dark'; } catch (e) { return 'dark'; }
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('bene-theme', theme); } catch (e) {}
+  }, [theme]);
   return (
     <div className="min-h-screen w-full bg-bene-bg text-bene-text font-sans selection:bg-bene-accent/30 selection:text-bene-accent overflow-x-hidden">
-      <Nav />
+      <Nav theme={theme} setTheme={setTheme} />
       <main>
         <Hero />
         <TheGap />
