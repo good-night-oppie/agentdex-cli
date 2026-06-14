@@ -9,15 +9,13 @@ from __future__ import annotations
 import time
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from agentdex_arena.consent import (
     ConsentAuthority,
     ConsentClaims,
     ConsentError,
     _normalize_owner,
 )
-
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 _SIGNING_KEY_HEX = Ed25519PrivateKey.generate().private_bytes_raw().hex()
 
@@ -36,6 +34,7 @@ def _make_claims(owner: str = "eddie@oppie.xyz", agent_name: str = "TestBot") ->
 
 
 # ---- _normalize_owner ----
+
 
 def test_normalize_owner_canonicalizes_case_whitespace_and_unicode():
     assert _normalize_owner("Eddie@Oppie.XYZ") == "eddie@oppie.xyz"
@@ -69,6 +68,7 @@ def test_normalize_owner_rejects_non_string():
 
 
 # ---- ConsentAuthority memberships dict + grant_membership ----
+
 
 def test_authority_constructor_defaults_memberships_to_empty_dict():
     auth = ConsentAuthority(signing_key_hex=_SIGNING_KEY_HEX)
@@ -104,6 +104,7 @@ def test_grant_membership_propagates_normalize_errors():
 
 
 # ---- verify_membership ----
+
 
 def test_verify_membership_raises_when_owner_unknown():
     auth = ConsentAuthority(signing_key_hex=_SIGNING_KEY_HEX)
