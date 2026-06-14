@@ -84,7 +84,41 @@ Encoded as the property test in §3c.
 
 The enrollment path persists `register` events with `{name, frozen}`; it does NOT persist a durable `agent → owner_email` mapping. The owner email is carried inside the 7-day `ConsentClaims` token only, and `_registered` is rebuilt from `register` events alone. Without a durable mapping the server cannot prove that an arbitrary requested agent name belongs to `caller.owner_email` after a 7-day token rotation; the alternative — trusting the agent name on the request — would let a paid caller export any owner's history by name.
 
-V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_email` to **`caller.agent_name == requested_agent_name`**. The 11e route MUST verify the active `ConsentClaims.scopes` contains the new `export` scope AND `requested_agent_name == claims.agent_name`; anything else is a 403. This is provably implementable on the existing event shape (no new event type, no schema migration) and the (free, paid) rating-ceiling invariant in §3c still holds because the route gates on agent-name match, not on membership tier.
+V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_email` to **`caller.agent_name == requested_agent_name`**, with three constraints made explicit so the implementation cannot drift:
+
+1. **Call order — membership gate is ADDITIVE, never a replacement.** The 11e route runs the standard paid-feature gate stack defined in CLAUDE.md "Membership gate call order":
+
+   ```python
+   claims = authority.verify(token, scope="battle")     # 1. signature + expiry + scope
+   authority.verify_membership(claims)                  # 2. §3 paid-feature gate (REQUIRED)
+   if claims.agent_name != requested_agent_name:        # 3. §3b V1 binding (additive)
+       raise _opaque_error(403, "agent name mismatch")
+   authority.spend_quota(claims, scope="export")        # 4. daily cap
+   # ... assemble export ...
+   ```
+
+   The agent-name check sits BELOW `verify_membership`, never around it. A future engineer reading "the route gates on agent-name match, not on membership tier" must understand that **agent-name match is the §3b owner-scoping invariant; the membership gate is the §3 paid-feature invariant. Both are required for V1 11e; neither replaces the other.**
+
+2. **No new scope required.** 11e accepts the standard tokens minted at enrollment (`["enroll", "battle", "evolve"]`) — gating on `scope="battle"` keeps existing agents reachable without a token-reissue endpoint (which the SKILL.md Layer 1.2 recovery section explicitly notes is "planned post-MVP"). Free vs paid is determined by `verify_membership`, not by scope. This avoids silently re-purposing legacy tokens (§3d) — the agent's owner already consented to identity-binding at enrollment; identity-bound export of *that same agent's own data* is not a new data flow, just a paid format conversion.
+
+3. **History selection uses canonical `agent_name`, NOT `claims.token_id`.** The event feeds at `gateway.py:1401-1406` and `mcp_surface.py:250-253` filter by `payload.tenant_id == claims.token_id`. Battle rows are written with the originating token's id (`gateway.py:569-576` for `battle_begin`, `gateway.py:809-816` for `battle_end`). If 11e reuses that pattern, a rotated token will pass the §3b agent-name check but silently drop the agent's pre-rotation history. The 11e contract therefore selects rows by canonical agent identity:
+
+   ```python
+   # CORRECT — by canonical agent name (survives token rotation)
+   rows = [
+       ev for ev in gateway.events.iter_events()
+       if (ev["type"] in ("battle_begin", "battle_end", ...)
+           and ev["payload"].get("visitor") == requested_agent_name)
+   ]
+
+   # WRONG — by active token id (drops pre-rotation history)
+   rows = [
+       ev for ev in gateway.events.iter_events()
+       if ev["payload"].get("tenant_id") == claims.token_id
+   ]
+   ```
+
+   The agent-name check in §3b §1 above is what makes this safe: only callers whose active token names `agent_name` can request that agent's full historical record.
 
 Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d).
 
