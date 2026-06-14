@@ -37,6 +37,7 @@ cross_cutting: true
 - [ADR-0009 (canonical)](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — KAOS substrate + retrofit + Pokédex pivot
 - [ADR-0010 (arena)](docs/adr/0010-arena-repromotion.md) — Showdown arena lane as expedition variant; Glicko-delta receipt; lanes + consent + cuts
 - [ADR-0011 (GTM-A)](docs/adr/0011-gtm-a-membership-primitive-and-paid-feature-positioning.md) — per-owner monthly membership primitive + repositioned paid feature surface (badge SVG + signed replay + bulk API + regression gate); anti-pay-to-rank invariant
+- [Membership admin runbook](docs/runbooks/membership-admin.md) — operator-only: generate admin token, set Koyeb env, grant/revoke/rotate (NOT for agent clients)
 - [arena deploy go/no-go](docs/references/2026-06-11-arena-deploy-gonogo.md) — measured Spaces/Koyeb contract, sidecar RSS, determinism finding, durable-store choice
 - [arena calibration report](docs/references/2026-06-12-arena-calibration.md) — anchor ordering + 2·RD separation PASS in 200 battles; selftest wiring
 - [arena fun + multi-dim + reward-hack design](docs/references/2026-06-12-arena-fun-multidim-rewardhack-design.md) — Will Wright × Lilian Weng synthesis: 4 fun moves = 4 capability dimensions, each shipped with the anti-reward-hack defense it needs (phases 9–11 backlog)
