@@ -5,15 +5,13 @@ audit-log shape) ships in 11b.4. This file's job is just: 'the route exists
 and the happy path returns ok=true'."""
 
 import hashlib
-from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from fastapi.testclient import TestClient
-
+from adx_showdown.sidecar import Sidecar
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway, create_app
-from adx_showdown.sidecar import Sidecar
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi.testclient import TestClient
 
 _ADMIN_TOKEN = "smoke-admin-token"
 _ADMIN_HASH = hashlib.sha256(_ADMIN_TOKEN.encode()).hexdigest()
