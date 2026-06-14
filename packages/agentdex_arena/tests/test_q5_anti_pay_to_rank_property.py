@@ -29,6 +29,7 @@ from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway
 from agentdex_engine.modules.arena import RatingEvent, recompute_ladder
 from agentdex_engine.modules.arena.events import EventLog
+from agentdex_engine.modules.arena.glicko import Rating, update_rating
 from agentdex_engine.modules.arena.ladder import Ladder
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -107,17 +108,23 @@ def test_ladder_class_has_no_membership_state():
 
 
 def test_rating_path_does_not_import_admin_or_consent():
-    """Every rating-path module — currently events.py (recompute_ladder) AND
-    ladder.py (RatingEvent + Ladder.rate_period) — must not import
-    AdminAuthority or membership helpers from agentdex_arena.consent.
+    """Every rating-path module — currently events.py (recompute_ladder),
+    ladder.py (RatingEvent + Ladder.rate_period), AND glicko.py (Rating +
+    update_rating) — must not import AdminAuthority or membership helpers
+    from agentdex_arena.consent.
 
-    The earlier scan only read the source of `recompute_ladder` (events.py),
-    but the actual rating math lives in `Ladder.rate_period` (ladder.py); a
-    future pay-to-rank-by-proxy dependency added there would have slipped
-    through. Scanning every module that defines a load-bearing rating-path
-    symbol means adding a new module to the rating path means adding it to
-    this set too."""
-    rating_path_symbols = (recompute_ladder, RatingEvent, Ladder)
+    The first scan only read the source of `recompute_ladder` (events.py),
+    then PR #109 extended it to `ladder.py` because `Ladder.rate_period` is
+    where the per-period math happens. But `rate_period` delegates each
+    rating update to `update_rating(player, results)` in `glicko.py`, and
+    the `Rating` class itself lives there too — a future paid-by-proxy
+    field added to `Rating` (e.g. `owner_email` / `tier`) or a membership
+    branch in `update_rating` would have slipped through scans that only
+    covered events.py + ladder.py. Adding `Rating` + `update_rating` to
+    the symbol set closes that gap and preserves the doctrine: adding a
+    new module to the rating path means adding its source-defining symbol
+    here too."""
+    rating_path_symbols = (recompute_ladder, RatingEvent, Ladder, Rating, update_rating)
     sources = {inspect.getsourcefile(obj) for obj in rating_path_symbols}
     sources.discard(None)
     assert sources, "could not resolve any rating-path source file"
