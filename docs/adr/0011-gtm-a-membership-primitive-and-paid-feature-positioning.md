@@ -146,7 +146,7 @@ Until V2 lands the durable mapping, `caller.agent_name == requested_agent_name` 
 
 #### 3c. Property test, not just diff-visibility test
 
-`test_skill_md_does_not_mention_admin_surface` (shipped 11b.4) asserts the admin surface stays invisible. The complementary `test_q5_anti_pay_to_rank_property` (ships 11b.7) asserts the behavioural invariant: **for any (free-owner, paid-owner) pair with identical (skill, opponent sequence, N battles), the rating-ceiling expectation is equal**. If you can't write this test for a proposed paid feature, the design is pay-to-rank (in disguise or otherwise) — kill the design, not the test.
+`test_skill_md_does_not_mention_admin_surface` (shipped 11b.4) asserts the admin surface stays invisible. The complementary `test_q5_anti_pay_to_rank_property` (ships 11b.7) asserts the behavioural invariant: **for any (free-owner, paid-owner) pair with identical (skill, opponent sequence, N battles), the rating-ceiling expectation is equal**. If you can't write this test for a proposed paid feature, the design is pay-to-rank (in disguise or otherwise) — kill the design, not the test. The test went through several rounds of review-driven strengthening on 2026-06-14 (PRs #108/#109/#110/#113/#115/#116/#118 + this PR-K follow-up); the lineage is preserved at [docs/references/2026-06-14-q5-anti-pay-to-rank-test-evolution.md](../references/2026-06-14-q5-anti-pay-to-rank-test-evolution.md).
 
 #### 3d. No silent free→paid data reinterpretation (locked 2026-06-14)
 
