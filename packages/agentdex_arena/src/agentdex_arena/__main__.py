@@ -98,8 +98,35 @@ def build_gateway() -> ArenaGateway:
     )
 
 
+def _bootstrap_admin_token_hash() -> None:
+    """Derive ARENA_ADMIN_TOKEN_HASH from AI_BUILDER_TOKEN when not explicitly set.
+
+    Koyeb (via space.ai-builders.com) auto-injects AI_BUILDER_TOKEN into every
+    container — the platform API key used to trigger the deploy. Treating that
+    key as the admin bearer ties admin access to the same credential that owns
+    the deploy: whoever holds the platform key already has deploy authority.
+
+    Behavior:
+      - ARENA_ADMIN_TOKEN_HASH explicitly set  → no-op (operator chose the token)
+      - ARENA_ADMIN_TOKEN_HASH unset + AI_BUILDER_TOKEN present → derive hex sha256
+      - Neither set → no-op; AdminAuthority will fail-closed at boot (preserved)
+    """
+    if os.environ.get("ARENA_ADMIN_TOKEN_HASH"):
+        return
+    builder_token = os.environ.get("AI_BUILDER_TOKEN", "").strip()
+    if not builder_token:
+        return
+    derived = hashlib.sha256(builder_token.encode("utf-8")).hexdigest()
+    os.environ["ARENA_ADMIN_TOKEN_HASH"] = derived
+    log.info(
+        "ARENA_ADMIN_TOKEN_HASH derived from AI_BUILDER_TOKEN (sha256, first 8 of hash = %s)",
+        derived[:8],
+    )
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    _bootstrap_admin_token_hash()
     from adx_showdown.sidecar import Sidecar
 
     host = os.environ.get("HOST", "127.0.0.1")
