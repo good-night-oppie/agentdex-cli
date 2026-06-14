@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import secrets
 import time
 import uuid
@@ -53,11 +54,17 @@ from agentdex_engine.modules.arena import (
     extract_signatures,
     recompute_ladder,
 )
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agentdex_arena.consent import ConsentAuthority, ConsentClaims, ConsentError
+from agentdex_arena.admin_auth import AdminAuthError, AdminAuthority
+from agentdex_arena.consent import (
+    ConsentAuthority,
+    ConsentClaims,
+    ConsentError,
+    _normalize_owner,
+)
 
 log = logging.getLogger(__name__)
 
@@ -276,6 +283,44 @@ class ChooseRequest(BaseModel):
     choice_index: int = Field(ge=1, le=64)
 
 
+# Max future horizon for an admin-granted membership: 400 days. Past 400 days
+# the grant looks more like a typo than a deliberate annual subscription, and
+# rejecting it at the boundary prevents accidental "lifetime free" tickets
+# from being created via a bad valid_until_epoch.
+MAX_GRANT_HORIZON_SEC = 400 * 86_400
+
+
+class GrantMembershipRequest(BaseModel):
+    """POST /admin/grant-membership body (ADR-0011 11b.3). Auth runs BEFORE
+    body parse via FastAPI Depends, so a malformed body cannot leak schema
+    via 422 to an unauthenticated probe."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    owner: str = Field(min_length=1, max_length=254)
+    valid_until_epoch: float
+
+    @field_validator("owner")
+    @classmethod
+    def _owner_normalizes(cls, v: str) -> str:
+        # Reject upstream what _normalize_owner would reject; keep the original
+        # casing in the field — we re-normalize at storage time so the EventLog
+        # records what the admin actually sent.
+        _normalize_owner(v)
+        return v
+
+    @field_validator("valid_until_epoch")
+    @classmethod
+    def _valid_until_finite_and_bounded(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("valid_until_epoch must be finite (no NaN/Inf)")
+        if v < 0:
+            raise ValueError("valid_until_epoch must be >= 0")
+        # NOTE: upper-bound check (now + MAX_GRANT_HORIZON_SEC) needs the
+        # gateway's clock and runs inside the route handler, not here, because
+        # field_validator does not have access to runtime state.
+        return v
+
+
 class ArenaGateway:
     def __init__(
         self,
@@ -288,13 +333,39 @@ class ArenaGateway:
         rated_seed_secret: str = "",
         now: Callable[[], float] = time.time,
         event_sync: Callable[[dict], None] | None = None,
+        admin_authority: AdminAuthority | None = None,
     ) -> None:
         self.authority = authority
+        # Admin bearer for operator-only routes (ADR-0011 11b.3). None means
+        # admin endpoints respond 403 'admin not configured' at request time —
+        # the production __main__ constructs AdminAuthority eagerly so the
+        # container fail-closed-boots if ARENA_ADMIN_TOKEN_HASH is missing.
+        self.admin = admin_authority
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
         for event in self.events.iter_events():
-            if event.get("type") == "register":
-                self._registered.add(event["payload"]["name"])
+            etype = event.get("type")
+            payload = event.get("payload") or {}
+            try:
+                if etype == "register":
+                    self._registered.add(payload["name"])
+                elif etype == "membership_grant":
+                    # Replay parses defensively (malformed events must NOT crash boot).
+                    owner_raw = payload.get("owner", "")
+                    valid_until_raw = payload.get("valid_until_epoch")
+                    if not isinstance(owner_raw, str) or not owner_raw:
+                        raise ValueError("owner missing/non-string")
+                    valid_until = float(valid_until_raw)
+                    if not math.isfinite(valid_until) or valid_until < 0:
+                        raise ValueError(f"non-finite/negative valid_until: {valid_until!r}")
+                    self.authority.grant_membership(owner_raw, valid_until)
+            except Exception:
+                log.warning(
+                    "skipping malformed event during replay: type=%r seq=%r",
+                    etype,
+                    event.get("seq"),
+                    exc_info=True,
+                )
         self.artifacts_dir = Path(artifacts_dir)
         self.notify_owner = notify_owner  # out-of-band channel (email/webhook)
         self.turn_budget_s = turn_budget_s
@@ -973,6 +1044,60 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             "expires_at": claims.expires_at,
             "expires_in_sec": max(0, int(claims.expires_at - gateway.now())),
         }
+
+    # ---------- admin (operator-only; NOT documented in SKILL.md) ----------
+    #
+    # The admin surface lives behind X-Admin-Token (SHA-256-hashed env var) and
+    # is intentionally absent from /skill.md, /enrollment, /methodology. Agent
+    # clients are untrusted-by-default; admin surfaces stay in operator docs
+    # only (docs/runbooks/membership-admin.md, ships 11b.5).
+
+    def _check_admin(
+        x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    ) -> str:
+        """FastAPI dependency: verifies the admin header BEFORE pydantic body
+        parse so a malformed body cannot leak schema via 422 to an unauthed
+        probe. Returns the opaque actor_hash (first 8 hex of the stored hash)
+        for audit. Uniform _opaque_error(403, ...) on every failure mode."""
+        if gateway.admin is None:
+            raise _opaque_error(403, "admin not configured")
+        try:
+            return gateway.admin.verify_bearer(x_admin_token)
+        except AdminAuthError as e:
+            log.warning("admin auth rejected: %s", e)
+            raise _opaque_error(403, e) from None
+
+    @app.post("/admin/grant-membership")
+    async def grant_membership(
+        req: GrantMembershipRequest,
+        actor_hash: str = Depends(_check_admin),
+    ) -> dict:
+        """Grant a per-owner monthly membership (ADR-0011 11b). V1 manual
+        flip-the-bit; Stripe deferred to V2. Last-write-wins on owner so this
+        endpoint is idempotent on intent; revocation is a grant with
+        valid_until_epoch <= now (single code path; audit trail preserved)."""
+        # Upper-bound check using gateway clock (field validator can't see it).
+        now = gateway.now()
+        if req.valid_until_epoch > now + MAX_GRANT_HORIZON_SEC:
+            raise _opaque_error(
+                422,
+                f"valid_until_epoch exceeds {MAX_GRANT_HORIZON_SEC // 86400}-day horizon",
+            )
+        # Write-ahead the event, THEN mutate authority.memberships. Replay on
+        # restart will hit the event and re-establish state via the same code
+        # path as live grant_membership (consistency-by-construction).
+        owner_key = gateway.authority.grant_membership(req.owner, req.valid_until_epoch)
+        gateway.events.append(
+            "membership_grant",
+            {
+                "tenant_id": owner_key,
+                "owner": owner_key,
+                "actor_hash": actor_hash,
+                "valid_until_epoch": req.valid_until_epoch,
+                "granted_at": now,
+            },
+        )
+        return {"ok": True, "owner": owner_key, "valid_until_epoch": req.valid_until_epoch}
 
     @app.post("/enroll/request")
     async def enroll_request(req: EnrollRequest) -> dict:
