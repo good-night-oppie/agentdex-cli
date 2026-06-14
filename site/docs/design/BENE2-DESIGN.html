@@ -18,7 +18,6 @@ a:hover { color:var(--accent); }
 .top a.nav { color:var(--mute); text-decoration:none; font-size:14px; }
 .top a.nav:hover { color:var(--accent); }
 .wrap { max-width:1200px; margin:0 auto; padding:24px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:40px; }
-@media (max-width: 860px) { .wrap { grid-template-columns:1fr; } aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-bottom:16px; } }
 aside.sb { position:sticky; top:80px; align-self:start; max-height:calc(100vh - 100px); overflow-y:auto; font-size:13.5px; border-left:1px solid var(--border); padding-left:16px; }
 .sb h4 { margin:18px 0 6px; font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
 .sb a { display:block; padding:3px 0; color:var(--mute); text-decoration:none; }
@@ -51,6 +50,20 @@ footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "JetBra
 .idx-group ul { list-style:none; padding:0; margin:.4em 0; }
 .idx-group li { padding:6px 0; border-bottom:1px dashed var(--border); }
 .idx-group .path { font:11.5px "JetBrains Mono",monospace; color:var(--mute); margin-left:8px; }
+/* Mobile overrides — kept at the end so source order beats base rules.
+   Earlier this rule sat between base rules and got overridden by a later
+   `aside.sb { position:sticky }`, leaving the sidebar stuck on top of
+   main content on phones. */
+@media (max-width: 860px) {
+  .wrap { grid-template-columns:1fr; gap:24px; padding:16px; }
+  aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-left:0; padding-bottom:16px; font-size:13px; }
+  .sb h4 { margin:12px 0 4px; }
+  main { max-width:none; }
+  main h1 { font-size:1.6rem; }
+  main h2 { font-size:1.2rem; }
+  main h3 { font-size:1.05rem; }
+  .top-in { padding:0 16px; gap:14px; }
+}
 
 pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -174,9 +187,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Evidence and research</h4>
 <a href="../research/GAP-AUDIT.html">GAP-AUDIT</a>
 <a href="../research/SYNTHESIS.html">SYNTHESIS</a>
+<a href="../research/tech-doc-writing-2026.html">tech-doc-writing-2026</a>
 <h4>Benchmarks and gates</h4>
+<a href="../benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT</a>
 <a href="../benchmarks/PREREG.html">PREREG</a>
-<a href="../benchmarks/RIVAL-BENCH-REPORT.html">RIVAL-BENCH-REPORT</a>
 <h4>Tutorial playbooks</h4>
 <a href="../tutorials/t00-bene-e2e-walkthrough.html">t00-bene-e2e-walkthrough</a>
 <a href="../tutorials/t01-bene-meta-harness.html">t01-bene-meta-harness</a>
@@ -201,7 +215,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>2.0 thesis: <em>everything is an engram.</em> One typed, append-only, provenance-linked substrate under five capability pillars, with falsifiable gates on everything that evolves and an autonomy ladder on everything that acts.</p>
 </blockquote>
 <p>Design rationale (every decision argued through science / compression / engineering lenses): <code>DESIGN-RATIONALE.md</code> (D1–D10).
-Paper grounding: <code>../research/SYNTHESIS.md</code> (48 citations). Rival evidence: <code>../research/GAP-AUDIT.md</code>.
+Paper grounding: <code>../research/SYNTHESIS.md</code> (48 citations). Community-peer evidence: <code>../research/GAP-AUDIT.md</code>.
 Buildable spec (DDL + APIs + port plan): <code>KERNEL-SPEC.md</code>.</p>
 <hr />
 <h2 id="1-kernel-overview">1. Kernel overview</h2>
@@ -280,7 +294,7 @@ Buildable spec (DDL + APIs + port plan): <code>KERNEL-SPEC.md</code>.</p>
 <li><strong>Plasticity</strong>: outcome-recency weighting on procedural engrams (use/success with decay), demotion/retirement for skills that start failing (substrate shipped: superseded_by + link weights; decay policy planned) — addressing GAP-AUDIT BENE-4. <em>(Papers: SKILLGRAPH edge reinforcement/decay; MUSE-Autoskill lifecycle states.)</em></li>
 </ul>
 <h3 id="pillar-2-evolution-engine-the-breeding-program">Pillar 2 — Evolution engine (the Breeding Program)</h3>
-<p><code>bene/kernel/evolve/</code> — text-genome evolution over harness strategies [D7], beyond both rivals' search loops:</p>
+<p><code>bene/kernel/evolve/</code> — text-genome evolution over harness strategies [D7], beyond both peers' search loops:</p>
 <ul>
 <li><strong>Structured genomes</strong>: not prompt blobs — components (memory policy, retrieval policy, context strategy, tool config, prompt) mutated independently with per-component credit assignment. <em>(Papers: Meta-Harness — the harness IS the search space; AHE — prompt-only edits score below seed; ADOPT — Shapley budget across components.)</em></li>
 <li><strong>Reflective mutation</strong>: failure traces → textual gradients → targeted mutations (pluggable <code>reflect_fn</code>; deterministic in tests, LLM in production). <em>(Papers: GEPA; LangChain Deep Agents pt 1 trace-analyzer.)</em></li>
@@ -290,15 +304,15 @@ Buildable spec (DDL + APIs + port plan): <code>KERNEL-SPEC.md</code>.</p>
 <li><strong>Kill-gated promotion</strong> [D3]: <code>promote(candidate)</code> requires an ACCEPT verdict; the verifier is process-isolated from the evolver (AEVO: removing that boundary produced reward hacking in 2/3 runs).</li>
 </ul>
 <h3 id="pillar-3-memory-context-os-other-memory">Pillar 3 — Memory &amp; context OS (Other Memory)</h3>
-<p><code>bene/kernel/memory/</code> — beyond both rivals' flat FTS5 (GAP-AUDIT KAOS-7, BENE-5):</p>
+<p><code>bene/kernel/memory/</code> — beyond both peers' flat FTS5 (GAP-AUDIT KAOS-7, BENE-5):</p>
 <ul>
 <li><strong>Granules</strong>: turn/episode/semantic/procedural levels = ladder tiers 0–3, with association links; consolidation is promotion. <em>(Papers: MemGAS multi-granularity + association graph; GAM — raw pages kept, light memo index, research-on-demand instead of lossy precompute.)</em></li>
 <li><strong>Adaptive retrieval</strong>: familiarity-gated fast path (repeat/near-duplicate queries short-circuit) vs slow associative path (FTS + link expansion), uncertainty decides spend; the served path is recorded on the query engram so the choice is auditable and testable. <em>(Paper: RF-Mem.)</em></li>
 <li><strong>Context OS</strong>: token-budget manager + pluggable packing strategies + signal-driven routing (long-horizon? high error rate? → different strategy), returning a <em>manifest</em> of what was included and dropped — context assembly becomes transparent (trust pillar). <em>(Papers: AgentSwing fork/lookahead/route; Schmid context=RAM; ReCAP plan re-injection; RLM metadata-only history; PEARL planned sub-reads.)</em></li>
-<li><strong>Pollution defense</strong> — a capability class neither rival has: deterministic contamination signals (repeated failed tool calls on one target, error-rate spike, contradiction markers) → pollution engram → recovery: <em>consolidate requirements from the trace, then checkpoint-restore or respawn with clean consolidated context</em> — because recap-in-place measurably fails. Re-highlighting evidence already in context (VEA) is the cheap intervention to try first (planned — see CLAIMS-AUDIT). <em>(Papers: Lost in Conversation; VEA; AgentSwing.)</em></li>
+<li><strong>Pollution defense</strong> — a capability class neither peer has: deterministic contamination signals (repeated failed tool calls on one target, error-rate spike, contradiction markers) → pollution engram → recovery: <em>consolidate requirements from the trace, then checkpoint-restore or respawn with clean consolidated context</em> — because recap-in-place measurably fails. Re-highlighting evidence already in context (VEA) is the cheap intervention to try first (planned — see CLAIMS-AUDIT). <em>(Papers: Lost in Conversation; VEA; AgentSwing.)</em></li>
 </ul>
 <h3 id="pillar-4-harness-engineering-layer">Pillar 4 — Harness-engineering layer</h3>
-<p><code>bene/kernel/harness/</code> — the OpenAI/Anthropic/LangChain canon as primitives (no rival has this layer in code: GAP-AUDIT KAOS-3, BENE-7):</p>
+<p><code>bene/kernel/harness/</code> — the OpenAI/Anthropic/LangChain canon as primitives (no peer has this layer in code: GAP-AUDIT KAOS-3, BENE-7):</p>
 <ul>
 <li><strong>Autonomy ladder</strong> (§3): enforced at capability dispatch; denials are trust events.</li>
 <li><strong>Agent senses</strong>: a generated, machine-readable manifest of the engagement (agents, capabilities + levels, skills, memory domains, recent activity, entry-point commands) — the ~100-line map-not-encyclopedia an incoming agent reads first; plus the existing observability surfaces (events, logs, UI). <em>(Papers: OpenAI HE pt 2 — give agents senses; pt 3 — discoverability, index-not-encyclopedia.)</em></li>
@@ -359,12 +373,12 @@ Buildable spec (DDL + APIs + port plan): <code>KERNEL-SPEC.md</code>.</p>
 </table>
 <p>Each step up is a nine (K); each gate is a falsifiable artifact, not a vibe (H/S). Grants are per-agent and revocable; capability classes may require higher levels than the agent's general grant (jaggedness: per-capability autonomy requirements; per-domain trust scoring planned).</p>
 <h2 id="4-subsumption-table-complete">4. Subsumption table (complete)</h2>
-<p>Every verified rival capability → its BENE 2.0 mechanism. <strong>kept</strong> = legacy module retained as-is (adapter optional); <strong>re-derived</strong> = rebuilt on the engram substrate; <strong>surpassed</strong> = strictly more capable mechanism; a trailing <strong>+</strong> = retained with kernel-era additions.</p>
+<p>Every verified peer capability → its BENE 2.0 mechanism. <strong>kept</strong> = legacy module retained as-is (adapter optional); <strong>re-derived</strong> = rebuilt on the engram substrate; <strong>surpassed</strong> = strictly more capable mechanism; a trailing <strong>+</strong> = retained with kernel-era additions.</p>
 <table>
 <thead>
 <tr>
 <th>#</th>
-<th>Rival</th>
+<th>Peer</th>
 <th>Capability</th>
 <th>BENE 2.0 mechanism</th>
 <th>Verdict</th>
@@ -759,15 +773,15 @@ Buildable spec (DDL + APIs + port plan): <code>KERNEL-SPEC.md</code>.</p>
 </tbody>
 </table>
 <p>No row is blank. Tally: 20 kept / 11 kept+ / 7 re-derived / 17 surpassed.</p>
-<h2 id="5-beyond-both-capabilities-neither-rival-has">5. Beyond both — capabilities neither rival has</h2>
+<h2 id="5-beyond-both-capabilities-neither-peer-has">5. Beyond both — capabilities neither peer has</h2>
 <ol>
-<li><strong>Engram compression ladder with mandatory provenance</strong> — one lineage-queryable substrate from raw trace to strategy gene (D1+D2). Neither rival can answer "which traces does this skill compress, and did they pass eval?"</li>
+<li><strong>Engram compression ladder with mandatory provenance</strong> — one lineage-queryable substrate from raw trace to strategy gene (D1+D2). Neither peer can answer "which traces does this skill compress, and did they pass eval?"</li>
 <li><strong>Context-pollution detection + consolidate-then-recover</strong> — measured failure mode (Lost in Conversation), detected and recovered, wired to checkpoints (KAOS-4, BENE-6: zero hits for pollution in either).</li>
 <li><strong>Enforced autonomy ladder with computed-trust gating</strong> (per-capability autonomy levels; per-domain trust breakdown planned) — KAOS has a markdown file; BENE 0.1.0 has binary run/kill (KAOS-3, BENE-7).</li>
 <li><strong>Computed trust ledger + trust-weighted consensus</strong> — agent reputation derived from verification artifacts, consumed by the ladder and the shared log (KAOS-5, BENE-8).</li>
 <li><strong>Kill-gated promotion for evolution</strong> — probes existed (KAOS) and Pareto existed (BENE), but <em>neither wires verdicts into promotion</em>; BENE 2.0 makes <code>PromotionBlocked</code> a kernel exception (BENE-9, KAOS-6).</li>
 <li><strong>Strategy genes + structured genomes with per-component credit</strong> — control-signal-dense evolution units vs prompt-blob mutation (AHE finding: prompt-only edits underperform seed).</li>
-<li><strong>Adaptive fast/slow retrieval with auditable path choice</strong> — uncertainty-gated retrieval spend; both rivals are single-path FTS5 (KAOS-14, BENE-5).</li>
+<li><strong>Adaptive fast/slow retrieval with auditable path choice</strong> — uncertainty-gated retrieval spend; both peers are single-path FTS5 (KAOS-14, BENE-5).</li>
 <li><strong>Agent senses generated from the live database</strong> — discoverability that cannot rot, vs hand-maintained docs that demonstrably do (KAOS-8, KAOS-13, BENE-12).</li>
 </ol>
 <h2 id="6-what-bene-20-deliberately-does-not-do">6. What BENE 2.0 deliberately does <em>not</em> do</h2>

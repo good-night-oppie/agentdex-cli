@@ -18,7 +18,6 @@ a:hover { color:var(--accent); }
 .top a.nav { color:var(--mute); text-decoration:none; font-size:14px; }
 .top a.nav:hover { color:var(--accent); }
 .wrap { max-width:1200px; margin:0 auto; padding:24px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:40px; }
-@media (max-width: 860px) { .wrap { grid-template-columns:1fr; } aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-bottom:16px; } }
 aside.sb { position:sticky; top:80px; align-self:start; max-height:calc(100vh - 100px); overflow-y:auto; font-size:13.5px; border-left:1px solid var(--border); padding-left:16px; }
 .sb h4 { margin:18px 0 6px; font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
 .sb a { display:block; padding:3px 0; color:var(--mute); text-decoration:none; }
@@ -51,6 +50,20 @@ footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "JetBra
 .idx-group ul { list-style:none; padding:0; margin:.4em 0; }
 .idx-group li { padding:6px 0; border-bottom:1px dashed var(--border); }
 .idx-group .path { font:11.5px "JetBrains Mono",monospace; color:var(--mute); margin-left:8px; }
+/* Mobile overrides — kept at the end so source order beats base rules.
+   Earlier this rule sat between base rules and got overridden by a later
+   `aside.sb { position:sticky }`, leaving the sidebar stuck on top of
+   main content on phones. */
+@media (max-width: 860px) {
+  .wrap { grid-template-columns:1fr; gap:24px; padding:16px; }
+  aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-left:0; padding-bottom:16px; font-size:13px; }
+  .sb h4 { margin:12px 0 4px; }
+  main { max-width:none; }
+  main h1 { font-size:1.6rem; }
+  main h2 { font-size:1.2rem; }
+  main h3 { font-size:1.05rem; }
+  .top-in { padding:0 16px; gap:14px; }
+}
 
 pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -174,9 +187,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Evidence and research</h4>
 <a href="../research/GAP-AUDIT.html">GAP-AUDIT</a>
 <a href="../research/SYNTHESIS.html">SYNTHESIS</a>
+<a href="../research/tech-doc-writing-2026.html">tech-doc-writing-2026</a>
 <h4>Benchmarks and gates</h4>
+<a href="../benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT</a>
 <a href="../benchmarks/PREREG.html">PREREG</a>
-<a href="../benchmarks/RIVAL-BENCH-REPORT.html">RIVAL-BENCH-REPORT</a>
 <h4>Tutorial playbooks</h4>
 <a href="../tutorials/t00-bene-e2e-walkthrough.html">t00-bene-e2e-walkthrough</a>
 <a href="../tutorials/t01-bene-meta-harness.html">t01-bene-meta-harness</a>
@@ -231,15 +245,17 @@ questions they ask, not for anyone who asks them:</p>
   Build to understand; keep boring, specific things specific; resist the urge
   to be a hero.</li>
 </ul>
-<p>A disclosure that doubles as a method: both "rivals" audited throughout this
-document are our own prior frameworks. The audit reads harsher than most
+<p>A disclosure that doubles as a method: both community peers audited throughout
+this document are our own prior frameworks. The audit reads harsher than most
 competitive analyses because we had commit access to the evidence — every
-shortcoming cited here (GAP-AUDIT) is something we did to ourselves first.</p>
+shortcoming cited here (GAP-AUDIT) is something we did to ourselves first.
+(Earlier drafts called these "rivals"; per the 2026-06-14 reframe they are
+peer projects in the same OSS community — same lineage, different generation.)</p>
 <p>Paper citations refer to <code>docs/research/SYNTHESIS.md</code>; shortcoming numbers
 refer to <code>docs/research/GAP-AUDIT.md</code>.</p>
 <hr />
 <h2 id="d1-one-engram-substrate-not-five-stores">D1 — One engram substrate, not five stores</h2>
-<p><strong>Decision:</strong> Traces, memories, skills, eval verdicts, experiments, and strategies become <em>kinds of engram</em> in a single typed, append-only, provenance-linked substrate (<code>bene/kernel/engrams.py</code>), instead of the five separate stores both rivals use (memory.py + skills.py + experiments.py + eval/ + dream/ in KAOS; memory.py + skills.py + metaharness archive in BENE 0.1.0).</p>
+<p><strong>Decision:</strong> Traces, memories, skills, eval verdicts, experiments, and strategies become <em>kinds of engram</em> in a single typed, append-only, provenance-linked substrate (<code>bene/kernel/engrams.py</code>), instead of the five separate stores both peers use (memory.py + skills.py + experiments.py + eval/ + dream/ in KAOS; memory.py + skills.py + metaharness archive in BENE 0.1.0).</p>
 <ul>
 <li><strong>Science:</strong> the interesting signals appear at the <em>joins</em> (a skill's eval history, a memory's source trace). Separate stores make the joins expensive, so nobody computes them — measurably: in our own KAOS, probe verdicts never wrote back into MemoryStore/SkillStore (GAP-AUDIT KAOS-6). We built the instrument and then never looked through it.</li>
 <li><strong>Compression:</strong> five stores with five schemas and five search paths is five answers to one question. One substrate with kinds is the compressed representation of what these all are — <em>records of experience at different compression levels</em>.</li>

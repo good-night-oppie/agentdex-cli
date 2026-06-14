@@ -1290,7 +1290,21 @@ def main(argv: list[str]) -> int:
     check_orphans(ctx)
 
     # Per-file checks
-    md_files = [p for p in files if p.exists() and p.suffix == ".md"]
+    # site/ holds deploy artifacts (HTML, mirrored markdown like SKILL.md)
+    # served as static files; they are NOT source docs that should satisfy
+    # the spec lint rules — matches the existing docs/references/external/
+    # verbatim-upstream carve-out at check_doc().
+    def _is_deploy_artifact(p: Path) -> bool:
+        try:
+            rel = str(p.resolve().relative_to(repo))
+        except ValueError:
+            return False
+        return rel.startswith("site/") or rel == "site"
+
+    md_files = [
+        p for p in files
+        if p.exists() and p.suffix == ".md" and not _is_deploy_artifact(p)
+    ]
     for md in md_files:
         check_doc(ctx, md)
 

@@ -18,7 +18,6 @@ a:hover { color:var(--accent); }
 .top a.nav { color:var(--mute); text-decoration:none; font-size:14px; }
 .top a.nav:hover { color:var(--accent); }
 .wrap { max-width:1200px; margin:0 auto; padding:24px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:40px; }
-@media (max-width: 860px) { .wrap { grid-template-columns:1fr; } aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-bottom:16px; } }
 aside.sb { position:sticky; top:80px; align-self:start; max-height:calc(100vh - 100px); overflow-y:auto; font-size:13.5px; border-left:1px solid var(--border); padding-left:16px; }
 .sb h4 { margin:18px 0 6px; font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
 .sb a { display:block; padding:3px 0; color:var(--mute); text-decoration:none; }
@@ -51,6 +50,20 @@ footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "JetBra
 .idx-group ul { list-style:none; padding:0; margin:.4em 0; }
 .idx-group li { padding:6px 0; border-bottom:1px dashed var(--border); }
 .idx-group .path { font:11.5px "JetBrains Mono",monospace; color:var(--mute); margin-left:8px; }
+/* Mobile overrides — kept at the end so source order beats base rules.
+   Earlier this rule sat between base rules and got overridden by a later
+   `aside.sb { position:sticky }`, leaving the sidebar stuck on top of
+   main content on phones. */
+@media (max-width: 860px) {
+  .wrap { grid-template-columns:1fr; gap:24px; padding:16px; }
+  aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-left:0; padding-bottom:16px; font-size:13px; }
+  .sb h4 { margin:12px 0 4px; }
+  main { max-width:none; }
+  main h1 { font-size:1.6rem; }
+  main h2 { font-size:1.2rem; }
+  main h3 { font-size:1.05rem; }
+  .top-in { padding:0 16px; gap:14px; }
+}
 
 pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -174,9 +187,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Evidence and research</h4>
 <a href="research/GAP-AUDIT.html">GAP-AUDIT</a>
 <a href="research/SYNTHESIS.html">SYNTHESIS</a>
+<a href="research/tech-doc-writing-2026.html">tech-doc-writing-2026</a>
 <h4>Benchmarks and gates</h4>
+<a href="benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT</a>
 <a href="benchmarks/PREREG.html">PREREG</a>
-<a href="benchmarks/RIVAL-BENCH-REPORT.html">RIVAL-BENCH-REPORT</a>
 <h4>Tutorial playbooks</h4>
 <a href="tutorials/t00-bene-e2e-walkthrough.html">t00-bene-e2e-walkthrough</a>
 <a href="tutorials/t01-bene-meta-harness.html">t01-bene-meta-harness</a>
@@ -195,7 +209,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="infra/DNS.html">DNS</a></aside>
 <main>
 
-<h1>BENE documentation</h1><p>37 documents, generated from <code>docs/</code>. Pick the job you are doing: start local, rewind a bad turn, connect an agent, verify a claim, or scale a run. These are the same files you can read <a href="https://github.com/EdwardTang/bene-site/tree/main/docs" target="_blank" rel="noopener noreferrer">on GitHub</a>. Edit the markdown, rerun <code>site/build-docs.py</code>; never edit the HTML.</p><div class="demo-embed"><div class="frame"><div class="dots"><i></i><i></i><i></i></div><img src="../assets/demos/demo-keyless.gif" alt="Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD." loading="lazy" onerror="this.closest('.demo-embed').style.display='none'"></div><p>Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD.</p></div><div class="idx-group"><h2>Start, operate, recover</h2><ul><li><a href="README.html">BENE Documentation</a><span class="path">docs/README.md</span></li>
+<h1>BENE documentation</h1><p>42 documents, generated from <code>docs/</code>. Pick the job you are doing: start local, rewind a bad turn, connect an agent, verify a claim, or scale a run. These are the same files you can read <a href="https://github.com/EdwardTang/bene-site/tree/main/docs" target="_blank" rel="noopener noreferrer">on GitHub</a>. Edit the markdown, rerun <code>site/build-docs.py</code>; never edit the HTML.</p><div class="demo-embed"><div class="frame"><div class="dots"><i></i><i></i><i></i></div><img src="../assets/demos/demo-keyless.gif" alt="Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD." loading="lazy" onerror="this.closest('.demo-embed').style.display='none'"></div><p>Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD.</p></div><div class="idx-group"><h2>Start, operate, recover</h2><ul><li><a href="README.html">BENE Documentation</a><span class="path">docs/README.md</span></li>
 <li><a href="architecture.html">BENE Architecture</a><span class="path">docs/architecture.md</span></li>
 <li><a href="checkpoints.html">Checkpoints — undo for agents</a><span class="path">docs/checkpoints.md</span></li>
 <li><a href="cli-reference.html">BENE CLI Reference</a><span class="path">docs/cli-reference.md</span></li>
@@ -214,8 +228,13 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li><a href="design/CLAIMS-AUDIT.html">BENE 2.0 — Claims Audit (2026-06-13)</a><span class="path">docs/design/CLAIMS-AUDIT.md</span></li>
 <li><a href="design/DESIGN-RATIONALE.html">BENE 2.0 — Design Rationale</a><span class="path">docs/design/DESIGN-RATIONALE.md</span></li>
 <li><a href="design/KERNEL-SPEC.html">BENE 2.0 — Kernel Spec (buildable)</a><span class="path">docs/design/KERNEL-SPEC.md</span></li></ul></div><div class="idx-group"><h2>Evidence and research</h2><ul><li><a href="research/GAP-AUDIT.html">KAOS &amp; the 0.1.0 predecessor/BENE-0.1.0 Gap Audit</a><span class="path">docs/research/GAP-AUDIT.md</span></li>
-<li><a href="research/SYNTHESIS.html">BENE 2.0 Research Synthesis</a><span class="path">docs/research/SYNTHESIS.md</span></li></ul></div><div class="idx-group"><h2>Benchmarks and gates</h2><ul><li><a href="benchmarks/PREREG.html">Pre-registered Evaluation Protocol — BENE vs KAOS/the 0.1.0 predecessor unique benchmarks</a><span class="path">docs/benchmarks/PREREG.md</span></li>
-<li><a href="benchmarks/RIVAL-BENCH-REPORT.html">RIVAL-BENCH-REPORT — BENE vs KAOS/the 0.1.0 predecessor unique benchmarks (pre-registered run, 2026-06-11)</a><span class="path">docs/benchmarks/RIVAL-BENCH-REPORT.md</span></li></ul></div><div class="idx-group"><h2>Tutorial playbooks</h2><ul><li><a href="tutorials/t00-bene-e2e-walkthrough.html">BENE in 10 Minutes: An End-to-End Walkthrough</a><span class="path">docs/tutorials/t00-bene-e2e-walkthrough.md</span></li>
+<li><a href="research/SYNTHESIS.html">BENE 2.0 Research Synthesis</a><span class="path">docs/research/SYNTHESIS.md</span></li>
+<li><a href="research/product-comms/mom-test.html">The Mom Test — Rob Fitzpatrick</a><span class="path">docs/research/product-comms/mom-test.md</span></li>
+<li><a href="research/product-comms/nobody-wants-to-read.html">Nobody Wants to Read Your Sht — Steven Pressfield</a><span class="path">docs/research/product-comms/nobody-wants-to-read.md</span></li>
+<li><a href="research/product-comms/on-writing-well.html">On Writing Well: The Classic Guide to Writing Nonfiction — William Zinsser</a><span class="path">docs/research/product-comms/on-writing-well.md</span></li>
+<li><a href="research/product-comms/storyworthy.html">Storyworthy: Engage, Teach, Persuade, and Change Your Life through the Power of Storytelling — Matthew Dicks</a><span class="path">docs/research/product-comms/storyworthy.md</span></li>
+<li><a href="research/tech-doc-writing-2026.html">Tech-doc writing 2026 — distilled evidence base</a><span class="path">docs/research/tech-doc-writing-2026.md</span></li></ul></div><div class="idx-group"><h2>Benchmarks and gates</h2><ul><li><a href="benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT — BENE alongside KAOS/the 0.1.0 predecessor across community benchmarks (pre-registered run, 2026-06-11)</a><span class="path">docs/benchmarks/COMMUNITY-BENCH-REPORT.md</span></li>
+<li><a href="benchmarks/PREREG.html">Pre-registered Evaluation Protocol — BENE vs KAOS/the 0.1.0 predecessor unique benchmarks</a><span class="path">docs/benchmarks/PREREG.md</span></li></ul></div><div class="idx-group"><h2>Tutorial playbooks</h2><ul><li><a href="tutorials/t00-bene-e2e-walkthrough.html">BENE in 10 Minutes: An End-to-End Walkthrough</a><span class="path">docs/tutorials/t00-bene-e2e-walkthrough.md</span></li>
 <li><a href="tutorials/t01-bene-meta-harness.html">From 48% to 83%: How BENE v0.6.0 Automates Multi-Agent AI Research</a><span class="path">docs/tutorials/t01-bene-meta-harness.md</span></li>
 <li><a href="tutorials/t02-e2e-self-healing.html">Undo an Agent&#x27;s Bad Fix in 0.3 Seconds, Repo Untouched</a><span class="path">docs/tutorials/t02-e2e-self-healing.md</span></li>
 <li><a href="tutorials/t03-security-swarm.html">Parallel security review: four agents, one query</a><span class="path">docs/tutorials/t03-security-swarm.md</span></li>

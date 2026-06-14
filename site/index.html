@@ -140,12 +140,15 @@ const Nav = ({ theme, setTheme }) => {
           </svg>
           <span className="font-display font-bold tracking-widest text-sm">BENE</span>
         </div>
-        <div className="hidden md:flex items-center gap-6">
-          {links.map(l => (
-            <button key={l.id} onClick={() => scrollTo(l.id)} className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">{l.label}</button>
-          ))}
-          <a href="docs/index.html" className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">Docs</a>
-          <a href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">GitHub</a>
+        <div className="flex items-center gap-3 md:gap-6">
+          <div className="hidden md:flex items-center gap-6">
+            {links.map(l => (
+              <button key={l.id} onClick={() => scrollTo(l.id)} className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">{l.label}</button>
+            ))}
+          </div>
+          <a href="docs/index.html" className="font-mono text-xs text-bene-accent hover:bg-bene-accent/10 transition-colors border border-bene-accent rounded-sm px-3 py-1">Docs ↗</a>
+          <a href="SKILL.md" target="_blank" rel="noopener noreferrer" className="hidden sm:inline font-mono text-xs text-bene-text hover:text-bene-accent transition-colors" title="Drop this into your agent to make it a BENE expert (raw markdown)">SKILL.md</a>
+          <a href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" className="hidden sm:inline font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors">GitHub</a>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="font-mono text-xs text-bene-muted hover:text-bene-accent transition-colors border border-bene-dim rounded-sm px-2 py-1"
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
@@ -192,6 +195,15 @@ const Hero = () => (
         <br />
         sqlite3 bene.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY ts DESC LIMIT 5;"</span>
       </Terminal>
+      <div className="mt-6 flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+        <p className="text-sm text-bene-muted leading-snug">
+          <span className="text-bene-text font-medium">Hand BENE to your agent in one URL.</span> Your agent can fetch the full skill — gates, blacklists, recipes, schema — and run BENE itself instead of you babysitting it.
+        </p>
+        <a href="SKILL.md" target="_blank" rel="noopener noreferrer"
+           className="font-mono text-xs text-bene-accent hover:bg-bene-accent/10 transition-colors border border-bene-accent rounded-sm px-3 py-2 whitespace-nowrap shrink-0">
+          curl /bene/SKILL.md ↗
+        </a>
+      </div>
     </div>
   </section>
 );
@@ -323,7 +335,7 @@ const Comparison = () => {
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
-            <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/benchmarks/RIVAL-BENCH-REPORT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">RIVAL-BENCH-REPORT.md</a>
+            <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/benchmarks/COMMUNITY-BENCH-REPORT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">COMMUNITY-BENCH-REPORT.md</a>
           </div>
         </div>
       </div>
@@ -508,7 +520,7 @@ const Limits = () => {
     { t: 'Single-shot one-file edits', d: "A plain agent is faster. BENE's spawn + checkpoint + engram overhead doesn't pay off below roughly 3 agents or 3 steps." },
     { t: 'Hard OS sandboxing', d: 'Per-agent VFS is logical isolation, not a container. For untrusted code, use Docker, Firecracker, or E2B.' },
     { t: 'Realtime sub-100ms loops', d: 'CLI spawn + uv overhead per call is the floor; SQLite write fsync sets the throughput. Batch yes. Realtime serving no.' },
-    { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Adaptive ranking is currently static BM25 (measured −13.3pp vs outcome-weighted ranking in RIVAL-BENCH A1b). Outcome-weighted ranking is planned, not shipped.' },
+    { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Adaptive ranking is currently static BM25 (measured −13.3pp vs outcome-weighted ranking in the COMMUNITY-BENCH A1b row against KAOS). Outcome-weighted ranking is planned, not shipped.' },
   ];
   return (
     <Section id="limits">

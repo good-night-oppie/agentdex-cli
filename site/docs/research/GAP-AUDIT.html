@@ -18,7 +18,6 @@ a:hover { color:var(--accent); }
 .top a.nav { color:var(--mute); text-decoration:none; font-size:14px; }
 .top a.nav:hover { color:var(--accent); }
 .wrap { max-width:1200px; margin:0 auto; padding:24px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:40px; }
-@media (max-width: 860px) { .wrap { grid-template-columns:1fr; } aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-bottom:16px; } }
 aside.sb { position:sticky; top:80px; align-self:start; max-height:calc(100vh - 100px); overflow-y:auto; font-size:13.5px; border-left:1px solid var(--border); padding-left:16px; }
 .sb h4 { margin:18px 0 6px; font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
 .sb a { display:block; padding:3px 0; color:var(--mute); text-decoration:none; }
@@ -51,6 +50,20 @@ footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "JetBra
 .idx-group ul { list-style:none; padding:0; margin:.4em 0; }
 .idx-group li { padding:6px 0; border-bottom:1px dashed var(--border); }
 .idx-group .path { font:11.5px "JetBrains Mono",monospace; color:var(--mute); margin-left:8px; }
+/* Mobile overrides — kept at the end so source order beats base rules.
+   Earlier this rule sat between base rules and got overridden by a later
+   `aside.sb { position:sticky }`, leaving the sidebar stuck on top of
+   main content on phones. */
+@media (max-width: 860px) {
+  .wrap { grid-template-columns:1fr; gap:24px; padding:16px; }
+  aside.sb { position:static; max-height:none; border-left:none; border-bottom:1px solid var(--border); padding-left:0; padding-bottom:16px; font-size:13px; }
+  .sb h4 { margin:12px 0 4px; }
+  main { max-width:none; }
+  main h1 { font-size:1.6rem; }
+  main h2 { font-size:1.2rem; }
+  main h3 { font-size:1.05rem; }
+  .top-in { padding:0 16px; gap:14px; }
+}
 
 pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -174,9 +187,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Evidence and research</h4>
 <a class="cur" href="../research/GAP-AUDIT.html">GAP-AUDIT</a>
 <a href="../research/SYNTHESIS.html">SYNTHESIS</a>
+<a href="../research/tech-doc-writing-2026.html">tech-doc-writing-2026</a>
 <h4>Benchmarks and gates</h4>
+<a href="../benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT</a>
 <a href="../benchmarks/PREREG.html">PREREG</a>
-<a href="../benchmarks/RIVAL-BENCH-REPORT.html">RIVAL-BENCH-REPORT</a>
 <h4>Tutorial playbooks</h4>
 <a href="../tutorials/t00-bene-e2e-walkthrough.html">t00-bene-e2e-walkthrough</a>
 <a href="../tutorials/t01-bene-meta-harness.html">t01-bene-meta-harness</a>
@@ -199,10 +213,19 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>Historical snapshot</strong> — audited at commit <code>6c55fa3</code> (v0.1.0 baseline, 2026-06). BENE 0.2.0 (shipped 2026-06-11) closes most BENE-side gaps below; for current state see <code>docs/design/BENE2-DESIGN.md</code> §4 and <code>docs/design/CLAIMS-AUDIT.md</code>.</p>
 </blockquote>
-<p>Purpose: evidence base for the "subsume and surpass" claims of BENE 2.0. This audit inventories the two rival lineages — KAOS v0.9.1 (the sibling orchestration framework at <code>/home/admin/gh/kaos</code>) and BENE 0.1.0 itself (the rebranded the 0.1.0 predecessor, this repo) — enumerates each rival's verified capability surface, and documents each rival's shortcomings with verbatim, command-level evidence. The subsumption table at the end lists every capability from both rivals as a row; the "BENE 2.0 mechanism" column was a skeleton; phase 2 filled all 55 rows in <code>docs/design/BENE2-DESIGN.md</code> §4. Every claim below was verified against source (grep/find/read), not docs alone — both rivals' CLAUDE.md files are stale on their own MCP tool counts.</p>
-<p>Rival framing:
-- <strong>Rival 1 — KAOS v0.9.1</strong> ("Kernel for Agent Orchestration &amp; Sandboxing"). Local-first multi-agent orchestration framework; per-agent SQLite-backed VFS, no embeddings/GPU/external services required. Direct sibling/rival of BENE (same lineage: same CLAUDE.md skeleton, same banned-litellm/raw-httpx rules, same AI-feedback policy) but 8 minor versions ahead (v0.9.1 vs BENE v0.1.0) with a much larger mechanism surface: 58 MCP tools vs BENE's 18-claimed/37-actual, plus dream/neuroplasticity/eval-probe/experiment/ideal-state/war-room layers BENE lacks.
-- <strong>Rival 2 — BENE 0.1.0 (predecessor lineage)</strong>. Per <code>.supergoal/phases/phase-1.md</code>: "Rival 2: the 0.1.0 predecessor ≈ bene 0.1.0 itself (this repo IS the rebranded the 0.1.0 predecessor; original at $PREDECESSOR_SRC)". BENE/the 0.1.0 predecessor's edges over KAOS are the temporal/ durable runtime, the storage/ protocol (sqlite+postgres), and the runtime/ abstraction — while KAOS holds exactly the surfaces BENE lacks (eval probes w/ falsify/verify, dream consolidation, experiment journal, failure diagnose/lookup store, ideal-state artifacts, systemic alerts).</p>
+<p>Purpose: evidence base for the "subsume and surpass" claims of BENE 2.0. This audit inventories two community-peer lineages — KAOS v0.9.1 (the sibling orchestration framework at <code>/home/admin/gh/kaos</code>) and BENE 0.1.0 itself (the rebranded the 0.1.0 predecessor, this repo) — enumerates each peer's verified capability surface, and documents each peer's shortcomings with verbatim, command-level evidence. The subsumption table at the end lists every capability from both peers as a row; the "BENE 2.0 mechanism" column was a skeleton; phase 2 filled all 55 rows in <code>docs/design/BENE2-DESIGN.md</code> §4. Every claim below was verified against source (grep/find/read), not docs alone — both peers' CLAUDE.md files are stale on their own MCP tool counts.</p>
+<blockquote>
+<p><strong>Co-opetition note (2026-06-14).</strong> Prior versions of this doc framed
+KAOS and the 0.1.0 predecessor as "rivals". We are one OSS community;
+they are peer projects whose ground we share. "Subsume and surpass"
+language is preserved where it appears in cited section headings of
+<code>docs/design/BENE2-DESIGN.md</code>, because the design-doc shape there is
+evidence-of-capability-coverage, not competitive ranking. Throughout
+this audit, <em>rival</em> → <em>peer</em>.</p>
+</blockquote>
+<p>Community-peer framing:
+- <strong>Peer 1 — KAOS v0.9.1</strong> ("Kernel for Agent Orchestration &amp; Sandboxing"). Local-first multi-agent orchestration framework; per-agent SQLite-backed VFS, no embeddings/GPU/external services required. Direct sibling of BENE (same lineage: same CLAUDE.md skeleton, same banned-litellm/raw-httpx rules, same AI-feedback policy) but 8 minor versions ahead (v0.9.1 vs BENE v0.1.0) with a much larger mechanism surface: 58 MCP tools vs BENE's 18-claimed/37-actual, plus dream/neuroplasticity/eval-probe/experiment/ideal-state/war-room layers BENE lacks.
+- <strong>Peer 2 — BENE 0.1.0 (predecessor lineage)</strong>. Per <code>.supergoal/phases/phase-1.md</code>: "Peer 2: the 0.1.0 predecessor ≈ bene 0.1.0 itself (this repo IS the rebranded the 0.1.0 predecessor; original at $PREDECESSOR_SRC)". BENE/the 0.1.0 predecessor's edges over KAOS are the temporal/ durable runtime, the storage/ protocol (sqlite+postgres), and the runtime/ abstraction — while KAOS holds exactly the surfaces BENE lacks (eval probes w/ falsify/verify, dream consolidation, experiment journal, failure diagnose/lookup store, ideal-state artifacts, systemic alerts).</p>
 <hr />
 <h2 id="kaos-v091-inventory">KAOS v0.9.1 inventory</h2>
 <h3 id="module-tree-verified-via-find-kaos-maxdepth-2">Module tree (verified via <code>find kaos/ -maxdepth 2</code>)</h3>
@@ -352,7 +375,7 @@ kaos/cli/                    main.py (run/parallel/doctor/eval/experiment groups
 <h2 id="bene-010-shortcomings">BENE 0.1.0 shortcomings</h2>
 <ol>
 <li>
-<p><strong>No falsifiable-eval harness — no probe/verdict/kill-gate discipline anywhere</strong> — <code>grep -rn -iE 'eval_probe|falsif|verdict|kill.?gate' bene/</code> returns zero hits; no eval/ module in bene/ tree; the only evaluation machinery is metaharness/evaluator.py which scores benchmark candidates, not agent claims. Rival KAOS exposes eval_probe_run/verify/falsify.</p>
+<p><strong>No falsifiable-eval harness — no probe/verdict/kill-gate discipline anywhere</strong> — <code>grep -rn -iE 'eval_probe|falsif|verdict|kill.?gate' bene/</code> returns zero hits; no eval/ module in bene/ tree; the only evaluation machinery is metaharness/evaluator.py which scores benchmark candidates, not agent claims. Peer KAOS exposes eval_probe_run/verify/falsify.</p>
 </li>
 <li>
 <p><strong>No experiments journal</strong> — <code>grep -rn -iE 'experiment' bene/ --include='*.py'</code> matches only a benchmark sample sentence (bene/metaharness/benchmarks/text_classify.py:267 'protein folding prediction matches experimental results'); no experiment table in bene/schema.py (11 tables: agents, files, blobs, tool_calls, state, events, checkpoints, schema_version, memory, shared_log, agent_skills). KAOS has experiment_log/list/show/compare.</p>
@@ -393,14 +416,14 @@ kaos/cli/                    main.py (run/parallel/doctor/eval/experiment groups
 </ol>
 <hr />
 <h2 id="subsumption-table-skeleton-now-filled-see-designbene2-designmd-4-subsumption-table-complete">Subsumption table (skeleton — now filled: see <code>../design/BENE2-DESIGN.md</code> §4 'Subsumption table (complete)')</h2>
-<p>One row per capability from both rivals' verified capability lists. Phase 2 filled the last column (in <code>docs/design/BENE2-DESIGN.md</code> §4) with the BENE 2.0 mechanism that subsumes (matches) or surpasses each row.</p>
+<p>One row per capability from both peers' verified capability lists. Phase 2 filled the last column (in <code>docs/design/BENE2-DESIGN.md</code> §4) with the BENE 2.0 mechanism that subsumes (matches) or surpasses each row.</p>
 <table>
 <thead>
 <tr>
 <th>#</th>
-<th>Rival</th>
+<th>Peer</th>
 <th>Capability</th>
-<th>Rival mechanism</th>
+<th>Peer mechanism</th>
 <th>BENE 2.0 mechanism (TBD)</th>
 </tr>
 </thead>
