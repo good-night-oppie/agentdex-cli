@@ -22,12 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import json
 from pathlib import Path
-from typing import Any
-
-import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority
@@ -35,6 +30,7 @@ from agentdex_arena.gateway import ArenaGateway
 from agentdex_engine.modules.arena import RatingEvent, recompute_ladder
 from agentdex_engine.modules.arena.events import EventLog
 from agentdex_engine.modules.arena.ladder import Ladder
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 _ADMIN_TOKEN = "q5-property-test-admin"  # noqa: S105 — fixture
 _ADMIN_HASH = hashlib.sha256(_ADMIN_TOKEN.encode()).hexdigest()
@@ -44,6 +40,38 @@ _NOW = 1_700_000_000.0
 # ---- structural invariants (fail at import / signature inspection) ----
 
 
+# Aliases used by every structural guard below. The earlier sets covered the
+# explicit (membership / is_member / tier / paid) shape, but a future refactor
+# could attach owner / tenant_id / member / premium / plan to the rating path
+# and satisfy those denylists while still letting the rating pipeline join
+# against membership state. Centralising the alias set means a single edit
+# tightens every guard (RatingEvent fields, recompute_ladder signature, Ladder
+# state) consistently.
+_FORBIDDEN_RATING_FIELDS = frozenset(
+    {
+        # explicit membership shapes
+        "membership",
+        "memberships",
+        "is_member",
+        "is_paid",
+        "subscription",
+        "valid_until_epoch",
+        "actor_hash",
+        # owner / tenant identifiers that would let rating join against memberships
+        "owner",
+        "owner_email",
+        "tenant",
+        "tenant_id",
+        # paid-feature aliases observed across Langfuse / LangSmith / Braintrust
+        "member",
+        "premium",
+        "plan",
+        "tier",
+        "paid",
+    }
+)
+
+
 def test_rating_event_has_no_membership_field():
     """RatingEvent schema must not reference membership / paid / tier / etc.
 
@@ -51,17 +79,7 @@ def test_rating_event_has_no_membership_field():
     paid-feature route can read it — encoding the anti-pay-to-rank-by-proxy
     invariant at the type-system level."""
     fields = set(RatingEvent.model_fields.keys())
-    forbidden = {
-        "membership",
-        "is_member",
-        "is_paid",
-        "tier",
-        "paid",
-        "subscription",
-        "valid_until_epoch",
-        "actor_hash",
-    }
-    leak = fields & forbidden
+    leak = fields & _FORBIDDEN_RATING_FIELDS
     assert not leak, f"RatingEvent leaks membership-shaped field(s): {leak}"
 
 
@@ -71,8 +89,7 @@ def test_recompute_ladder_signature_takes_no_membership_input():
     Any future signature addition of membership/paid/tier means the rating
     pipeline now branches on payment status — pay-to-rank-by-proxy."""
     sig = inspect.signature(recompute_ladder)
-    forbidden = {"memberships", "membership", "is_member", "tier", "paid"}
-    leak = set(sig.parameters.keys()) & forbidden
+    leak = set(sig.parameters.keys()) & _FORBIDDEN_RATING_FIELDS
     assert not leak, f"recompute_ladder signature leaks membership params: {leak}"
 
 
@@ -82,29 +99,28 @@ def test_ladder_class_has_no_membership_state():
     test fires."""
     public_attrs = {a for a in dir(Ladder()) if not a.startswith("_")}
     private_attrs = {a for a in dir(Ladder()) if a.startswith("_") and not a.startswith("__")}
-    forbidden = {
-        "memberships",
-        "_memberships",
-        "is_member",
-        "_is_member",
-        "paid",
-        "_paid",
-        "tier",
-        "_tier",
-    }
+    # Match the alias set against both public and leading-underscore private
+    # names so a hypothetical `_owner_email` fires identically to `owner_email`.
+    forbidden = _FORBIDDEN_RATING_FIELDS | {f"_{name}" for name in _FORBIDDEN_RATING_FIELDS}
     leak = (public_attrs | private_attrs) & forbidden
     assert not leak, f"Ladder leaks membership state: {leak}"
 
 
 def test_rating_path_does_not_import_admin_or_consent():
-    """The rating-path module (agentdex_engine.modules.arena.events) must not
-    import AdminAuthority or membership helpers from agentdex_arena.consent.
+    """Every rating-path module — currently events.py (recompute_ladder) AND
+    ladder.py (RatingEvent + Ladder.rate_period) — must not import
+    AdminAuthority or membership helpers from agentdex_arena.consent.
 
-    Reading from authority.memberships in the rating pipeline = pay-to-rank
-    by proxy."""
-    events_src = inspect.getsourcefile(recompute_ladder)
-    assert events_src is not None
-    text = Path(events_src).read_text()
+    The earlier scan only read the source of `recompute_ladder` (events.py),
+    but the actual rating math lives in `Ladder.rate_period` (ladder.py); a
+    future pay-to-rank-by-proxy dependency added there would have slipped
+    through. Scanning every module that defines a load-bearing rating-path
+    symbol means adding a new module to the rating path means adding it to
+    this set too."""
+    rating_path_symbols = (recompute_ladder, RatingEvent, Ladder)
+    sources = {inspect.getsourcefile(obj) for obj in rating_path_symbols}
+    sources.discard(None)
+    assert sources, "could not resolve any rating-path source file"
     forbidden_imports = [
         "from agentdex_arena.consent import",
         "from agentdex_arena.admin_auth import",
@@ -112,10 +128,12 @@ def test_rating_path_does_not_import_admin_or_consent():
         "verify_membership",
         ".memberships",
     ]
-    for needle in forbidden_imports:
-        assert needle not in text, (
-            f"rating path ({events_src}) references {needle!r} — pay-to-rank-by-proxy risk"
-        )
+    for src in sorted(sources):
+        text = Path(src).read_text()
+        for needle in forbidden_imports:
+            assert needle not in text, (
+                f"rating path ({src}) references {needle!r} — pay-to-rank-by-proxy risk"
+            )
 
 
 # ---- behavioral property: same input → same rating regardless of membership ----
@@ -144,13 +162,15 @@ def _make_event_log_with_battles(
             w = p2
         else:
             w = ""
-        events.append({
-            "battle_id": f"battle-{i:04d}",
-            "p1": p1,
-            "p2": p2,
-            "winner": w,
-            "input_log_blake2b16": f"{i:032x}",
-        })
+        events.append(
+            {
+                "battle_id": f"battle-{i:04d}",
+                "p1": p1,
+                "p2": p2,
+                "winner": w,
+                "input_log_blake2b16": f"{i:032x}",
+            }
+        )
     elog.append("period", {"events": events})
     return log_path
 
