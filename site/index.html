@@ -134,7 +134,10 @@ const Nav = ({ theme, setTheme }) => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-bene-bg/90 backdrop-blur-md border-b border-bene-dim">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <div className="w-3 h-3 bg-bene-accent" />
+          <svg viewBox="0 0 320 200" className="text-bene-accent h-5 w-auto" fill="currentColor" fillRule="evenodd" aria-label="BENE">
+            <path d="M 38 26 H 112 Q 160 26 160 64 Q 160 100 112 100 H 38 Z M 58 42 H 112 Q 140 42 140 64 Q 140 84 112 84 H 58 Z M 38 100 H 112 Q 160 100 160 136 Q 160 174 112 174 H 38 Z M 58 116 H 112 Q 140 116 140 136 Q 140 158 112 158 H 58 Z"/>
+            <path transform="translate(320,0) scale(-1,1)" d="M 38 26 H 112 Q 160 26 160 64 Q 160 100 112 100 H 38 Z M 58 42 H 112 Q 140 42 140 64 Q 140 84 112 84 H 58 Z M 38 100 H 112 Q 160 100 160 136 Q 160 174 112 174 H 38 Z M 58 116 H 112 Q 140 116 140 136 Q 140 158 112 158 H 58 Z"/>
+          </svg>
           <span className="font-display font-bold tracking-widest text-sm">BENE</span>
         </div>
         <div className="hidden md:flex items-center gap-6">
