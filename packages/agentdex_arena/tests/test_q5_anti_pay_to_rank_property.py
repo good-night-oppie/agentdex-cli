@@ -84,6 +84,38 @@ def test_rating_event_has_no_membership_field():
     assert not leak, f"RatingEvent leaks membership-shaped field(s): {leak}"
 
 
+def test_rating_model_has_no_membership_field():
+    """`Rating` (glicko.py) carries the per-player score state — `rating`,
+    `rd`, `vol`, `games`. A future paid-by-proxy field added directly to
+    the model (e.g. `tier`, `owner_email`, `is_paid`) would let the rating
+    pipeline join against membership state at the type-system level even
+    without any membership import, so `test_rating_path_does_not_import_
+    admin_or_consent` would silently pass.
+
+    This is the score-state companion to
+    `test_rating_event_has_no_membership_field` (the event side). Both run
+    `Rating.model_fields` / `RatingEvent.model_fields` against the same
+    `_FORBIDDEN_RATING_FIELDS` set so the denylist scales atomically across
+    both sides of the rating path."""
+    fields = set(Rating.model_fields.keys())
+    leak = fields & _FORBIDDEN_RATING_FIELDS
+    assert not leak, f"Rating leaks membership-shaped field(s): {leak}"
+
+
+def test_update_rating_signature_takes_no_membership_input():
+    """`update_rating(player: Rating, results: list[tuple[Rating, float]])`
+    is the per-player math `Ladder.rate_period` delegates to. A future
+    signature addition like `membership=None`, `tier="free"`, or
+    `paid_owner=False` would let the math branch on payment status at the
+    most load-bearing function in the rating pipeline.
+
+    Parallel to `test_recompute_ladder_signature_takes_no_membership_input`
+    one level up the call chain."""
+    sig = inspect.signature(update_rating)
+    leak = set(sig.parameters.keys()) & _FORBIDDEN_RATING_FIELDS
+    assert not leak, f"update_rating signature leaks membership params: {leak}"
+
+
 def test_recompute_ladder_signature_takes_no_membership_input():
     """recompute_ladder must depend only on (log_path, frozen, expected_digest).
 
