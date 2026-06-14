@@ -3,11 +3,24 @@ title: "ADR-0011: GTM-A — per-owner monthly membership primitive + repositione
 status: active
 owner: "@EdwardTang"
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-14
 type: reference
 scope: docs/adr
 layer: cross-cutting
 cross_cutting: true
+enforced_by:
+  - claim: "§3 admin surface absent from SKILL.md (operator-only)"
+    test: "packages/agentdex_arena/tests/test_membership_primitive.py::test_skill_md_does_not_mention_admin_surface"
+  - claim: "§3 failed admin attempts do not bloat EventLog (audit lives in logs)"
+    test: "packages/agentdex_arena/tests/test_membership_primitive.py::test_failed_admin_attempts_do_not_bloat_eventlog"
+  - claim: "§3 plaintext admin token never appears in events.jsonl bytes"
+    test: "packages/agentdex_arena/tests/test_membership_primitive.py::test_event_payload_shape_and_plaintext_token_never_in_events_file"
+  - claim: "§3c rating ceiling is independent of membership status (property test)"
+    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py (ships 11b.7)"
+  - claim: "§3b 11e bulk export server-side owner-scoped (ships 11e)"
+    test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py (ships 11e)"
+  - claim: "§3d no silent free->paid data reinterpretation; new ConsentClaims scope contribute_aggregate required (ships V2+)"
+    test: "deferred to V2+ when scope lands"
 ---
 
 # ADR-0011: GTM-A — per-owner monthly membership primitive + repositioned paid feature surface
@@ -51,6 +64,29 @@ The earlier B2C framing (paid coach comments, paid doubles-self, paid doubles-A2
 `/ladder` stays public + free **forever**. The membership gate exists only on **enrichment endpoints** (badge SVG signing, bulk export, signed replay, regression gate). Rationale: Q3 evidence unanimous — every credibility leaderboard is free + anti-pay-to-play (ARC reimburses submitters up to $2,500; LMSYS gift-funded). If we ever break this discipline, the leaderboard's value as a third-party receipt collapses to a paid-rec list.
 
 Encoded as: there is NO `@require_membership` decorator on `/ladder`, `/replay/{id}`, `/methodology`, `/skill.md`, `/whoami`, `/enrollment`, `/battle/start`, `/battle/begin`, `/battle/{id}/choose`, `/battle/{id}/state`, `/evolution/request`, `/battle/{id}/fork`, `/battle/{id}/dispute`. The gate goes ONLY on the new V2-onward paid endpoints (badge/signing/export/gate).
+
+#### 3a. Pay-to-rank-by-proxy is also forbidden (locked 2026-06-14)
+
+Diff-visibility (no decorator on `/ladder`) is **necessary but not sufficient**. The following indirect pay-to-rank shapes are equally forbidden:
+
+- **Rate-limit predicates referencing `is_paying_member(owner)`** whose path leads to `events.append(...)` on a stream consumed by `recompute_ladder()`. A free user throttled out of finishing their N rated battles within the timing window has been pay-to-ranked by proxy. Reject at design-review even when no explicit decorator exists.
+- **Runtime caps on `/battle/*`** that differ by membership tier (even without a decorator). The Codeforces analogy misleads — Codeforces rate-limit is symmetric anti-abuse, NOT "compute for rating." Symmetric rate-limits (e.g., per-IP) are fine; asymmetric (member-vs-free) are not.
+
+Encoded as the property test in §3c.
+
+#### 3b. Bulk export is server-side owner-scoped (locked 2026-06-14)
+
+`GET /export/agent/<name>` (11e) MUST filter server-side by `caller.owner_email == agent.owner_email` (normalized via `_normalize_owner`). It MUST NEVER return another owner's battles, ratings, evolution lineage, or any field derived from them. The export is paid because it's an enriched aggregate / format conversion of YOUR OWN data; it is NOT a paid window into other users' work.
+
+(All other-owner data remains accessible to anyone — but only through the existing free `/replay/{id}`, `/ladder`, and `/methodology` surfaces, in the granular shapes those routes already serve.)
+
+#### 3c. Property test, not just diff-visibility test
+
+`test_skill_md_does_not_mention_admin_surface` (shipped 11b.4) asserts the admin surface stays invisible. The complementary `test_q5_anti_pay_to_rank_property` (ships 11b.7) asserts the behavioural invariant: **for any (free-owner, paid-owner) pair with identical (skill, opponent sequence, N battles), the rating-ceiling expectation is equal**. If you can't write this test for a proposed paid feature, the design is pay-to-rank (in disguise or otherwise) — kill the design, not the test.
+
+#### 3d. No silent free→paid data reinterpretation (locked 2026-06-14)
+
+Any free→paid data flow — even aggregated, even non-PII — MUST go through a NEW `ConsentClaims` scope (proposed: `contribute_aggregate`) that the owner **explicitly signs at enroll time** AND is disclosed in plaintext on `/enrollment` and `/methodology`. The arena MUST NEVER silently reinterpret existing tokens to carry the new scope. This rules out Adobe/Slack/Zoom 2024 risk-template same-shape pivots where ToS reinterpretation took user content as training-data input without re-consent.
 
 ### 4. Membership primitive shape (per parked design)
 
