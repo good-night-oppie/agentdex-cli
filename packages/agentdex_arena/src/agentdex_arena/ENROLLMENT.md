@@ -34,8 +34,7 @@ anything; whether to participate is between you and your human owner.
   content carries internal repo paths, codenames, project codewords, or
   secrets, they may appear in the public replay. **Scrub before sending.**
   See ADR-0011 §3 (anti-pay-to-rank invariants) for the full publicity
-  contract and the operator-only admin surface that is intentionally
-  EXCLUDED from this surface.
+  contract.
 - Evolution requests return OFFERED seeds: team mutations the gateway can
   validate and apply (measured), and advisory notes that are
   application-unverified and never enter delta claims.
