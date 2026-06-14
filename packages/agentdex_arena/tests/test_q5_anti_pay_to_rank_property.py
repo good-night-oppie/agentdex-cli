@@ -139,20 +139,13 @@ def test_rating_path_does_not_import_admin_or_consent():
 # ---- behavioral property: same input → same rating regardless of membership ----
 
 
-def _make_event_log_with_battles(
-    tmp_path: Path,
+def _build_rated_events(
     *,
     p1: str,
     p2: str,
     n_battles: int,
     winner_pattern: list[str],
-) -> Path:
-    """Build an event log with `register` events for both players + N battles
-    of paired RatingEvents (one per battle). Winners pattern is cycled."""
-    log_path = tmp_path / "events.jsonl"
-    elog = EventLog(log_path)
-    elog.append("register", {"name": p1, "frozen": False})
-    elog.append("register", {"name": p2, "frozen": False})
+) -> list[dict]:
     events = []
     for i in range(n_battles):
         winner = winner_pattern[i % len(winner_pattern)]
@@ -171,13 +164,73 @@ def _make_event_log_with_battles(
                 "input_log_blake2b16": f"{i:032x}",
             }
         )
-    elog.append("period", {"events": events})
+    return events
+
+
+def _make_event_log_with_battles(
+    tmp_path: Path,
+    *,
+    p1: str,
+    p2: str,
+    n_battles: int,
+    winner_pattern: list[str],
+) -> Path:
+    """Build an event log with `register` events for both players + N battles
+    of paired RatingEvents (one per battle). Winners pattern is cycled."""
+    log_path = tmp_path / "events.jsonl"
+    elog = EventLog(log_path)
+    elog.append("register", {"name": p1, "frozen": False})
+    elog.append("register", {"name": p2, "frozen": False})
+    elog.append(
+        "period",
+        {
+            "events": _build_rated_events(
+                p1=p1, p2=p2, n_battles=n_battles, winner_pattern=winner_pattern
+            )
+        },
+    )
     return log_path
+
+
+def _seed_gateway_with_battles(
+    gateway: ArenaGateway,
+    *,
+    p1: str,
+    p2: str,
+    n_battles: int,
+    winner_pattern: list[str],
+) -> None:
+    """Append identical `register` + `period` events to the gateway's OWN
+    `EventLog` handle — exactly the production emission path used inside
+    `battle_choose`'s end-of-battle block (`gateway.py:849-870`).
+
+    Using `gateway.events.append` (vs a hand-built `EventLog`) ensures the
+    test is sensitive to any future paid-path emission change. If a future
+    refactor inserted `if self.authority.is_paid(owner): ev["bonus"] = +200`
+    around the rating-event append, this seeding helper would carry that
+    membership-dependent emission through to the resulting ladder and the
+    free/paid comparison would diverge."""
+    gateway.events.append("register", {"name": p1, "frozen": False})
+    gateway.events.append("register", {"name": p2, "frozen": False})
+    gateway.events.append(
+        "period",
+        {
+            "events": _build_rated_events(
+                p1=p1, p2=p2, n_battles=n_battles, winner_pattern=winner_pattern
+            )
+        },
+    )
 
 
 def test_rating_ceiling_independent_of_membership_status(tmp_path):
     """Property: two owners, one a paying member, one not, identical battle
-    sequence → identical Glicko-2 ratings. Encodes ADR-0011 §3c."""
+    sequence → identical Glicko-2 ratings. Encodes ADR-0011 §3c.
+
+    Low-level invariant: `recompute_ladder` is a pure function of the event
+    log. The complementary gateway-driven test below
+    (`test_gateway_emission_path_does_not_couple_ladder_to_membership`)
+    exercises the production emission path through `gateway.events.append`
+    so a future paid-path emission change is also caught."""
     # 1. Build the membership table: free-owner has nothing; paid-owner has a
     #    far-future grant. (The test does NOT exercise the route — it directly
     #    instantiates the rating pipeline to prove rating is decoupled from
@@ -233,10 +286,21 @@ def test_rating_ceiling_independent_of_membership_status(tmp_path):
     )
 
 
-def test_gateway_construction_does_not_couple_ladder_to_membership(tmp_path):
-    """End-to-end variant: stand up TWO gateways, one with admin/memberships
-    and one without. Confirm authority.memberships state never appears in
-    any rating-related call signature or stored ladder state."""
+def test_gateway_emission_path_does_not_couple_ladder_to_membership(tmp_path):
+    """End-to-end variant: stand up TWO gateways with DIFFERENT memberships,
+    drive identical rated battles through each gateway's OWN `EventLog` handle
+    (the production emission path used by `battle_choose`), and assert
+    `ladder_public()` returns identical non-empty entrant rows.
+
+    Earlier this test constructed both gateways with empty event paths and
+    only inspected the empty `{entrants: {}}` shape — a `ladder_public()`
+    implementation that boosted, filtered, or annotated paid entrants
+    whenever real entrants existed would still have passed. Driving identical
+    battles through the gateway's own `events.append` handle proves the
+    rating-event emission path is membership-blind end-to-end, AND that
+    `ladder_public()` does not branch on membership when assembling the
+    non-empty payload. This is the load-bearing behavioural property for
+    ADR-0011 §3c."""
     signing = Ed25519PrivateKey.generate().private_bytes_raw().hex()
 
     free_gw = ArenaGateway(
@@ -261,17 +325,40 @@ def test_gateway_construction_does_not_couple_ladder_to_membership(tmp_path):
         now=lambda: _NOW,
     )
 
-    # ladder_public() is the public ladder view consumed by /ladder. It must
-    # be a pure function of the registered ratings — no membership filter.
+    # Sanity: the two authorities differ on membership state before the seed.
+    assert "paid@x.com" in paid_gw.authority.memberships
+    assert "paid@x.com" not in free_gw.authority.memberships
+
+    # Drive IDENTICAL rated-battle event sequences through each gateway's own
+    # `events.append` handle — exactly the production emission path
+    # `battle_choose` uses at end-of-battle (`gateway.py:849-870`).
+    pattern = ["p1", "p2", "p1", "p1", "p2", "p1", "p2", "p1"]
+    for gw in (free_gw, paid_gw):
+        _seed_gateway_with_battles(
+            gw, p1="probe-bot", p2="opponent-bot", n_battles=16, winner_pattern=pattern
+        )
+
     free_view = free_gw.ladder_public()
     paid_view = paid_gw.ladder_public()
-    # Both are empty (no battles); but more importantly, neither view's keys
-    # carry membership info. Just sanity-assert no membership-shaped key leaks.
+
+    # The non-empty ladder must be byte-identical between the free and paid
+    # gateway — same registered entrants, same rated battles, same Glicko-2
+    # output. If `ladder_public()` ever boosted, filtered, or annotated paid
+    # entrants conditionally on `authority.memberships`, this assertion fires.
+    assert free_view["entrants"], "free gateway ladder should have entrants after seeding"
+    assert paid_view["entrants"], "paid gateway ladder should have entrants after seeding"
+    assert free_view == paid_view, (
+        f"ladder_public diverges between free and paid gateways — "
+        f"free={free_view!r} paid={paid_view!r} — pay-to-rank-by-proxy"
+    )
+
+    # Belt-and-suspenders: even if the deep-equality check were ever relaxed,
+    # no key in the public view should carry membership-shaped naming. (Same
+    # check the older shape-only version of this test ran.)
     for view in (free_view, paid_view):
-        if isinstance(view, dict):
-            for k in view:
-                assert "membership" not in str(k).lower(), f"ladder leaks membership key: {k}"
-                assert "paid" not in str(k).lower(), f"ladder leaks paid-ness in key: {k}"
+        for k in view:
+            assert "membership" not in str(k).lower(), f"ladder leaks membership key: {k}"
+            assert "paid" not in str(k).lower(), f"ladder leaks paid-ness in key: {k}"
 
 
 # ---- meta: doctrine vs code parity check ----
