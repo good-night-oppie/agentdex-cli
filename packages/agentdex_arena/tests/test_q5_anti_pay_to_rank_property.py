@@ -366,6 +366,19 @@ async def _run_rated_battle_via_finish(
         sidecar=None,
         opponent_policy=None,
     )
+    # Attach `claims.owner` as a dynamic attribute on the session. Current
+    # production `BattleSession` (gateway.py:217-247) is a plain `@dataclass`
+    # with no `__slots__`, so post-construction attribute attachment works.
+    # This is the surface a future paid-only emission branch in `_finish`
+    # would naturally read — production code would either (a) add an
+    # `owner: str | None` field to `BattleSession` and set it the same way
+    # `battle_begin` already sets `claims_token_id` (`gateway.py:506-508`),
+    # or (b) look it up via a hypothetical `authority.owner_for_token`. The
+    # test mirrors (a) so a regression branch reading `session.owner` reads
+    # the actual free-vs-paid owner string and diverges the resulting
+    # ladder between the two gateways. Without this line `claims.owner` is
+    # dead immediately after `_build_real_claims()` returns.
+    session.owner = claims.owner
     end_payload = {
         "winner": winner,
         # turns >= 3 keeps `_check_collusion`'s early-forfeit branch quiet,
