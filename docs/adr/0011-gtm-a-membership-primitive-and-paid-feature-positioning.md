@@ -29,12 +29,12 @@ enforced_by:
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_fork_battles_included_in_export + ::test_period_rating_receipts_included_in_export (ships 11e)"
   - claim: "§3b V1 binding constraint 4c: batched period rows are filtered to matching nested events before export — never ship the unmutated row"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_period_filter_no_cross_agent_leak + ::test_empty_filtered_periods_dropped (ships 11e)"
-  - claim: "§3b V1 binding constraint 4 Step 3: export includes register/register_v2 rows for EVERY name (p1/p2) referenced in a kept period — exported log replays through recompute_ladder"
+  - claim: "§3b V1 binding constraint 4 Step 3: export includes a `register` row for every name (p1/p2) referenced in a kept period — `register_v2` is reserved for the requested agent's own row (opponent-leak guard, see 4-Step-3-opponent-backfill claim below) — exported log replays through recompute_ladder"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_includes_anchor_opponent_register_rows + ::test_exported_log_replays_through_recompute_ladder (ships 11e)"
   - claim: "§3b V1 binding constraint 4d: sparse export is re-chained with fresh prev digests before emit; EventLog(export).verify_chain() accepts the result"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_round_trips_through_recompute_ladder (ships 11e)"
-  - claim: "§3b V1 binding constraint 5e: spend_quota keys on (_normalize_owner(claims.owner), 'battle', day) ONLY for scope=='battle'; all other scopes (evolve, future export) stay keyed on claims.token_id"
-    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py::test_reissue_does_not_reset_daily_rated_quota + ::test_evolve_quota_stays_per_token_across_reissue (ships with /enroll/reissue PR)"
+  - claim: "§3b V1 binding constraint 5e: spend_quota keys on (_normalize_owner(claims.owner), 'battle', day) for scope=='battle' (closes §3a owner-rotation bypass) AND on (claims.agent_name, scope, day) for every other scope (evolve, future export) — `agent_name` is stable across /enroll/reissue (same agent_name, new token_id), unique per agent (no cross-agent pooling), so reissue cannot reset a non-battle daily quota"
+    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py::test_reissue_does_not_reset_daily_rated_quota + ::test_evolve_quota_stays_per_agent_across_reissue + ::test_evolve_quota_does_not_pool_across_same_owner_agents (ships with /enroll/reissue PR)"
   - claim: "§3b V1 binding constraint 5f: legacy {name, frozen} agents with unexpired tokens are upgradable via POST /enroll/upgrade (idempotent, emits register_v2, no membership gate); anchor- agents are NOT eligible; NO automatic boot sweep (pending_enrollments excluded as impersonation hole; live sessions inaccessible — BattleSession lacks full claims)"
     test: "packages/agentdex_arena/tests/test_enroll_upgrade_legacy_backfill.py + ::test_pending_enrollments_never_emit_register_v2 (ships with register_v2 + /enroll/upgrade PR, blocks reissue)"
   - claim: "§3b V1 binding constraint 4 Step 3: opponent backfill includes register rows ONLY (NOT register_v2 — leaks opponent owner_email_hash + agent_pubkey_hex); referenced_names walks FILTERED kept events, not original batched payload[events]"
@@ -404,23 +404,35 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
 
    e. **Reissue MUST NOT reset the per-owner daily rated-battle bucket — re-key `spend_quota` on `(_normalize_owner(claims.owner), "battle", day)` ONLY for the `battle` scope.** The current `ConsentAuthority.spend_quota` keys its day-bucket on `claims.token_id` (consent.py:159-160). A fresh-minted reissue token carries a fresh `token_id` → a fresh bucket key → the same-day used-count silently resets to 0. A paid OR free owner who exhausts today's 5 rated battles could therefore call `/enroll/reissue` (5b), receive a fresh token, and obtain 5 MORE rated `period` emissions within the same UTC day. Because rated battle count drives `Ladder.rate_period` (gateway.py:849-870 → events.py:153-164 → glicko `update_rating`), this is precisely the §3a "rating-ceiling-equality" violation — by token-rotation rather than by membership tier, but equally forbidden.
 
-      `verify_membership` already keys on `_normalize_owner(claims.owner)` precisely so it "survives 7-day token rotation" (consent.py:179-180, CLAUDE.md "Membership keyed by normalized owner, not by token_id"). The same rationale applies to **the rated-battle cap specifically** — but NOT to the other scopes. `/evolution/request` and the MCP evolution tool also call `spend_quota(scope="evolve")` (gateway.py + adx_showdown/mcp_surface.py); re-keying all scopes to owner would silently change `evolve` from "2/day per ConsentClaims" to "2/day per owner", so a multi-agent owner's first agent could exhaust the second agent's evolution budget without warning. That is a separate product decision (currently outside §3a's scope, which guards rated battles only). The reissue PR MUST therefore land this surgical change — scoped to `"battle"` and leaving every other scope's per-token keying intact:
+      `verify_membership` already keys on `_normalize_owner(claims.owner)` precisely so it "survives 7-day token rotation" (consent.py:179-180, CLAUDE.md "Membership keyed by normalized owner, not by token_id"). The same rationale — survive rotation — applies to every per-day quota, but the **join key** differs by scope:
+
+      - **`battle` scope keys on `_normalize_owner(claims.owner)`** — §3a explicitly pools the rated-battle cap by owner; any other key would let a multi-agent owner stack `agent_count × 5` rated battles per day, defeating the rating-ceiling-equality invariant.
+      - **Every other scope (`evolve`, future `export`, etc.) keys on `claims.agent_name`** — these caps are per-agent, not per-owner. `agent_name` is stable across `/enroll/reissue` (the reissue handler mints a fresh `token_id` but PRESERVES the agent_name → fresh-PoP join), and unique per agent (registration enforces unique names), so the key is invariant across rotation AND segregated across agents.
+
+      Keying non-battle scopes on `claims.token_id` (an earlier draft of this section) would re-open the §3a-flavored bypass for `evolve`: `/evolution/request` and the MCP `evolve` tool both call `spend_quota(scope="evolve")` (gateway.py + adx_showdown/mcp_surface.py). An owner who exhausted today's 2 evolutions could call `/enroll/reissue`, receive a fresh `token_id`, and silently get a fresh evolve bucket — exactly the rotation-as-reset shape 5e was introduced to close for `battle`. Keying on `agent_name` survives reissue (same name → same bucket) AND keeps per-agent isolation (different agents → different buckets), so neither rotation-as-reset nor cross-agent pooling can happen. Pooling non-battle quotas across an owner's agents (the "owner-level evolve cap") is a separate product decision that requires its own §3-scope review and is **NOT** covered by this binding.
+
+      The reissue PR MUST therefore land this scope-conditional change:
 
       ```python
       # in consent.py, spend_quota — scope-conditional keying:
       def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> int:
           day = time.strftime("%Y%m%d", time.gmtime(self._now()))
           # `battle` keys on the normalized owner so /enroll/reissue cannot
-          # reset the daily rated-battle cap by minting a fresh token_id.
-          # Every other scope (evolve, future export, etc.) stays keyed on
-          # claims.token_id to preserve the existing per-claims semantics
-          # (multi-agent owners keep getting agent_count × per-scope budget
-          # for non-rated scopes; only the §3a-relevant `battle` cap is
-          # owner-pooled).
+          # reset the daily rated-battle cap by minting a fresh token_id
+          # (closes the §3a rotation-as-reset bypass).
+          #
+          # Every other scope (evolve, future export, etc.) keys on
+          # claims.agent_name — stable across reissue (same agent_name,
+          # new token_id) AND unique per agent (no cross-agent pooling),
+          # so reissue cannot reset a non-battle daily cap and a
+          # multi-agent owner's two agents still hold independent
+          # non-battle budgets. Pooling non-battle scopes across an
+          # owner's agents is a separate product decision (NOT covered
+          # by §3a) that requires its own §3-scope review.
           if scope == "battle":
-              key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"   # NEW (PR-O)
+              key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"
           else:
-              key = f"{claims.token_id}:{scope}:{day}"                  # unchanged
+              key = f"{claims.agent_name}:{scope}:{day}"
           used = self.quota_used.get(key, 0)
           cap = claims.quotas.get(scope, 0)
           if used >= cap:
@@ -429,7 +441,7 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
           return cap - used - 1
       ```
 
-      Constraint 3 already locks `quotas["battle"]` symmetric across tiers; 5e locks the daily `battle` bucket KEYING symmetric across token rotations. Both are required — 3 alone prevents a higher cap; 5e alone prevents bypassing the cap by minting fresh ids. Together they make "5 rated battles per UTC day per owner" the load-bearing §3a per-owner ceiling regardless of how many tokens the owner has issued today. **Non-`battle` scopes remain per-token by design** — re-keying them is a future product decision that requires its own §3-scope review (analogous to §3a's rated-battle reasoning) before it can ship.
+      Constraint 3 already locks `quotas["battle"]` symmetric across tiers; 5e locks the daily bucket KEYING under token rotation — owner-pooled for `battle` (§3a), per-agent for every other scope (per-agent isolation). Both invariants survive `/enroll/reissue` because both keys are rotation-stable. Together they make "5 rated battles per UTC day per owner + 2 evolutions per UTC day per agent" the load-bearing §3a/§3 ceiling regardless of how many tokens the owner has issued today.
 
       *Durable-quota note (V1 known limitation, NOT a §3b prerequisite).* `ConsentAuthority.quota_used` is in-memory; gateway restart clears the day's count. The operator runbook (`docs/runbooks/membership-admin.md`) MUST note this as a V1 limitation. A future "rebuild quota_used from EventLog on boot" pass (walks `battle_begin` where `lane == "rated"` + joins via `register_v2` durable mapping + groups by `(owner_email_hash, UTC-day)`) lands separately; no §3a violation is possible within a single boot once 5e is in place.
 
@@ -476,7 +488,7 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
       11e bulk export                                                              →   ships THIRD (depends on reissue + 4c/4d backfill)
       ```
 
-      Any owner who calls `/enroll/upgrade` within their token's remaining 7-day window upgrades safely. After that window every active human-owned agent is on `register_v2` and the 5b reissue handler works as written; the post-expiry-stranded bucket is bounded by adoption rate of the pre-deploy comms.
+      Any owner who calls `/enroll/upgrade` within their token's remaining 7-day window upgrades safely. After that window, **only the owners who called `/enroll/upgrade`** are on `register_v2` — non-responders' agents remain on legacy `register {name, frozen}` rows until their token expires, after which the 5b reissue handler returns `404 unknown agent` for them (no `_pubkey_by_name` mapping) and they must re-enroll under a new agent name (per (iii) above). The size of the stranded bucket is bounded by the adoption rate of the pre-deploy comms — NOT by the deploy itself. **Reissue, bulk export, and any downstream durable-mapping consumer MUST NOT assume universal `register_v2` coverage**; the 5b handler's documented `404` on non-upgraded agents is the explicit signal that coverage is opt-in.
 
 Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d). V2's relaxation to single-token multi-agent export is gated on the §3d `contribute_aggregate` scope landing — the `register_v2` durable mapping above is the substrate enabler, NOT the broadened data-flow consent.
 
