@@ -80,17 +80,34 @@ Five tests:
   in the paid view diverges the ordered `list(items())` comparison
   (previously vacuous because the visitor was already on top).
 
-## Final state (after round 6)
+## Round 7 — thread owner onto the session (PR #120 followup)
+
+- Round 6 built a real `ConsentClaims` but `claims.owner` died
+  immediately after construction because `BattleSession` has no
+  `owner` field — it carries only `claims_token_id` and `visitor_name`,
+  and the mirrored `battle_begin` payload carries `tenant_id` /
+  `visitor` / `opponent`. A future paid-only emission branch in
+  `_finish` reading the owner string had nowhere to read it from.
+- `_run_rated_battle_via_finish` now attaches `session.owner =
+  claims.owner` as a dynamic attribute (current production
+  `BattleSession` at gateway.py:217-247 is a plain `@dataclass` with
+  no `__slots__`, so this works without source changes). This mirrors
+  what production code would do if it ever wired the owner through
+  for membership-keyed emission — either by adding an `owner` field
+  to `BattleSession`'s definition or via a hypothetical
+  `authority.owner_for_token` lookup.
+
+## Final state (after round 7)
 
 9 tests. 5 structural guards (4 model/sig denylists + 1 multi-module
-scan) running through a single `_leaks_membership_shape(name)` matcher
-shared across all guards. 1 behavioural property at `recompute_ladder`
-level. 1 behavioural property at gateway `_finish` level driving real
-`ConsentClaims` + production-shaped event history. 1 ADR↔code parity
-check.
+scan) running through a single `_leaks_membership_shape(name)` matcher.
+1 behavioural property at `recompute_ladder` level. 1 behavioural
+property at gateway `_finish` level driving real `ConsentClaims` +
+production-shaped event history + `session.owner` carrying the
+membership-context surface. 1 ADR↔code parity check.
 
 ## References
 
 - ADR-0011 §3c (anti-pay-to-rank property test as code invariant)
-- PRs #108, #109, #110, #113, #115, #116, #118, plus the PR-K follow-up
-  this doc accompanies.
+- PRs #108, #109, #110, #113, #115, #116, #118, #120, plus PR-M
+  (this round's follow-up).
