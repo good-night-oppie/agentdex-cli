@@ -23,9 +23,13 @@ from __future__ import annotations
 import hashlib
 import inspect
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority
+
+if TYPE_CHECKING:
+    from agentdex_arena.consent import ConsentClaims  # for _build_real_claims return type
 from agentdex_arena.gateway import ArenaGateway
 from agentdex_engine.modules.arena import RatingEvent, recompute_ladder
 from agentdex_engine.modules.arena.events import EventLog
@@ -274,37 +278,88 @@ def _make_event_log_with_battles(
     return log_path
 
 
+def _build_real_claims(
+    *,
+    owner: str,
+    agent_name: str,
+    token_id: str,
+) -> ConsentClaims:
+    """Build a production-shaped `ConsentClaims` so the membership-context
+    information travels through `BattleSession` + `battle_begin` + `_finish`
+    via the same field shape production uses: `claims.owner` (what
+    `verify_membership` keys on per consent.py:179-180) and
+    `claims.token_id` (what `BattleSession.claims_token_id` stores per
+    gateway.py:506-508).
+
+    The earlier helper passed a token-id surrogate string
+    `f"tok-{owner_email}"` which production code never sees; a future
+    regression like `if self.authority.is_paid_owner(claims.owner):
+    rating_event["bonus"] = +200` could not observe the paid membership
+    via that surrogate."""
+    from agentdex_arena.consent import ConsentClaims
+
+    return ConsentClaims(
+        token_id=token_id,
+        owner=owner,
+        agent_name=agent_name,
+        agent_pubkey_hex="0" * 64,
+        scopes=["enroll", "battle", "evolve"],
+        issued_at=_NOW,
+        expires_at=_NOW + 7 * 86_400,
+        confirmed_via="q5-property-test-fixture",
+    )
+
+
 async def _run_rated_battle_via_finish(
     gateway: ArenaGateway,
     *,
-    visitor: str,
+    claims: ConsentClaims,
     opponent: str,
-    visitor_owner: str,
     winner: str,
     battle_id: str,
 ) -> None:
     """Drive one rated battle through the REAL production end-of-battle code
-    path — `gateway._finish(session, end)` — so the test is sensitive to a
-    paid-only mutation injected anywhere in the actual emission block, not
-    just on the `EventLog.append` call.
+    path — `gateway._finish(session, end)` — with the production-shaped
+    `battle_begin` event appended FIRST so `_check_collusion`'s
+    win-transfer scan and any future paid-by-owner logic see the same event
+    history production code does.
 
-    The earlier helper fabricated the `period` payload and wrote it directly
-    to `EventLog`; since `EventLog.append` is just persistence, a paid-only
-    mutation in `_finish` itself (e.g. `if self.authority.is_paid(owner):
-    rating_event["bonus"] = +200` injected around the RatingEvent
-    construction at `gateway.py:849-870`) would have been silently bypassed.
-    Driving `_finish` directly closes that gap: every production line
-    between sanitize_name and `events.append("period", ...)` runs."""
+    Earlier this helper skipped the `battle_begin` append (production does
+    that in `battle_begin()` per gateway.py:560-578 before `battle_choose`
+    can ever call `_finish`). Without it, `_check_collusion`'s `begin_map`
+    is empty and the win-transfer rail's `total_matches` counter stays at
+    0 — a paid-specific change in the collusion gate, or a future
+    membership-dependent emission branch keyed off prior `battle_begin`'s
+    `visitor`/`tenant_id` join, would have been silently bypassed.
+
+    Driving `_finish` directly + mirroring the `battle_begin` event closes
+    that gap: every production line in `_finish` runs over the same event
+    history shape production code sees."""
     from agentdex_arena.gateway import BattleSession
+
+    # Production shape: `gateway.battle_begin` appends `battle_begin` BEFORE
+    # the session can ever reach `_finish` (gateway.py:560-578). Mirror it
+    # so `_check_collusion`'s win-transfer scan + any future
+    # owner/tenant-history-dependent branch sees the real shape.
+    gateway.events.append(
+        "battle_begin",
+        {
+            "tenant_id": claims.token_id,
+            "battle_id": battle_id,
+            "lane": "rated",
+            "visitor": claims.agent_name,
+            "opponent": opponent,
+        },
+    )
 
     session = BattleSession(
         battle_id=battle_id,
-        # claims_token_id is opaque to _finish (used only for replay tenancy
-        # tagging); we encode the owner-membership context in visitor_owner
-        # so a future engineer wiring `self.authority.is_paid(owner)` into
-        # the emission path has a real way to read it.
-        claims_token_id=f"tok-{visitor_owner}",
-        visitor_name=visitor,
+        # Real `claims.token_id` (not a surrogate string) — matches what
+        # production stores at gateway.py:506-508 so `replays[battle_id]
+        # ["tenant"]` tracks the same identifier any future paid-owner
+        # branch would key against.
+        claims_token_id=claims.token_id,
+        visitor_name=claims.agent_name,
         lane="rated",
         opponent=opponent,
         seed=[0, 0, 0, 0],
@@ -342,11 +397,23 @@ def _seed_gateway_with_rated_battles_via_finish(
 ) -> None:
     """Run N rated battles end-to-end via the production `_finish` path.
 
-    `visitor_owner` is the membership-context the test wants to inject —
-    a paid-only mutation in `_finish` reading
-    `self.authority.is_paid_owner(visitor_owner)` (or the moral equivalent)
-    would surface as a free vs paid ladder divergence."""
+    `visitor_owner` is the membership-context the test wants to inject; it
+    flows in via `ConsentClaims.owner` (the field `verify_membership`
+    actually keys on per consent.py:179-180), NOT as a string surrogate
+    inside `claims_token_id`. A paid-only mutation in `_finish` reading
+    `self.authority.is_paid_owner(claims.owner)` (or the moral equivalent)
+    would surface as a free vs paid ladder divergence because the real
+    owner field, not a synthetic prefix, is what arrives at the gate."""
     import asyncio
+
+    claims = _build_real_claims(
+        owner=visitor_owner,
+        agent_name=visitor,
+        # Deterministic but distinct per-owner token_id so the two gateways'
+        # event logs cannot collide on tenant_id; 12-char digits keeps the
+        # ConsentClaims `token_id` `min_length=8` rule happy.
+        token_id=f"q5tok{abs(hash(visitor_owner)) % (10**12):012d}",
+    )
 
     async def _run() -> None:
         for i in range(n_battles):
@@ -359,9 +426,8 @@ def _seed_gateway_with_rated_battles_via_finish(
                 w = ""
             await _run_rated_battle_via_finish(
                 gateway,
-                visitor=visitor,
+                claims=claims,
                 opponent=opponent,
-                visitor_owner=visitor_owner,
                 winner=w,
                 battle_id=f"rated-{i:04d}",
             )
@@ -522,7 +588,18 @@ def test_gateway_emission_path_does_not_couple_ladder_to_membership(tmp_path):
     # gateway carries the paid owner; free gateway carries the free owner.
     # A paid-only mutation injected inside `_finish` that consulted the
     # owner's membership status would diverge the resulting ladder.
-    pattern = ["p1", "p2", "p1", "p1", "p2", "p1", "p2", "p1"]
+    #
+    # The pattern flips the win-share so the VISITOR loses 4 of 8 cycles
+    # — opponent-bot ends with ~12 wins to probe-bot's ~4 over 16 battles.
+    # Crucial for the ordered-comparison guard below: if probe-bot won the
+    # majority, it would already sort ahead of opponent-bot by rating and
+    # a paid-first-reorder regression that promotes paid entrants to the
+    # top would leave the order unchanged in BOTH views (the assertion
+    # would be vacuously true). With probe-bot below opponent-bot in the
+    # free view, any paid-first promotion in the paid view would diverge
+    # the `list(items())` comparison. Both sides still win some battles,
+    # so `_check_collusion`'s win-transfer rail stays quiet.
+    pattern = ["p2", "p1", "p2", "p2", "p2", "p1", "p2", "p2"]
     _seed_gateway_with_rated_battles_via_finish(
         free_gw,
         visitor="probe-bot",
