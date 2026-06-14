@@ -192,34 +192,122 @@ def _make_event_log_with_battles(
     return log_path
 
 
-def _seed_gateway_with_battles(
+async def _run_rated_battle_via_finish(
     gateway: ArenaGateway,
     *,
-    p1: str,
-    p2: str,
+    visitor: str,
+    opponent: str,
+    visitor_owner: str,
+    winner: str,
+    battle_id: str,
+) -> None:
+    """Drive one rated battle through the REAL production end-of-battle code
+    path — `gateway._finish(session, end)` — so the test is sensitive to a
+    paid-only mutation injected anywhere in the actual emission block, not
+    just on the `EventLog.append` call.
+
+    The earlier helper fabricated the `period` payload and wrote it directly
+    to `EventLog`; since `EventLog.append` is just persistence, a paid-only
+    mutation in `_finish` itself (e.g. `if self.authority.is_paid(owner):
+    rating_event["bonus"] = +200` injected around the RatingEvent
+    construction at `gateway.py:849-870`) would have been silently bypassed.
+    Driving `_finish` directly closes that gap: every production line
+    between sanitize_name and `events.append("period", ...)` runs."""
+    from agentdex_arena.gateway import BattleSession
+
+    session = BattleSession(
+        battle_id=battle_id,
+        # claims_token_id is opaque to _finish (used only for replay tenancy
+        # tagging); we encode the owner-membership context in visitor_owner
+        # so a future engineer wiring `self.authority.is_paid(owner)` into
+        # the emission path has a real way to read it.
+        claims_token_id=f"tok-{visitor_owner}",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[0, 0, 0, 0],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    end_payload = {
+        "winner": winner,
+        # turns >= 3 keeps `_check_collusion`'s early-forfeit branch quiet,
+        # so the battle is NOT quarantined and the rating event lands in
+        # `recompute_ladder()`'s output.
+        "turns": 5,
+        # Non-empty inputLog gates the rated-emission block at
+        # `_finish` ("if session.lane == 'rated' and len(input_log) > 0").
+        "inputLog": [
+            "|start",
+            "|teampreview",
+            "|turn|1",
+            "|turn|2",
+            "|turn|3",
+        ],
+        "keyLines": [],
+    }
+    await gateway._finish(session, end_payload)
+
+
+def _seed_gateway_with_rated_battles_via_finish(
+    gateway: ArenaGateway,
+    *,
+    visitor: str,
+    opponent: str,
+    visitor_owner: str,
     n_battles: int,
     winner_pattern: list[str],
 ) -> None:
-    """Append identical `register` + `period` events to the gateway's OWN
-    `EventLog` handle — exactly the production emission path used inside
-    `battle_choose`'s end-of-battle block (`gateway.py:849-870`).
+    """Run N rated battles end-to-end via the production `_finish` path.
 
-    Using `gateway.events.append` (vs a hand-built `EventLog`) ensures the
-    test is sensitive to any future paid-path emission change. If a future
-    refactor inserted `if self.authority.is_paid(owner): ev["bonus"] = +200`
-    around the rating-event append, this seeding helper would carry that
-    membership-dependent emission through to the resulting ladder and the
-    free/paid comparison would diverge."""
-    gateway.events.append("register", {"name": p1, "frozen": False})
-    gateway.events.append("register", {"name": p2, "frozen": False})
-    gateway.events.append(
-        "period",
-        {
-            "events": _build_rated_events(
-                p1=p1, p2=p2, n_battles=n_battles, winner_pattern=winner_pattern
+    `visitor_owner` is the membership-context the test wants to inject —
+    a paid-only mutation in `_finish` reading
+    `self.authority.is_paid_owner(visitor_owner)` (or the moral equivalent)
+    would surface as a free vs paid ladder divergence."""
+    import asyncio
+
+    async def _run() -> None:
+        for i in range(n_battles):
+            pattern_winner = winner_pattern[i % len(winner_pattern)]
+            if pattern_winner == "p1":
+                w = visitor
+            elif pattern_winner == "p2":
+                w = opponent
+            else:
+                w = ""
+            await _run_rated_battle_via_finish(
+                gateway,
+                visitor=visitor,
+                opponent=opponent,
+                visitor_owner=visitor_owner,
+                winner=w,
+                battle_id=f"rated-{i:04d}",
             )
-        },
-    )
+
+    asyncio.run(_run())
+
+
+def _assert_no_membership_shaped_keys(node, *, path: str = "$") -> None:
+    """Recursively scan a JSON-shaped payload for keys / dict-values whose
+    NAMES carry membership-shaped tokens (`membership`, `paid`, `member`,
+    `premium`, `tier`, `subscription`). Earlier this scan only inspected
+    the OUTER `entrants` key — a public payload like
+    `{"entrants": {"probe-bot": {"paid": false}}}` would have slipped
+    through. Recursion is required now that the test seeds non-empty
+    entrant rows, since membership-shaped leakage is most likely to land
+    INSIDE the per-entrant row, not at the top of the view."""
+    forbidden_tokens = ("membership", "paid", "member", "premium", "tier", "subscription")
+    if isinstance(node, dict):
+        for k, v in node.items():
+            key_lower = str(k).lower()
+            for tok in forbidden_tokens:
+                assert tok not in key_lower, (
+                    f"ladder leaks membership-shaped key {k!r} at {path}.{k}"
+                )
+            _assert_no_membership_shaped_keys(v, path=f"{path}.{k}")
+    elif isinstance(node, list):
+        for idx, item in enumerate(node):
+            _assert_no_membership_shaped_keys(item, path=f"{path}[{idx}]")
 
 
 def test_rating_ceiling_independent_of_membership_status(tmp_path):
@@ -288,19 +376,36 @@ def test_rating_ceiling_independent_of_membership_status(tmp_path):
 
 def test_gateway_emission_path_does_not_couple_ladder_to_membership(tmp_path):
     """End-to-end variant: stand up TWO gateways with DIFFERENT memberships,
-    drive identical rated battles through each gateway's OWN `EventLog` handle
-    (the production emission path used by `battle_choose`), and assert
-    `ladder_public()` returns identical non-empty entrant rows.
+    drive identical rated battles through each gateway's REAL production
+    end-of-battle path (`_finish`), and assert `ladder_public()` returns
+    identical non-empty entrant rows — with ORDER preserved AND with no
+    membership-shaped key leaking at ANY depth of the public payload.
 
-    Earlier this test constructed both gateways with empty event paths and
-    only inspected the empty `{entrants: {}}` shape — a `ladder_public()`
-    implementation that boosted, filtered, or annotated paid entrants
-    whenever real entrants existed would still have passed. Driving identical
-    battles through the gateway's own `events.append` handle proves the
-    rating-event emission path is membership-blind end-to-end, AND that
-    `ladder_public()` does not branch on membership when assembling the
-    non-empty payload. This is the load-bearing behavioural property for
-    ADR-0011 §3c."""
+    Three sensitivities the earlier version did not have:
+
+    1. **Production emission path.** The earlier helper fabricated the
+       `period` payload and wrote it via `EventLog.append`; that is just
+       persistence — a paid-only mutation inside `_finish` itself (e.g.
+       reading `self.authority.is_paid_owner(...)` to add a `bonus` field
+       on the RatingEvent) would have been silently bypassed. Driving
+       `gateway._finish(session, end)` runs every production line between
+       `sanitize_name` and the period-event append.
+
+    2. **Ladder ORDER, not just dict equality.** Python `dict == dict`
+       ignores insertion order, but `ladder_public()` deliberately builds
+       `entrants` sorted by descending rating. A pay-to-rank regression
+       that re-sorted paid entrants ahead WITHOUT touching per-row rating
+       values would change the served ranking but leave the dict-equality
+       check green. Comparing `list(items())` in BOTH the outer view AND
+       the inner `entrants` dict catches the ordering-only attack.
+
+    3. **Recursive key-name scan.** The earlier loop only inspected the
+       top-level `entrants` key. A future row like
+       `{"entrants": {"probe-bot": {"paid": false}}}` would have slipped
+       through. `_assert_no_membership_shaped_keys` recurses into nested
+       dicts and lists.
+
+    This is the load-bearing behavioural property for ADR-0011 §3c."""
     signing = Ed25519PrivateKey.generate().private_bytes_raw().hex()
 
     free_gw = ArenaGateway(
@@ -314,7 +419,7 @@ def test_gateway_emission_path_does_not_couple_ladder_to_membership(tmp_path):
     paid_authority = ConsentAuthority(
         signing_key_hex=signing,
         now=lambda: _NOW,
-        memberships={"paid@x.com": _NOW + 1_000_000},
+        memberships={"paid-owner@example.com": _NOW + 1_000_000},
     )
     paid_gw = ArenaGateway(
         authority=paid_authority,
@@ -326,39 +431,64 @@ def test_gateway_emission_path_does_not_couple_ladder_to_membership(tmp_path):
     )
 
     # Sanity: the two authorities differ on membership state before the seed.
-    assert "paid@x.com" in paid_gw.authority.memberships
-    assert "paid@x.com" not in free_gw.authority.memberships
+    assert "paid-owner@example.com" in paid_gw.authority.memberships
+    assert "paid-owner@example.com" not in free_gw.authority.memberships
+    assert "free-owner@example.com" not in free_gw.authority.memberships
 
-    # Drive IDENTICAL rated-battle event sequences through each gateway's own
-    # `events.append` handle — exactly the production emission path
-    # `battle_choose` uses at end-of-battle (`gateway.py:849-870`).
+    # Drive IDENTICAL rated-battle sequences through each gateway's REAL
+    # production `_finish` path. Owner context differs by gateway — paid
+    # gateway carries the paid owner; free gateway carries the free owner.
+    # A paid-only mutation injected inside `_finish` that consulted the
+    # owner's membership status would diverge the resulting ladder.
     pattern = ["p1", "p2", "p1", "p1", "p2", "p1", "p2", "p1"]
-    for gw in (free_gw, paid_gw):
-        _seed_gateway_with_battles(
-            gw, p1="probe-bot", p2="opponent-bot", n_battles=16, winner_pattern=pattern
-        )
+    _seed_gateway_with_rated_battles_via_finish(
+        free_gw,
+        visitor="probe-bot",
+        opponent="opponent-bot",
+        visitor_owner="free-owner@example.com",
+        n_battles=16,
+        winner_pattern=pattern,
+    )
+    _seed_gateway_with_rated_battles_via_finish(
+        paid_gw,
+        visitor="probe-bot",
+        opponent="opponent-bot",
+        visitor_owner="paid-owner@example.com",
+        n_battles=16,
+        winner_pattern=pattern,
+    )
 
     free_view = free_gw.ladder_public()
     paid_view = paid_gw.ladder_public()
 
     # The non-empty ladder must be byte-identical between the free and paid
     # gateway — same registered entrants, same rated battles, same Glicko-2
-    # output. If `ladder_public()` ever boosted, filtered, or annotated paid
-    # entrants conditionally on `authority.memberships`, this assertion fires.
+    # output, AND same ladder order. If `ladder_public()` ever boosted,
+    # filtered, re-sorted, or annotated paid entrants conditionally on
+    # `authority.memberships`, one of the assertions below fires.
     assert free_view["entrants"], "free gateway ladder should have entrants after seeding"
     assert paid_view["entrants"], "paid gateway ladder should have entrants after seeding"
-    assert free_view == paid_view, (
-        f"ladder_public diverges between free and paid gateways — "
-        f"free={free_view!r} paid={paid_view!r} — pay-to-rank-by-proxy"
+
+    # Order-sensitive comparison — guards against pay-to-rank reordering
+    # that leaves per-row rating values untouched. `ladder_public()`
+    # deliberately constructs `entrants` in sorted (descending rating) order;
+    # we compare the ordered key/value sequence in BOTH the outer view AND
+    # the inner `entrants` dict.
+    assert list(free_view.items()) == list(paid_view.items()), (
+        f"ladder_public outer-view order diverges — "
+        f"free={list(free_view.items())!r} paid={list(paid_view.items())!r}"
+    )
+    assert list(free_view["entrants"].items()) == list(paid_view["entrants"].items()), (
+        f"ladder_public entrant ordering diverges between free and paid gateways — "
+        f"free={list(free_view['entrants'].items())!r} "
+        f"paid={list(paid_view['entrants'].items())!r} — pay-to-rank-by-proxy"
     )
 
-    # Belt-and-suspenders: even if the deep-equality check were ever relaxed,
-    # no key in the public view should carry membership-shaped naming. (Same
-    # check the older shape-only version of this test ran.)
-    for view in (free_view, paid_view):
-        for k in view:
-            assert "membership" not in str(k).lower(), f"ladder leaks membership key: {k}"
-            assert "paid" not in str(k).lower(), f"ladder leaks paid-ness in key: {k}"
+    # Recursive belt-and-suspenders: even if the ordered-equality check were
+    # ever relaxed, NO key at ANY depth of the public payload may carry
+    # membership-shaped naming (`paid`, `member`, `tier`, etc.).
+    _assert_no_membership_shaped_keys(free_view, path="free_view")
+    _assert_no_membership_shaped_keys(paid_view, path="paid_view")
 
 
 # ---- meta: doctrine vs code parity check ----
