@@ -483,7 +483,10 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
       ```
       register_v2 event + replay side-tables + POST /enroll/upgrade                →   ships FIRST
         (+ pre-deploy comms to every active owner to call /enroll/upgrade)
-      consent.py spend_quota re-keying for scope="battle" only (5e)                →   ships WITH reissue
+      consent.py spend_quota scope-conditional re-keying (5e):                    →   ships WITH reissue
+        - scope="battle" → key on _normalize_owner(claims.owner) (closes §3a)
+        - every other scope → key on claims.agent_name (stable across reissue,
+          unique per agent; closes the parallel rotation-as-reset for evolve)
       POST /enroll/reissue                                                         →   ships SECOND (depends on 5e)
       11e bulk export                                                              →   ships THIRD (depends on reissue + 4c/4d backfill)
       ```
