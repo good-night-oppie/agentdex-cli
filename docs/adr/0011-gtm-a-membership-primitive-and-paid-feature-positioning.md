@@ -33,10 +33,12 @@ enforced_by:
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_includes_anchor_opponent_register_rows + ::test_exported_log_replays_through_recompute_ladder (ships 11e)"
   - claim: "§3b V1 binding constraint 4d: sparse export is re-chained with fresh prev digests before emit; EventLog(export).verify_chain() accepts the result"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_export_round_trips_through_recompute_ladder (ships 11e)"
-  - claim: "§3b V1 binding constraint 5e: spend_quota keys on (_normalize_owner(claims.owner), scope, day) so /enroll/reissue does NOT reset the daily rated-battle bucket"
-    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py::test_reissue_does_not_reset_daily_rated_quota (ships with /enroll/reissue PR)"
-  - claim: "§3b V1 binding constraint 5f: legacy {name, frozen} agents with unexpired tokens are upgradable via POST /enroll/upgrade (idempotent, emits register_v2, no membership gate); anchor- agents are NOT eligible"
-    test: "packages/agentdex_arena/tests/test_enroll_upgrade_legacy_backfill.py (ships with register_v2 + /enroll/upgrade PR, blocks reissue)"
+  - claim: "§3b V1 binding constraint 5e: spend_quota keys on (_normalize_owner(claims.owner), 'battle', day) ONLY for scope=='battle'; all other scopes (evolve, future export) stay keyed on claims.token_id"
+    test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py::test_reissue_does_not_reset_daily_rated_quota + ::test_evolve_quota_stays_per_token_across_reissue (ships with /enroll/reissue PR)"
+  - claim: "§3b V1 binding constraint 5f: legacy {name, frozen} agents with unexpired tokens are upgradable via POST /enroll/upgrade (idempotent, emits register_v2, no membership gate); anchor- agents are NOT eligible; NO automatic boot sweep (pending_enrollments excluded as impersonation hole; live sessions inaccessible — BattleSession lacks full claims)"
+    test: "packages/agentdex_arena/tests/test_enroll_upgrade_legacy_backfill.py + ::test_pending_enrollments_never_emit_register_v2 (ships with register_v2 + /enroll/upgrade PR, blocks reissue)"
+  - claim: "§3b V1 binding constraint 4 Step 3: opponent backfill includes register rows ONLY (NOT register_v2 — leaks opponent owner_email_hash + agent_pubkey_hex); referenced_names walks FILTERED kept events, not original batched payload[events]"
+    test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_opponent_register_v2_never_in_export + ::test_referenced_names_filtered_per_4c (ships 11e)"
   - claim: "§3d no silent free->paid data reinterpretation; new ConsentClaims scope contribute_aggregate required (ships V2+)"
     test: "deferred to V2+ when scope lands"
 ---
@@ -253,9 +255,19 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
            return row
        if _touches_agent(ev):
            return ev
+       # `register` is replayed by recompute_ladder (events.py:152-164) and
+       # MUST come along for every opponent the kept periods name as p1/p2.
        if ev["type"] == "register"    and ev["payload"].get("name") in referenced_names:
            return ev
-       if ev["type"] == "register_v2" and ev["payload"].get("name") in referenced_names:
+       # `register_v2` is NOT replayed by recompute_ladder today (only
+       # `register` is read at events.py:155-156). The durable mapping side-
+       # tables (`_pubkey_by_name`, `_owner_hash_by_name`) carry sensitive
+       # fields (`agent_pubkey_hex`, `owner_email_hash`) used by /enroll/reissue
+       # — never by replay. Including OPPONENT `register_v2` rows would leak
+       # their owner durable identity for zero replay benefit. Limit to the
+       # requested agent's own row only (round-trips through future replay
+       # paths that may consume register_v2 without leaking opponents).
+       if ev["type"] == "register_v2" and ev["payload"].get("name") == requested_agent_name:
            return ev
        if ev["type"] == "badge"       and ev["payload"].get("agent_name") == requested_agent_name:
            return ev
@@ -270,11 +282,21 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
    # replay aborts at the first period row in the export. The anchor's `frozen`
    # flag is also set only at register time (ladder.py:40-44), so dropping
    # anchor register rows would silently un-freeze anchors on replay.
+   #
+   # IMPORTANT: walk the FILTERED kept events (the list 4c will emit), NOT
+   # the original payload["events"]. For a batched period containing one
+   # agent-matched event and N-1 unrelated co-batched events, walking the
+   # original list pulls in the co-batched p1/p2 names, then `_filtered_row`
+   # exports their `register` rows — defeating the 4c no-cross-agent-leak
+   # invariant. Recomputing the same `kept` filter here is cheap; emitting
+   # cross-agent register rows is the bug 4c was meant to close.
    referenced_names: set[str] = {requested_agent_name}
    for ev in gateway.events.iter_events():
        if ev["type"] != "period" or not _touches_agent(ev):
            continue
        for sub in ev.get("payload", {}).get("events", []):
+           if sub.get("battle_id") not in agent_battle_ids:
+               continue   # mirrors 4c filter — skip unrelated nested events
            if sub.get("p1"): referenced_names.add(sub["p1"])
            if sub.get("p2"): referenced_names.add(sub["p2"])
 
@@ -380,16 +402,25 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
 
    d. **Reissue is free, not paid.** It is an identity-recovery primitive, not an enriched feature. Per §3a, gating recovery on membership would be pay-to-rank-by-proxy (a free user who lets a token expire could not resume their rated battles). The `/enroll/reissue` and `/enroll/reissue/start` routes MUST NOT carry `@require_membership`.
 
-   e. **Reissue MUST NOT reset the per-owner daily rated-battle bucket — re-key `spend_quota` on `(_normalize_owner(claims.owner), scope, day)`.** The current `ConsentAuthority.spend_quota` keys its day-bucket on `claims.token_id` (consent.py:159-160). A fresh-minted reissue token carries a fresh `token_id` → a fresh bucket key → the same-day used-count silently resets to 0. A paid OR free owner who exhausts today's 5 rated battles could therefore call `/enroll/reissue` (5b), receive a fresh token, and obtain 5 MORE rated `period` emissions within the same UTC day. Because rated battle count drives `Ladder.rate_period` (gateway.py:849-870 → events.py:153-164 → glicko `update_rating`), this is precisely the §3a "rating-ceiling-equality" violation — by token-rotation rather than by membership tier, but equally forbidden.
+   e. **Reissue MUST NOT reset the per-owner daily rated-battle bucket — re-key `spend_quota` on `(_normalize_owner(claims.owner), "battle", day)` ONLY for the `battle` scope.** The current `ConsentAuthority.spend_quota` keys its day-bucket on `claims.token_id` (consent.py:159-160). A fresh-minted reissue token carries a fresh `token_id` → a fresh bucket key → the same-day used-count silently resets to 0. A paid OR free owner who exhausts today's 5 rated battles could therefore call `/enroll/reissue` (5b), receive a fresh token, and obtain 5 MORE rated `period` emissions within the same UTC day. Because rated battle count drives `Ladder.rate_period` (gateway.py:849-870 → events.py:153-164 → glicko `update_rating`), this is precisely the §3a "rating-ceiling-equality" violation — by token-rotation rather than by membership tier, but equally forbidden.
 
-      `verify_membership` already keys on `_normalize_owner(claims.owner)` precisely so it "survives 7-day token rotation" (consent.py:179-180, CLAUDE.md "Membership keyed by normalized owner, not by token_id"). The same rationale applies to every daily cap that gates rated emissions. The reissue PR MUST also land this single-line change:
+      `verify_membership` already keys on `_normalize_owner(claims.owner)` precisely so it "survives 7-day token rotation" (consent.py:179-180, CLAUDE.md "Membership keyed by normalized owner, not by token_id"). The same rationale applies to **the rated-battle cap specifically** — but NOT to the other scopes. `/evolution/request` and the MCP evolution tool also call `spend_quota(scope="evolve")` (gateway.py + adx_showdown/mcp_surface.py); re-keying all scopes to owner would silently change `evolve` from "2/day per ConsentClaims" to "2/day per owner", so a multi-agent owner's first agent could exhaust the second agent's evolution budget without warning. That is a separate product decision (currently outside §3a's scope, which guards rated battles only). The reissue PR MUST therefore land this surgical change — scoped to `"battle"` and leaving every other scope's per-token keying intact:
 
       ```python
-      # in consent.py, spend_quota — replace the keying line only:
+      # in consent.py, spend_quota — scope-conditional keying:
       def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> int:
           day = time.strftime("%Y%m%d", time.gmtime(self._now()))
-          owner_key = _normalize_owner(claims.owner)           # NEW
-          key = f"{owner_key}:{scope}:{day}"                   # NEW — was claims.token_id
+          # `battle` keys on the normalized owner so /enroll/reissue cannot
+          # reset the daily rated-battle cap by minting a fresh token_id.
+          # Every other scope (evolve, future export, etc.) stays keyed on
+          # claims.token_id to preserve the existing per-claims semantics
+          # (multi-agent owners keep getting agent_count × per-scope budget
+          # for non-rated scopes; only the §3a-relevant `battle` cap is
+          # owner-pooled).
+          if scope == "battle":
+              key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"   # NEW (PR-O)
+          else:
+              key = f"{claims.token_id}:{scope}:{day}"                  # unchanged
           used = self.quota_used.get(key, 0)
           cap = claims.quotas.get(scope, 0)
           if used >= cap:
@@ -398,15 +429,18 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
           return cap - used - 1
       ```
 
-      Constraint 3 already locks `quotas["battle"]` symmetric across tiers; 5e locks the daily bucket KEYING symmetric across token rotations. Both are required — 3 alone prevents a higher cap; 5e alone prevents bypassing the cap by minting fresh ids. Together they make "5 rated battles per UTC day per owner" the load-bearing §3a per-owner ceiling regardless of how many tokens the owner has issued today.
+      Constraint 3 already locks `quotas["battle"]` symmetric across tiers; 5e locks the daily `battle` bucket KEYING symmetric across token rotations. Both are required — 3 alone prevents a higher cap; 5e alone prevents bypassing the cap by minting fresh ids. Together they make "5 rated battles per UTC day per owner" the load-bearing §3a per-owner ceiling regardless of how many tokens the owner has issued today. **Non-`battle` scopes remain per-token by design** — re-keying them is a future product decision that requires its own §3-scope review (analogous to §3a's rated-battle reasoning) before it can ship.
 
       *Durable-quota note (V1 known limitation, NOT a §3b prerequisite).* `ConsentAuthority.quota_used` is in-memory; gateway restart clears the day's count. The operator runbook (`docs/runbooks/membership-admin.md`) MUST note this as a V1 limitation. A future "rebuild quota_used from EventLog on boot" pass (walks `battle_begin` where `lane == "rated"` + joins via `register_v2` durable mapping + groups by `(owner_email_hash, UTC-day)`) lands separately; no §3a violation is possible within a single boot once 5e is in place.
 
-   f. **Legacy-agent backfill — `register_v2` ships with a boot sweep + `POST /enroll/upgrade` route.** Subsections (a)-(e) define the future-enrollment path. Every agent enrolled under PRs #101–#105 (plus auto-anchor registrations at gateway.py:849-855) carries ONLY `register {name, frozen}` — `_pubkey_by_name` and `_owner_hash_by_name` are empty for them. Without backfill the 5b reissue handler returns `404 unknown agent` for every legacy enrollee whose 7-day token expires after `register_v2` ships, which is precisely the stranding 5c's "in any other order" warning is supposed to prevent. The V1 contract is therefore three-pronged:
+   f. **Legacy-agent backfill — `register_v2` ships with `POST /enroll/upgrade` as the ONLY legacy path.** Subsections (a)-(e) define the future-enrollment path. Every agent enrolled under PRs #101–#105 (plus auto-anchor registrations at gateway.py:849-855) carries ONLY `register {name, frozen}` — `_pubkey_by_name` and `_owner_hash_by_name` are empty for them. Without backfill the 5b reissue handler returns `404 unknown agent` for every legacy enrollee whose 7-day token expires after `register_v2` ships, which is precisely the stranding 5c's "in any other order" warning is supposed to prevent. The V1 contract is therefore two-pronged:
 
-      i. **Boot sweep at `register_v2` deploy.** First gateway boot after `register_v2` ships sweeps `pending_enrollments` AND iterates currently-live `self.sessions[*].claims_token_id → ConsentClaims`, emitting a NEW `register_v2` event for every `(name, agent_pubkey_hex, sha256(_normalize_owner(owner)))` triple it can prove from an UNEXPIRED token. Idempotent — skips names already in `_pubkey_by_name`. Catches every legacy owner whose token has not yet expired at deploy time.
+      i. **No automatic backfill — neither from `pending_enrollments` nor from live `self.sessions`.** An earlier draft of this section proposed a deploy-time boot sweep that walked both sources to emit `register_v2`. That is unsafe AND unimplementable:
 
-      ii. **`POST /enroll/upgrade`** — owners not in an active session at deploy time use a self-upgrade route shaped:
+      - **`pending_enrollments` MUST be excluded.** Pending entries are pre-out-of-band-confirmation — no owner-side proof has happened yet. A boot sweep that wrote `register_v2` for them would let an attacker submit a pending enrollment with the victim's email + the attacker's own `agent_pubkey_hex`, wait for the sweep, then satisfy `/enroll/reissue` (which checks `_owner_hash_by_name[name] == sha256(_normalize_owner(req.owner_email))`) with the known email + the attacker's matching private key — minting a token tied to the **victim's** owner email and (if granted) **victim's** membership. The out-of-band confirmation is the load-bearing identity-binding step; bypassing it via backfill is the impersonation hole 11b.x was designed to close.
+      - **Live `self.sessions` cannot be backfilled.** `BattleSession` (gateway.py:217-247) stores only `claims_token_id` + `visitor_name` — NOT the full `ConsentClaims`, NOT `agent_pubkey_hex`, NOT `owner`. `ConsentAuthority` has no `token_id → ConsentClaims` reverse index. After a deploy boot `self.sessions` is empty regardless (sessions are in-memory and lost on restart). The boot sweep cannot prove the `(name, agent_pubkey_hex, owner_hash)` triples it would need to emit. Promising it would strand owners who relied on the path.
+
+      ii. **`POST /enroll/upgrade`** is the ONLY legacy backfill path — owners must self-upgrade with their unexpired token. Shape:
 
       ```python
       class UpgradeRequest(BaseModel):
@@ -430,18 +464,19 @@ V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_e
 
       Free per 5d (identity recovery never gated on membership), idempotent (already-upgraded returns 200 without event), additive (replay code is unified across `register` + `register_v2`). Published on SKILL.md Layer 1 as the recommended pre-expiry one-time action for every legacy agent.
 
-      iii. **Explicit no-recovery populations.** **Anchors** (`name.startswith("anchor-")`) MUST NOT be eligible for `register_v2` or reissue — they have no human-side keypair; the 404 from `_pubkey_by_name.get` is correct. **Post-expiry-stranded humans** whose token expired before (i) ran and who did NOT call `/enroll/upgrade` in their valid window must re-enroll under a new agent name. Their old `register` row keeps replaying for `recompute_ladder` (ladder history preserved); they cannot reclaim the old `agent_name`. This is documented in `docs/runbooks/membership-admin.md` as a one-time migration cost, NOT ongoing V1 policy.
+      iii. **Explicit no-recovery populations.** **Anchors** (`name.startswith("anchor-")`) MUST NOT be eligible for `register_v2` or reissue — they have no human-side keypair; the 404 from `_pubkey_by_name.get` is correct. **Post-expiry-stranded humans** whose token expired before they called `/enroll/upgrade` in their valid 7-day window must re-enroll under a new agent name. Their old `register` row keeps replaying for `recompute_ladder` (ladder history preserved); they cannot reclaim the old `agent_name`. This is documented in `docs/runbooks/membership-admin.md` as a one-time migration cost, NOT ongoing V1 policy. The operator runbook MUST also surface a pre-deploy comms step: every active owner is notified to call `/enroll/upgrade` before `register_v2`'s rollout deadline — this is the only safe substitute for the impossible boot sweep.
 
       **Shipping order tightens to:**
 
       ```
-      register_v2 event + replay side-tables + boot sweep + POST /enroll/upgrade   →   ships FIRST
-      consent.py spend_quota re-keying (5e)                                        →   ships WITH reissue
+      register_v2 event + replay side-tables + POST /enroll/upgrade                →   ships FIRST
+        (+ pre-deploy comms to every active owner to call /enroll/upgrade)
+      consent.py spend_quota re-keying for scope="battle" only (5e)                →   ships WITH reissue
       POST /enroll/reissue                                                         →   ships SECOND (depends on 5e)
       11e bulk export                                                              →   ships THIRD (depends on reissue + 4c/4d backfill)
       ```
 
-      Any gap between (i)+(ii) and (iii) is bounded at 7 days for any individual owner who refreshes a token in the meantime. After that window every still-active human-owned agent is on `register_v2` and the 5b reissue handler works as written.
+      Any owner who calls `/enroll/upgrade` within their token's remaining 7-day window upgrades safely. After that window every active human-owned agent is on `register_v2` and the 5b reissue handler works as written; the post-expiry-stranded bucket is bounded by adoption rate of the pre-deploy comms.
 
 Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d). V2's relaxation to single-token multi-agent export is gated on the §3d `contribute_aggregate` scope landing — the `register_v2` durable mapping above is the substrate enabler, NOT the broadened data-flow consent.
 
