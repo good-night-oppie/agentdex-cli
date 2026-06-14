@@ -201,40 +201,40 @@ const TheGap = () => (
   <Section id="gap">
     <Kicker number="01" title="The Gap" />
     <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">
-      Agent frameworks ship runs.<br />
-      <span className="text-bene-muted">They don't ship selection.</span>
+      Four production gaps the research moved past.<br />
+      <span className="text-bene-muted">Most agent stacks haven't picked them up yet.</span>
     </h2>
     <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-      LangSmith scores but never blocks. LangGraph orchestrates the graph, then has no opinion on what should ship. CrewAI builds crews and AutoGen builds conversations; neither breeds strategies, and neither carries memory forward.
+      None of these is a knock on any particular framework — the orchestration layer you already use probably does its job well. These are the engineering gaps the post-2024 agent-research literature has answers for, and BENE’s job is to put those answers within reach as production primitives.
     </p>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
       <Card className="md:col-span-12 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Pain 1. Evals that don't gate</h3>
+        <h3 className="font-mono text-bene-accent mb-4">Gap 1. Eval scoring ≠ promotion gating</h3>
         <p className="text-bene-muted leading-relaxed">
-          You added a prompt to the registry on Friday. LangSmith showed regression on 12% of cases. It shipped Monday because <code className="text-bene-text">deploy.py</code> doesn't read LangSmith. In BENE the deploy step IS the probe: <code className="text-bene-text">promote()</code> raises <code className="text-bene-text">PromotionBlocked</code>, and CI halts on the exception.
+          A new prompt or strategy passes an offline eval. That score does not, by itself, refuse to ship a regression — somewhere in your pipeline a human or a deploy script makes the final call. BENE turns the gate into code: <code className="text-bene-text">promote()</code> raises <code className="text-bene-text">PromotionBlocked</code> unless a sha256-locked probe says ACCEPT, so CI halts on the exception.
         </p>
       </Card>
       <Card className="md:col-span-6 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Pain 2. Memory that evaporates</h3>
+        <h3 className="font-mono text-bene-accent mb-4">Gap 2. Cross-agent memory with provenance</h3>
         <p className="text-bene-muted leading-relaxed">
-          LangGraph carries conversation history; Letta carries one agent's memory; AutoGen carries nothing forward. None carry typed, provenance-linked engrams across a 5-tier ladder that survive sessions and breed across generations.
+          Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. BENE writes every turn as that kind of engram by default.
         </p>
       </Card>
       <Card className="md:col-span-6 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Pain 3. Autonomy declared in YAML</h3>
+        <h3 className="font-mono text-bene-accent mb-4">Gap 3. Autonomy as a computed signal</h3>
         <p className="text-bene-muted leading-relaxed">
-          You wrote <code className="text-bene-text">autonomy_level: full</code> in YAML last sprint and prod paid the price. BENE folds four signals into a [0,1] trust score; an L4 grant without <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code> raises in code. No knob overrides it.
+          Most autonomy flags live in a config file — easy to set, easy to forget. BENE folds four signals into a [0,1] trust score, and L4 grants require <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code> or the API raises. The escalation path is observable, not declarative.
         </p>
       </Card>
       <Card className="md:col-span-12 h-full">
-        <h3 className="font-mono text-bene-accent mb-4">Pain 4. Truth lives in someone else's dashboard</h3>
+        <h3 className="font-mono text-bene-accent mb-4">Gap 4. A local file as the source of truth</h3>
         <p className="text-bene-muted leading-relaxed">
-          Your incident review at 03:00 needs the exact prompt that shipped. LangSmith's UI shows it. Your auditor needs a file. BENE's <code className="text-bene-text">bene.db</code> is the file: cp it, rsync it, diff it, open it with sqlite3.
+          When an incident review at 03:00 needs the exact prompt that shipped, you want a file on your disk — not a dashboard you’re waiting on. BENE’s <code className="text-bene-text">bene.db</code> is that file: cp it, rsync it, diff it, open it with sqlite3.
         </p>
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-      Four things every other framework leaves out. The next section is the contract that names them.
+      Four production primitives, on disk, composable with whatever you already run.
     </p>
   </Section>
 );
@@ -270,15 +270,15 @@ const Contract = () => {
   );
 };
 
-// ─── 03 · Integrates with your toolbox ──────────────────────────────
+// ─── 03 · Plays well with your toolbox ──────────────────────────────
 const Comparison = () => {
-  const pairs = [
-    { n: 'LangGraph', s: 'Stateful graph orchestration with HITL, persistent memory across sessions, streaming, hierarchical multi-agent flows. The right tool to model an agent as a graph.', a: 'Pair BENE on top: every node-output that becomes a promotion candidate runs through a hash-locked probe. Conversation memory keeps doing its job; the engram ladder (trace → episodic → semantic → procedural → strategic) adds typed provenance the next graph run can grep.' },
-    { n: 'CrewAI', s: 'Roles and crews at enterprise scale — 450M+ workflows/month, Fortune 500 adoption, slick lifecycle.', a: 'BENE wraps each crew run as an engram batch. A new prompt version is a candidate genome; promote() ships it only when a probe says ACCEPT. The crew stays your orchestration — the gate becomes your CI.' },
-    { n: 'AutoGen', s: 'Event-driven conversation at scale — Studio (no-code), AgentChat (Python), distributed Core. Strong for conversational multi-agent apps.', a: 'BENE catches the run before it evaporates: every turn lands as a typed engram, every decision rides SharedLog, every promotion candidate from your event-driven loop gets a sha256-locked probe before it ships.' },
-    { n: 'smolagents', s: '~1K-LoC thin loop, first-class Code Agents, sandboxed execution. Radically simple, easy to read.', a: 'Keep the thin loop. BENE adds the substrate underneath — engrams compound across runs, probes gate the next prompt version, sandbox boundaries stay where they were.' },
-    { n: 'DSPy', s: '"Program, don’t prompt" — typed signatures, modular composition, automatic optimization of prompts and weights against a metric.', a: 'The two-line adoption: register DSPy.compile output as a candidate, write a 5-line probe against your existing metric, replace deploy.py with promote(). DSPy keeps optimizing. BENE refuses to let a regression ship.' },
-    { n: 'Letta (MemGPT)', s: 'Memory-first agents — Context Repositories, Git-based memory, "context is selfhood." The right tool for one long-running digital person.', a: 'Letta keeps memory for one agent. BENE makes it a multi-agent substrate: engrams promote between tiers only if a hash-locked probe ACCEPTs, so one agent’s lesson can’t poison another’s memory without passing a falsifiable test the next agent can re-run.' },
+  const recipes = [
+    { n: 'LangGraph',     r: 'Wrap node outputs as engrams; gate promote() on the candidate prompt before the next graph run.' },
+    { n: 'CrewAI',        r: 'crew.kickoff() → engram batch; promote new role configs only when their probe ACCEPTs.' },
+    { n: 'AutoGen',       r: 'on_message hook → engram; SharedLog for cross-agent decisions; probe gates conversational hand-off.' },
+    { n: 'smolagents',    r: 'Thin loop unchanged; engrams + probe live underneath, no changes to the agent body.' },
+    { n: 'DSPy',          r: 'Register DSPy.compile output as a candidate; 5-line probe against your metric; promote() replaces deploy.py.' },
+    { n: 'Letta',         r: 'Mirror Letta memory blocks as tier-2 engrams; cross-agent reuse goes through the probe + gate.' },
   ];
   const adds = [
     'Hash-locked kill gate before promotion',
@@ -291,44 +291,35 @@ const Comparison = () => {
   ];
   return (
     <Section id="comparison">
-      <Kicker number="03" title="Integrates with your toolbox" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">BENE is the production layer that turns frontier research into engineering tools.</h2>
+      <Kicker number="03" title="Plays well with your toolbox" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">A production substrate, not a framework war.</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
-        Not a replacement for your orchestration framework. A substrate that drops in alongside it. The job is to take engrams, kill gates, autonomy ladders, and breeding-program search out of the research papers and put them on one local SQLite file you can grep at 03:00.
+        BENE’s niche is putting post-2024 agent-research primitives — engram ladder, hash-locked probes, computed trust — on one local SQLite file you can audit at 03:00. Whichever orchestration framework you already run is welcome to stay; the substrate composes underneath.
       </p>
       <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
-        <h3 className="font-mono text-bene-accent text-sm mb-4">What BENE adds when you bolt it on</h3>
+        <h3 className="font-mono text-bene-accent text-sm mb-4">What the substrate gives you</h3>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm text-bene-text">
           {adds.map((a, i) => (
             <li key={i} className="flex gap-3"><span className="text-bene-accent">+</span>{a}</li>
           ))}
         </ul>
       </div>
-      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">Six frameworks. Six integration paths.</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-        {pairs.map(p => (
-          <Card key={p.n} className="h-full p-6">
-            <h3 className="font-mono text-bene-text mb-4 pb-4 border-b border-bene-dim">{p.n}</h3>
-            <div className="space-y-4 text-sm">
-              <div>
-                <span className="text-bene-muted block mb-1">what it’s great at:</span>
-                <p className="text-bene-text leading-relaxed">{p.s}</p>
-              </div>
-              <div>
-                <span className="text-bene-muted block mb-1">what BENE adds on top:</span>
-                <p className="text-bene-text leading-relaxed">{p.a}</p>
-              </div>
-            </div>
-          </Card>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">Integration recipes</h3>
+      <div className="border border-bene-dim bg-bene-surface mb-16">
+        {recipes.map((r, i) => (
+          <div key={r.n} className={'flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4 ' + (i < recipes.length - 1 ? 'border-b border-bene-dim' : '')}>
+            <div className="font-mono text-sm text-bene-accent md:w-32 shrink-0">{r.n}</div>
+            <div className="text-sm text-bene-text leading-relaxed">{r.r}</div>
+          </div>
         ))}
       </div>
       <div className="space-y-6">
         <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-          The orchestration layer you already chose stays. BENE adds the gate, the engrams, the trust ledger. Everything ships through one bene.db.
+          Bring your own framework. Bring your own provider. Add the production substrate; ship through one bene.db.
         </p>
         <div className="pt-8 border-t border-bene-dim flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-bene-muted max-w-2xl">
-            Niche: productionize frontier LLM + AI-agent research into engineering tools. Bring your own framework. Bring your own provider. Keep your own orchestration. Add the production substrate.
+            BENE’s job is to be the local-first substrate underneath your stack — not to score it against other tools. Receipts and limits are in the docs below.
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
