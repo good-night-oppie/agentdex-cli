@@ -416,12 +416,25 @@ const Recipes = () => {
 
 // ─── 06 · Architecture ──────────────────────────────────────────────
 const Architecture = () => {
-  const pillars = [
-    { n:'01', t:'Engram ladder (tiers 0 → 4)', d:'trace → episodic → semantic → procedural → strategic' },
-    { n:'02', t:'Probes + kill gates', d:'sha256-locked ACCEPT / REJECT / VOID. Tamper-refuse.' },
-    { n:'03', t:'Breeding program', d:'Mutation, selection, gated promote() via genome + Pareto.' },
-    { n:'04', t:'Context OS', d:'Budget + pollution detector. Runner-wire on roadmap.' },
-    { n:'05', t:'Autonomy ladder + trust', d:'Four signals → [0,1] composite for L0 → L4.' },
+  // Ordered by when projects actually encounter each piece, not by importance.
+  // Engram + probe show up day one; ContextOS / autonomy land when the project
+  // gets harder; breeding is the most niche, and its wiring is partial today.
+  const subsystems = [
+    { when: 'The next agent needs to inherit what the last one learned',
+      name: 'Engram ladder',
+      note: 'tiers 0 → 4: trace → episodic → semantic → procedural → strategic. Provenance is mandatory; promotion never mutates sources.' },
+    { when: 'A new prompt or strategy is up for promotion',
+      name: 'Probes + kill gates',
+      note: 'sha256-locked spec; tamper-refuse. ACCEPT / REJECT / VOID verdicts are themselves engrams, re-readable months later.' },
+    { when: 'A run’s context window is going sideways',
+      name: 'Context OS',
+      note: 'budgeted assembly + pollution detector + recover. Standalone API today; runner-wire into the live loop is on the roadmap.' },
+    { when: 'You need to escalate an agent above L3',
+      name: 'Autonomy ladder + trust ledger',
+      note: 'four signals fold into a [0,1] composite. L4 grants require granted_by="human:<name>" or the API raises.' },
+    { when: 'You want to evolve a strategy across generations against a metric',
+      name: 'Breeding program',
+      note: 'genome + mutation + Pareto front + gated promote(). The bridge from mh_search to kill-gate is manual today; end-to-end wiring on the roadmap.' },
   ];
   const modules = [
     { p:'core.py', r:'Bene harness entrypoint' },
@@ -438,17 +451,22 @@ const Architecture = () => {
   return (
     <Section id="architecture">
       <Kicker number="06" title="Architecture" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">One .db, five pillars, three surfaces</h2>
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">What you reach for when</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
-        The whole engine is a Python package, a sqlite file, and a CLI with a global --json flag. No daemon, no cloud, no schema you can't open in DB Browser.
+        You won’t meet all of this on day one. Below are the substrate pieces in roughly the order most projects encounter them — what the moment looks like, then which subsystem fires.
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-16">
-        {pillars.map(p => (
-          <Card key={p.n} className="h-full p-5">
-            <span className="font-mono text-bene-dim text-2xl block mb-3">{p.n}</span>
-            <h3 className="font-mono text-bene-text text-sm mb-2">{p.t}</h3>
-            <p className="text-xs text-bene-muted leading-relaxed">{p.d}</p>
-          </Card>
+      <div className="border border-bene-dim bg-bene-surface mb-16">
+        {subsystems.map((s, i) => (
+          <div key={s.name} className={'flex flex-col md:flex-row gap-3 md:gap-6 p-5 ' + (i < subsystems.length - 1 ? 'border-b border-bene-dim' : '')}>
+            <div className="md:w-1/3 text-sm text-bene-muted leading-relaxed">
+              <span className="font-mono text-bene-accent text-xs uppercase tracking-widest block mb-1">When</span>
+              {s.when}
+            </div>
+            <div className="md:w-2/3 text-sm leading-relaxed">
+              <div className="font-mono text-bene-text mb-1">{s.name}</div>
+              <p className="text-bene-muted">{s.note}</p>
+            </div>
+          </div>
         ))}
       </div>
       <div className="grid md:grid-cols-2 gap-12 mb-16">
@@ -474,22 +492,11 @@ const Architecture = () => {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
-        <Card className="p-4 flex items-center justify-between">
-          <span className="font-mono text-sm text-bene-muted">Python</span>
-          <code className="font-mono text-xs text-bene-text">from bene import Bene</code>
-        </Card>
-        <Card className="p-4 flex items-center justify-between">
-          <span className="font-mono text-sm text-bene-muted">CLI</span>
-          <code className="font-mono text-xs text-bene-text">bene --json ls | jq</code>
-        </Card>
-        <Card className="p-4 flex items-center justify-between">
-          <span className="font-mono text-sm text-bene-muted">MCP</span>
-          <code className="font-mono text-xs text-bene-text">bene serve --transport stdio</code>
-        </Card>
-      </div>
+      <p className="text-sm text-bene-muted leading-relaxed mb-8">
+        Reach the substrate from Python (<code className="text-bene-text font-mono">from bene import Bene</code>), from the CLI (<code className="text-bene-text font-mono">bene --json ls | jq</code>), or from MCP (<code className="text-bene-text font-mono">bene serve --transport stdio</code>) — same <code className="text-bene-text font-mono">bene.db</code> underneath.
+      </p>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        BENE breeds BENE's own prompts via mh_search. The harness running on itself is the case study.
+        BENE breeds BENE’s own prompts via mh_search. The harness running on itself is the case study.
       </p>
     </Section>
   );
