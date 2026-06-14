@@ -132,6 +132,26 @@ const Pill = ({ children }) => (
   </div>
 );
 
+// ─── Gap demo (a recorded terminal showing how BENE addresses one gap) ─
+// Source .tape sits in site/demos/tapes/gap-N-*.tape; the GIF is recorded
+// against bene-main HEAD with no edits.
+const GapDemo = ({ gif, caption }) => (
+  <div className="mt-5 bg-[rgb(var(--term))] border border-bene-dim rounded-sm overflow-hidden">
+    <div className="flex items-center px-3 py-2 border-b border-bene-dim bg-bene-surface">
+      <div className="flex gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+      </div>
+      <span className="ml-3 font-mono text-[10px] text-bene-muted uppercase tracking-widest">demo — recorded against bene-main HEAD</span>
+    </div>
+    <img src={`assets/demos/${gif}`} alt={caption} loading="lazy"
+      onError={(e) => { e.currentTarget.closest('.demo-embed')?.remove?.(); }}
+      className="w-full block" />
+    <p className="px-3 py-2 font-mono text-[11px] text-bene-muted leading-snug border-t border-bene-dim">{caption}</p>
+  </div>
+);
+
 // ─── Nav ────────────────────────────────────────────────────────────
 const Nav = ({ theme, setTheme }) => {
   const links = [
@@ -282,24 +302,28 @@ const TheGap = () => (
         <p className="text-bene-muted leading-relaxed">
           A new prompt or strategy passes an offline eval. That score does not, by itself, refuse to ship a regression — somewhere in your pipeline a human or a deploy script makes the final call. BENE turns the gate into code: <code className="text-bene-text">promote()</code> raises <code className="text-bene-text">PromotionBlocked</code> unless a sha256-locked probe says ACCEPT, so CI halts on the exception.
         </p>
+        <GapDemo gif="gap-1-killgate.gif" caption="bene init && bene demo seeds a probe; experiments ls shows the verdict 'story-probe -> ACCEPT' — itself an engram, re-readable months later." />
       </Card>
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 2. Cross-agent memory with provenance</h3>
         <p className="text-bene-muted leading-relaxed">
           Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. BENE writes every turn as that kind of engram by default.
         </p>
+        <GapDemo gif="gap-2-engram.gif" caption="bene query on the demo db shows the tier distribution: trace, episodic, strategic — each with title + provenance." />
       </Card>
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 3. Autonomy as a computed signal</h3>
         <p className="text-bene-muted leading-relaxed">
           Most autonomy flags live in a config file — easy to set, easy to forget. BENE folds four signals into a [0,1] trust score, and L4 grants require <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code> or the API raises. The escalation path is observable, not declarative.
         </p>
+        <GapDemo gif="gap-3-trust.gif" caption="bene trust <agent> returns 4 signals + composite. each value derives from the audit trail, not a config flag." />
       </Card>
       <Card className="md:col-span-12 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 4. A local file as the source of truth</h3>
         <p className="text-bene-muted leading-relaxed">
           When an incident review at 03:00 needs the exact prompt that shipped, you want a file on your disk — not a dashboard you’re waiting on. BENE’s <code className="text-bene-text">bene.db</code> is that file: cp it, rsync it, diff it, open it with sqlite3.
         </p>
+        <GapDemo gif="gap-4-sqlite.gif" caption="ls -la $DEMO_DB + a 4-line python script reads engrams directly. no client library, no portal." />
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">

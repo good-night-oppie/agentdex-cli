@@ -132,6 +132,25 @@ const Pill = ({ children }) => (
   </div>
 );
 
+// ─── 卡点 demo (录屏 — 展示 BENE 怎么解决每个 gap) ─────────────────
+// 录屏源 site/demos/tapes/gap-N-*.tape；GIF 是对 bene-main HEAD 实跑的，没改过输出
+const GapDemo = ({ gif, caption }) => (
+  <div className="mt-5 bg-[rgb(var(--term))] border border-bene-dim rounded-sm overflow-hidden">
+    <div className="flex items-center px-3 py-2 border-b border-bene-dim bg-bene-surface">
+      <div className="flex gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+        <div className="w-2 h-2 rounded-full bg-bene-med" />
+      </div>
+      <span className="ml-3 font-mono text-[10px] text-bene-muted uppercase tracking-widest">demo — 对 bene-main HEAD 实跑</span>
+    </div>
+    <img src={`../assets/demos/${gif}`} alt={caption} loading="lazy"
+      onError={(e) => { e.currentTarget.closest('.demo-embed')?.remove?.(); }}
+      className="w-full block" />
+    <p className="px-3 py-2 font-mono text-[11px] text-bene-muted leading-snug border-t border-bene-dim">{caption}</p>
+  </div>
+);
+
 // ─── Nav ────────────────────────────────────────────────────────────
 const Nav = ({ theme, setTheme }) => {
   const links = [
@@ -282,24 +301,28 @@ const TheGap = () => (
         <p className="text-bene-muted leading-relaxed">
           新 prompt 或 strategy「策略」过了 offline eval「离线评测」，分数只说明它在题库里表现不错。regression「回归问题」能不能混进上线链路，最后还得看 pipeline「流水线」里那个人，或者那段 deploy script「部署脚本」。BENE 把这一步写死在代码里：<code className="text-bene-text">promote()</code> 没拿到 sha256-locked probe 的 ACCEPT 就抛 <code className="text-bene-text">PromotionBlocked</code>，CI 看到 exception 直接停。
         </p>
+        <GapDemo gif="gap-1-killgate.gif" caption="bene init && bene demo 种下 probe；experiments ls 看到 'story-probe -> ACCEPT' 这一行——verdict 本身就是 engram，三个月后还能再读。" />
       </Card>
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 2：跨 agent 的记忆，得带 provenance「溯源」</h3>
         <p className="text-bene-muted leading-relaxed">
           对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。BENE 默认把每轮交互都写成这种 engram。
         </p>
+        <GapDemo gif="gap-2-engram.gif" caption="bene query 直接打开 demo db：tier 分布 + 每个 tier 的样例 title。trace / episodic / strategic 都在，provenance 强制入库。" />
       </Card>
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 3：autonomy「自主等级」不能靠 YAML 一行放飞</h3>
         <p className="text-bene-muted leading-relaxed">
           很多 autonomy flag「自主开关」躺在 config「配置」里，打开很快，忘掉更快。BENE 把四个 signal「信号」合成 [0,1] 的 trust score「信任分」；想拿 L4，必须写 <code className="text-bene-text">granted_by='human:&lt;name&gt;'</code>，少一个字 API「接口」就抛错。提权这条链路能查、能审，不靠一句配置自证清白。
         </p>
+        <GapDemo gif="gap-3-trust.gif" caption="bene trust <agent> 当场吐出 4 个 signal + composite。每一个值都从 audit trail 里算出来，不是 config 里写死的。" />
       </Card>
       <Card className="md:col-span-12 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 4：source of truth「事实来源」最好就是磁盘上一个文件</h3>
         <p className="text-bene-muted leading-relaxed">
           凌晨 3 点出了 incident「事故」，你想查当时到底上线了哪个 prompt。你要的是磁盘上一个能打开的文件，不是一个还在转圈的看板。BENE 的 <code className="text-bene-text">bene.db</code> 就是这个文件：cp、rsync、diff、sqlite3 直接打开，都行。
         </p>
+        <GapDemo gif="gap-4-sqlite.gif" caption="ls -la 看到一个真实的文件 + 4 行 python 直接 SELECT engrams。不需要 client library，不需要门户。" />
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
