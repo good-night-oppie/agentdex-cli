@@ -17,7 +17,7 @@ enforced_by:
     test: "packages/agentdex_arena/tests/test_membership_primitive.py::test_event_payload_shape_and_plaintext_token_never_in_events_file"
   - claim: "§3c rating ceiling is independent of membership status (property test)"
     test: "packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py (ships 11b.7)"
-  - claim: "§3b 11e bulk export server-side owner-scoped (ships 11e)"
+  - claim: "§3b V1 binding: 11e bulk export gates on caller.agent_name == requested_agent_name (ships 11e)"
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py (ships 11e)"
   - claim: "§3d no silent free->paid data reinterpretation; new ConsentClaims scope contribute_aggregate required (ships V2+)"
     test: "deferred to V2+ when scope lands"
@@ -76,9 +76,23 @@ Encoded as the property test in §3c.
 
 #### 3b. Bulk export is server-side owner-scoped (locked 2026-06-14)
 
-`GET /export/agent/<name>` (11e) MUST filter server-side by `caller.owner_email == agent.owner_email` (normalized via `_normalize_owner`). It MUST NEVER return another owner's battles, ratings, evolution lineage, or any field derived from them. The export is paid because it's an enriched aggregate / format conversion of YOUR OWN data; it is NOT a paid window into other users' work.
+`GET /export/agent/<name>` (11e) MUST filter server-side so the caller can only export an agent they hold a valid `ConsentClaims` token for. It MUST NEVER return another owner's battles, ratings, evolution lineage, or any field derived from them. The export is paid because it is an enriched aggregate / format conversion of YOUR OWN data; it is NOT a paid window into other users' work.
 
 (All other-owner data remains accessible to anyone — but only through the existing free `/replay/{id}`, `/ladder`, and `/methodology` surfaces, in the granular shapes those routes already serve.)
+
+##### V1 binding: `caller.agent_name == requested_agent_name` (locked 2026-06-14)
+
+The enrollment path persists `register` events with `{name, frozen}`; it does NOT persist a durable `agent → owner_email` mapping. The owner email is carried inside the 7-day `ConsentClaims` token only, and `_registered` is rebuilt from `register` events alone. Without a durable mapping the server cannot prove that an arbitrary requested agent name belongs to `caller.owner_email` after a 7-day token rotation; the alternative — trusting the agent name on the request — would let a paid caller export any owner's history by name.
+
+V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_email` to **`caller.agent_name == requested_agent_name`**. The 11e route MUST verify the active `ConsentClaims.scopes` contains the new `export` scope AND `requested_agent_name == claims.agent_name`; anything else is a 403. This is provably implementable on the existing event shape (no new event type, no schema migration) and the (free, paid) rating-ceiling invariant in §3c still holds because the route gates on agent-name match, not on membership tier.
+
+Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d).
+
+##### V2+ extension: durable `agent → owner_email` mapping
+
+If multi-agent bulk export under a single owner becomes a real customer ask — a user with 5 agents wanting ONE export call covering all 5 without juggling 5 tokens — V2 SHALL introduce a durable `agent_owner` event type (or extend `register` with an `owner_email_hash` field) so the gateway can answer `agents_for(owner_email)` from the EventLog after token rotation. That event SHALL ship BEFORE the 11e contract relaxes from `caller.agent_name == requested_agent_name` back to `caller.owner_email == agent.owner_email`; doing it in the other order trips the same data-leak risk this V1 binding closes.
+
+Until V2 lands the durable mapping, `caller.agent_name == requested_agent_name` is load-bearing — relaxing it without the mapping in place is the explicit reversal, visible in code and in the integration test that ships with 11e.
 
 #### 3c. Property test, not just diff-visibility test
 
