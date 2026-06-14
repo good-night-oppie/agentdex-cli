@@ -160,9 +160,11 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <a class="nav" href="../index.html">Landing</a>
   <a class="nav" href="index.html">Docs index</a>
   <a class="nav" href="../SKILL.md" target="_blank" rel="noopener noreferrer" title="Hand BENE to your agent in one URL">SKILL.md ↗</a>
-  <button class="nav copy-llms" data-llms-url="../llms.txt" title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context.">Copy llms.txt</button>
+  <button class="nav copy-llms" data-llms-url="../llms.txt" data-copied-label="✓ copied" data-opened-label="↗ opened" title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context.">Copy llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer">GitHub</a>
+  <a class="nav" href="../zh/docs/primitive-review-cycle.html" title="切换到中文" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">文</a>
 </div></div>
+
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -174,17 +176,17 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
         .then(function(text) {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             return navigator.clipboard.writeText(text).then(function() {
-              btn.textContent = '✓ copied';
+              btn.textContent = btn.getAttribute('data-copied-label') || '✓ copied';
               setTimeout(function() { btn.textContent = original; }, 2200);
             });
           }
           window.open(url, '_blank', 'noopener,noreferrer');
-          btn.textContent = '↗ opened';
+          btn.textContent = btn.getAttribute('data-opened-label') || '↗ opened';
           setTimeout(function() { btn.textContent = original; }, 2200);
         })
         .catch(function() {
           window.open(url, '_blank', 'noopener,noreferrer');
-          btn.textContent = '↗ opened';
+          btn.textContent = btn.getAttribute('data-opened-label') || '↗ opened';
           setTimeout(function() { btn.textContent = original; }, 2200);
         });
     });
