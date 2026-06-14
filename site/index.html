@@ -68,12 +68,12 @@ const dict = {
   en: {
     nav: { landing: 'Landing', docs: 'Docs', reference: 'Reference', github: 'GitHub' },
     hero: {
-      title: 'Run AI coding agents you can rewind, diff, and replay.',
-      forWho: 'For engineers whose agents break things they can’t undo.',
-      trustLine: 'The whole harness is one SQLite file you can cp or git diff. No API keys. No cloud.',
-      tagline: 'Every agent isolated, every turn checkpointed, and you can re-run every claim.',
+      title: 'The 30 seconds your agent broke prod. Rewind it.',
+      forWho: 'For engineers whose last agent blew up prod, and `git stash` came back empty.',
+      trustLine: 'Every byte your agent wrote this turn lands in `bene.db`. `cp` backs it up. `sqlite3` reads it. No keys, no network.',
+      tagline: '`bene checkpoint` before the write. `bene diff` to see what moved. `bene restore` to put the turn back. One command, not a git ritual.',
       stats: ['rewind a broken turn in one command', 'works with Claude Code, Cursor, Aider', '37 MCP tools'],
-      ctaCode: '# runs for everyone, today:\ngit clone https://github.com/EdwardTang/bene-site && cd bene-site\nless docs/design/CLAIMS-AUDIT.md            # the receipts, readable offline\n# framework checkout (private preview):\nuv run bene init && uv run bene demo --no-ui   # 0.3s, zero keys — the GIF below',
+      ctaCode: '# runs for everyone, today:\ngit clone https://github.com/EdwardTang/bene-site && cd bene-site\nless docs/design/CLAIMS-AUDIT.md            # the receipts, readable offline\n# framework checkout (private preview):\nuv run bene init && uv run bene demo --no-ui   # 0.3s, zero keys: the GIF below',
     },
     sections: {
       watch: {
@@ -85,20 +85,20 @@ const dict = {
       },
       builders: {
         kicker: '01.5 · WHY THIS MATTERS FOR BUILDERS',
-        title: 'Context Engineering as a SQLite file.',
-        body: 'Every checkpointed turn is a scratchpad your next agent can read. Engrams are lessons-learned that compound across sessions. Skills propagate between agents before they are needed. This is the scratchpad + lessons-learned + persistent-memory triad — wired together, on disk, one file.',
+        title: 'Other harnesses teach agents to remember. BENE teaches them to be audited.',
+        body: 'You stuffed lessons-learned into the prompt: the next session’s agent never saw it. You wrote them to a temp file: the agent didn’t know which copy was current. You wrote them into a doc: the agent doesn’t read docs. All three now append to `bene.db`. The next agent walks in, `grep`s for what the last one changed, why, and which probes it tripped. An evidence chain, not a context window.',
       },
       rewind: {
         kicker: '02 · REWIND A BAD TURN',
         title: 'An agent broke production. One command puts it back.',
-        body: 'Every write is checkpointable, every diff is offline, every restore is one verb. The agent scaled replicas: 3 → 0 (an outage). You see exactly what it touched, then roll back to green.',
+        body: 'The agent scaled replicas from 3 to 0. `git stash` came back empty: the file was helm values, not in your tree. `git revert` couldn’t help: it wasn’t a commit. `bene restore <checkpoint>` puts every byte back. It also tells you which turn the agent was in, what it read, and why it decided to change it.',
         demo: 'assets/demos/demo-litany.gif',
         caption: 'No git, no live service, no cloud. The whole rewind is the local SQLite file.',
       },
       receipts: {
         kicker: '03 · EVERY CLAIM HAS RECEIPTS',
-        title: 'Your tech lead can rerun every check.',
-        body: 'Probe specs are sha256-locked before any run. Every gate has an ACCEPT or REJECT verdict with the numbers it tripped. New agents read a manifest of what is already known instead of starting blind.',
+        title: 'Your tech lead doesn’t have to trust us. 40 seconds and he can rerun the whole thing.',
+        body: 'Clone the repo. Run `uv run bene probe verify`. Every ACCEPT or REJECT prints with the number that tripped it. The spec’s `sha256` was locked before the run, so nobody edits the score after the fact. If he doesn’t trust these numbers, he doesn’t have to trust us.',
         demo: 'assets/demos/demo-honesty.gif',
         caption: 'experiments ls → experiments show → senses --md: the audit trail and briefing a connected agent inherits.',
         links: [
@@ -110,19 +110,19 @@ const dict = {
       interop: {
         kicker: '04 · DROP INTO TOOLS YOU ALREADY USE',
         title: 'Claude Code. Cursor. Aider. Any MCP-compatible agent.',
-        body: '37 tools over MCP, stdio transport, one line in your agent config. Every CLI surface is reachable the same way over --json (pipe to jq). No glue code; no N×M integration tax.',
+        body: '37 tools over MCP / stdio. Add one line to your agent config. The same surface answers `--json` so jq eats it directly. Claude Code, Cursor, and Aider all read the same `bene.db`. You don’t write a different adapter for each IDE.',
         snippet: 'claude mcp add bene -- uv run bene serve --transport stdio',
         capabilities: [
-          'checkpoint its own turns and restore on bad output, without you reaching for git.',
-          'search engrams from past sessions as RAG context — lessons-learned that compound.',
-          'gate its own claims behind falsifiable probes before reporting done.',
+          'checkpoint its turn and restore when the output’s bad, without you reaching for git.',
+          'search engrams from earlier sessions as RAG context, so lessons-learned compound.',
+          'gate its own claim behind a falsifiable probe before it reports done.',
         ],
         capabilitiesLede: 'Your Claude Code (or Cursor / Aider) now can:',
       },
       build: {
         kicker: '04.5 · BUILD YOUR FIRST AUDITABLE AGENT',
-        title: 'Three recipes, run before publishing.',
-        body: 'Each recipe runs inside a framework checkout (private preview) against a fresh bene.db. Agents are created via the Python API or the MCP tools (agent_spawn / agent_write); the rewind verbs are plain CLI. Adapt the variables to your task; the harness mechanics stay the same.',
+        title: 'Three recipes. The commands were copied from a framework checkout, not written for the page.',
+        body: 'Each recipe runs against a fresh `bene.db`. Not staged output: the terminal’s actual echo. Create the agent through the Python API or MCP tools (`agent_spawn` / `agent_write`). The rewind verbs stay CLI. Swap in your task; the mechanics don’t change.',
         recipes: [
           {
             title: 'Wrap a flaky shell script as a checkpointed agent',
@@ -208,15 +208,16 @@ const dict = {
       },
       research: {
         title: 'Read the receipts before the claims',
-        desc: 'The research and benchmark docs separate implemented behavior from planned work, with paper links, gates, and measured limits.',
+        desc: 'BENE didn’t start from scratch. The kernel discipline — engrams, kill-gates, ContextOS — came out of KAOS v0.9, our own earlier harness. The list below is what each paper or system taught us; we kept what worked and rebuilt what didn’t.',
         href: 'https://github.com/EdwardTang/bene-site/blob/main/docs/research/SYNTHESIS.md',
         cta: 'Read SYNTHESIS.md (48 citations, 47 distinct papers) →',
         sample: [
-          { paper: 'Meta-Harness (Stanford IRIS)', pillar: 'Evolutionary meta-harness (the breeding program)' },
-          { paper: 'SkillX, SkillClaw, Trace2Skill', pillar: 'Skill + memory propagation (Missionaria Protectiva)' },
-          { paper: 'AEVO (verifier isolation)', pillar: 'Kill-gated promotion' },
-          { paper: 'AHE — Agentic Harness Engineering', pillar: 'Harness engineering + evolution' },
-          { paper: 'Lost in Conversation, RF-Mem, MemGAS', pillar: 'Context OS + pollution recovery' },
+          { paper: 'KAOS v0.9', lesson: 'kernel discipline, REJECT-counts-as-success eval, single-file Other Memory — kept verbatim' },
+          { paper: 'Meta-Harness (Stanford IRIS)', lesson: 'evolution by population, not by retune-and-rerun' },
+          { paper: 'SkillX, SkillClaw, Trace2Skill', lesson: 'skills and memories propagate across agents, before they’re needed' },
+          { paper: 'AEVO (verifier isolation)', lesson: 'promotion gated by an isolated verifier, not the candidate’s own claims' },
+          { paper: 'AHE — Agentic Harness Engineering', lesson: 'evidence → prediction → verify → rollback, per edit' },
+          { paper: 'Lost in Conversation, RF-Mem, MemGAS', lesson: 'consolidate-then-restart when the context gets polluted' },
         ],
       },
       arch: {
@@ -382,15 +383,16 @@ const dict = {
       },
       research: {
         title: '先读证据，再看声明',
-        desc: '研究和 benchmark 文档把已实现行为、计划项、论文链接、gate 与实测限制分开写清楚。',
+        desc: 'BENE 不是从零起的。kernel 里那套 engram + kill-gate + ContextOS 的纪律，是从我们自己之前的 harness KAOS v0.9 一点点抠出来的。下面这张表是每篇论文或前作教给我们的事——能用的留下，留不下的另起一遍。',
         href: 'https://github.com/EdwardTang/bene-site/blob/main/docs/research/SYNTHESIS.md',
         cta: '读 SYNTHESIS.md（48 处引用、47 篇论文） →',
         sample: [
-          { paper: 'Meta-Harness (Stanford IRIS)', pillar: '进化型 meta-harness（繁育计划）' },
-          { paper: 'SkillX、SkillClaw、Trace2Skill', pillar: '技能 + 记忆传播（保护传教团）' },
-          { paper: 'AEVO（verifier isolation）', pillar: 'kill-gate 门控晋升' },
-          { paper: 'AHE — Agentic Harness Engineering', pillar: 'harness 工程化 + 进化' },
-          { paper: 'Lost in Conversation、RF-Mem、MemGAS', pillar: '上下文 OS + 污染恢复' },
+          { paper: 'KAOS v0.9', lesson: 'kernel 的纪律、REJECT 也算 success 的 eval、单文件的 Other Memory——逐条保留' },
+          { paper: 'Meta-Harness (Stanford IRIS)', lesson: '用种群进化，不是 retune-and-rerun' },
+          { paper: 'SkillX、SkillClaw、Trace2Skill', lesson: '技能和记忆在 agent 用到之前就先 propagate 过去' },
+          { paper: 'AEVO（verifier isolation）', lesson: '能不能晋升要走独立 verifier，不能凭候选人自己的说法' },
+          { paper: 'AHE — Agentic Harness Engineering', lesson: '每一次编辑都要走 evidence → prediction → verify → rollback' },
+          { paper: 'Lost in Conversation、RF-Mem、MemGAS', lesson: '上下文被污染就 consolidate-然后-restart' },
         ],
       },
       arch: {
@@ -517,7 +519,7 @@ function Landing({ t }) {
 
       {/* 01 — Keyless first value (demo 1) */}
       <DemoSection kicker={s.watch.kicker} title={s.watch.title} body={s.watch.body}
-        src={s.watch.demo} alt="bene demo --no-ui — keyless 5-pillar story in 0.3s" caption={s.watch.caption} dark />
+        src={s.watch.demo} alt="bene demo --no-ui — the kernel's whole loop in 0.3s, no keys" caption={s.watch.caption} dark />
 
       {/* 01.5 — Why this matters for Builders (Context Engineering frame) */}
       <section className="border-b border-dune-border/40 px-6 py-20">
@@ -721,7 +723,7 @@ function Docs({ t }) {
             {dt.research.sample.map((row, i) => (
               <li key={i} className="flex flex-col md:flex-row md:gap-4 text-sm md:text-base">
                 <span className="font-mono text-dune-gold md:w-1/2">{row.paper}</span>
-                <span className="text-dune-mute">→ {row.pillar}</span>
+                <span className="text-dune-mute">→ {row.lesson}</span>
               </li>
             ))}
           </ul>
