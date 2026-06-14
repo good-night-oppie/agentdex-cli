@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BENE — Breeding-program · Evolutionary · Nexus · Engrams</title>
 <meta name="description" content="BENE: a local-first multi-agent orchestration framework. One SQLite file. Every agent isolated, auditable, restorable." />
-<link rel="icon" href="assets/bene-logo.png" />
+<link rel="icon" type="image/svg+xml" href="assets/bene-logo.svg" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -425,7 +425,7 @@ function Navbar({ view, setView, lang, setLang, t }) {
         <div className="flex items-center gap-8">
           <button type="button" className="flex items-center gap-3 cursor-pointer" onClick={() => setView('landing')}>
             <span className="w-8 h-8 bg-dune-surface border border-dune-border rounded flex items-center justify-center overflow-hidden">
-              <img src="assets/bene-logo.png" alt="BENE logo" className="w-full h-full object-cover"
+              <img src="assets/bene-logo.svg" alt="BENE — distilled seed encircled by Other Memory" className="w-full h-full object-contain p-0.5"
                 onError={(e) => { const img = e.currentTarget; img.style.display = 'none'; const fb = img.nextElementSibling; if (fb) fb.style.display = 'block'; }} />
               <span className="hidden font-serif font-bold text-dune-accent">B</span>
             </span>
