@@ -15,12 +15,11 @@ from pathlib import Path
 
 import pytest
 from adx_showdown.sidecar import Sidecar
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from fastapi.testclient import TestClient
-
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority, ConsentError
 from agentdex_arena.gateway import ArenaGateway, create_app
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi.testclient import TestClient
 
 _ADMIN_TOKEN = "integration-suite-admin-token"  # noqa: S105 — fixture, not a real secret
 _ADMIN_HASH = hashlib.sha256(_ADMIN_TOKEN.encode()).hexdigest()
@@ -84,11 +83,16 @@ def test_replay_skips_malformed_membership_grant_events(tmp_path):
     # Append a hand-crafted malformed event
     events_path = tmp_path / "events.jsonl"
     with events_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "seq": 9999,
-            "type": "membership_grant",
-            "payload": {"owner": "", "valid_until_epoch": "not-a-number"},
-        }) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "seq": 9999,
+                    "type": "membership_grant",
+                    "payload": {"owner": "", "valid_until_epoch": "not-a-number"},
+                }
+            )
+            + "\n"
+        )
 
     # Append another well-formed event AFTER the malformed one
     with _client(gw1) as c:
@@ -146,6 +150,7 @@ def test_owner_normalization_grant_vs_verify_match_across_case_and_whitespace(tm
 
     # Construct claims with various owner casings — verify_membership must match
     from agentdex_arena.consent import ConsentClaims
+
     for variant in ("eddie@oppie.xyz", "  EDDIE@OPPIE.XYZ  ", "eddie＠oppie.xyz"):
         claims = ConsentClaims(
             token_id="t0001abcd",
@@ -188,6 +193,7 @@ def test_revocation_via_past_epoch_through_the_route(tmp_path):
 
     # verify_membership now fails
     from agentdex_arena.consent import ConsentClaims
+
     claims = ConsentClaims(
         token_id="t0002abcd",
         owner="alice@x.com",
@@ -255,15 +261,64 @@ def test_auth_runs_before_body_parse_so_schema_is_not_leaked(tmp_path):
 def test_skill_md_does_not_mention_admin_surface():
     """SKILL.md is the agent-facing doc. Admin endpoints + env var + header
     name MUST NOT appear there — admin surface is operator-only."""
-    skill_path = (
-        Path(__file__).resolve().parent.parent
-        / "src"
-        / "agentdex_arena"
-        / "SKILL.md"
-    )
+    skill_path = Path(__file__).resolve().parent.parent / "src" / "agentdex_arena" / "SKILL.md"
     text = skill_path.read_text()
     for forbidden in ("/admin/", "X-Admin-Token", "ARENA_ADMIN_TOKEN_HASH", "grant-membership"):
         assert forbidden not in text, f"SKILL.md must not document {forbidden!r}"
+
+
+def test_all_agent_facing_surfaces_do_not_mention_admin_surface(tmp_path):
+    """Companion to `test_skill_md_does_not_mention_admin_surface`: extend
+    the absence contract to every agent-facing markdown surface — SKILL.md,
+    ENROLLMENT.md, METHODOLOGY.md — both at the file level AND as served by
+    the gateway at `/skill.md`, `/enrollment`, `/methodology`.
+
+    Per the admin runbook: the admin endpoint, URL, header, env var, AND the
+    PROSE phrases that hint at the surface's existence MUST NEVER appear in
+    any agent-facing doc. Naming the privileged surface (even as 'the
+    operator-only admin surface, intentionally excluded') makes it
+    discoverable to untrusted agent clients — exactly the failure mode the
+    admin runbook closes."""
+    src_dir = Path(__file__).resolve().parent.parent / "src" / "agentdex_arena"
+    forbidden_tokens = (
+        # URL / header / env / endpoint name (same set as SKILL.md test)
+        "/admin/",
+        "X-Admin-Token",
+        "ARENA_ADMIN_TOKEN_HASH",
+        "grant-membership",
+        # Prose phrases that hint at the surface's existence — the reviewer's
+        # specific concern on PR #107. "admin surface" / "admin endpoint" /
+        # "admin runbook" / "admin token" unambiguously refer to the
+        # operator surface; agent docs MUST NOT name it (positively or
+        # negatively, e.g. "intentionally excluded").
+        "admin surface",
+        "admin endpoint",
+        "admin runbook",
+        "admin token",
+    )
+
+    # ---- file-level ----
+    for name in ("SKILL.md", "ENROLLMENT.md", "METHODOLOGY.md"):
+        path = src_dir / name
+        text = path.read_text().lower()
+        for forbidden in forbidden_tokens:
+            assert forbidden.lower() not in text, (
+                f"{name} must not document {forbidden!r} — admin surface is operator-only"
+            )
+
+    # ---- route-level (belt-and-suspenders: catch future paths where the
+    # gateway serves a different copy than the static file the file-level
+    # scan reads) ----
+    gw = _make_gateway(tmp_path)
+    with _client(gw) as client:
+        for route in ("/skill.md", "/enrollment", "/methodology"):
+            r = client.get(route)
+            assert r.status_code == 200, f"{route} returned {r.status_code}"
+            body_lower = r.text.lower()
+            for forbidden in forbidden_tokens:
+                assert forbidden.lower() not in body_lower, (
+                    f"served {route} must not document {forbidden!r}"
+                )
 
 
 # ---- admin_authority=None fail-safe ----
