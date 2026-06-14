@@ -160,6 +160,44 @@ const Nav = ({ theme, setTheme }) => {
   );
 };
 
+// ─── Copy-llms.txt button ───────────────────────────────────────────
+// Fetches /bene/llms.txt, copies to the clipboard, flashes a confirmation.
+// Falls back to opening the file in a new tab if clipboard API is blocked.
+const CopyLlmsTxtButton = ({ className = '', label = 'Copy llms.txt' } = {}) => {
+  const [state, setState] = React.useState('idle');
+  const onClick = async () => {
+    try {
+      const r = await fetch('llms.txt', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('fetch failed: ' + r.status);
+      const text = await r.text();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setState('copied');
+        setTimeout(() => setState('idle'), 2200);
+      } else {
+        window.open('llms.txt', '_blank', 'noopener,noreferrer');
+        setState('opened');
+        setTimeout(() => setState('idle'), 2200);
+      }
+    } catch (e) {
+      window.open('llms.txt', '_blank', 'noopener,noreferrer');
+      setState('opened');
+      setTimeout(() => setState('idle'), 2200);
+    }
+  };
+  const flash =
+    state === 'copied' ? '✓ copied — paste into your agent' :
+    state === 'opened' ? '↗ opened in new tab' :
+    label;
+  return (
+    <button onClick={onClick}
+      title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context."
+      className={`font-mono text-xs text-bene-text hover:bg-bene-text/10 transition-colors border border-bene-text rounded-sm px-3 py-2 whitespace-nowrap ${className}`}>
+      {flash}
+    </button>
+  );
+};
+
 // ─── 00 · Hero ──────────────────────────────────────────────────────
 const Hero = () => (
   <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
@@ -199,10 +237,13 @@ const Hero = () => (
         <p className="text-sm text-bene-muted leading-snug">
           <span className="text-bene-text font-medium">Hand BENE to your agent in one URL.</span> Your agent can fetch the full skill — gates, blacklists, recipes, schema — and run BENE itself instead of you babysitting it.
         </p>
-        <a href="SKILL.md" target="_blank" rel="noopener noreferrer"
-           className="font-mono text-xs text-bene-accent hover:bg-bene-accent/10 transition-colors border border-bene-accent rounded-sm px-3 py-2 whitespace-nowrap shrink-0">
-          curl /bene/SKILL.md ↗
-        </a>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <a href="SKILL.md" target="_blank" rel="noopener noreferrer"
+             className="font-mono text-xs text-bene-accent hover:bg-bene-accent/10 transition-colors border border-bene-accent rounded-sm px-3 py-2 whitespace-nowrap">
+            curl /bene/SKILL.md ↗
+          </a>
+          <CopyLlmsTxtButton />
+        </div>
       </div>
     </div>
   </section>

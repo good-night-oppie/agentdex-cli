@@ -20,6 +20,19 @@ description: >-
 
 Methodology first, API second: BENE's model is **(1)** every agent gets an isolated SQLite-backed VFS so state is explicit; **(2)** every run leaves typed, provenance-linked traces (engrams) so the next agent never starts cold; **(3)** anything that *evolves* must pass a falsifiable kill gate before promotion; **(4)** anything that *acts* sits on an enforced autonomy ladder. If the API drifts, re-derive from this model and from `bene/cli/main.py`.
 
+## Self-update protocol (heartbeat) — read this first if you fetched this from a URL
+
+If you obtained this file from `https://agentdex.ai-builders.space/bene/SKILL.md` (the canonical agent-fetchable URL), you should:
+
+1. **Cache** the file's content AND the value of the `name:`/`description:` lines in the YAML frontmatter at the top.
+2. **Heartbeat:** re-fetch `https://agentdex.ai-builders.space/bene/SKILL.md` at the start of every new session, AND any time more than 24 hours have passed within a long-running session.
+3. **Compare:** if the live frontmatter differs from your cached copy, OR the body byte-length differs by more than a trivial amount, **replace your local copy** with the new one and reload the skill before continuing work.
+4. **Fallback:** if the URL fetch fails (network, 404, 5xx), keep operating on your cached copy and log a degraded-mode warning; do not block work.
+
+The companion file `/bene/llms.txt` (also at the canonical URL) is the [llms.txt](https://llmstxt.org/) index for the BENE site — fetch it once per session for the full path map (it summarises every reference doc, every tutorial, the gap audit, the bench report). Skip the llms.txt re-fetch if you already have SKILL.md cached and current.
+
+The point of the heartbeat: BENE itself evolves (it eats its own tail via mh_search), and this skill is the canonical artifact users hand to their agents. A 24h cadence is short enough to pick up any same-day rev, long enough that you are not network-pinging on every operation.
+
 ## When to use / when NOT to use
 
 **Use** for: multi-agent builds (parallel workers, planner-executor), agent memory that must survive sessions, claim-verification (probes), evolving prompts/strategies with promotion gates, audit trails, batch agent pipelines over `--json` CLI.
