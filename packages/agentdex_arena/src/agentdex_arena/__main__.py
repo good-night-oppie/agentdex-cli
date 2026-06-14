@@ -26,6 +26,7 @@ from pathlib import Path
 import uvicorn
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway, create_app
 
@@ -81,6 +82,11 @@ def build_gateway() -> ArenaGateway:
         )
         log.info("event mirror: write-behind to Postgres enabled")
 
+    # Admin authority for operator-only routes (ADR-0011 11b). Fail-closed
+    # boot: missing or malformed ARENA_ADMIN_TOKEN_HASH raises AdminAuthError
+    # which kills the container at startup. No runtime degraded mode.
+    admin = AdminAuthority()
+
     return ArenaGateway(
         authority=authority,
         events_path=runtime / "events.jsonl",
@@ -88,6 +94,7 @@ def build_gateway() -> ArenaGateway:
         notify_owner=_file_inbox_notifier(inbox),
         rated_seed_secret=os.environ.get("ARENA_RATED_SEED_SECRET", ""),
         event_sync=event_sync,
+        admin_authority=admin,
     )
 
 
