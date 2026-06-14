@@ -84,41 +84,57 @@ Encoded as the property test in §3c.
 
 The enrollment path persists `register` events with `{name, frozen}`; it does NOT persist a durable `agent → owner_email` mapping. The owner email is carried inside the 7-day `ConsentClaims` token only, and `_registered` is rebuilt from `register` events alone. Without a durable mapping the server cannot prove that an arbitrary requested agent name belongs to `caller.owner_email` after a 7-day token rotation; the alternative — trusting the agent name on the request — would let a paid caller export any owner's history by name.
 
-V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_email` to **`caller.agent_name == requested_agent_name`**, with three constraints made explicit so the implementation cannot drift:
+V1 therefore narrows the §3b contract from `caller.owner_email == agent.owner_email` to **`caller.agent_name == requested_agent_name`**, with five constraints made explicit so the implementation cannot drift:
 
-1. **Call order — membership gate is ADDITIVE, never a replacement.** The 11e route runs the standard paid-feature gate stack defined in CLAUDE.md "Membership gate call order":
+1. **Call order — membership gate is ADDITIVE; PoP defends against bearer leak; quota shares the battle budget.** The 11e route runs the standard paid-feature gate stack defined in CLAUDE.md "Membership gate call order", extended with the proof-of-possession step that the battle path already enforces (`gateway.py:466-469`):
 
    ```python
-   claims = authority.verify(token, scope="battle")     # 1. signature + expiry + scope
-   authority.verify_membership(claims)                  # 2. §3 paid-feature gate (REQUIRED)
-   if claims.agent_name != requested_agent_name:        # 3. §3b V1 binding (additive)
+   claims = authority.verify(token, scope="battle")              # 1. signature + expiry + scope
+   authority.verify_membership(claims)                           # 2. §3 paid-feature gate (REQUIRED)
+   if claims.agent_name != requested_agent_name:                 # 3. §3b V1 binding (additive)
        raise _opaque_error(403, "agent name mismatch")
-   authority.spend_quota(claims, scope="export")        # 4. daily cap
+   authority.verify_pop(claims, export_nonce, pop_signature_hex) # 4. §3b PoP (bearer-leak defense)
+   authority.spend_quota(claims, scope="battle")                 # 5. daily cap (shares battle budget)
    # ... assemble export ...
    ```
 
    The agent-name check sits BELOW `verify_membership`, never around it. A future engineer reading "the route gates on agent-name match, not on membership tier" must understand that **agent-name match is the §3b owner-scoping invariant; the membership gate is the §3 paid-feature invariant. Both are required for V1 11e; neither replaces the other.**
 
-2. **No new scope required.** 11e accepts the standard tokens minted at enrollment (`["enroll", "battle", "evolve"]`) — gating on `scope="battle"` keeps existing agents reachable without a token-reissue endpoint (which the SKILL.md Layer 1.2 recovery section explicitly notes is "planned post-MVP"). Free vs paid is determined by `verify_membership`, not by scope. This avoids silently re-purposing legacy tokens (§3d) — the agent's owner already consented to identity-binding at enrollment; identity-bound export of *that same agent's own data* is not a new data flow, just a paid format conversion.
+2. **PoP-bound export, not bearer-only.** Battle begin already requires the caller to sign `arena-pop:{token_id}:{battle_nonce}` with the Ed25519 key whose public half the owner registered at enrollment (`gateway.py:466-469`); a bearer-only export route would let a leaked token download the full paid history without the private key. 11e MUST therefore require an `export_nonce` (server-issued, single-use per request) plus an Ed25519 signature over `arena-export:{token_id}:{export_nonce}:{requested_agent_name}` — matching the existing battle-path PoP shape. The export endpoint emits the nonce from a sister `/export/begin` route the same way `/battle/start` issues `battle_nonce`.
 
-3. **History selection uses canonical `agent_name`, NOT `claims.token_id`.** The event feeds at `gateway.py:1401-1406` and `mcp_surface.py:250-253` filter by `payload.tenant_id == claims.token_id`. Battle rows are written with the originating token's id (`gateway.py:569-576` for `battle_begin`, `gateway.py:809-816` for `battle_end`). If 11e reuses that pattern, a rotated token will pass the §3b agent-name check but silently drop the agent's pre-rotation history. The 11e contract therefore selects rows by canonical agent identity:
+3. **No new scope required; quota shared with battle.** 11e accepts the standard tokens minted at enrollment (`["enroll", "battle", "evolve"]`) — gating on `scope="battle"` keeps existing agents reachable without a token-reissue endpoint (which the SKILL.md Layer 1.2 recovery section explicitly notes is "planned post-MVP"). Free vs paid is determined by `verify_membership`, not by scope. The quota call MUST also spend the existing `battle` budget; an `export` scope would always trip `spend_quota`'s missing-key path (which returns cap 0; `consent.py:158-167`) on legacy claims minted only with `{"battle": 5, "evolve": 2}` — re-introducing the reachability problem this section is closing. Sharing the daily 5-battle budget keeps the V1 contract honest about export being a "your own data, repackaged" affordance, not a new compute budget. Operators raise the `battle` quota at membership-grant time if a paying customer needs more headroom. This avoids silently re-purposing legacy tokens (§3d) — the agent's owner already consented to identity-binding at enrollment; identity-bound export of *that same agent's own data* is not a new data flow, just a paid format conversion.
+
+4. **History selection uses canonical `agent_name` + battle_id joins, NOT `claims.token_id` and NOT a flat `payload.visitor` filter.** The existing event feeds at `gateway.py:1401-1406` and `mcp_surface.py:250-253` filter by `payload.tenant_id == claims.token_id`; battle rows are written with the originating token's id (`gateway.py:569-576` for `battle_begin`, `gateway.py:809-816` for `battle_end`). A rotated token would pass the §3b agent-name check but silently drop the agent's pre-rotation history under a token-id filter. **Equally**, a naive `payload.visitor == agent_name` filter on every event type drops `battle_end` / `period` / `quarantine` rows entirely because those payloads carry only `tenant_id` + `battle_id` (no `visitor`). The contract therefore selects via a two-step canonical join:
 
    ```python
-   # CORRECT — by canonical agent name (survives token rotation)
+   # Step 1: find the agent's battles by visitor (only battle_begin carries visitor).
+   agent_battle_ids: set[str] = {
+       ev["payload"]["battle_id"]
+       for ev in gateway.events.iter_events()
+       if ev["type"] == "battle_begin"
+       and ev["payload"].get("visitor") == requested_agent_name
+   }
+
+   # Step 2: include EVERY related row by battle_id, plus the agent's register/badge rows.
    rows = [
        ev for ev in gateway.events.iter_events()
-       if (ev["type"] in ("battle_begin", "battle_end", ...)
-           and ev["payload"].get("visitor") == requested_agent_name)
+       if (
+           ev["payload"].get("battle_id") in agent_battle_ids
+           or (ev["type"] == "register" and ev["payload"].get("name") == requested_agent_name)
+           or (ev["type"] == "badge"    and ev["payload"].get("agent_name") == requested_agent_name)
+       )
    ]
 
-   # WRONG — by active token id (drops pre-rotation history)
-   rows = [
-       ev for ev in gateway.events.iter_events()
-       if ev["payload"].get("tenant_id") == claims.token_id
-   ]
+   # WRONG (1): flat visitor filter — drops battle_end / period / quarantine rows.
+   #   if ev["payload"].get("visitor") == requested_agent_name
+   #
+   # WRONG (2): token-id filter — drops pre-rotation history.
+   #   if ev["payload"].get("tenant_id") == claims.token_id
    ```
 
-   The agent-name check in §3b §1 above is what makes this safe: only callers whose active token names `agent_name` can request that agent's full historical record.
+   The agent-name check in §3b §1 above is what makes the canonical-identity join safe: only callers whose active token names `agent_name` can request that agent's full historical record. (Period events carry per-battle `battle_id` inside the `events` list; the implementation MAY either flatten that list under the parent event's `payload.battle_id` or join on the inner `battle_id` field — both shapes preserve the §3 anti-pay-to-rank invariant.)
+
+5. **V1 covers UNEXPIRED tokens only; renewal endpoint is a V1 prerequisite.** `ConsentAuthority.verify` rejects past-`expires_at` tokens (`consent.py:151-152`) and both enrollment paths reject duplicate `agent_name` (`gateway.py:413-415`, `gateway.py:434-435`). A paid owner whose 7-day token has expired before 11e ships cannot present a matching token — the token-reissue endpoint flagged "planned post-MVP" in `SKILL.md` Layer 1.2 is therefore promoted to a **V1 11e prerequisite**: the 11e implementation MUST ship alongside `POST /enroll/reissue` (out-of-band-code shaped, same as `/enroll/confirm/{code}`; preserves the registered `agent_name` + `owner_pubkey_hex`, mints a fresh `ConsentClaims` with default scopes + quotas). Without that endpoint, 11e access is implicitly time-limited to the 7-day window after each fresh enrollment, which is not a viable paid feature.
 
 Users with multiple agents under one owner hold one `ConsentClaims` per agent (one enrollment per agent today) — they export each by presenting the matching token. This is a deliberate V1 constraint, not a bug: it forces explicit per-agent consent on every export call, which is the Mom-Test-disciplined posture (§3d).
 
