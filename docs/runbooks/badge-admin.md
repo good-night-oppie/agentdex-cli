@@ -90,14 +90,21 @@ malformed, `BadgeAuthority.__init__` raises and the container exits
 immediately — operator notices via Koyeb's health-check failure.
 
 ```bash
-# Push the seed to Koyeb as a secret env var
+# Push the seed to Koyeb as a secret env var. The current Koyeb CLI
+# (per https://www.koyeb.com/docs/build-and-deploy/environment-variables)
+# interpolates a secret into an env var via `{{ secret.<NAME> }}`. The
+# older `@<NAME>` shorthand is silently treated as a literal value by
+# current builds — the container would read `ARENA_BADGE_SIGNING_KEY_HEX=
+# @arena-badge-signing-key-hex`, fail the 64-lowercase-hex validator,
+# and stay fail-closed even after the secret exists.
 koyeb secret create arena-badge-signing-key-hex --value "$BADGE_KEY"
-koyeb service update agentdex --env ARENA_BADGE_SIGNING_KEY_HEX="@arena-badge-signing-key-hex"
+koyeb service update agentdex --env ARENA_BADGE_SIGNING_KEY_HEX="{{ secret.arena-badge-signing-key-hex }}"
 
 # Container redeploys; on success: `koyeb service logs agentdex` shows the
 # usual gateway startup, NO BadgeAuthError. On failure: the logs surface
 # "ARENA_BADGE_SIGNING_KEY_HEX not set" or "must be a 64-char lowercase
-# ed25519 hex seed" — fix the secret value and re-roll.
+# ed25519 hex seed" — fix the secret value (or the interpolation shape)
+# and re-roll.
 ```
 
 ## Verifying the key is live
