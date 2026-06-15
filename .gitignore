@@ -19,8 +19,9 @@ __pycache__/
 # this keeps the working-copy tree consistent + prevents future bulk-syncs
 # from re-tracking them. See bene-main commit 1718297 for the wrong-tree
 # sentinel that fail-fasts if build-docs.py is still invoked here.
+# (2026-06-15: dropped site/check-i18n-parity.mjs — removed from bene-main
+# in commit f58f9ae; obsolete after the 2026-06-14 URL-based i18n migration.)
 site/build-docs.py
-site/check-i18n-parity.mjs
 site/test-harness.html
 
 # KAOS docs/demos/blog culled from vendored subtree (per A8)
