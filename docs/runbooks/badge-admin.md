@@ -63,25 +63,28 @@ op item create --category="API Credential" \
 python3 -c "from agentdex_arena.badge_auth import BadgeAuthority; BadgeAuthority(signing_key_hex='$BADGE_KEY'); print('badge key valid')"
 ```
 
-## Setting the README-embed base URL (deploy-time, optional)
+## Setting the README-embed base URL (deploy-time, REQUIRED on prod)
 
-The `/badge/mint` response carries `svg_url` + `verify_url` for paid owners to paste into third-party READMEs. Those URLs must be **absolute** — otherwise the README render resolves them against the README host (e.g. `github.com/badge/...`) and the embed breaks. The arena defaults to `https://agentdex.ai-builders.space` when the env is unset; production deploys work out of the box.
+The `/badge/mint` response carries `svg_url` + `verify_url` for paid owners to paste into third-party READMEs. Those URLs must be **absolute** — otherwise the README render resolves them against the README host (e.g. `github.com/badge/...`) and the embed breaks. `build_gateway()` defaults `ARENA_PUBLIC_BASE_URL` to the **empty string** so a deploy that does not explicitly set it emits **relative** `svg_url` / `verify_url` paths (see `__main__.py:116`). This is deliberate: an earlier default to the prod hostname meant every staging / preview / fork / local-Docker deploy minted README URLs under `https://agentdex.ai-builders.space` while the badge was signed by THAT deploy's badge key — following the URL on prod would fail Ed25519 verification and show the wrong ladder (PR #136 review #3411158896).
 
 ```bash
-# Default (matches the production hostname; only set this explicitly if you
-# want to be explicit about the deploy URL in your operator runbook):
+# REQUIRED on prod for the README-paste flow agents are told to use in
+# SKILL.md to work without a manual hostname prefix:
 koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL="https://agentdex.ai-builders.space"
 
 # Staging / preview / fork: point at the deploy URL the owner will paste
 # from. Any agent minted on this gateway gets URLs under this host.
 koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL="https://staging.your-deploy.example"
 
-# Integration test harness that resolves URLs against an injected base:
-# explicitly set to empty so /badge/mint emits relative paths.
-koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL=""
+# Integration test harness / local Docker that resolves URLs against an
+# injected base: leave the env unset (the default). /badge/mint emits
+# relative paths; agents prefix with their own gateway host.
+# koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL=""   # equivalent to leaving unset
 ```
 
-The constructor `rstrip("/")`s the value so a trailing slash will not produce double-slashed README URLs.
+The gateway constructor `rstrip("/")`s the value so a trailing slash will not produce double-slashed README URLs.
+
+**Failure mode if unset on prod:** `/badge/mint` returns `{"svg_url": "/badge/<agent>/<token>.svg", ...}`. A user who pastes that directly into a third-party README gets a broken image (resolved against `github.com`). Agents following `SKILL.md §Step 4.2` will correctly prefix the prod hostname; manual pasters need to know the deploy URL. Set the env to make the flow self-contained.
 
 ## Setting the env var on Koyeb (deploy-time, ONCE)
 
