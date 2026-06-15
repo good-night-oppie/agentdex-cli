@@ -94,6 +94,73 @@ RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking p
 # cycle: a revoked member loses MINT immediately, but already-minted badges
 # render until expiry — same semantic as a paid cert.
 BADGE_TOKEN_TTL_SEC = 30 * 86_400
+# 11c.3 D5: 5-minute CDN/browser cache for /badge/<>.svg. Battles are sparse;
+# <5min staleness is acceptable, blocks sig-spam on README hits.
+BADGE_SVG_CACHE_SEC = 300
+BADGE_ISSUER = "agentdex.ai-builders.space"
+BADGE_LADDER_URL = "https://agentdex.ai-builders.space/ladder"
+
+
+def _badge_referer_host(referer: str | None) -> str:
+    """Extract host (no port, no path, no query) from a Referer header for
+    the 11c.3 Q2 funnel. Returns '' when the header is missing or malformed
+    so the log line stays structured; aggregation lives in V2."""
+    if not referer:
+        return ""
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(referer)
+    except ValueError:
+        return ""
+    return (parsed.hostname or "").lower()
+
+
+def _badge_rating_color(rating: float) -> str:
+    """shields.io / Codeforces gradient per spec D4:
+    < 1500 → gray, 1500-1750 → light green, 1750+ → dark green."""
+    if rating < 1500:
+        return "#9f9f9f"
+    if rating < 1750:
+        return "#6cb868"
+    return "#4ba14a"
+
+
+def _render_badge_svg(*, agent_name: str, rating: float, rd: float, verify_url: str) -> str:
+    """shields.io-style 2-cell badge. Inline SVG so deployments don't need a
+    template file; values are XML-escaped to block injection through the
+    agent_name surface (the gateway already sanitize_name()s at enrollment,
+    but defense-in-depth at the render boundary is cheap)."""
+    from xml.sax.saxutils import escape as _xml_escape
+
+    safe_name = _xml_escape(agent_name)
+    safe_verify_url = _xml_escape(verify_url)
+    color = _badge_rating_color(rating)
+    value_text = f"{safe_name} · {rating:.0f} ±{rd:.0f} ✓"
+    label_text = "agentdex"
+    label_w = 12 + int(6.2 * len(label_text)) + 12
+    value_w = 12 + int(6.2 * len(value_text)) + 12
+    total_w = label_w + value_w
+    title = f"agentdex verified badge — see {safe_verify_url}"
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20" '
+        f'role="img" aria-label="{title}">'
+        f"<title>{title}</title>"
+        f'<linearGradient id="s" x2="0" y2="100%">'
+        f'<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
+        f'<stop offset="1" stop-opacity=".1"/>'
+        f"</linearGradient>"
+        f'<rect width="{total_w}" height="20" fill="#555" rx="3"/>'
+        f'<rect x="{label_w}" width="{value_w}" height="20" fill="{color}" rx="3"/>'
+        f'<rect x="{label_w - 3}" width="6" height="20" fill="{color}"/>'
+        f'<rect width="{total_w}" height="20" fill="url(#s)" rx="3"/>'
+        f'<g fill="#fff" text-anchor="middle" '
+        f'font-family="DejaVu Sans,Verdana,sans-serif" font-size="11">'
+        f'<text x="{label_w / 2:.0f}" y="14">{label_text}</text>'
+        f'<text x="{label_w + value_w / 2:.0f}" y="14">{value_text}</text>'
+        f"</g></svg>"
+    )
+
 
 # Break-the-mirror (#3, sandbox lane): each gym leader fields a FIXED, DISCLOSED
 # signature team drawn from the starter pack by sorted index — distinct from the
@@ -1457,6 +1524,83 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             "svg_url": f"/badge/{claims.agent_name}/{badge_token}.svg",
             "verify_url": f"/badge/{claims.agent_name}/{badge_token}/verify",
             "valid_until_epoch": valid_until,
+        }
+
+    def _resolve_badge(agent_name: str, badge_token: str) -> tuple[dict, dict]:
+        """Shared anti-substitution + expiry + ladder-lookup path for both
+        the SVG and verify endpoints. Returns (payload, ladder_entry) on
+        success; raises 503 if badge_auth is missing, 404 (opaque) on every
+        verify failure mode (bad sig, mismatched name, expired, unknown
+        agent). 404 keeps the surface unreadable per spec D7 anti-
+        enumeration posture."""
+        if gateway.badge_auth is None:
+            raise _opaque_error(503, "badge mint not configured")
+        try:
+            payload = gateway.badge_auth.verify_badge(badge_token)
+        except BadgeAuthError as e:
+            raise _opaque_error(404, e) from None
+        if payload.get("agent_name") != agent_name:
+            raise _opaque_error(404, "badge agent_name mismatch")
+        valid_until = payload.get("valid_until")
+        if not isinstance(valid_until, int | float) or gateway.now() > valid_until:
+            raise _opaque_error(404, "badge expired")
+        ladder = gateway.ladder_public()
+        entry = ladder.get("entrants", {}).get(agent_name)
+        if entry is None:
+            raise _opaque_error(404, "agent not on ladder")
+        return payload, entry
+
+    @app.get("/badge/{agent_name}/{badge_token}.svg", response_model=None)
+    async def badge_svg(agent_name: str, badge_token: str, request: Request):
+        """Public SVG render of the signed badge. NO consent token, no
+        membership lookup — the badge_token signature IS the auth. The SVG
+        renders from /ladder data so the §3 anti-pay-to-rank invariant
+        carries through (any rating tampering inside this endpoint would
+        diverge from the ladder + fail the Q5 property test in 11c.4)."""
+        from fastapi.responses import Response
+
+        payload, entry = _resolve_badge(agent_name, badge_token)
+        verify_url = f"/badge/{agent_name}/{badge_token}/verify"
+        svg = _render_badge_svg(
+            agent_name=agent_name,
+            rating=float(entry["rating"]),
+            rd=float(entry["rd"]),
+            verify_url=verify_url,
+        )
+        # Q2 funnel instrumentation (per spec §270) — Referer host-only.
+        log.info(
+            "badge_fetch agent=%s referer_host=%s kid=%s",
+            agent_name,
+            _badge_referer_host(request.headers.get("Referer")),
+            payload.get("kid"),
+        )
+        return Response(
+            content=svg,
+            media_type="image/svg+xml",
+            headers={"Cache-Control": f"public, max-age={BADGE_SVG_CACHE_SEC}"},
+        )
+
+    @app.get("/badge/{agent_name}/{badge_token}/verify")
+    async def badge_verify(agent_name: str, badge_token: str) -> dict:
+        """Public JSON verifier endpoint per spec D7. Returns the badge
+        payload plus the LIVE ladder values so a third-party verifier can:
+        (1) re-derive + verify the signature, (2) cross-check against
+        /ladder for the "SVG lies about your rating" attack, (3) compare
+        rendered SVG values to the JSON for renderer-cheats."""
+        if gateway.badge_auth is None:
+            raise _opaque_error(503, "badge mint not configured")
+        payload, entry = _resolve_badge(agent_name, badge_token)
+        return {
+            "agent_name": agent_name,
+            "rating": entry["rating"],
+            "rd": entry["rd"],
+            "games": entry["games"],
+            "signed_at_epoch": payload["signed_at"],
+            "valid_until_epoch": payload["valid_until"],
+            "badge_public_key_hex": gateway.badge_auth.public_key_hex,
+            "kid": payload.get("kid"),
+            "ladder_url": BADGE_LADDER_URL,
+            "issuer": BADGE_ISSUER,
         }
 
     @app.post("/evolution/request")
