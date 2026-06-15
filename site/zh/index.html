@@ -6,7 +6,9 @@
 <title>BENE — 带 hash-locked kill gate 的多智能体 harness</title>
 <meta name="description" content="把 BENE 放进你已经在跑的 CrewAI 或 LangGraph。每个 prompt 上线前过一道 hash-locked gate。凌晨 3 点用 sqlite3 打开 bene.db，grep 上一个 agent 学到了什么。" />
 <link rel="icon" type="image/svg+xml" href="assets/bene-logo.svg" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -27,42 +29,48 @@ tailwind.config = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        display: ['"Space Grotesk"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        sans: ['Geist', '"Noto Sans SC"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Geist', '"Noto Sans SC"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'monospace'],
       },
     },
   },
 }
 </script>
 <style>
-:root, :root[data-theme="dark"] {
-  --bg: 10 10 10;       /* #0A0A0A */
-  --surface: 14 14 14;  /* #0E0E0E */
-  --accent: 255 92 36;  /* #FF5C24 */
-  --text: 237 237 237;  /* #EDEDED */
-  --dim: 26 26 26;      /* #1A1A1A */
-  --med: 34 34 34;      /* #222222 */
-  --muted: 136 136 136; /* #888888 */
-  --term: 5 5 5;        /* terminal background */
+:root, :root[data-theme="light"] {
+  --bg: 240 238 232;
+  --surface: 237 233 228;
+  --accent: 238 96 24;
+  --text: 31 29 28;
+  --dim: 207 204 200;
+  --med: 200 194 186;
+  --muted: 98 102 109;
+  --term: 10 9 8;
 }
-:root[data-theme="light"] {
-  --bg: 250 250 250;    /* #FAFAFA */
-  --surface: 245 245 245;/* #F5F5F5 */
-  --accent: 194 84 27;  /* #C2541B (AA on light) */
-  --text: 26 26 26;     /* #1A1A1A */
-  --dim: 229 229 229;   /* #E5E5E5 */
-  --med: 204 204 204;   /* #CCCCCC */
-  --muted: 102 102 102; /* #666666 */
-  --term: 14 11 22;     /* terminals stay dark in both themes */
+:root[data-theme="dark"] {
+  --bg: 10 9 8;
+  --surface: 31 29 28;
+  --accent: 239 111 46;
+  --text: 237 233 228;
+  --dim: 61 58 57;
+  --med: 46 44 43;
+  --muted: 164 157 154;
+  --term: 5 5 5;
 }
-body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Inter',sans-serif; transition: background-color .15s, color .15s; }
+body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Geist','Noto Sans SC',ui-sans-serif,system-ui,sans-serif; transition: background-color .15s, color .15s; font-feature-settings: 'ss01' 1, 'cv11' 1; text-wrap: pretty; -webkit-font-smoothing: antialiased; }
 ::-webkit-scrollbar { width:6px; }
 ::-webkit-scrollbar-track { background: rgb(var(--surface)); }
-::-webkit-scrollbar-thumb { background: rgb(var(--med)); border-radius:3px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--med)); border-radius:2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent)); }
 .hide-scrollbar::-webkit-scrollbar { display:none; }
 .hide-scrollbar { scrollbar-width:none; }
+.section-inverted { background: #1F1D1C; color: #EDE9E4; }
+.section-inverted .text-bene-text { color: #EDE9E4; }
+.section-inverted .text-bene-muted { color: #A49D9A; }
+.section-inverted .border-bene-dim { border-color: #3D3A39; }
+.section-inverted .bg-bene-surface { background-color: #2E2C2B; }
+.section-inverted code { color: #EDE9E4; }
 </style>
 </head>
 <body>
@@ -70,23 +78,22 @@ body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Inter',
 <script type="text/babel" data-presets="react">
 const { useState, useEffect } = React;
 
-// ─── Patagon-style helpers ──────────────────────────────────────────
-const Section = ({ id, children, className = '', noBorder = false }) => (
-  <section id={id} className={`py-24 ${noBorder ? '' : 'border-t border-bene-dim'} ${className}`}>
+const Section = ({ id, children, className = '', inverted = false }) => (
+  <section id={id} className={`py-24 ${inverted ? 'section-inverted' : ''} ${className}`}>
     <div className="max-w-6xl mx-auto px-6">{children}</div>
   </section>
 );
 
 const Kicker = ({ number, title }) => (
-  <div className="flex items-center gap-4 mb-16">
-    <span className="font-mono text-bene-accent text-sm">{number}</span>
+  <div className="flex items-center gap-4 mb-12">
+    <span className="font-mono text-bene-accent text-[11px] tracking-[0.15em]">{number}</span>
     <div className="h-px bg-bene-dim flex-1" />
-    <span className="font-mono text-bene-accent text-sm tracking-widest uppercase">{title}</span>
+    <span className="font-mono text-bene-muted text-[11px] tracking-[0.18em] uppercase">{title}</span>
   </div>
 );
 
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-bene-surface border border-bene-dim p-8 ${className}`}>{children}</div>
+  <div className={`bg-bene-surface border border-bene-dim p-7 rounded-md ${className}`}>{children}</div>
 );
 
 const Terminal = ({ children, caption, copyText }) => {
@@ -240,7 +247,15 @@ const CopyLlmsTxtButton = ({ className = '', label = 'Copy llms.txt' } = {}) => 
 const Hero = () => (
   <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
     <div className="max-w-6xl mx-auto px-6 w-full">
-      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tight leading-[1.1] mb-6 max-w-4xl">
+      <div className="flex items-center gap-3 mb-8 font-mono text-[11px] tracking-[0.15em] uppercase text-bene-muted">
+        <span className="w-1.5 h-1.5 rounded-full bg-bene-accent" />
+        <span>v0.2.0</span>
+        <span className="text-bene-dim">·</span>
+        <span>local-first 多智能体 harness</span>
+        <span className="text-bene-dim">·</span>
+        <span>SQLite</span>
+      </div>
+      <h1 className="font-display text-[clamp(40px,6.5vw,86px)] font-semibold tracking-[-0.025em] leading-[1.05] mb-6 max-w-5xl">
         eval「评测」给上一个 prompt 打了高分。<br />
         <span className="text-bene-muted">它还是把线上带沟里了。</span>
       </h1>
@@ -340,7 +355,7 @@ const Contract = () => {
     { n: '4', t: 'L4 这一档，只能由人按名字签发', d: "四个 signal 合成 [0,1] 区间的 composite「合成分」。想拿 L4，granted_by 必须写 human:<name>，不然 API 当场抛错。没有自动晋升，也没有 YAML 旋钮可以偷偷拧。" },
   ];
   return (
-    <Section id="contract">
+    <Section id="contract" inverted>
       <Kicker number="02" title="底线 — 四条不变量" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">harness「调度框架」绝不让步的四条底线</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -473,7 +488,7 @@ const Recipes = () => {
     { id: 'R8', t: '在你的 agent 里跑 MCP server', d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
   ];
   return (
-    <Section id="recipes">
+    <Section id="recipes" inverted>
       <Kicker number="05" title="Recipe" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">八个 recipe，方法论先落成动词</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -603,7 +618,7 @@ const Limits = () => {
     { t: '向量检索类的 workload', d: '检索是 lexical FTS5 + association link。不上 embedding。Adaptive ranking 目前还是静态 BM25（COMMUNITY-BENCH A1b 对 KAOS 测出 −13.3pp）。outcome-weighted ranking 在 roadmap，没上。' },
   ];
   return (
-    <Section id="limits">
+    <Section id="limits" inverted>
       <Kicker number="07" title="什么时候不要用 BENE" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">四条诚实的边界</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -752,7 +767,7 @@ const Lore = () => {
 // ─── App ────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('bene-theme') || 'dark'; } catch (e) { return 'dark'; }
+    try { return localStorage.getItem('bene-theme') || 'light'; } catch (e) { return 'light'; }
   });
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

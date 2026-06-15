@@ -7,49 +7,50 @@
 <meta name="description" content="BENE 0.2.0 documentation — Parallel security review: four agents, one query" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
 <style>
-:root { --bg:#FAF6F0; --surface:#F2EAD9; --border:#E0D4BC; --ink:#1F1A14; --mute:#5C5448; --accent:#C2541B; --gold:#A0531C; --term-bg:#0E0B16; --term-fg:#E8DCC2; }
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+:root { --bg:#F0EEE8; --surface:#EDE9E4; --border:#CFCCC8; --ink:#1F1D1C; --mute:#62666D; --accent:#EE6018; --gold:#B46A35; --term-bg:#0A0908; --term-fg:#EDE9E4; }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 Inter,system-ui,sans-serif; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 Geist,ui-sans-serif,system-ui,sans-serif; }
 a { color:var(--gold); text-decoration-color: color-mix(in srgb, var(--gold) 40%, transparent); text-underline-offset:3px; }
 a:hover { color:var(--accent); }
 .top { position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--border); }
 .top-in { max-width:1200px; margin:0 auto; padding:0 24px; height:56px; display:flex; align-items:center; gap:24px; }
-.brand { font-family:"Playfair Display",serif; font-weight:700; letter-spacing:.12em; color:var(--ink); text-decoration:none; }
+.brand { font-family:Geist,ui-sans-serif,sans-serif; font-weight:700; letter-spacing:.12em; color:var(--ink); text-decoration:none; }
 .top a.nav { color:var(--mute); text-decoration:none; font-size:14px; }
 .top a.nav:hover { color:var(--accent); }
 .wrap { max-width:1200px; margin:0 auto; padding:24px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:40px; }
 aside.sb { position:sticky; top:80px; align-self:start; max-height:calc(100vh - 100px); overflow-y:auto; font-size:13.5px; border-left:1px solid var(--border); padding-left:16px; }
-.sb h4 { margin:18px 0 6px; font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+.sb h4 { margin:18px 0 6px; font:600 11px/1 "Geist Mono",ui-monospace,monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
 .sb a { display:block; padding:3px 0; color:var(--mute); text-decoration:none; }
 .sb a:hover { color:var(--accent); }
 .sb a.cur { color:var(--ink); font-weight:600; }
 main { min-width:0; max-width:760px; }
-main h1 { font-family:"Playfair Display",serif; font-size:2.1rem; line-height:1.2; margin:.2em 0 .5em; }
-main h2 { font-family:"Playfair Display",serif; font-size:1.45rem; margin-top:2em; border-bottom:1px solid var(--border); padding-bottom:.35em; }
+main h1 { font-family:Geist,ui-sans-serif,sans-serif; font-size:2.1rem; line-height:1.2; margin:.2em 0 .5em; }
+main h2 { font-family:Geist,ui-sans-serif,sans-serif; font-size:1.45rem; margin-top:2em; border-bottom:1px solid var(--border); padding-bottom:.35em; }
 main h3 { font-size:1.12rem; margin-top:1.7em; }
 main img { max-width:100%; border:1px solid var(--border); border-radius:8px; }
 main table { border-collapse:collapse; width:100%; font-size:14.5px; display:block; overflow-x:auto; }
 main th, main td { border:1px solid var(--border); padding:8px 12px; text-align:left; vertical-align:top; }
 main th { background:var(--surface); font-weight:600; }
-main blockquote { margin:1em 0; padding:.2em 1.2em; border-left:3px solid var(--accent); color:var(--mute); background:var(--surface); border-radius:0 8px 8px 0; }
-main :not(pre) > code { background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:.08em .35em; font:.86em "JetBrains Mono",monospace; }
-.codehilite, main pre { background:var(--term-bg); color:var(--term-fg); border-radius:10px; padding:16px 18px; overflow-x:auto; font:13.5px/1.55 "JetBrains Mono",monospace; box-shadow:0 12px 30px -18px rgba(31,26,20,.45); }
+main blockquote { margin:1em 0; padding:.2em 1.2em; border-left:3px solid var(--accent); color:var(--mute); background:var(--surface); border-radius:0 4px 4px 0; }
+main :not(pre) > code { background:var(--surface); border:1px solid var(--border); border-radius:3px; padding:.08em .35em; font:.86em "Geist Mono",ui-monospace,monospace; }
+.codehilite, main pre { background:var(--term-bg); color:var(--term-fg); border-radius:6px; padding:16px 18px; overflow-x:auto; font:13.5px/1.55 "Geist Mono",ui-monospace,monospace; }
 .codehilite pre, pre code { background:none; padding:0; margin:0; border:none; }
 .demo-embed { margin:20px 0 28px; }
-.demo-embed .frame { background:var(--term-bg); border-radius:12px; padding:14px; box-shadow:0 18px 44px -20px rgba(31,26,20,.5); }
+.demo-embed .frame { background:var(--term-bg); border-radius:6px; padding:14px; }
 .demo-embed .dots { display:flex; gap:6px; margin-bottom:10px; }
 .demo-embed .dots i { width:10px; height:10px; border-radius:50%; background:#3a3344; }
 .demo-embed img { border:none; border-radius:6px; display:block; width:100%; }
-.demo-embed p { font:12.5px "JetBrains Mono",monospace; color:var(--mute); margin:8px 2px 0; }
-.crumbs { font:12.5px "JetBrains Mono",monospace; color:var(--mute); margin-bottom:8px; }
+.demo-embed p { font:12.5px "Geist Mono",ui-monospace,monospace; color:var(--mute); margin:8px 2px 0; }
+.crumbs { font:12.5px "Geist Mono",ui-monospace,monospace; color:var(--mute); margin-bottom:8px; }
 .crumbs a { color:var(--mute); }
-.src { font:12.5px "JetBrains Mono",monospace; margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--mute); }
+.src { font:12.5px "Geist Mono",ui-monospace,monospace; margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--mute); }
 footer.ft { border-top:1px solid var(--border); margin-top:40px; }
-footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "JetBrains Mono",monospace; color:var(--mute); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
-.idx-group h2 { font-family:"Playfair Display",serif; border:none; margin-top:1.6em; }
+footer.ft .in { max-width:1200px; margin:0 auto; padding:24px; font:13px "Geist Mono",ui-monospace,monospace; color:var(--mute); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.idx-group h2 { font-family:Geist,ui-sans-serif,sans-serif; border:none; margin-top:1.6em; }
 .idx-group ul { list-style:none; padding:0; margin:.4em 0; }
 .idx-group li { padding:6px 0; border-bottom:1px dashed var(--border); }
-.idx-group .path { font:11.5px "JetBrains Mono",monospace; color:var(--mute); margin-left:8px; }
+.idx-group .path { font:11.5px "Geist Mono",ui-monospace,monospace; color:var(--mute); margin-left:8px; }
 /* Mobile overrides — kept at the end so source order beats base rules.
    Earlier this rule sat between base rules and got overridden by a later
    `aside.sb { position:sticky }`, leaving the sidebar stuck on top of

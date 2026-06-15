@@ -48,7 +48,9 @@ bash scripts/install_doc_lint_precommit.sh # doc_lint.py --staged
 # (HTML / mirrored markdown / bene-main example .py / build helpers)
 # — those files do not satisfy spec-doc rules and do not count as src
 # changes against the agentdex-cli code tree, so a site/ sync from
-# bene-main never needs a paired docs/** update.
+# bene-main never needs a paired docs/** update. The carve-out
+# compares paths RELATIVE to the repo root (get_staged_files returns
+# absolute paths) — see _rel() inside check_commit_shape().
 
 # 3. Verify green tree
 ./tools/agent_senses/run_tests.sh         # canonical pytest invocation

@@ -6,7 +6,9 @@
 <title>BENE — multi-agent harness with hash-locked kill gates</title>
 <meta name="description" content="Drop BENE into your CrewAI or LangGraph run. Every prompt clears a hash-locked gate before it ships. Open bene.db with sqlite3 and grep what the last agent learned." />
 <link rel="icon" type="image/svg+xml" href="assets/bene-logo.svg" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -27,42 +29,49 @@ tailwind.config = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        display: ['"Space Grotesk"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'monospace'],
       },
     },
   },
 }
 </script>
 <style>
-:root, :root[data-theme="dark"] {
-  --bg: 10 10 10;       /* #0A0A0A */
-  --surface: 14 14 14;  /* #0E0E0E */
-  --accent: 255 92 36;  /* #FF5C24 */
-  --text: 237 237 237;  /* #EDEDED */
-  --dim: 26 26 26;      /* #1A1A1A */
-  --med: 34 34 34;      /* #222222 */
-  --muted: 136 136 136; /* #888888 */
-  --term: 5 5 5;        /* terminal background */
+:root, :root[data-theme="light"] {
+  --bg: 240 238 232;    /* #F0EEE8 warm cream (factory.ai signature) */
+  --surface: 237 233 228;/* #EDE9E4 sunken card */
+  --accent: 238 96 24;  /* #EE6018 burnt orange */
+  --text: 31 29 28;     /* #1F1D1C warm ink */
+  --dim: 207 204 200;   /* #CFCCC8 divider */
+  --med: 200 194 186;   /* #C8C2BA mid */
+  --muted: 98 102 109;  /* #62666D */
+  --term: 10 9 8;       /* #0A0908 terminal stays dark */
 }
-:root[data-theme="light"] {
-  --bg: 250 250 250;    /* #FAFAFA */
-  --surface: 245 245 245;/* #F5F5F5 */
-  --accent: 194 84 27;  /* #C2541B (AA on light) */
-  --text: 26 26 26;     /* #1A1A1A */
-  --dim: 229 229 229;   /* #E5E5E5 */
-  --med: 204 204 204;   /* #CCCCCC */
-  --muted: 102 102 102; /* #666666 */
-  --term: 14 11 22;     /* terminals stay dark in both themes */
+:root[data-theme="dark"] {
+  --bg: 10 9 8;         /* #0A0908 warm near-black */
+  --surface: 31 29 28;  /* #1F1D1C */
+  --accent: 239 111 46; /* #EF6F2E brighter on dark */
+  --text: 237 233 228;  /* #EDE9E4 */
+  --dim: 61 58 57;      /* #3D3A39 */
+  --med: 46 44 43;      /* #2E2C2B */
+  --muted: 164 157 154; /* #A49D9A */
+  --term: 5 5 5;
 }
-body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Inter',sans-serif; transition: background-color .15s, color .15s; }
+body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Geist',ui-sans-serif,system-ui,sans-serif; transition: background-color .15s, color .15s; font-feature-settings: 'ss01' 1, 'cv11' 1; text-wrap: pretty; -webkit-font-smoothing: antialiased; }
 ::-webkit-scrollbar { width:6px; }
 ::-webkit-scrollbar-track { background: rgb(var(--surface)); }
-::-webkit-scrollbar-thumb { background: rgb(var(--med)); border-radius:3px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--med)); border-radius:2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent)); }
 .hide-scrollbar::-webkit-scrollbar { display:none; }
 .hide-scrollbar { scrollbar-width:none; }
+/* inverted sections (Contract / Recipes / Limits) — light cream → warm ink rhythm */
+.section-inverted { background: #1F1D1C; color: #EDE9E4; }
+.section-inverted .text-bene-text { color: #EDE9E4; }
+.section-inverted .text-bene-muted { color: #A49D9A; }
+.section-inverted .border-bene-dim { border-color: #3D3A39; }
+.section-inverted .bg-bene-surface { background-color: #2E2C2B; }
+.section-inverted code { color: #EDE9E4; }
 </style>
 </head>
 <body>
@@ -70,23 +79,31 @@ body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Inter',
 <script type="text/babel" data-presets="react">
 const { useState, useEffect } = React;
 
-// ─── Patagon-style helpers ──────────────────────────────────────────
-const Section = ({ id, children, className = '', noBorder = false }) => (
-  <section id={id} className={`py-24 ${noBorder ? '' : 'border-t border-bene-dim'} ${className}`}>
+// ─── Factory-grammar helpers ────────────────────────────────────────
+// Section gains an optional `inverted` flag — when true, the section paints
+// warm-ink (#1F1D1C) on cream — same light↔dark rhythm factory.ai uses
+// between segments. Borders are now soft (rgb(var(--dim))) not stark.
+const Section = ({ id, children, className = '', inverted = false }) => (
+  <section id={id} className={`py-24 ${inverted ? 'section-inverted' : ''} ${className}`}>
     <div className="max-w-6xl mx-auto px-6">{children}</div>
   </section>
 );
 
+// Factory kicker: <num> · <rule> · <UPPERCASE TRACKED LABEL>
+// 11px Geist Mono, 0.18em tracking — the signature micro-typography of the
+// reference design. Orange num + cream/ink rule + muted label.
 const Kicker = ({ number, title }) => (
-  <div className="flex items-center gap-4 mb-16">
-    <span className="font-mono text-bene-accent text-sm">{number}</span>
+  <div className="flex items-center gap-4 mb-12">
+    <span className="font-mono text-bene-accent text-[11px] tracking-[0.15em]">{number}</span>
     <div className="h-px bg-bene-dim flex-1" />
-    <span className="font-mono text-bene-accent text-sm tracking-widest uppercase">{title}</span>
+    <span className="font-mono text-bene-muted text-[11px] tracking-[0.18em] uppercase">{title}</span>
   </div>
 );
 
+// Card: flat, crisp, factory-grade — small radius (6px), 1px soft divider,
+// no glow shadow. Inner padding 28px (closer to 32 than 24 for breathing room).
 const Card = ({ children, className = '' }) => (
-  <div className={`bg-bene-surface border border-bene-dim p-8 ${className}`}>{children}</div>
+  <div className={`bg-bene-surface border border-bene-dim p-7 rounded-md ${className}`}>{children}</div>
 );
 
 const Terminal = ({ children, caption, copyText }) => {
@@ -241,7 +258,15 @@ const CopyLlmsTxtButton = ({ className = '', label = 'Copy llms.txt' } = {}) => 
 const Hero = () => (
   <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
     <div className="max-w-6xl mx-auto px-6 w-full">
-      <h1 className="font-display text-5xl md:text-7xl font-semibold tracking-tight leading-[1.1] mb-6 max-w-4xl">
+      <div className="flex items-center gap-3 mb-8 font-mono text-[11px] tracking-[0.15em] uppercase text-bene-muted">
+        <span className="w-1.5 h-1.5 rounded-full bg-bene-accent" />
+        <span>v0.2.0</span>
+        <span className="text-bene-dim">·</span>
+        <span>local-first multi-agent harness</span>
+        <span className="text-bene-dim">·</span>
+        <span>SQLite</span>
+      </div>
+      <h1 className="font-display text-[clamp(44px,7vw,92px)] font-semibold tracking-[-0.025em] leading-[1.02] mb-6 max-w-5xl">
         Your eval scored your last prompt.<br />
         <span className="text-bene-muted">It still shipped.</span>
       </h1>
@@ -341,7 +366,7 @@ const Contract = () => {
     { n: '4', t: 'L4 is the only level a human grants by name', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion. No YAML knob for it." },
   ];
   return (
-    <Section id="contract">
+    <Section id="contract" inverted>
       <Kicker number="02" title="The Contract — Four Invariants" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Four invariants the harness will not bend on</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -474,7 +499,7 @@ const Recipes = () => {
     { id: 'R8', t: 'MCP server in your agent', d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
   ];
   return (
-    <Section id="recipes">
+    <Section id="recipes" inverted>
       <Kicker number="05" title="Recipes" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Eight recipes — the methodology in verbs</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -604,7 +629,7 @@ const Limits = () => {
     { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Adaptive ranking is currently static BM25 (measured −13.3pp vs outcome-weighted ranking in the COMMUNITY-BENCH A1b row against KAOS). Outcome-weighted ranking is planned, not shipped.' },
   ];
   return (
-    <Section id="limits">
+    <Section id="limits" inverted>
       <Kicker number="07" title="When NOT to use BENE" />
       <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Four honest limits</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
@@ -753,7 +778,7 @@ const Lore = () => {
 // ─── App ────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('bene-theme') || 'dark'; } catch (e) { return 'dark'; }
+    try { return localStorage.getItem('bene-theme') || 'light'; } catch (e) { return 'light'; }
   });
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
