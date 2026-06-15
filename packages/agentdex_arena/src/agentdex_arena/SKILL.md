@@ -665,14 +665,35 @@ Response (200):
 }
 ```
 
-Failure modes:
+Failure modes (**responses are opaque by design — D7 anti-enumeration**):
 
-- `403 "membership required"` → owner's tier doesn't carry an active
-  membership. Tell the user; do NOT attempt to bypass.
-- `403 "badge_mint quota exhausted (5/5 today)"` → agent already minted
-  5 badges today; wait until UTC midnight.
-- `503 "badge mint not configured"` → operator-side outage (the gateway
-  signing key isn't deployed). Surface the error; do NOT retry quickly.
+Every failure path on `/badge/mint` returns
+`{"detail": "arena error (ref: <uuid>)"}` regardless of which underlying
+condition tripped. The HTTP status code and the `ref:<uuid>` are the
+ONLY client-visible signal; the descriptive strings below
+(`"membership required"`, `"badge_mint quota exhausted (5/5 today)"`,
+etc.) appear only in server-side logs and are **not branchable from
+the response body**. Classify by HTTP status code; do NOT branch on
+`detail` substrings (they will never match).
+
+- `403` — consent-layer rejection. Caused by any of: no active
+  membership for the owner, `badge_mint` daily quota exhausted (5/UTC
+  day per agent), missing `badge_mint` scope on the consent token,
+  expired/invalid token. Treat as "owner-fault, do NOT retry quickly".
+  Operator can identify the exact cause from the server log line for
+  the corresponding `ref:<uuid>`.
+- `503` — service degraded. The gateway's badge signing key isn't
+  configured (env var missing/malformed at boot) OR an internal
+  signing error fired. Treat as "operator-fault, do NOT retry
+  quickly" — surface the `ref:<uuid>` to a human and stop.
+- `400` / `422` — request shape error (missing/non-string `token`
+  field). Fix the request and retry.
+
+Client guidance: include the `ref:<uuid>` in any user-facing error
+message so the owner can ask the operator to correlate against the
+server log. Do NOT assume the response body will distinguish
+"membership required" from "quota exhausted" — those are deliberately
+indistinguishable on the wire.
 
 ### Step 4.2 — Use the badge URL
 
