@@ -268,7 +268,7 @@ const Hero = () => (
             <span className="text-bene-text font-medium">不用进厂商门户，也不用盯着还在转圈的仪表盘。</span>
           </p>
           <p className="text-sm text-bene-muted leading-relaxed font-mono">
-            下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。
+            下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。agent 想更好，可以用 <code className="text-bene-text">bene mh search</code> 自己繁育新 strategy——但照样得撞这道锁，没有后门。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，成为下一轮的输入。
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -341,7 +341,7 @@ const TheGap = () => (
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-      四个生产可用的 primitive「原语」，落在磁盘上，跟你已经在跑的那一套能拼起来。
+      四个生产可用的能力，落在磁盘上，跟你已经在跑的那一套能拼起来。
     </p>
   </Section>
 );
@@ -372,7 +372,9 @@ const Contract = () => {
           </Card>
         ))}
       </div>
-      <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">接下来就只剩下接入数据了。</p>
+      <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
+        人写 strategy，或者 agent 用 <code className="text-bene-text">bene mh search</code> 自己繁育，撞的都是同一道 gate——过不了 sha256-locked probe，<code className="text-bene-text">promote()</code> 就抛错；每一次尝试，赢的输的，都落进 <code className="text-bene-text">bene.db</code>，成为下一轮的输入。接下来就只剩下接入数据了。
+      </p>
     </Section>
   );
 };
@@ -478,14 +480,14 @@ const Proof = () => {
 // ─── 05 · Recipes ───────────────────────────────────────────────────
 const Recipes = () => {
   const rs = [
-    { id: 'R1', t: '上线翻车后回滚一次', m: 'bene.checkpoints', flow: ['agent 跑一轮', 'checkpoint("green")', 'diff → restore'], d: 'Litany 循环。', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
-    { id: 'R2', t: '两个 agent 拍板', m: 'bene.shared_log', flow: ['planner 提议', 'SharedLog vote', 'executor 拍板'], d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log show --topic plan/v1  →  intent、vote、decide 都在' },
-    { id: 'R3', t: '卡住下一次 promote', m: 'bene.kernel.eval', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  一行' },
-    { id: 'R4', t: '把 memory 跨 run 累积', m: 'bene.kernel.memory', flow: ['legacy store', 'attach_kernel', '下次 search 命中'], d: '把 legacy store 映射成 engram；consolidate；adaptive retrieval。', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<任务关键词>"  →  之前 session 的 hit' },
-    { id: 'R5', t: 'context 不爆预算', m: 'bene.kernel.memory.ContextOS', flow: ['budget=8192', 'ContextOS.assemble', '不爆预算'], d: 'Budgeted assembly + pollution detector。', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget 从不溢出' },
-    { id: 'R6', t: '提权 L0 → L4', m: 'bene.kernel.trust + .harness', flow: ['4 个 signal', 'composite ∈ [0,1]', 'human 签 L4'], d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
-    { id: 'R7', t: '繁育更好的 strategy', m: 'bene.kernel.evolve', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
-    { id: 'R8', t: '把 BENE 挂到 agent 里', m: 'bene.mcp', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls 看到'], d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
+    { id: 'R1', t: '上线翻车后回滚一次', m: 'bene.checkpoints', who: '你', flow: ['agent 跑一轮', 'checkpoint("green")', 'diff → restore'], d: 'Litany 循环。', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
+    { id: 'R2', t: '两个 agent 拍板', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner 提议', 'SharedLog vote', 'executor 拍板'], d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log show --topic plan/v1  →  intent、vote、decide 都在' },
+    { id: 'R3', t: '卡住下一次 promote', m: 'bene.kernel.eval', who: '你 + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  一行' },
+    { id: 'R4', t: '把 memory 跨 run 累积', m: 'bene.kernel.memory', who: '你 → agent', flow: ['legacy store', 'attach_kernel', '下次 search 命中'], d: '把 legacy store 映射成 engram；consolidate；adaptive retrieval。', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<任务关键词>"  →  之前 session 的 hit' },
+    { id: 'R5', t: 'context 不爆预算', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['budget=8192', 'ContextOS.assemble', '不爆预算'], d: 'Budgeted assembly + pollution detector。', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget 从不溢出' },
+    { id: 'R6', t: '提权 L0 → L4', m: 'bene.kernel.trust + .harness', who: 'agent 爬 · 人签 L4', flow: ['4 个 signal', 'composite ∈ [0,1]', 'human 签 L4'], d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
+    { id: 'R7', t: '繁育更好的 strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
+    { id: 'R8', t: '把 BENE 挂到 agent 里', m: 'bene.mcp', who: '你，一次', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls 看到'], d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
   ];
   return (
     <Section id="recipes" inverted>
@@ -500,6 +502,7 @@ const Recipes = () => {
             <div className="flex items-center gap-3 mb-2">
               <span className="bg-bene-dim text-bene-text font-mono text-xs px-2 py-1 rounded-sm">{r.id}</span>
               <h3 className="font-mono text-bene-text text-sm">{r.t}</h3>
+              <span className="ml-auto font-mono text-[10px] text-bene-muted whitespace-nowrap shrink-0">{r.who}</span>
             </div>
             <p className="font-mono text-[11px] text-bene-accent mb-4 tracking-tight">{r.m}</p>
             <div className="font-mono text-[10px] flex items-center gap-1.5 mb-4 text-bene-muted overflow-x-auto whitespace-nowrap">
@@ -674,6 +677,31 @@ const Architecture = () => {
         上面跑的是 LangGraph、CrewAI 或自己写的循环都行。prod 出事时大多数 stack 留给你的是 LLM provider 的 dashboard、CloudWatch 日志、几条手抄的 trace——都不在 git 里，<code className="text-bene-text font-mono">cp</code> / <code className="text-bene-text font-mono">rsync</code> / <code className="text-bene-text font-mono">diff</code> 都用不上。BENE 把 receipts、kill gate、trust 这几件事<span className="text-bene-text"> 写进代码 + 落到一份 SQLite 文件</span>：出事时 sqlite3 打开就能查，不用门户。
       </p>
 
+      {/* dual-path loop: 人静态 Harness + agent 动态 Meta-Harness → bene.db → 下一轮 */}
+      <div className="border border-bene-dim bg-bene-surface p-6 lg:p-8 rounded-md mb-8 font-mono text-[11px] lg:text-xs">
+        <div className="text-bene-muted text-[10px] lg:text-xs uppercase tracking-widest mb-4 text-center">两条路进来，一个文件出去</div>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">人</span>
+            <span className="text-bene-accent">— register_probe() / promote() →</span>
+            <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">那道 kill gate</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">agent（走 MCP）</span>
+            <span className="text-bene-accent">— bene mh search →</span>
+            <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">同一道 kill gate</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pl-4">
+            <span className="text-bene-accent">→ ACCEPT / REJECT →</span>
+            <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">bene.db</span>
+            <span className="text-bene-accent">→ 下一轮的输入</span>
+          </div>
+        </div>
+        <p className="text-bene-muted mt-4 leading-relaxed">
+          边界你用代码定死（静态那层 Harness）；agent 对着它繁育新 strategy（动态那层 Meta-Harness）。两边撞的是同一道 sha256-locked gate，没有后门。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，喂给下一轮。
+        </p>
+      </div>
+
       {/* 3-layer diagram */}
       <div className="border border-bene-dim bg-bene-surface p-6 lg:p-8 rounded-md mb-16 lg:mb-20">
         <div className="border border-bene-dim p-4 rounded-md font-mono text-xs lg:text-sm text-center">
@@ -795,7 +823,7 @@ const Limits = () => {
         <div>
           <h4 className="font-mono text-sm text-bene-text mb-2">已上线 / 在 roadmap</h4>
           <p className="text-sm text-bene-muted max-w-3xl leading-relaxed">
-            <span className="text-bene-accent">在 roadmap，还没上线：</span>skill 的 demotion / retirement 策略（outcome-weighted ranking 已上）、nightly consolidation 的外部 CLI / cron wiring（deterministic planner 已上）、deterministic replay 的消费侧 CLI（journal + manifest substrate 已上）、episode 内 harness 变异、MemGAS entropy routing。完整设计见 <code className="text-bene-text font-mono">docs/design/v0.3-roadmap-spec.md</code>。
+            <span className="text-bene-accent">在 roadmap，还没上线：</span>skill 的 demotion / retirement 策略（outcome-weighted ranking 已上）、nightly consolidation 的外部 CLI / cron wiring（deterministic planner 已上）、deterministic replay 的消费侧 CLI（journal + manifest 已上）、episode 内 harness 变异、MemGAS entropy routing。完整设计见 <code className="text-bene-text font-mono">docs/design/v0.3-roadmap-spec.md</code>。
           </p>
         </div>
         <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-bene-accent hover:underline whitespace-nowrap shrink-0">CLAIMS-AUDIT.md</a>
