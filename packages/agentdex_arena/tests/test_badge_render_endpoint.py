@@ -331,3 +331,78 @@ def test_badge_svg_xml_escapes_agent_name(tmp_path):
     assert "&lt;script&gt;" in svg
     # Verify URL is also escaped (the `&` in the attacker URL becomes &amp;).
     assert "&amp;injected" in svg
+
+
+def test_badge_svg_attribute_escape_blocks_quote_injection():
+    """PR #132 review #3411007726: when verify_url contains a `"`, the
+    aria-label attribute used to break out of its own double-quoted shape
+    because xml.sax.saxutils.escape leaves `"` untouched. A caller-supplied
+    URL with a `"` could inject extra attributes onto the <svg> element.
+
+    Lock the fix:
+      * the raw `"` MUST NOT appear inside the aria-label value (would
+        terminate the attribute early)
+      * the `"` MUST be encoded as `&quot;` in the attribute position
+      * a structured SVG parser must accept the result (no broken markup)
+    """
+    import xml.etree.ElementTree as ET
+
+    from agentdex_arena.gateway import _render_badge_svg
+
+    attacker_url = '/badge/x/y/verify" onclick="alert(1)"&injected'
+    svg = _render_badge_svg(
+        agent_name="QuotesBot",
+        rating=1700.0,
+        rd=30.0,
+        verify_url=attacker_url,
+    )
+
+    # 1) Structural: the result MUST parse as a valid XML document, even
+    # though the input value carries a literal `"`. (Pre-fix: ET.fromstring
+    # raised ParseError because the aria-label attribute closed early.)
+    root = ET.fromstring(svg)
+    assert root.tag.endswith("svg")
+
+    # 2) The aria-label value MUST contain the `&quot;` entity, NOT the raw
+    # `"` character, in the SERIALIZED markup that the screen reader's
+    # XML parser will see.
+    aria_label_idx = svg.find('aria-label="')
+    assert aria_label_idx >= 0, "aria-label attribute missing"
+    # Find the closing quote of the aria-label attribute.
+    closing = svg.index('"', aria_label_idx + len('aria-label="'))
+    aria_label_serialized = svg[aria_label_idx + len('aria-label="') : closing]
+    assert "&quot;" in aria_label_serialized
+    # No raw double-quote should sneak inside the attribute payload.
+    assert '"' not in aria_label_serialized
+    # The injection attempt MUST NOT survive as a real onclick attribute on
+    # any parsed element — i.e. the attacker's `onclick="alert(1)"` is text
+    # inside aria-label, not a new attribute on root.
+    assert root.get("onclick") is None
+
+    # 3) Defense-in-depth: the `<title>` element body (plain XML text) must
+    # ALSO be safe — `<script>` shouldn't survive even though the title text
+    # was attacker-controlled. (This was already covered by the legacy test
+    # but we re-assert here so the quote-fix doesn't accidentally regress
+    # the element-text path.)
+    title = root.find("{http://www.w3.org/2000/svg}title")
+    assert title is not None
+    assert "<script>" not in (title.text or "")
+
+
+def test_render_badge_svg_attr_escape_does_not_double_escape_ampersands():
+    """The attribute-escape path must escape `&` exactly once. Pre-fix,
+    using element-text escape on a string that then gets put into an
+    attribute would either leave `"` unescaped (the bug) or, if a naive
+    fix did escape() twice, would surface `&amp;amp;` in the rendered
+    badge. Either failure mode is observable in the rendered SVG."""
+    from agentdex_arena.gateway import _render_badge_svg
+
+    svg = _render_badge_svg(
+        agent_name="AmpBot",
+        rating=1700.0,
+        rd=30.0,
+        verify_url="/badge/x/y/verify?a=1&b=2",
+    )
+    # Single-escape: `&` → `&amp;`. Double-escape would be `&amp;amp;`.
+    assert "&amp;amp;" not in svg
+    assert "&amp;b=2" in svg
