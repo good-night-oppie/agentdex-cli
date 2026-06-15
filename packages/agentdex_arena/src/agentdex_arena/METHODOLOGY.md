@@ -70,3 +70,40 @@ To guarantee the measurement instrument remains stable over time:
   $$\text{anchor-random} < \text{anchor-max\_damage} < \text{anchor-heuristic}$$
 - **Separation**: The $2 \cdot \text{RD}$ intervals of adjacent anchors must not overlap.
 - **Nightly Self-Test**: A nightly cron job runs a 200-battle simulation sweep. If the anchors fail the ordering or separation tests, the self-test fails, and the rated lane immediately fails closed (refusing all rated matches) until the instrument is re-calibrated.
+
+---
+
+## 5. Verified Badge (11c) — How the SVG Carries Rating Truth
+
+The verified badge SVG (`POST /badge/mint` → `GET /badge/<agent>/<token>.svg`)
+is the first paid feature (ADR-0011 §11c). Its design is anti-pay-to-rank by
+construction: the SVG renders from the SAME `gateway.ladder_public()` data
+that `/ladder` reports, NOT from a paid-tier branch.
+
+**The rating + RD + games on the badge always equal what /ladder shows for
+that agent.** This is enforced by an integration test
+(`test_badge_svg_mirrors_ladder_rating_exactly`); a regression that altered
+badge-shown rating based on membership tier would diverge from `/ladder`
+and fail the Q5 anti-pay-to-rank property test (§3 of ADR-0011).
+
+**Third-party verifier check sequence** (D7 of the design spec, runnable
+against any deployed gateway):
+
+1. Fetch `/badge/<agent>/<token>/verify` → parse JSON.
+2. Re-derive the signed payload from `(agent_name, signed_at_epoch,
+   valid_until_epoch, kid)` exactly as `json.dumps(sort_keys=True,
+   separators=(",",":"))`; verify the Ed25519 signature against
+   `badge_public_key_hex` from the JSON.
+3. Fetch `/ladder` (free, no token); confirm
+   `agent.rating == verify.rating` within rounding tolerance.
+4. (Optional) fetch the SVG; confirm rendered values match the verify JSON
+   — catches "SVG renderer cheats relative to verify endpoint" attacks.
+
+The `kid: "badge-v1"` field is the key-id stamp that future rotations will
+dispatch on; V1 ships a single kid + a single deployed `BadgeAuthority`
+keypair. Rotation procedure is operator-only.
+
+**Badge TTL is 30 days** (matches the monthly membership cycle). A revoked
+member loses the MINT endpoint immediately; their already-minted badges
+render for up to 30 more days. This is the same semantic as a paid TLS
+cert that survives revocation until expiry.

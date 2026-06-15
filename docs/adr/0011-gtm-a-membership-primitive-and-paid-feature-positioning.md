@@ -41,6 +41,14 @@ enforced_by:
     test: "packages/agentdex_arena/tests/test_bulk_export_owner_scope.py::test_opponent_register_v2_never_in_export + ::test_referenced_names_filtered_per_4c (ships 11e)"
   - claim: "§3d no silent free->paid data reinterpretation; new ConsentClaims scope contribute_aggregate required (ships V2+)"
     test: "deferred to V2+ when scope lands"
+  - claim: "§11c BadgeAuthority Ed25519 signing key separate from ConsentAuthority — env ARENA_BADGE_SIGNING_KEY_HEX, fail-closed boot on missing/malformed; mirrors AdminAuthority posture"
+    test: "packages/agentdex_arena/tests/test_badge_auth.py (ships PR #129 11c.1)"
+  - claim: "§11c POST /badge/mint call order: verify(scope=badge_mint) -> verify_membership(claims) -> spend_quota(claims, scope=badge_mint) -> sign_badge; returns badge_token + svg_url + verify_url + valid_until_epoch"
+    test: "packages/agentdex_arena/tests/test_badge_mint_endpoint.py (ships PR #130 11c.2)"
+  - claim: "§11c badge SVG renders from gateway.ladder_public() — same source as /ladder; anti-pay-to-rank invariant carries through (no membership-derived rating boost)"
+    test: "packages/agentdex_arena/tests/test_badge_render_endpoint.py::test_badge_svg_mirrors_ladder_rating_exactly (ships PR #132 11c.3)"
+  - claim: "§11c badge render endpoints collapse every verify failure mode to opaque 404 (D7 anti-enumeration); only badge_auth=None degraded boot returns 503"
+    test: "packages/agentdex_arena/tests/test_badge_render_endpoint.py (ships PR #132 11c.3)"
 ---
 
 # ADR-0011: GTM-A — per-owner monthly membership primitive + repositioned paid feature surface
@@ -541,13 +549,30 @@ Platform launched <1 week ago; no prior badge embeds or signed-URL re-fetches ex
 
 Default: **defer to V2**. Cold outreach to those companies is expensive and premature; ship the public free badge first, let usage signal (Q2 instrumentation) drive partnership conversations once we see organic embeds in READMEs.
 
+### 8. §11c verified-badge SVG — design locked 2026-06-15
+
+The 11c design parked at [docs/references/2026-06-14-arena-verified-badge-svg-design.md](../references/2026-06-14-arena-verified-badge-svg-design.md) carried three open questions for user ratification (O1 key custody, O2 membership-snapshot semantics, O3 funnel-instrumentation sequencing). All three ratified 2026-06-15 with the spec author's baked-in recommendations:
+
+- **O1 — BadgeAuthority key custody = separate env (`ARENA_BADGE_SIGNING_KEY_HEX`).** NOT HKDF-derived from `ARENA_SIGNING_KEY_HEX`. Blast-radius isolation: a badge-key leak lets an attacker mint fake badges but consent tokens remain trustworthy; cross-key reuse would conflate two trust domains. Fail-closed boot mirrors `AdminAuthority` (PR #101 11b.1) — missing/malformed env raises `BadgeAuthError` and kills the container at startup. Operational runbook: [docs/runbooks/badge-admin.md](../runbooks/badge-admin.md) (generation / rotation / emergency revocation).
+- **O2 — Membership snapshot semantics = 30-day badge_token TTL only.** A revoked member loses MINT immediately, but already-minted badges render until expiry — industry-standard paid-cert semantic, matches the monthly membership cycle. The escalation alternative (durable `agent → owner_email` mapping pulled forward from PR #111's V2+ deferral) was NOT taken: would have expanded V1 scope to enable immediate badge revocation, a quality-of-life gain the early funnel doesn't yet justify.
+- **O3 — Funnel instrumentation sequencing = bundled with 11c.3.** The `Referer` host-only structured log line ships with the SVG render endpoint, NOT as a front-loaded 11c.0 free-tier endpoint. D6 explicitly defers free-tier unverified SVG until paid-funnel signal motivates it; front-loading 11c.0 would have violated D6 by adding attack surface before signal exists.
+
+The chain shipped as 4 tiny PRs:
+
+- **PR #129 (11c.1)** — `BadgeAuthority` Ed25519 sign/verify + fail-closed boot + 14 unit tests (boot fail-closed scenarios 1+2 from the spec).
+- **PR #130 (11c.2)** — `POST /badge/mint` with call order `verify` → `verify_membership` → `spend_quota` → `sign_badge`; new `Scope = badge_mint`; default quota 5/day per agent; scope-conditional `spend_quota` rekeying landed alongside per §3b §5e (non-battle scopes key on `claims.agent_name`, stable across `/enroll/reissue`); EN docs sync on `ENROLLMENT.md` + `SKILL.md` per §3d plain-text disclosure.
+- **PR #132 (11c.3)** — public `GET /badge/<agent>/<token>.svg` (Cache-Control: public, max-age=300) + `/verify` (D7 JSON shape with full third-party-verifier field set) + `_badge_referer_host` Q2 funnel log + XML-escape defense at the render boundary; 12 tests covering spec scenarios 7/8/9.
+- **PR #133 (11c.4, this PR)** — docs sync (`ENROLLMENT.md` / `SKILL.md` / `METHODOLOGY.md`), ADR-0011 §11c amendment (this section + `enforced_by` row block), CLAUDE.md "Badge signing key + mint call order" doctrine, badge-admin runbook (`docs/runbooks/badge-admin.md`).
+
+The free-tier unverified SVG endpoint (D6) remains explicitly **NOT** in V1; revisit if and only if paid-funnel signal stalls AND evidence shows free-tier embedding would seed it. Reversible by adding `GET /badge/<agent>/unverified.svg` later without breaking any 11c invariant.
+
 ## Implementation roadmap
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 11a (THIS ADR + spec) | Capture decisions; doc-only | shipping in PR following this ADR |
 | 11b (membership primitive) | Parked 8-step design, 14-test suite | sequential tiny PRs per `.supergoal/ADDENDUM_GIT_PR_DISCIPLINE.md`; first PR = `admin_auth.py` |
-| 11c (verified badge SVG) | First paid feature; smallest, highest demo signal — design parked at [docs/references/2026-06-14-arena-verified-badge-svg-design.md](../references/2026-06-14-arena-verified-badge-svg-design.md) | after 11b lands clean |
+| 11c (verified badge SVG) | First paid feature; smallest, highest demo signal — design ratified 2026-06-15 (§8 above), shipped as PRs #129/#130/#132/#133 | shipped 2026-06-15 |
 | 11d (signed replay + cite_as) | Second paid feature; closes outsider-verifiable receipt loop | after 11c |
 | 11e (bulk API export) | Third paid feature; serves AI labs / researchers | after 11d |
 | 11f (regression gate) | Fourth paid feature; serves CI-integrated builders | after 11e |
