@@ -28,12 +28,11 @@ import random
 from typing import Any
 
 from bene import Bene
+from bene.metaharness.benchmarks import register_benchmark
+from bene.metaharness.benchmarks.base import Benchmark, Problem
 from bene.metaharness.harness import SearchConfig
 from bene.metaharness.search import MetaHarnessSearch
-from bene.metaharness.benchmarks.base import Benchmark, Problem
-from bene.metaharness.benchmarks import register_benchmark
 from bene.router.tier import TierRouter
-
 
 # ── Synthetic customer data ──────────────────────────────────────
 
@@ -218,7 +217,7 @@ class CLVBenchmark(Benchmark):
     def _to_problems(self, customers: list[dict]) -> list[Problem]:
         seen = []
         problems = []
-        for i, cust in enumerate(customers):
+        for _i, cust in enumerate(customers):
             problems.append(
                 Problem(
                     problem_id=f"clv_{cust['customer_id']}",

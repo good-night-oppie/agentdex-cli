@@ -29,12 +29,11 @@ import random
 from typing import Any
 
 from bene import Bene
+from bene.metaharness.benchmarks import register_benchmark
+from bene.metaharness.benchmarks.base import Benchmark, Problem
 from bene.metaharness.harness import SearchConfig
 from bene.metaharness.search import MetaHarnessSearch
-from bene.metaharness.benchmarks.base import Benchmark, Problem
-from bene.metaharness.benchmarks import register_benchmark
 from bene.router.tier import TierRouter
-
 
 # ── Synthetic campaign data ──────────────────────────────────────
 

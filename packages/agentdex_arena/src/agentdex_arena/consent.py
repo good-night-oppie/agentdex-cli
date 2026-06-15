@@ -39,7 +39,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-Scope = Literal["enroll", "battle", "evolve"]
+Scope = Literal["enroll", "battle", "evolve", "badge_mint"]
 SIGNING_KEY_ENV = "ARENA_SIGNING_KEY_HEX"
 _OWNER_MAX_LEN = 254  # RFC 5321 email maximum
 
@@ -88,7 +88,9 @@ class ConsentClaims(BaseModel):
     agent_name: str = Field(min_length=1)  # sanitized upstream
     agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
     scopes: list[Scope]
-    quotas: dict[str, int] = Field(default_factory=lambda: {"battle": 5, "evolve": 2})
+    quotas: dict[str, int] = Field(
+        default_factory=lambda: {"battle": 5, "evolve": 2, "badge_mint": 5}
+    )
     issued_at: float
     expires_at: float
     confirmed_via: str = Field(min_length=1)  # the out-of-band human action record
@@ -155,9 +157,23 @@ class ConsentAuthority:
         return claims
 
     def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> int:
-        """Atomically count a use against the per-day quota. Fail-closed."""
+        """Atomically count a use against the per-day quota. Fail-closed.
+
+        Scope-conditional keying per ADR-0011 §3b §5e:
+        - `battle` keys on `_normalize_owner(claims.owner)` so /enroll/reissue
+          cannot reset the daily rated-battle cap by minting a fresh token_id
+          (closes the §3a rotation-as-reset bypass).
+        - Every other scope (`evolve`, `badge_mint`, future `export`, …) keys
+          on `claims.agent_name` — stable across /enroll/reissue (same
+          agent_name, new token_id) AND unique per agent (no cross-agent
+          pooling). A multi-agent owner's two agents keep independent
+          non-battle budgets, and reissue cannot reset them.
+        """
         day = time.strftime("%Y%m%d", time.gmtime(self._now()))
-        key = f"{claims.token_id}:{scope}:{day}"
+        if scope == "battle":
+            key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"
+        else:
+            key = f"{claims.agent_name}:{scope}:{day}"
         used = self.quota_used.get(key, 0)
         cap = claims.quotas.get(scope, 0)
         if used >= cap:

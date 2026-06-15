@@ -27,6 +27,7 @@ import uvicorn
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from agentdex_arena.admin_auth import AdminAuthority
+from agentdex_arena.badge_auth import BadgeAuthority
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway, create_app
 
@@ -87,6 +88,11 @@ def build_gateway() -> ArenaGateway:
     # which kills the container at startup. No runtime degraded mode.
     admin = AdminAuthority()
 
+    # Badge signing authority for ADR-0011 11c (first paid feature). Same
+    # fail-closed boot posture as AdminAuthority: missing or malformed
+    # ARENA_BADGE_SIGNING_KEY_HEX raises BadgeAuthError → container exits.
+    badge = BadgeAuthority()
+
     return ArenaGateway(
         authority=authority,
         events_path=runtime / "events.jsonl",
@@ -95,6 +101,7 @@ def build_gateway() -> ArenaGateway:
         rated_seed_secret=os.environ.get("ARENA_RATED_SEED_SECRET", ""),
         event_sync=event_sync,
         admin_authority=admin,
+        badge_authority=badge,
     )
 
 

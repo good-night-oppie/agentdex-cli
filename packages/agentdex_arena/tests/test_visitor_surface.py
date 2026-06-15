@@ -1097,7 +1097,7 @@ def test_whoami_endpoint_probes_live_token(arena):
     body = resp.json()
     assert body["agent_name"] == "PartnerBot"
     assert body["owner"] == "eddie@oppie.xyz"
-    assert set(body["scopes"]) == {"enroll", "battle", "evolve"}
+    assert set(body["scopes"]) == {"enroll", "battle", "evolve", "badge_mint"}
     assert "issued_at" in body and "expires_at" in body
     assert body["expires_in_sec"] > 0
     # No raw bearer / signing-key material leaked
