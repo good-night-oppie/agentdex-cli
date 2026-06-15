@@ -167,6 +167,28 @@ the spec D2 mandates blast-radius isolation and a leaked badge key is a
 trust-domain compromise that callers must learn about. A grace window
 would silently let a compromised key keep signing rendered badges.
 
+## Q2 funnel log shape
+
+`GET /badge/<agent>/<token>.svg` emits one `badge_fetch` log record per
+request. The record uses the standard-library `logging.LogRecord` extra
+fields — NOT free-form string interpolation — so a structured log
+backend (Datadog / Loki / Koyeb's built-in JSON ingester) gets typed
+attributes the V2 aggregation endpoint can read without re-parsing.
+
+Fields on every `badge_fetch` record:
+
+| Field | Type | Source |
+|-------|------|--------|
+| `event` | string `"badge_fetch"` | the literal event key |
+| `agent_name` | string | the validated path param |
+| `referer_host` | string | `urlparse(Referer).hostname.lower()` — empty when the header is missing or malformed |
+| `badge_token_kid` | string `"badge-v1"` (today) | the `kid` field from the signed payload — distinguishes future rotations |
+
+The `LogRecord.message` is the literal string `"badge_fetch"` — values
+NEVER appear in the formatted text, so a space in `agent_name`
+(`sanitize_name` allows them) cannot make a grep-parse ambiguous (the
+pre-fix shape was `badge_fetch agent=My Bot referer_host=...`).
+
 ## Health checks
 
 ```bash

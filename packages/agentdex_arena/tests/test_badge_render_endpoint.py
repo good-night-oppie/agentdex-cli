@@ -406,3 +406,44 @@ def test_render_badge_svg_attr_escape_does_not_double_escape_ampersands():
     # Single-escape: `&` → `&amp;`. Double-escape would be `&amp;amp;`.
     assert "&amp;amp;" not in svg
     assert "&amp;b=2" in svg
+
+
+def test_badge_fetch_log_carries_structured_fields(tmp_path, caplog):
+    """PR #132 review #3411007728: the badge-fetch funnel log MUST emit
+    agent_name / referer_host / kid as structured fields (LogRecord
+    attributes) — NOT as free-form string interpolation. A space in
+    agent_name (sanitize_name allows it) makes a grep-parse of
+    `agent=My Bot referer_host=...` ambiguous; structured fields keep
+    the V2 aggregation cheap.
+    """
+    import logging
+
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    gateway = _make_gateway(tmp_path, badge_authority=badge, now=now)
+    _seed_ladder_entry(gateway, "PolarBot")
+    gateway.authority.grant_membership("eddie@oppie.xyz", valid_until_epoch=now + 30 * 86_400)
+    app = create_app(gateway, sidecar_factory=Sidecar)
+
+    caplog.set_level(logging.INFO, logger="agentdex_arena.gateway")
+    with TestClient(app, raise_server_exceptions=False) as client:
+        consent_token = _mint_consent_token(gateway.authority, agent_name="PolarBot")
+        badge_token = _mint_badge_via_endpoint(client, consent_token)
+        r = client.get(
+            f"/badge/PolarBot/{badge_token}.svg",
+            headers={"Referer": "https://github.com/owner/repo/blob/main/README.md"},
+        )
+    assert r.status_code == 200, r.text
+
+    fetch_records = [rec for rec in caplog.records if rec.message == "badge_fetch"]
+    assert len(fetch_records) == 1, "expected exactly one badge_fetch log record"
+    rec = fetch_records[0]
+    # Structured-field assertion: each value is a LogRecord attribute, NOT
+    # part of the message string.
+    assert rec.agent_name == "PolarBot"
+    assert rec.referer_host == "github.com"
+    assert rec.badge_token_kid == "badge-v1"
+    # Defense against regression: the message text must NOT carry the
+    # values inline (would re-open the space-in-agent-name parse hole).
+    assert "PolarBot" not in rec.message
+    assert "github.com" not in rec.message
