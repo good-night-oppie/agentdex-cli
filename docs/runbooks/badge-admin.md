@@ -155,11 +155,31 @@ koyeb secret update arena-badge-signing-key-hex --value "$NEW_BADGE_KEY"
 #    this step leaves the running service on the old badge key until an
 #    unrelated deploy happens — UNACCEPTABLE for a rotation whose entire
 #    point is replacing trust-establishing material.
-koyeb services redeploy agentdex
+#
+#    Two flags are load-bearing here, per the Koyeb CLI reference
+#    (https://www.koyeb.com/docs/build-and-deploy/cli/reference):
+#      --skip-build  Reuse the last successfully built image. The badge
+#                    seed is read at RUNTIME from the env (`BadgeAuthority`
+#                    reads `ARENA_BADGE_SIGNING_KEY_HEX` at boot), not at
+#                    Docker-build time — a rebuild is pure waste here and
+#                    risks promoting unrelated source/image changes during
+#                    what should be a key-only revocation. Without --skip-
+#                    build, the burned seed stays live for the duration
+#                    of a full build.
+#      --wait        Block until the replacement container is active.
+#                    Without --wait, the command returns immediately after
+#                    triggering a new deployment, and step 4's /verify
+#                    check below would hit the OLD container (still
+#                    signing under the burned seed) and falsely report
+#                    "rotation complete".
+koyeb services redeploy agentdex --skip-build --wait
 
 # 4. Verify via /verify (above) BEFORE notifying owners — a botched
 #    rotation that left the old seed live would silently let attackers
-#    continue to mint under the leaked key.
+#    continue to mint under the leaked key. With --wait above this
+#    check is point-in-time correct; without it, a hot reload race
+#    could pass /verify against the old container and fail moments
+#    later.
 
 # 5. Notify owners: "All badge URLs minted before <timestamp> are invalid; re-call
 #    POST /badge/mint to get a fresh badge_token. Existing membership unchanged."
@@ -175,10 +195,16 @@ treat it as a fire drill:
 # 1. Generate a fresh seed (see rotation procedure above) — DO NOT reuse any
 #    previous seed; the old one is permanently burned.
 # 2. Upload the new seed: `koyeb secret update arena-badge-signing-key-hex --value "$NEW_BADGE_KEY"`.
-# 3. Force a redeploy: `koyeb services redeploy agentdex`. The interpolated
-#    secret reference in the env var is resolved only at deploy time; without
-#    this step the container keeps signing with the burned seed and the
-#    revocation is silently a no-op until an unrelated deploy fires.
+# 3. Force a redeploy: `koyeb services redeploy agentdex --skip-build --wait`.
+#    The interpolated secret reference in the env var is resolved only at
+#    deploy time; without `redeploy` the container keeps signing with the
+#    burned seed and the revocation is silently a no-op until an unrelated
+#    deploy fires. `--skip-build` is non-optional in an emergency: the
+#    badge seed is read at runtime, not at Docker-build time, so a rebuild
+#    keeps the burned key signing for the duration of the build AND risks
+#    promoting unrelated source/image changes mid-incident. `--wait` keeps
+#    step 4's /verify check synchronous against the new container instead
+#    of racing against a still-rolling deployment.
 # 4. Verify the new public key on /verify before declaring the rotation complete.
 # 5. Notify owners that EVERY badge URL issued before <timestamp> is invalid.
 # 6. Open an incident-log entry citing the time the leak was detected and the
