@@ -694,8 +694,17 @@ Anyone reading the badge can independently verify it:
 
 1. `GET /badge/<agent>/<token>/verify` → returns JSON with the badge
    payload + the gateway's current ladder values + `badge_public_key_hex`.
-2. Re-derive the signed payload from the JSON `(agent_name, signed_at_epoch,
-   valid_until_epoch, kid)` and verify the Ed25519 signature locally.
+2. Re-derive the signed payload from the JSON. The verify endpoint surfaces
+   `signed_at_epoch` and `valid_until_epoch` as response field names for
+   public consumption, but **the actual signed payload uses the unsuffixed
+   keys `signed_at` and `valid_until`** (matches the mint path at
+   `badge_auth.sign_badge`). Reconstruct the dict as
+   `{"agent_name": <name>, "signed_at": <signed_at_epoch>,
+   "valid_until": <valid_until_epoch>, "kid": <kid>}`, canonical-JSON-encode
+   with `json.dumps(sort_keys=True, separators=(",",":"))`, then verify
+   the Ed25519 signature against `badge_public_key_hex`. Reconstructing the
+   dict with the `_epoch`-suffixed keys verbatim will fail every legitimate
+   badge.
 3. Optionally compare the SVG-rendered values against the verify JSON to
    catch a renderer that lies relative to the verify endpoint.
 

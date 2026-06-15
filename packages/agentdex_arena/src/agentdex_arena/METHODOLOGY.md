@@ -90,10 +90,16 @@ and fail the Q5 anti-pay-to-rank property test (§3 of ADR-0011).
 against any deployed gateway):
 
 1. Fetch `/badge/<agent>/<token>/verify` → parse JSON.
-2. Re-derive the signed payload from `(agent_name, signed_at_epoch,
-   valid_until_epoch, kid)` exactly as `json.dumps(sort_keys=True,
-   separators=(",",":"))`; verify the Ed25519 signature against
-   `badge_public_key_hex` from the JSON.
+2. Re-derive the signed payload. The verify response surfaces the
+   timestamps as `signed_at_epoch` and `valid_until_epoch`, but the
+   actual signed payload (per `badge_auth.sign_badge`) uses the
+   unsuffixed keys `signed_at` and `valid_until`. Reconstruct as
+   `{"agent_name": <name>, "signed_at": <signed_at_epoch>,
+   "valid_until": <valid_until_epoch>, "kid": <kid>}`, canonical-JSON
+   encode with `json.dumps(sort_keys=True, separators=(",",":"))`,
+   then verify the Ed25519 signature against `badge_public_key_hex`
+   from the JSON. Using the `_epoch`-suffixed keys verbatim will fail
+   every legitimate badge.
 3. Fetch `/ladder` (free, no token); confirm
    `agent.rating == verify.rating` within rounding tolerance.
 4. (Optional) fetch the SVG; confirm rendered values match the verify JSON
