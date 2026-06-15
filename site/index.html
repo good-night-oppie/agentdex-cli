@@ -489,14 +489,14 @@ const Proof = () => {
 // ─── 05 · Recipes ───────────────────────────────────────────────────
 const Recipes = () => {
   const rs = [
-    { id: 'R1', t: 'Spawn → checkpoint → diff → restore', d: 'Litany loop.', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
-    { id: 'R2', t: 'Planner + Executor over SharedLog', d: '2-agent pattern for tasks over 3 steps.', c: '# See Tab 2 in Proof section', v: 'bene log show --topic plan/v1  →  intent, vote, decide all present' },
-    { id: 'R3', t: 'Register a probe, gate the promotion', d: "Five lines that define BENE's promotion contract.", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  one line' },
-    { id: 'R4', t: 'Memory that compounds (attach_kernel)', d: 'Mirror legacy stores into engrams; consolidate; adaptive retrieval.', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<task hint>"  →  hits from prior sessions' },
-    { id: 'R5', t: 'Context discipline (ContextOS)', d: 'Budgeted assembly, pollution detector.', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget never overshoots' },
-    { id: 'R6', t: 'Autonomy & trust (L0 → L4)', d: 'Grants escalate by passing probes, not editing YAML.', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
-    { id: 'R7', t: 'mh_search → genome → promote (partial)', d: 'Breed strategies; bridge is manual today, end-to-end wiring on roadmap.', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
-    { id: 'R8', t: 'MCP server in your agent', d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
+    { id: 'R1', t: 'Recover from a bad turn', m: 'bene.checkpoints', flow: ['agent run', 'checkpoint("green")', 'diff → restore'], d: 'Litany loop.', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
+    { id: 'R2', t: 'Coordinate two agents', m: 'bene.shared_log', flow: ['planner.intent', 'SharedLog.vote', 'executor.decide'], d: '2-agent pattern for tasks over 3 steps.', c: '# See Tab 2 in Proof section', v: 'bene log show --topic plan/v1  →  intent, vote, decide all present' },
+    { id: 'R3', t: 'Gate the next promote', m: 'bene.kernel.eval', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "Five lines that define BENE's promotion contract.", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  one line' },
+    { id: 'R4', t: 'Compound memory across runs', m: 'bene.kernel.memory', flow: ['legacy store', 'attach_kernel', 'memory.search hit'], d: 'Mirror legacy stores into engrams; consolidate; adaptive retrieval.', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<task hint>"  →  hits from prior sessions' },
+    { id: 'R5', t: 'Keep context inside budget', m: 'bene.kernel.memory.ContextOS', flow: ['budget=8192', 'ContextOS.assemble', 'never overshoots'], d: 'Budgeted assembly, pollution detector.', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget never overshoots' },
+    { id: 'R6', t: 'Escalate autonomy by probe', m: 'bene.kernel.trust + .harness', flow: ['4 signals', 'composite ∈ [0,1]', 'human signs L4'], d: 'Grants escalate by passing probes, not editing YAML.', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
+    { id: 'R7', t: 'Breed a better strategy', m: 'bene.kernel.evolve', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: 'Breed strategies; bridge is manual today, end-to-end wiring on roadmap.', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
+    { id: 'R8', t: 'Plug BENE into your agent', m: 'bene.mcp', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls'], d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
   ];
   return (
     <Section id="recipes" inverted>
@@ -508,9 +508,17 @@ const Recipes = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {rs.map(r => (
           <Card key={r.id} className="h-full flex flex-col p-6">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <span className="bg-bene-dim text-bene-text font-mono text-xs px-2 py-1 rounded-sm">{r.id}</span>
               <h3 className="font-mono text-bene-text text-sm">{r.t}</h3>
+            </div>
+            <p className="font-mono text-[11px] text-bene-accent mb-4 tracking-tight">{r.m}</p>
+            <div className="font-mono text-[10px] flex items-center gap-1.5 mb-4 text-bene-muted overflow-x-auto whitespace-nowrap">
+              <span className="border border-bene-dim px-2 py-0.5 rounded-sm">{r.flow[0]}</span>
+              <span className="text-bene-accent">→</span>
+              <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm">{r.flow[1]}</span>
+              <span className="text-bene-accent">→</span>
+              <span className="border border-bene-dim px-2 py-0.5 rounded-sm">{r.flow[2]}</span>
             </div>
             <p className="text-sm text-bene-muted mb-6 flex-1">{r.d}</p>
             <div className="space-y-3">

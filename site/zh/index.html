@@ -478,14 +478,14 @@ const Proof = () => {
 // ─── 05 · Recipes ───────────────────────────────────────────────────
 const Recipes = () => {
   const rs = [
-    { id: 'R1', t: 'Spawn → checkpoint → diff → restore', d: 'Litany 循环。', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
-    { id: 'R2', t: 'Planner + Executor 走 SharedLog', d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log show --topic plan/v1  →  intent、vote、decide 都在' },
-    { id: 'R3', t: '注册一个 probe，gate 住 promote', d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  一行' },
-    { id: 'R4', t: '可累积的 memory（attach_kernel）', d: '把 legacy store 映射成 engram；consolidate；adaptive retrieval。', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<任务关键词>"  →  之前 session 的 hit' },
-    { id: 'R5', t: 'Context 纪律（ContextOS）', d: 'Budgeted assembly + pollution detector。', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget 从不溢出' },
-    { id: 'R6', t: 'Autonomy & trust（L0 → L4）', d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
-    { id: 'R7', t: 'mh_search → genome → promote（部分）', d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
-    { id: 'R8', t: '在你的 agent 里跑 MCP server', d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
+    { id: 'R1', t: '上线翻车后回滚一次', m: 'bene.checkpoints', flow: ['agent 跑一轮', 'checkpoint("green")', 'diff → restore'], d: 'Litany 循环。', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
+    { id: 'R2', t: '两个 agent 拍板', m: 'bene.shared_log', flow: ['planner 提议', 'SharedLog vote', 'executor 拍板'], d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log show --topic plan/v1  →  intent、vote、decide 都在' },
+    { id: 'R3', t: '卡住下一次 promote', m: 'bene.kernel.eval', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  一行' },
+    { id: 'R4', t: '把 memory 跨 run 累积', m: 'bene.kernel.memory', flow: ['legacy store', 'attach_kernel', '下次 search 命中'], d: '把 legacy store 映射成 engram；consolidate；adaptive retrieval。', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<任务关键词>"  →  之前 session 的 hit' },
+    { id: 'R5', t: 'context 不爆预算', m: 'bene.kernel.memory.ContextOS', flow: ['budget=8192', 'ContextOS.assemble', '不爆预算'], d: 'Budgeted assembly + pollution detector。', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget 从不溢出' },
+    { id: 'R6', t: '提权 L0 → L4', m: 'bene.kernel.trust + .harness', flow: ['4 个 signal', 'composite ∈ [0,1]', 'human 签 L4'], d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
+    { id: 'R7', t: '繁育更好的 strategy', m: 'bene.kernel.evolve', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
+    { id: 'R8', t: '把 BENE 挂到 agent 里', m: 'bene.mcp', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls 看到'], d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
   ];
   return (
     <Section id="recipes" inverted>
@@ -497,9 +497,17 @@ const Recipes = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {rs.map(r => (
           <Card key={r.id} className="h-full flex flex-col p-6">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <span className="bg-bene-dim text-bene-text font-mono text-xs px-2 py-1 rounded-sm">{r.id}</span>
               <h3 className="font-mono text-bene-text text-sm">{r.t}</h3>
+            </div>
+            <p className="font-mono text-[11px] text-bene-accent mb-4 tracking-tight">{r.m}</p>
+            <div className="font-mono text-[10px] flex items-center gap-1.5 mb-4 text-bene-muted overflow-x-auto whitespace-nowrap">
+              <span className="border border-bene-dim px-2 py-0.5 rounded-sm">{r.flow[0]}</span>
+              <span className="text-bene-accent">→</span>
+              <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm">{r.flow[1]}</span>
+              <span className="text-bene-accent">→</span>
+              <span className="border border-bene-dim px-2 py-0.5 rounded-sm">{r.flow[2]}</span>
             </div>
             <p className="text-sm text-bene-muted mb-6 flex-1">{r.d}</p>
             <div className="space-y-3">
