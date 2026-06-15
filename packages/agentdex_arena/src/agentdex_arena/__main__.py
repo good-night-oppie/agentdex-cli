@@ -109,11 +109,17 @@ def build_gateway() -> ArenaGateway:
         badge = None
 
     # Absolute base URL for README-embeddable badge URLs (PR #130 review
-    # #3410920009). Defaults to the production deploy hostname so the
-    # default-configured arena emits URLs that resolve under a third-party
-    # README; operators with a different deploy URL override via env. Empty
-    # string explicitly opts back into the legacy relative-URL shape.
-    public_base_url = os.environ.get("ARENA_PUBLIC_BASE_URL", "https://agentdex.ai-builders.space")
+    # #3410920009 / PR #136 follow-up review #3411158896). Default is the
+    # EMPTY string — when unset, `/badge/mint` emits relative `svg_url` /
+    # `verify_url` paths. Defaulting to the prod hostname would make every
+    # non-prod deploy (staging, preview, fork, local Docker, integration
+    # test) mint README URLs under `https://agentdex.ai-builders.space`
+    # while the badge was signed by THAT deploy's badge key — following
+    # the returned URL on prod would fail Ed25519 verification and show
+    # the wrong ladder. The prod deploy MUST set ARENA_PUBLIC_BASE_URL
+    # explicitly (documented in docs/runbooks/badge-admin.md §"Setting the
+    # README-embed base URL").
+    public_base_url = os.environ.get("ARENA_PUBLIC_BASE_URL", "")
 
     return ArenaGateway(
         authority=authority,

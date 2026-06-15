@@ -27,6 +27,7 @@ def _scrub_env(monkeypatch) -> None:
         "ARENA_RUNTIME_DIR",
         "ARENA_OWNER_INBOX_DIR",
         "ARENA_PG_DSN",
+        "ARENA_PUBLIC_BASE_URL",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -79,6 +80,48 @@ def test_build_gateway_wires_badge_when_env_valid(monkeypatch, tmp_path: Path):
 
     gw = build_gateway()
     assert isinstance(gw.badge_auth, BadgeAuthority)
+
+
+def test_build_gateway_defaults_public_base_url_empty(monkeypatch, tmp_path: Path):
+    """ARENA_PUBLIC_BASE_URL unset → build_gateway sets gw.public_base_url=''.
+
+    The earlier prod-hostname default (PR #136) made every non-prod deploy
+    mint README URLs pointing at the prod hostname even though the badge
+    was signed by the local deploy's badge key. Empty-default keeps the
+    field relative on non-prod deploys and forces prod ops to set the env
+    explicitly (per docs/runbooks/badge-admin.md §"Setting the README-embed
+    base URL"). Closes PR #136 review #3411158896.
+    """
+    _scrub_env(monkeypatch)
+    monkeypatch.setenv("ARENA_ADMIN_TOKEN_HASH", "0" * 64)
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _HEX64_B)
+    monkeypatch.setenv("ARENA_BADGE_SIGNING_KEY_HEX", _HEX64_A)
+    monkeypatch.setenv("ARENA_RUNTIME_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("ARENA_OWNER_INBOX_DIR", str(tmp_path / "inbox"))
+
+    from agentdex_arena.__main__ import build_gateway
+
+    gw = build_gateway()
+    assert gw.public_base_url == ""
+
+
+def test_build_gateway_honors_public_base_url_env(monkeypatch, tmp_path: Path):
+    """Explicit ARENA_PUBLIC_BASE_URL env → propagated verbatim to the
+    gateway. Trailing-slash normalization is the gateway's job (locked by
+    test_badge_mint_endpoint::test_badge_mint_trailing_slash_in_base_stripped),
+    not build_gateway's."""
+    _scrub_env(monkeypatch)
+    monkeypatch.setenv("ARENA_ADMIN_TOKEN_HASH", "0" * 64)
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _HEX64_B)
+    monkeypatch.setenv("ARENA_BADGE_SIGNING_KEY_HEX", _HEX64_A)
+    monkeypatch.setenv("ARENA_PUBLIC_BASE_URL", "https://staging.example")
+    monkeypatch.setenv("ARENA_RUNTIME_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("ARENA_OWNER_INBOX_DIR", str(tmp_path / "inbox"))
+
+    from agentdex_arena.__main__ import build_gateway
+
+    gw = build_gateway()
+    assert gw.public_base_url == "https://staging.example"
 
 
 def test_build_gateway_still_fails_closed_on_admin_env_missing(monkeypatch, tmp_path: Path):
