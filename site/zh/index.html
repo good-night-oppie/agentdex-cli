@@ -149,7 +149,6 @@ const GapDemo = ({ gif, caption }) => (
         <div className="w-2 h-2 rounded-full bg-bene-med" />
         <div className="w-2 h-2 rounded-full bg-bene-med" />
       </div>
-      <span className="ml-3 font-mono text-[10px] text-bene-muted uppercase tracking-widest">demo — 对 bene-main HEAD 实跑</span>
     </div>
     <img src={`../assets/demos/${gif}`} alt={caption} loading="lazy"
       onError={(e) => { e.currentTarget.closest('.demo-embed')?.remove?.(); }}
@@ -310,6 +309,7 @@ const TheGap = () => (
       论文里早翻过去的四个线上卡点。<br />
       <span className="text-bene-muted">多数 Agent 技术栈还没接住。</span>
     </h2>
+    <p className="font-mono text-xs text-bene-muted mb-8">下面 4 段录屏都是对 bene-main HEAD 实跑出来的；输出没改过一个字。</p>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
       <Card className="md:col-span-12 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 1：eval 跑过了，线上不一定扛得住</h3>

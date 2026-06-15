@@ -160,7 +160,6 @@ const GapDemo = ({ gif, caption }) => (
         <div className="w-2 h-2 rounded-full bg-bene-med" />
         <div className="w-2 h-2 rounded-full bg-bene-med" />
       </div>
-      <span className="ml-3 font-mono text-[10px] text-bene-muted uppercase tracking-widest">demo — recorded against bene-main HEAD</span>
     </div>
     <img src={`assets/demos/${gif}`} alt={caption} loading="lazy"
       onError={(e) => { e.currentTarget.closest('.demo-embed')?.remove?.(); }}
@@ -321,6 +320,7 @@ const TheGap = () => (
       Four production gaps the research moved past.<br />
       <span className="text-bene-muted">Most agent stacks haven't picked them up yet.</span>
     </h2>
+    <p className="font-mono text-xs text-bene-muted mb-8">The 4 clips below are real bene-main HEAD runs — no output edits.</p>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
       <Card className="md:col-span-12 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 1. Eval scoring ≠ promotion gating</h3>
