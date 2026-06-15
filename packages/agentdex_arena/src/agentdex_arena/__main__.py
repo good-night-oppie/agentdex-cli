@@ -27,7 +27,7 @@ import uvicorn
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from agentdex_arena.admin_auth import AdminAuthority
-from agentdex_arena.badge_auth import BadgeAuthority
+from agentdex_arena.badge_auth import BadgeAuthError, BadgeAuthority
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway, create_app
 
@@ -88,10 +88,25 @@ def build_gateway() -> ArenaGateway:
     # which kills the container at startup. No runtime degraded mode.
     admin = AdminAuthority()
 
-    # Badge signing authority for ADR-0011 11c (first paid feature). Same
-    # fail-closed boot posture as AdminAuthority: missing or malformed
-    # ARENA_BADGE_SIGNING_KEY_HEX raises BadgeAuthError → container exits.
-    badge = BadgeAuthority()
+    # Badge signing authority for ADR-0011 11c (first paid feature). Soft-fail
+    # boot per PR #130 review #3410920013: if ARENA_BADGE_SIGNING_KEY_HEX is
+    # missing or malformed, we log a warning, set badge_authority=None, and
+    # let `POST /badge/mint` return 503 'badge mint not configured' (gateway.py
+    # already supports this degraded path). The previous fail-closed boot was
+    # too aggressive — it took down enrollment / ladder / battle / replay
+    # routes even though only the paid badge feature is unconfigured. The
+    # `adx deploy` forward-vars list does not yet propagate the new env;
+    # routing operators to set ARENA_BADGE_SIGNING_KEY_HEX is in the
+    # badge-admin runbook rather than a boot-time hard requirement.
+    try:
+        badge = BadgeAuthority()
+    except BadgeAuthError as e:
+        log.warning(
+            "BadgeAuthority unconfigured (%s); /badge/mint will respond 503 "
+            "until ARENA_BADGE_SIGNING_KEY_HEX is set. Other routes unaffected.",
+            e,
+        )
+        badge = None
 
     return ArenaGateway(
         authority=authority,
