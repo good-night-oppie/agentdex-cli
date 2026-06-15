@@ -1,36 +1,34 @@
-# Gap 2 — Cross-agent memory with provenance, on a typed ladder.
-# Helper: _show_engrams.sh runs the bene query so the tape stays quote-free.
+# Gap 2 — Engrams across the typed ladder, queryable by any agent.
+# Punchline: a single SELECT shows the tier distribution.
 
 Output ../../assets/demos/gap-2-engram.gif
 Set Width 1100
-Set Height 600
+Set Height 420
 Set Theme "TokyoNight"
-Set FontSize 16
+Set FontSize 17
 Set FontFamily "JetBrains Mono"
-Set TypingSpeed 30ms
-Set PlaybackSpeed 1.3
+Set TypingSpeed 25ms
+Set PlaybackSpeed 1.2
 Set Padding 20
 
-Type "# Gap 2 — the next agent walks in and greps what the last one learned."
+Hide
+Type "cd /home/admin/gh/bene-main"
 Enter
-Sleep 600ms
-
-Type "uv run bene init"
+Type "uv run bene init >/dev/null"
 Enter
-Sleep 600ms
-
 Type "DEMO_DB=$(bash site/demos/tapes/_extract_demo_db.sh)"
 Enter
-Sleep 4500ms
+Sleep 5s
+Show
 
-Type "# typed engrams across tiers — trace, episodic, semantic, procedural, strategic"
+Type "# What did the last agent leave behind for the next one?"
 Enter
-Sleep 500ms
+Sleep 600ms
 
-Type "bash site/demos/tapes/_show_engrams.sh $DEMO_DB | head -22"
+Type "bash site/demos/tapes/_show_engrams.sh $DEMO_DB | head -16"
 Enter
-Sleep 2200ms
+Sleep 4000ms
 
-Type "# provenance is mandatory. promotion never mutates sources."
+Type "# Three tiers, five kinds, twelve engrams. Each row links to its source."
 Enter
-Sleep 1200ms
+Sleep 1800ms

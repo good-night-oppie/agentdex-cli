@@ -1,36 +1,34 @@
-# Gap 3 — Computed trust, not a YAML knob.
-# Helper: _show_trust.sh extracts the first agent + emits the trust JSON.
+# Gap 3 — Trust as a computed signal.
+# Punchline: four signal values that came from the audit trail.
 
 Output ../../assets/demos/gap-3-trust.gif
 Set Width 1100
-Set Height 600
+Set Height 480
 Set Theme "TokyoNight"
-Set FontSize 16
+Set FontSize 17
 Set FontFamily "JetBrains Mono"
-Set TypingSpeed 30ms
-Set PlaybackSpeed 1.3
+Set TypingSpeed 25ms
+Set PlaybackSpeed 1.2
 Set Padding 20
 
-Type "# Gap 3 — L4 is the only level a human grants by name."
+Hide
+Type "cd /home/admin/gh/bene-main"
 Enter
-Sleep 600ms
-
-Type "uv run bene init"
+Type "uv run bene init >/dev/null"
 Enter
-Sleep 600ms
-
 Type "DEMO_DB=$(bash site/demos/tapes/_extract_demo_db.sh)"
 Enter
-Sleep 4500ms
+Sleep 5s
+Show
 
-Type "# 4 signals fold into a [0,1] composite — verification, audit, checkpoint, outcome"
+Type "# What's the agent's trust score, and where did it come from?"
 Enter
-Sleep 500ms
+Sleep 600ms
 
 Type "bash site/demos/tapes/_show_trust.sh $DEMO_DB"
 Enter
-Sleep 2500ms
+Sleep 4500ms
 
-Type "# no YAML knob. L4 grant must declare granted_by='human:<name>' or the API raises."
+Type "# Four values, all derived from real events. L4 still needs a human."
 Enter
-Sleep 1200ms
+Sleep 1800ms

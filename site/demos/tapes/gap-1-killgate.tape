@@ -1,36 +1,42 @@
-# Gap 1 — A bad prompt cannot ship just by passing eval.
-# Shows: bene demo seeds a probe → experiments ls → the verdict is itself an engram
+# Gap 1 — A locked probe is what stops a bad prompt from shipping.
+#
+# Demo-craft rules applied (distilled from harness-engineering corpus video #06,
+# "上下文是稀缺资源 / 渐近式披露 / 找到那个 moment"):
+#   - Hide setup typing. Viewer's attention budget is the constraint.
+#   - One punchline per demo. Here: the line "story-probe -> ACCEPT".
+#   - Long Sleep AFTER the punchline so the eye lands on it.
 
 Output ../../assets/demos/gap-1-killgate.gif
 Set Width 1100
-Set Height 540
+Set Height 360
 Set Theme "TokyoNight"
-Set FontSize 16
+Set FontSize 17
 Set FontFamily "JetBrains Mono"
-Set TypingSpeed 30ms
-Set PlaybackSpeed 1.3
+Set TypingSpeed 25ms
+Set PlaybackSpeed 1.2
 Set Padding 20
 
-Type "# Gap 1 — a bad prompt cannot ship just by passing eval."
+# --- setup: hidden ---
+Hide
+Type "cd /home/admin/gh/bene-main"
+Enter
+Type "uv run bene init >/dev/null"
+Enter
+Type "DEMO_DB=$(bash site/demos/tapes/_extract_demo_db.sh)"
+Enter
+Sleep 5s
+Show
+
+# --- ask ---
+Type "# What did the probe decide on the candidate prompt?"
 Enter
 Sleep 600ms
 
-Type "uv run bene init"
+# --- punchline ---
+Type "uv run bene experiments ls --db $DEMO_DB | grep -B1 -A1 probe"
 Enter
-Sleep 600ms
+Sleep 3500ms
 
-Type "DEMO_DB=$(uv run bene demo --no-ui 2>&1 | grep -oE '/tmp/bene-demo-[^ ]+/story.db' | head -1)"
-Enter
-Sleep 4500ms
-
-Type "# every promote() must clear a sha256-locked probe"
-Enter
-Sleep 500ms
-
-Type "uv run bene experiments ls --db $DEMO_DB | head -12"
+Type "# story-probe -> ACCEPT — verdict is itself an engram, re-readable months later."
 Enter
 Sleep 1800ms
-
-Type "# verdict ACCEPT is itself an engram. Tamper the spec, the probe refuses."
-Enter
-Sleep 1200ms
