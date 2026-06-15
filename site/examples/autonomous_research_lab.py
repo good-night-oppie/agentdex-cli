@@ -38,6 +38,7 @@ from bene import Bene
 from bene.ccr.runner import ClaudeCodeRunner
 from bene.router.tier import TierRouter
 
+
 # ── The base training script (simplified for demo) ───────────────
 
 BASE_TRAIN_PY = """\
@@ -212,7 +213,7 @@ async def run_research_lab():
     print("=" * 60)
 
     # Per-agent summary
-    for direction, result in zip(RESEARCH_DIRECTIONS, results, strict=False):
+    for direction, result in zip(RESEARCH_DIRECTIONS, results):
         print(f"\n[{direction['name']}]")
         print(f"  Result: {result[:200]}")
 
