@@ -38,7 +38,9 @@ def _make_gateway(tmp_path, *, badge_authority=None, now: float = 1_000_000.0):
     return gateway
 
 
-def _mint_token(authority: ConsentAuthority, *, scopes: list[str], owner: str = "eddie@oppie.xyz") -> tuple[str, str]:
+def _mint_token(
+    authority: ConsentAuthority, *, scopes: list[str], owner: str = "eddie@oppie.xyz"
+) -> tuple[str, str]:
     """Returns (token, agent_name). Uses an Ed25519 pubkey just for shape — no
     PoP is invoked on /badge/mint, so any 64-char hex is fine."""
     agent_pubkey_hex = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
@@ -229,6 +231,7 @@ def test_badge_mint_signature_unforgeable_by_a_different_authority(tmp_path):
     # badge_b's key is different from badge_a's; verify_badge must reject.
     import pytest
     from agentdex_arena.badge_auth import BadgeAuthError
+
     with pytest.raises(BadgeAuthError):
         badge_b.verify_badge(badge_token)
 

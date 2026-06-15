@@ -38,12 +38,11 @@ from __future__ import annotations
 import asyncio
 
 from bene import Bene
-from bene.router.tier import TierRouter
+from bene.metaharness.benchmarks import register_benchmark
+from bene.metaharness.benchmarks.base import Benchmark, Problem
 from bene.metaharness.harness import SearchConfig
 from bene.metaharness.search import MetaHarnessSearch
-from bene.metaharness.benchmarks.base import Benchmark, Problem
-from bene.metaharness.benchmarks import register_benchmark
-
+from bene.router.tier import TierRouter
 
 # ── Step 1: Define your dataset ──────────────────────────────────
 #
