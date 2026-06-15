@@ -261,3 +261,142 @@ def test_badge_mint_payload_is_canonical_json(tmp_path):
     # canonical = exactly the form json.dumps(..., sort_keys=True, separators=(",", ":")) emits
     parsed = json.loads(decoded)
     assert decoded == json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+
+
+def _make_gateway_with_base(
+    tmp_path, *, public_base_url: str, badge_authority=None, now: float = 1_000_000.0
+):
+    signing = Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    authority = ConsentAuthority(signing_key_hex=signing, now=lambda: now)
+    return ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+        badge_authority=badge_authority,
+        public_base_url=public_base_url,
+        now=lambda: now,
+    )
+
+
+def test_badge_mint_returns_absolute_urls_when_base_set(tmp_path):
+    """PR #130 review #3410920009: when public_base_url is configured, the
+    minted svg_url + verify_url are ABSOLUTE — so a README on github.com
+    that pastes the value renders the badge from the arena, not from
+    `github.com/badge/...`."""
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    base = "https://agentdex.ai-builders.space"
+    gateway = _make_gateway_with_base(
+        tmp_path, public_base_url=base, badge_authority=badge, now=now
+    )
+    app = create_app(gateway, sidecar_factory=Sidecar)
+    owner = "eddie@oppie.xyz"
+    token, _ = _mint_token(
+        gateway.authority,
+        scopes=["enroll", "battle", "evolve", "badge_mint"],
+        owner=owner,
+    )
+    gateway.authority.grant_membership(owner, valid_until_epoch=now + 30 * 86_400)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        r = client.post("/badge/mint", json={"token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["svg_url"].startswith(base + "/badge/")
+    assert body["verify_url"].startswith(base + "/badge/")
+    assert body["svg_url"].endswith(".svg")
+    assert body["verify_url"].endswith("/verify")
+
+
+def test_badge_mint_returns_relative_urls_when_base_empty(tmp_path):
+    """Legacy back-compat: when public_base_url='' (the default the test
+    fixtures use), the mint response carries relative URLs so existing
+    tests are unaffected by the PR #130 review #3410920009 fix."""
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    gateway = _make_gateway_with_base(tmp_path, public_base_url="", badge_authority=badge, now=now)
+    app = create_app(gateway, sidecar_factory=Sidecar)
+    owner = "eddie@oppie.xyz"
+    token, _ = _mint_token(
+        gateway.authority,
+        scopes=["enroll", "battle", "evolve", "badge_mint"],
+        owner=owner,
+    )
+    gateway.authority.grant_membership(owner, valid_until_epoch=now + 30 * 86_400)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        r = client.post("/badge/mint", json={"token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # No scheme — relative paths.
+    assert body["svg_url"].startswith("/badge/")
+    assert body["verify_url"].startswith("/badge/")
+
+
+def test_badge_mint_trailing_slash_in_base_stripped(tmp_path):
+    """Defensive: a public_base_url with a trailing slash MUST NOT produce
+    '...//badge/...' (double-slash breaks GitHub README rendering). The
+    gateway.__init__ rstrip is the load-bearing line."""
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    gateway = _make_gateway_with_base(
+        tmp_path,
+        public_base_url="https://agentdex.ai-builders.space/",
+        badge_authority=badge,
+        now=now,
+    )
+    app = create_app(gateway, sidecar_factory=Sidecar)
+    owner = "eddie@oppie.xyz"
+    token, _ = _mint_token(
+        gateway.authority,
+        scopes=["enroll", "battle", "evolve", "badge_mint"],
+        owner=owner,
+    )
+    gateway.authority.grant_membership(owner, valid_until_epoch=now + 30 * 86_400)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        r = client.post("/badge/mint", json={"token": token})
+    body = r.json()
+    assert "//badge/" not in body["svg_url"]
+    assert "//badge/" not in body["verify_url"]
+
+
+def test_badge_mint_url_encodes_agent_name(tmp_path):
+    """PR #130 review #3410920009 also asked for URL-encoded path components.
+    Mint a ConsentClaims with an agent_name carrying URL-unsafe chars and
+    check the response URLs are properly percent-encoded (the actual
+    sanitize_name() filter at enrollment normally rejects these, so we
+    construct the claim directly to exercise the encoder)."""
+    from agentdex_arena.consent import ConsentClaims
+
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    gateway = _make_gateway_with_base(
+        tmp_path,
+        public_base_url="https://example.org",
+        badge_authority=badge,
+        now=now,
+    )
+    app = create_app(gateway, sidecar_factory=Sidecar)
+    owner = "eddie@oppie.xyz"
+    agent_pubkey_hex = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
+    claims = ConsentClaims(
+        token_id="t" + "0" * 16,
+        owner=owner,
+        agent_name="Polar Bot+α",  # space + plus + non-ascii — URL-unsafe
+        agent_pubkey_hex=agent_pubkey_hex,
+        scopes=["enroll", "battle", "evolve", "badge_mint"],
+        issued_at=999_000.0,
+        expires_at=2_000_000.0,
+        confirmed_via="test",
+    )
+    token = gateway.authority.mint(claims)
+    gateway.authority.grant_membership(owner, valid_until_epoch=now + 30 * 86_400)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        r = client.post("/badge/mint", json={"token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # The space MUST be encoded as %20, plus as %2B, alpha as %CE%B1; raw
+    # 'Polar Bot+α' MUST NOT appear in the URL path.
+    assert "Polar Bot" not in body["svg_url"]
+    assert "Polar%20Bot" in body["svg_url"]
+    assert "%2B" in body["svg_url"]
+    assert "%CE%B1" in body["svg_url"]
