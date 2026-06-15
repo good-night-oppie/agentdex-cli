@@ -1130,17 +1130,13 @@ def check_commit_shape(ctx: LintContext, changed: list[Path]) -> None:
     src_files = [
         p
         for p in changed
-        if (
-            any(_rel(p).startswith(s) for s in ("src/", "scripts/"))
-            or p.suffix in CODE_EXTS
-        )
+        if (any(_rel(p).startswith(s) for s in ("src/", "scripts/")) or p.suffix in CODE_EXTS)
         and not _rel(p).startswith("site/")
     ]
     doc_files = [
         p
         for p in changed
-        if p.suffix == ".md"
-        or _rel(p).startswith(("docs/", "AGENTS.md", ".harness/"))
+        if p.suffix == ".md" or _rel(p).startswith(("docs/", "AGENTS.md", ".harness/"))
     ]
 
     # DOC-LINT-001 agent-fix detection — read latest commit msg
@@ -1322,10 +1318,7 @@ def main(argv: list[str]) -> int:
             return False
         return rel.startswith("site/") or rel == "site"
 
-    md_files = [
-        p for p in files
-        if p.exists() and p.suffix == ".md" and not _is_deploy_artifact(p)
-    ]
+    md_files = [p for p in files if p.exists() and p.suffix == ".md" and not _is_deploy_artifact(p)]
     for md in md_files:
         check_doc(ctx, md)
 
