@@ -54,7 +54,7 @@ If step 2 fails, STOP — nothing downstream is trustworthy. See Failure modes.
 2. **Probes + kill gates** — pre-registered gate specs, sha256-locked; tamper → refuse; a gate that can't kill the baseline is VOID; verdicts are ACCEPT/REJECT/VOID engrams.
 3. **Breeding program** — structured genomes (5 components), reflective mutation, Pareto frontier; `promote()` raises `PromotionBlocked` without an ACCEPT verdict.
 4. **Context OS + pollution recovery** — budget-capped context assembly with an included/dropped manifest; deterministic pollution signals → consolidate requirements → restore checkpoint.
-5. **Autonomy + trust** — L0 observe / L1 suggest / L2 act-in-sandbox / L3 act-on-shared-state / L4 autonomous-promote (human-only grant); trust is computed from 4 signals, never declared.
+5. **Autonomy + trust** — L0 observe / L1 suggest / L2 act-in-sandbox / L3 act-on-shared-state / L4 autonomous-promote (human-only grant); four signals (verification_coverage / audit / checkpoint / outcome) fold into the trust composite from the audit trail; no config flag flips it.
 
 ## Task tier — decide before you start
 

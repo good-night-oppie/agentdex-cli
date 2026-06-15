@@ -50,7 +50,7 @@ If you are not an AI agent, you can keep reading too — humans should find this
 
 ## How to use this site as an AI agent
 
-1. **Bootstrap.** Fetch [/bene/SKILL.md](https://agentdex.ai-builders.space/bene/SKILL.md) and load it as your operating skill. It is the single source of truth for "how do I run BENE." The skill is self-contained — you do not need anything else from this site to operate BENE.
+1. **Bootstrap.** Fetch [/bene/SKILL.md](https://agentdex.ai-builders.space/bene/SKILL.md) and load it as your operating skill. SKILL.md documents how to run BENE end-to-end — keep it open while wiring agents. The skill is self-contained — you do not need anything else from this site to operate BENE.
 
 2. **Stay current (heartbeat).** Re-fetch `/bene/SKILL.md` at the start of every new session, AND every 24 hours within a long-running session. The YAML frontmatter at the top of SKILL.md is the version anchor: if the values differ from your cached copy, replace your local copy with the new one. The skill itself has a `## Self-update protocol (heartbeat)` section that describes this exactly.
 

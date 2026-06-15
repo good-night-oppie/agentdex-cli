@@ -317,7 +317,7 @@ const TheGap = () => (
   <Section id="gap">
     <Kicker number="01" title="The Gap" />
     <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">
-      Four production gaps the research moved past.<br />
+      Production gaps the research moved past.<br />
       <span className="text-bene-muted">Most agent stacks haven't picked them up yet.</span>
     </h2>
     <p className="font-mono text-xs text-bene-muted mb-8">The 4 clips below are real bene-main HEAD runs — no output edits.</p>
@@ -363,12 +363,12 @@ const Contract = () => {
     { n: '1', t: 'Your agents do not share state by accident', d: 'Every agent owns a SQLite-backed virtual filesystem you can diff and restore. Cross-agent reads are explicit; cross-agent decisions ride SharedLog (intent → vote → decide). Isolation is structural — no ACL maintenance.' },
     { n: '2', t: 'The next agent walks in and greps what the last one learned', d: 'Every run leaves typed engrams on a 5-tier ladder: trace 0, episodic 1, semantic 2, procedural 3, strategic 4. Promotion never mutates sources. Provenance is mandatory.' },
     { n: '3', t: 'A bad prompt cannot ship by passing eval alone', d: "Anything that evolves passes a sha256-locked falsifiable probe before promotion. Tamper the spec, the probe refuses. A gate that can't kill the baseline registers as VOID. Verdicts are themselves engrams, re-readable months later." },
-    { n: '4', t: 'L4 is the only level a human grants by name', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion. No YAML knob for it." },
+    { n: '4', t: 'L4 grants come from a named human only', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion. No YAML knob for it." },
   ];
   return (
     <Section id="contract" inverted>
       <Kicker number="02" title="The Contract — Four Invariants" />
-      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Four invariants the harness will not bend on</h2>
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Invariants the harness will not bend on</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         Before any feature, BENE commits to four things — for every agent, every run, every promotion candidate, every L4 grant.
       </p>
@@ -401,9 +401,9 @@ const Comparison = () => {
   const adds = [
     "A prompt can't ship just because its eval score went up",
     'At 3 a.m. you can grep what the last agent learned and why it shipped',
-    "Two agents can't share state by accident — isolation is structural, not ACL maintenance",
+    "Two agents can't share state by accident — isolation lives in the per-agent VFS, not in ACL configs",
     'Cross-agent decisions follow one auditable path; you can replay who voted what',
-    'Agent trust is computed from evidence, not granted by a YAML flag',
+    'Run `bene trust show <agent>` and 4 signals come back from the audit trail — no YAML flag flips them',
     'Strategies can evolve; only the ones that pass the gate reach production',
     'At 3 a.m. open bene.db with sqlite3 — cp, rsync, diff all just work',
   ];
@@ -457,7 +457,7 @@ const Proof = () => {
       r: (<><span>$ uv add bene && uv run bene init && uv run bene demo --no-ui</span><br/><span className="text-bene-muted">[trace]</span> initializing harness...<br/><span className="text-bene-accent">[probe]</span> running baseline evaluation...<br/><span className="text-bene-muted">[evolve]</span> generating candidate strategies...<br/><span className="text-bene-muted">[trace]</span> complete. 12 engrams written.</>) },
     { l: 'Tab 2: Planner + Executor', c: 'Two agents, one bene.db. Intent → vote → decide is the only path between shared decisions.',
       r: (<><span className="text-bene-accent">from</span> bene <span className="text-bene-accent">import</span> Bene, Agent<br/><br/>harness = Bene()<br/>planner = Agent(name=<span className="text-[#A3E635]">'planner'</span>)<br/>executor = Agent(name=<span className="text-[#A3E635]">'executor'</span>)<br/><br/><span className="text-bene-muted"># Write to VFS</span><br/>planner.vfs.write(<span className="text-[#A3E635]">'/plan.md'</span>, <span className="text-[#A3E635]">'1. init\n2. run'</span>)<br/><br/><span className="text-bene-muted"># Intent → Vote → Decide</span><br/>harness.log.propose(intent=<span className="text-[#A3E635]">'execute_plan'</span>)</>) },
-    { l: 'Tab 3: Grep the engrams', c: "Your agent's memory is a table. No vendor API between you and what shipped.",
+    { l: 'Tab 3: Grep the engrams', c: "Open bene.db with sqlite3, SELECT FROM engrams — no vendor API between you and what shipped.",
       r: (<>$ sqlite3 bene.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY ts DESC LIMIT 5;"</span><br/><br/>4|strategy|Use exponential backoff for rate limits...<br/>3|procedural|Retry logic implementation details...<br/>2|semantic|Anthropic API rate limit characteristics...<br/>1|episodic|Failed request to claude-3-opus at 14:32...<br/>0|trace|HTTP 429 Too Many Requests...</>) },
     { l: 'Tab 4: Probe ACCEPT vs REJECT', c: "Tamper the spec, LockTamperError. A gate that can't kill the baseline registers VOID, not ACCEPT.",
       r: (<><span className="text-bene-accent">def</span> <span className="text-[#60A5FA]">test_candidate</span>(eval_run):<br/>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">if</span> eval_run.quality &lt; <span className="text-[#FBBF24]">0.70</span>:<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">raise</span> PromotionBlocked(<span className="text-[#A3E635]">'Quality regression'</span>)<br/><br/><span className="text-bene-muted"># Run 1: quality=0.71</span><br/><span className="text-[#A3E635]">ACCEPT</span>: Candidate promoted to tier 4.<br/><br/><span className="text-bene-muted"># Run 2: quality=0.62</span><br/><span className="text-bene-accent">PromotionBlocked</span>: Quality regression. Promotion aborted.</>) },
@@ -616,7 +616,7 @@ const Architecture = () => {
     {
       key: 'autonomy',
       name: 'Autonomy ladder + trust ledger',
-      oneLine: 'trust is computed, not declared',
+      oneLine: 'Run `bene trust show <agent>`; four signals fold into a [0,1] composite',
       scene: 'An agent has run three weeks without an error and the team wants it to own a class of decisions outright. Question: by what evidence is that the right call?',
       common: "Set autonomy_level: 3 in a YAML, or the lead approves it from gut. When something breaks, dig commit messages to find out who signed off.",
       mechanism: 'Four signals are computed from the audit trail: verification_coverage (probe pass rate), audit (review hit rate), checkpoint (rollback frequency), outcome (task success rate). They fold into a [0,1] composite that lands the agent on L0 / L1 / L2 / L3 — these tiers auto-promote when probes pass. L4 (the top tier) is a hard contract: granted_by="human:<name>" or the API raises. No bene.config flag changes it.',
@@ -783,14 +783,14 @@ const Architecture = () => {
 const Limits = () => {
   const ls = [
     { t: 'Single-shot one-file edits', d: "A plain agent is faster. BENE's spawn + checkpoint + engram overhead doesn't pay off below roughly 3 agents or 3 steps." },
-    { t: 'Hard OS sandboxing', d: 'Per-agent VFS is logical isolation, not a container. For untrusted code, use Docker, Firecracker, or E2B.' },
+    { t: 'Hard OS sandboxing', d: 'Per-agent VFS gives logical isolation — reach for Docker, Firecracker, or E2B when the code is untrusted.' },
     { t: 'Realtime sub-100ms loops', d: 'CLI spawn + uv overhead per call is the floor; SQLite write fsync sets the throughput. Batch yes. Realtime serving no.' },
     { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Adaptive ranking is currently static BM25 (measured −13.3pp vs outcome-weighted ranking in the COMMUNITY-BENCH A1b row against KAOS). Outcome-weighted ranking is planned, not shipped.' },
   ];
   return (
     <Section id="limits" inverted>
       <Kicker number="07" title="When NOT to use BENE" />
-      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Where BENE is the wrong tool</h2>
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">When to reach for something else</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         Four task shapes that fall outside BENE's design — the lighter tool is the right call here.
       </p>
