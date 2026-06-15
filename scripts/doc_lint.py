@@ -1111,10 +1111,20 @@ def check_commit_shape(ctx: LintContext, changed: list[Path]) -> None:
     if not changed:
         return
     root = ctx.repo_root
+    # site/ holds deploy artifacts (mirrored from bene-main on every sync —
+    # html, js, example .py snippets, build-docs.py, demo .tape/.sh helpers).
+    # A site/ sync is not a "src change" against the agentdex-cli code tree,
+    # so it should not require a paired docs/** update under the agentdex-cli
+    # docs/ tree. Same intent as the existing site/ carve-out at
+    # _is_deploy_artifact() below for per-file md lint.
     src_files = [
         p
         for p in changed
-        if any(str(p).startswith(s) for s in ("src/", "scripts/")) or p.suffix in CODE_EXTS
+        if (
+            any(str(p).startswith(s) for s in ("src/", "scripts/"))
+            or p.suffix in CODE_EXTS
+        )
+        and not str(p).startswith("site/")
     ]
     doc_files = [
         p

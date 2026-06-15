@@ -44,6 +44,11 @@ uv sync --group dev          # installs ruff + mypy + pre-commit + detect-secret
 # 2. Wire pre-commit hooks (G2 ep6 rails-in-code)
 bash scripts/install_hooks.sh             # ruff + mypy + detect-secrets + sync_toc
 bash scripts/install_doc_lint_precommit.sh # doc_lint.py --staged
+# Note: doc_lint treats everything under site/ as a deploy artifact
+# (HTML / mirrored markdown / bene-main example .py / build helpers)
+# — those files do not satisfy spec-doc rules and do not count as src
+# changes against the agentdex-cli code tree, so a site/ sync from
+# bene-main never needs a paired docs/** update.
 
 # 3. Verify green tree
 ./tools/agent_senses/run_tests.sh         # canonical pytest invocation
