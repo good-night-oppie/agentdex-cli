@@ -24,12 +24,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 
+import bene.metaharness.benchmarks.agentic_coding  # noqa: F401 — register
 from bene import Bene
-from bene.router.tier import TierRouter
+from bene.metaharness.benchmarks import get_benchmark
 from bene.metaharness.harness import SearchConfig
 from bene.metaharness.search import MetaHarnessSearch
-from bene.metaharness.benchmarks import get_benchmark
-import bene.metaharness.benchmarks.agentic_coding  # noqa: F401 — register
+from bene.router.tier import TierRouter
 
 
 async def main(tasks_path: str | None):

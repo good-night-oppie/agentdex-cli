@@ -23,8 +23,8 @@ from __future__ import annotations
 import asyncio
 
 from bene import Bene
-from bene.router.tier import TierRouter
 from bene.ccr import ClaudeCodeRunner
+from bene.router.tier import TierRouter
 
 
 async def main():
