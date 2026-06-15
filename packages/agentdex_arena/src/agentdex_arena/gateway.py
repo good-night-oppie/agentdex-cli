@@ -1621,23 +1621,32 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             verify_url=verify_url,
         )
         # Q2 funnel instrumentation (per spec §270) — Referer host-only.
-        # Structured fields per PR #132 review #3411007728: agent_name MAY
-        # contain a space (sanitize_name allows it), so a free-form
-        # "badge_fetch agent=%s referer_host=%s kid=%s" line is ambiguous
-        # to a grep/awk parser (e.g. agent=My Bot referer_host=...). Emit
-        # the values via the standard-library logging `extra={...}` keyword
-        # so a structured log handler keeps typed fields and the deferred
-        # V2 aggregation at GET /admin/badge-fetches/{agent} stays cheap.
-        # The message string is the event key alone; the agent_name is in
-        # extra so it never sits next to the referer_host in raw text.
+        # PR #132 review #3411007728 mandated structured fields because
+        # agent_name MAY contain a space (sanitize_name allows it). PR
+        # #139 emitted the fields ONLY via `extra={...}`, but the deployed
+        # path (`Dockerfile` runs `python -m agentdex_arena`, and
+        # __main__.main()'s logging.basicConfig formatter is
+        # `%(asctime)s %(levelname)s %(name)s %(message)s` — does NOT
+        # include extras). On Koyeb / Datadog / Loki that read stdout,
+        # the deployed line collapsed to bare `badge_fetch` and the
+        # values were lost entirely (PR #139 review #3411197007).
+        # Restore the values to the message via a sort-keyed canonical-
+        # JSON serialization. JSON quoting closes the space-in-agent-name
+        # parse hole the previous `agent=%s ...` line had (a parser can
+        # safely `json.loads(message.split(" ", 1)[1])`). The `extra={...}`
+        # keyword is kept so structured handlers (JSON ingester, Datadog
+        # parser) still get typed LogRecord attributes — no regression
+        # against the V2 aggregation contract.
+        _bf_fields = {
+            "event": "badge_fetch",
+            "agent_name": agent_name,
+            "referer_host": _badge_referer_host(request.headers.get("Referer")),
+            "badge_token_kid": payload.get("kid"),
+        }
         log.info(
-            "badge_fetch",
-            extra={
-                "event": "badge_fetch",
-                "agent_name": agent_name,
-                "referer_host": _badge_referer_host(request.headers.get("Referer")),
-                "badge_token_kid": payload.get("kid"),
-            },
+            "badge_fetch %s",
+            json.dumps(_bf_fields, sort_keys=True),
+            extra=_bf_fields,
         )
         return Response(
             content=svg,
