@@ -266,7 +266,7 @@ const Hero = () => (
         <div>
           <p className="text-lg leading-relaxed mb-6">
             事故后第二天凌晨 3 点，oncall 用 sqlite3 打开 <code className="text-bene-text">bene.db</code>，把 agent「智能体」每一次 retry「重试」留下的 engram「记忆轨迹」翻了一遍。那道放过烂 prompt 的 locked probe「锁定探针」还在，连它当时怎么判的都能查。{' '}
-            <span className="text-bene-text font-medium">不用进厂商门户，也不用盯着还在转圈的看板。</span>
+            <span className="text-bene-text font-medium">不用进厂商门户，也不用盯着还在转圈的仪表盘。</span>
           </p>
           <p className="text-sm text-bene-muted leading-relaxed font-mono">
             下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。
@@ -335,7 +335,7 @@ const TheGap = () => (
       <Card className="md:col-span-12 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 4：source of truth「事实来源」最好就是磁盘上一个文件</h3>
         <p className="text-bene-muted leading-relaxed">
-          凌晨 3 点出了 incident「事故」，你想查当时到底上线了哪个 prompt。你要的是磁盘上一个能打开的文件，不是一个还在转圈的看板。BENE 的 <code className="text-bene-text">bene.db</code> 就是这个文件：cp、rsync、diff、sqlite3 直接打开，都行。
+          凌晨 3 点出了 incident「事故」，你想查当时到底上线了哪个 prompt。你要的是磁盘上一个能打开的文件，不是一个还在转圈的仪表盘。BENE 的 <code className="text-bene-text">bene.db</code> 就是这个文件：cp、rsync、diff、sqlite3 直接打开，都行。
         </p>
         <GapDemo gif="gap-4-sqlite.gif" caption="ls -la 看到一个真实的文件 + 4 行 python 直接 SELECT engrams。不需要 client library，不需要门户。" />
       </Card>
