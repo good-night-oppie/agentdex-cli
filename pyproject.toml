@@ -51,8 +51,9 @@ dev = [
 line-length = 100
 target-version = "py311"
 extend-exclude = [
-  "packages/kaos",   # vendored subtree — upstream owns lint config
-  "vendor/aaop",     # squashed aaop paper repos (phase-9) — same posture
+  "packages/kaos",    # vendored subtree — upstream owns lint config
+  "vendor/aaop",      # squashed aaop paper repos (phase-9) — same posture
+  "site/examples",    # bene-main mirror target — upstream owns lint posture; mirror cron re-introduces ruff drift on every push (PR #128/#129/#130 caught it 4× then this carveout closed it)
   ".venv",
   "_attic",
   "expeditions",
