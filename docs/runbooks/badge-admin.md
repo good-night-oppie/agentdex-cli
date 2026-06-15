@@ -63,6 +63,26 @@ op item create --category="API Credential" \
 python3 -c "from agentdex_arena.badge_auth import BadgeAuthority; BadgeAuthority(signing_key_hex='$BADGE_KEY'); print('badge key valid')"
 ```
 
+## Setting the README-embed base URL (deploy-time, optional)
+
+The `/badge/mint` response carries `svg_url` + `verify_url` for paid owners to paste into third-party READMEs. Those URLs must be **absolute** — otherwise the README render resolves them against the README host (e.g. `github.com/badge/...`) and the embed breaks. The arena defaults to `https://agentdex.ai-builders.space` when the env is unset; production deploys work out of the box.
+
+```bash
+# Default (matches the production hostname; only set this explicitly if you
+# want to be explicit about the deploy URL in your operator runbook):
+koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL="https://agentdex.ai-builders.space"
+
+# Staging / preview / fork: point at the deploy URL the owner will paste
+# from. Any agent minted on this gateway gets URLs under this host.
+koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL="https://staging.your-deploy.example"
+
+# Integration test harness that resolves URLs against an injected base:
+# explicitly set to empty so /badge/mint emits relative paths.
+koyeb service update agentdex --env ARENA_PUBLIC_BASE_URL=""
+```
+
+The constructor `rstrip("/")`s the value so a trailing slash will not produce double-slashed README URLs.
+
 ## Setting the env var on Koyeb (deploy-time, ONCE)
 
 The container reads `ARENA_BADGE_SIGNING_KEY_HEX` at boot. If missing or

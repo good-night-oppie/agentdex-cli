@@ -32,6 +32,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote as _url_quote
 
 from adx_bridges.showdown_battle_bridge import render_state
 from adx_showdown.bots import (
@@ -408,6 +409,7 @@ class ArenaGateway:
         event_sync: Callable[[dict], None] | None = None,
         admin_authority: AdminAuthority | None = None,
         badge_authority: BadgeAuthority | None = None,
+        public_base_url: str = "",
     ) -> None:
         self.authority = authority
         # Admin bearer for operator-only routes (ADR-0011 11b.3). None means
@@ -416,10 +418,18 @@ class ArenaGateway:
         # container fail-closed-boots if ARENA_ADMIN_TOKEN_HASH is missing.
         self.admin = admin_authority
         # Badge signing authority for ADR-0011 11c (first paid feature). None
-        # means /badge/mint responds 503 'badge mint not configured' — the
-        # production __main__ constructs BadgeAuthority eagerly so the
-        # container fail-closed-boots if ARENA_BADGE_SIGNING_KEY_HEX is missing.
+        # means /badge/mint responds 503 'badge mint not configured' (the
+        # production __main__ tolerates a missing ARENA_BADGE_SIGNING_KEY_HEX
+        # and lets the other routes come up — PR #135 review #3410920013).
         self.badge_auth = badge_authority
+        # Absolute base URL used to construct README-embeddable badge URLs
+        # in the /badge/mint response (PR #130 review #3410920009). Empty
+        # string keeps the legacy relative-URL shape for test fixtures; the
+        # production __main__ reads ARENA_PUBLIC_BASE_URL and falls back to
+        # f"https://{BADGE_ISSUER}" so an unconfigured prod deploy still
+        # produces working README embeds. Caller-supplied value MUST omit
+        # trailing slash; the route builder will join with f"/badge/...".
+        self.public_base_url = public_base_url.rstrip("/")
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
         for event in self.events.iter_events():
@@ -1519,10 +1529,22 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             )
         except BadgeAuthError as e:
             raise _opaque_error(503, e) from None
+        # URL-encode the agent_name in the path so unicode / spaces /
+        # gateway-reserved chars survive the README-paste-and-render
+        # round-trip (PR #130 review #3410920009). `safe=''` URL-encodes
+        # the slash too — agent_name comes from a validated single-segment
+        # path param so this is shape-correct.
+        agent_path = _url_quote(claims.agent_name, safe="")
+        svg_path = f"/badge/{agent_path}/{badge_token}.svg"
+        verify_path = f"/badge/{agent_path}/{badge_token}/verify"
         return {
             "badge_token": badge_token,
-            "svg_url": f"/badge/{claims.agent_name}/{badge_token}.svg",
-            "verify_url": f"/badge/{claims.agent_name}/{badge_token}/verify",
+            "svg_url": f"{gateway.public_base_url}{svg_path}"
+            if gateway.public_base_url
+            else svg_path,
+            "verify_url": f"{gateway.public_base_url}{verify_path}"
+            if gateway.public_base_url
+            else verify_path,
             "valid_until_epoch": valid_until,
         }
 

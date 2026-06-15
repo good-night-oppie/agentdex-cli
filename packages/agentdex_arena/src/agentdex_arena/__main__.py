@@ -108,6 +108,13 @@ def build_gateway() -> ArenaGateway:
         )
         badge = None
 
+    # Absolute base URL for README-embeddable badge URLs (PR #130 review
+    # #3410920009). Defaults to the production deploy hostname so the
+    # default-configured arena emits URLs that resolve under a third-party
+    # README; operators with a different deploy URL override via env. Empty
+    # string explicitly opts back into the legacy relative-URL shape.
+    public_base_url = os.environ.get("ARENA_PUBLIC_BASE_URL", "https://agentdex.ai-builders.space")
+
     return ArenaGateway(
         authority=authority,
         events_path=runtime / "events.jsonl",
@@ -117,6 +124,7 @@ def build_gateway() -> ArenaGateway:
         event_sync=event_sync,
         admin_authority=admin,
         badge_authority=badge,
+        public_base_url=public_base_url,
     )
 
 
