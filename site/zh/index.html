@@ -388,30 +388,30 @@ const Comparison = () => {
     { n: 'Letta',         r: '把 Letta 的 memory block 映射成 tier-2 engram；跨 agent 复用全走 probe + gate。' },
   ];
   const adds = [
-    '上线前过一道 hash-locked kill gate「卡点闸门」',
-    '5 tier 的带类型 engram ladder「记忆梯度」——每次升 tier 都得过 probe gate',
-    'Per-agent VFS 隔离，跨 agent 读必须显式',
-    'SharedLog 跑 intent → vote → decide，做跨 agent 决策的唯一路径',
-    'L0–L4 的 trust ladder「信任梯度」（四个 signal 合成 [0,1] 的 composite）',
-    'Breeding program「繁育流水线」：genome + Pareto front + gated promote()',
-    '一份本地 SQLite 文件，当审计底座',
+    '烂 prompt 不会因为 eval 分数高就溜上线',
+    '半夜出 incident，能查上一个 agent 学到了什么、当时为啥放行',
+    '两个 agent 不会莫名其妙串了状态——隔离写在结构里，不靠运维补 ACL',
+    '跨 agent 拍板走一条路，事后能查谁提的、谁投了、最后怎么定的',
+    'agent 能信到什么程度是算出来的，不是 YAML 改一行就升',
+    '能让 strategy 自己演化，过了那道 gate 才允许真上生产',
+    '凌晨 3 点 sqlite3 打开 bene.db 就能查；cp、rsync、diff 都正常用',
   ];
   return (
     <Section id="comparison">
-      <Kicker number="03" title="跟你已有的工具箱拼" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">你那套 crew「智能体团队」留着。BENE 只往底下补一块基座。</h2>
+      <Kicker number="03" title="贴在现有 stack 下面" />
+      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">现在跑的 agent 框架不用换。BENE 在下面加一份 SQLite。</h2>
       <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
-        你已经在跑 LangGraph、CrewAI，或者别的更顺手的 orchestration「编排层」。别迁，没必要。BENE 贴在这一层下面——同一份 graph、同一队 agent、同一组 provider，run 照常跑；旁边顺手把 engram、gate、trust signal 记下来。
+        LangGraph、CrewAI，或者别的你已经在用的 orchestration「编排层」——继续用。BENE 贴在它下面：graph、agent、provider 都不动；run 的过程里，engram、gate、trust signal 会写进 bene.db。
       </p>
       <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
-        <h3 className="font-mono text-bene-accent text-sm mb-4">底层基座白送你这些</h3>
+        <h3 className="font-mono text-bene-accent text-sm mb-4">BENE 在下面替你管这几件</h3>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 font-mono text-sm text-bene-text">
           {adds.map((a, i) => (
             <li key={i} className="flex gap-3"><span className="text-bene-accent">+</span>{a}</li>
           ))}
         </ul>
       </div>
-      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">接入配方</h3>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">怎么接进来</h3>
       <div className="border border-bene-dim bg-bene-surface mb-16">
         {recipes.map((r, i) => (
           <div key={r.n} className={'flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4 ' + (i < recipes.length - 1 ? 'border-b border-bene-dim' : '')}>
@@ -422,11 +422,11 @@ const Comparison = () => {
       </div>
       <div className="space-y-6">
         <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-          Framework 你自己挑，provider 你自己挑。底下垫 BENE 这块基座，一份 bene.db 直接进生产。
+          Framework、provider 你自己挑。下面垫一份 bene.db，直接上线。
         </p>
         <div className="pt-8 border-t border-bene-dim flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-bene-muted max-w-2xl">
-            受测细节和限制都在下面 docs 里；这一节只讲接入姿势，不做榜单。
+            评测数据和限制在下面的 docs 里。这一节只讲怎么接，不做榜单。
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
@@ -523,7 +523,7 @@ const Recipes = () => {
         ))}
       </div>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        挑那个动词跟你 task 对上的 recipe。跑 verify。把输出贴出来。这就是 ship on BENE。
+        找一条动词跟你 task 对得上的 recipe。跑 verify。把输出贴出来。这就是 ship on BENE。
       </p>
     </Section>
   );

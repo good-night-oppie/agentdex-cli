@@ -399,13 +399,13 @@ const Comparison = () => {
     { n: 'Letta',         r: 'Mirror Letta memory blocks as tier-2 engrams; cross-agent reuse goes through the probe + gate.' },
   ];
   const adds = [
-    'Hash-locked kill gate before promotion',
-    '5-tier typed engram ladder with probe-gated tier promotion',
-    'Per-agent VFS isolation + cross-agent reads stay explicit',
-    'SharedLog intent → vote → decide for shared decisions',
-    'Computed L0–L4 trust ladder (4 signals → [0,1] composite)',
-    'Breeding program: genome + Pareto + gated promote()',
-    'One local SQLite file as the audit substrate',
+    "A prompt can't ship just because its eval score went up",
+    'At 3 a.m. you can grep what the last agent learned and why it shipped',
+    "Two agents can't share state by accident — isolation is structural, not ACL maintenance",
+    'Cross-agent decisions follow one auditable path; you can replay who voted what',
+    'Agent trust is computed from evidence, not granted by a YAML flag',
+    'Strategies can evolve; only the ones that pass the gate reach production',
+    'At 3 a.m. open bene.db with sqlite3 — cp, rsync, diff all just work',
   ];
   return (
     <Section id="comparison">

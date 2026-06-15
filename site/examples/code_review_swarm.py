@@ -18,8 +18,9 @@ from __future__ import annotations
 import asyncio
 
 from bene import Bene
-from bene.ccr import ClaudeCodeRunner
 from bene.router.tier import TierRouter
+from bene.ccr import ClaudeCodeRunner
+
 
 # The code under review — intentionally buggy for demonstration.
 CODE_UNDER_REVIEW = '''
@@ -96,7 +97,7 @@ async def main():
     print("=" * 70)
     print("CODE REVIEW SUMMARY")
     print("=" * 70)
-    for reviewer, result in zip(reviewers, results, strict=True):
+    for reviewer, result in zip(reviewers, results):
         print(f"\n[{reviewer['name']}]")
         print("-" * 50)
         # Show first 600 chars of each review

@@ -28,11 +28,11 @@ import random
 from typing import Any
 
 from bene import Bene
-from bene.metaharness.benchmarks import register_benchmark
-from bene.metaharness.benchmarks.base import Benchmark, Problem
+from bene.router.tier import TierRouter
 from bene.metaharness.harness import SearchConfig
 from bene.metaharness.search import MetaHarnessSearch
-from bene.router.tier import TierRouter
+from bene.metaharness.benchmarks.base import Benchmark, Problem
+from bene.metaharness.benchmarks import register_benchmark
 
 
 def generate_transactions(n: int = 100, seed: int = 42) -> list[dict]:
@@ -233,7 +233,7 @@ class FraudDetectionBenchmark(Benchmark):
     def _to_problems(self, txns: list[dict]) -> list[Problem]:
         seen = []
         problems = []
-        for _i, txn in enumerate(txns):
+        for i, txn in enumerate(txns):
             problems.append(
                 Problem(
                     problem_id=f"fraud_{txn['txn_id']}",
