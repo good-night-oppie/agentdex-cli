@@ -573,7 +573,7 @@ The free-tier unverified SVG endpoint (D6) remains explicitly **NOT** in V1; rev
 | 11a (THIS ADR + spec) | Capture decisions; doc-only | shipping in PR following this ADR |
 | 11b (membership primitive) | Parked 8-step design, 14-test suite | sequential tiny PRs per `.supergoal/ADDENDUM_GIT_PR_DISCIPLINE.md`; first PR = `admin_auth.py` |
 | 11c (verified badge SVG) | First paid feature; smallest, highest demo signal — design ratified 2026-06-15 (§8 above), shipped as PRs #129/#130/#132/#133 | shipped 2026-06-15 |
-| 11d (signed replay + cite_as) | Second paid feature; closes outsider-verifiable receipt loop | after 11c |
+| 11d (signed replay + cite_as) | Second paid feature; closes outsider-verifiable receipt loop — design parked at [docs/references/2026-06-15-arena-signed-replay-cite-design.md](../references/2026-06-15-arena-signed-replay-cite-design.md) | parked 2026-06-15 (after 11c) |
 | 11e (bulk API export) | Third paid feature; serves AI labs / researchers | after 11d |
 | 11f (regression gate) | Fourth paid feature; serves CI-integrated builders | after 11e |
 | 12 (Stripe ingress) | Replace manual flip-the-bit with Stripe webhook | after V1 has ≥3 paying customers |
