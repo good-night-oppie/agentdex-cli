@@ -49,9 +49,7 @@ def _confirm_enrollment(gateway: ArenaGateway, *, owner: str, name: str) -> str:
     from agentdex_arena.gateway import EnrollRequest
 
     pub = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
-    gateway.enroll_request(
-        EnrollRequest(owner=owner, agent_name=name, agent_pubkey_hex=pub)
-    )
+    gateway.enroll_request(EnrollRequest(owner=owner, agent_name=name, agent_pubkey_hex=pub))
     # Exactly one pending code exists right after enroll_request — pull it.
     (code,) = gateway.pending_enrollments.keys()
     result = gateway.enroll_confirm(code)
