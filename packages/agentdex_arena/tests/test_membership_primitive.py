@@ -321,6 +321,48 @@ def test_all_agent_facing_surfaces_do_not_mention_admin_surface(tmp_path):
                 )
 
 
+def test_all_agent_facing_surfaces_do_not_mention_badge_admin_surface(tmp_path):
+    """Test scenario #10 from the 11c design spec. Mirrors the admin-surface
+    absence contract for the badge_admin operator surface. The agent-facing
+    `POST /badge/mint` IS allowed in agent docs (it's the owner-facing mint
+    surface); only the operator key-management surface stays invisible —
+    ARENA_BADGE_SIGNING_KEY_HEX, the rotation runbook URL, key-generation
+    procedures."""
+    src_dir = Path(__file__).resolve().parent.parent / "src" / "agentdex_arena"
+    forbidden_tokens = (
+        # Operator env + runbook + procedure markers — agent docs must NOT
+        # name them. The mint endpoint ("/badge/mint") is the agent surface
+        # and IS allowed to appear; the operator key-custody surface is not.
+        "ARENA_BADGE_SIGNING_KEY_HEX",
+        "badge-admin.md",
+        "badge_admin",
+        "badge admin runbook",
+        "koyeb secret create arena-badge",
+        "koyeb secret update arena-badge",
+    )
+
+    # ---- file-level ----
+    for name in ("SKILL.md", "ENROLLMENT.md", "METHODOLOGY.md"):
+        path = src_dir / name
+        text = path.read_text().lower()
+        for forbidden in forbidden_tokens:
+            assert forbidden.lower() not in text, (
+                f"{name} must not document {forbidden!r} — badge admin surface is operator-only"
+            )
+
+    # ---- route-level ----
+    gw = _make_gateway(tmp_path)
+    with _client(gw) as client:
+        for route in ("/skill.md", "/enrollment", "/methodology"):
+            r = client.get(route)
+            assert r.status_code == 200, f"{route} returned {r.status_code}"
+            body_lower = r.text.lower()
+            for forbidden in forbidden_tokens:
+                assert forbidden.lower() not in body_lower, (
+                    f"served {route} must not document {forbidden!r} — badge admin surface is operator-only"
+                )
+
+
 # ---- admin_authority=None fail-safe ----
 
 
