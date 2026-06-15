@@ -681,15 +681,22 @@ the response body**. Classify by HTTP status code; do NOT branch on
 - `403` — consent-layer rejection. Caused by any of: no active
   membership for the owner, `badge_mint` daily quota exhausted (5/UTC
   day per agent), missing `badge_mint` scope on the consent token,
-  expired/invalid token. Treat as "owner-fault, do NOT retry quickly".
-  Operator can identify the exact cause from the server log line for
-  the corresponding `ref:<uuid>`.
+  expired/invalid token, **or a missing / non-string `token` field on
+  the request body** (the handler does
+  `str(body.get("token", ""))` and the empty string fails
+  consent verification — same 403 path as a bad token). Treat as
+  "owner-fault, do NOT retry quickly". Operator can identify the
+  exact cause from the server log line for the corresponding
+  `ref:<uuid>`.
 - `503` — service degraded. The gateway's badge signing key isn't
   configured (env var missing/malformed at boot) OR an internal
   signing error fired. Treat as "operator-fault, do NOT retry
   quickly" — surface the `ref:<uuid>` to a human and stop.
-- `400` / `422` — request shape error (missing/non-string `token`
-  field). Fix the request and retry.
+- `422` — body is not a valid JSON object (FastAPI's body-parsing
+  layer rejects non-dict bodies before the handler runs). Almost
+  always a client-side request-shape bug — fix the body and retry.
+  Note: this status **does not** fire for `{}` / `{"token": null}` /
+  `{"token": 123}` — those fall into the 403 bucket above.
 
 Client guidance: include the `ref:<uuid>` in any user-facing error
 message so the owner can ask the operator to correlate against the
