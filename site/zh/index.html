@@ -79,8 +79,8 @@ body { background: rgb(var(--bg)); color: rgb(var(--text)); font-family:'Geist',
 const { useState, useEffect } = React;
 
 const Section = ({ id, children, className = '', inverted = false }) => (
-  <section id={id} className={`py-24 ${inverted ? 'section-inverted' : ''} ${className}`}>
-    <div className="max-w-6xl mx-auto px-6">{children}</div>
+  <section id={id} className={`py-16 md:py-20 lg:py-28 xl:py-32 ${inverted ? 'section-inverted' : ''} ${className}`}>
+    <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12">{children}</div>
   </section>
 );
 
@@ -175,7 +175,7 @@ const Nav = ({ theme, setTheme }) => {
   };
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-bene-bg/90 backdrop-blur-md border-b border-bene-dim">
-      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <svg viewBox="0 0 320 200" className="text-bene-accent h-5 w-auto" fill="currentColor" fillRule="evenodd" aria-label="BENE">
             <path d="M 38 26 H 112 Q 160 26 160 64 Q 160 100 112 100 H 38 Z M 58 42 H 112 Q 140 42 140 64 Q 140 84 112 84 H 58 Z M 38 100 H 112 Q 160 100 160 136 Q 160 174 112 174 H 38 Z M 58 116 H 112 Q 140 116 140 136 Q 140 158 112 158 H 58 Z"/>
@@ -244,8 +244,8 @@ const CopyLlmsTxtButton = ({ className = '', label = 'Copy llms.txt' } = {}) => 
 
 // ─── 00 · Hero ──────────────────────────────────────────────────────
 const Hero = () => (
-  <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
-    <div className="max-w-6xl mx-auto px-6 w-full">
+  <section className="pt-20 md:pt-24 lg:pt-32 xl:pt-40 pb-16 md:pb-24">
+    <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12 w-full">
       <div className="flex items-center gap-3 mb-8 font-mono text-[11px] tracking-[0.15em] uppercase text-bene-muted">
         <span className="w-1.5 h-1.5 rounded-full bg-bene-accent" />
         <span>v0.2.0</span>
@@ -254,11 +254,11 @@ const Hero = () => (
         <span className="text-bene-dim">·</span>
         <span>SQLite</span>
       </div>
-      <h1 className="font-display text-[clamp(40px,6.5vw,86px)] font-semibold tracking-[-0.025em] leading-[1.05] mb-6 max-w-5xl">
+      <h1 className="font-display text-[clamp(44px,8vw,120px)] font-semibold tracking-[-0.025em] leading-[1.05] mb-6 lg:mb-8 max-w-5xl xl:max-w-6xl">
         eval「评测」给上一个 prompt 打了高分。<br />
         <span className="text-bene-muted">它还是把线上带沟里了。</span>
       </h1>
-      <p className="text-xl md:text-2xl text-bene-muted max-w-3xl leading-snug mb-12">
+      <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-snug mb-12 lg:mb-16">
         写给已经在线上跑过 LangGraph、CrewAI、AutoGen 的工程师：你们最清楚，eval 跑通是一回事，真拦住一次上线翻车，完全是另一回事。
       </p>
       <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
@@ -305,7 +305,7 @@ const Hero = () => (
 const TheGap = () => (
   <Section id="gap">
     <Kicker number="01" title="四个卡点" />
-    <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">
+    <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">
       论文里早翻过去的四个线上卡点。<br />
       <span className="text-bene-muted">多数 Agent 技术栈还没接住。</span>
     </h2>
@@ -357,8 +357,8 @@ const Contract = () => {
   return (
     <Section id="contract" inverted>
       <Kicker number="02" title="底线 — 四条不变量" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">harness「调度框架」绝不让步的四条底线</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">harness「调度框架」绝不让步的四条底线</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         在加任何新 feature 之前，BENE 先把底盘焊死：每个 agent、每次 run、每个想 promote 的 candidate、每次 L4 签发，都吃同一套约束。先定边界，再谈加速。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -399,8 +399,8 @@ const Comparison = () => {
   return (
     <Section id="comparison">
       <Kicker number="03" title="贴在现有 stack 下面" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">现在跑的 agent 框架不用换。BENE 在下面加一份 SQLite。</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">现在跑的 agent 框架不用换。BENE 在下面加一份 SQLite。</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-12">
         LangGraph、CrewAI，或者别的你已经在用的 orchestration「编排层」——继续用。BENE 贴在它下面：graph、agent、provider 都不动；run 的过程里，engram、gate、trust signal 会写进 bene.db。
       </p>
       <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
@@ -454,8 +454,8 @@ const Proof = () => {
   return (
     <Section id="proof">
       <Kicker number="04" title="30 秒看见证据" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">装好、跑通、grep、过闸</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">装好、跑通、grep、过闸</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         四个 tab 够看全链路。Tab 1 装完就跑。Tab 2 拉起 planner 和 executor，协同只走 SharedLog。Tab 3 用 sqlite3 打开 bene.db，把前几个 tab 留下的 engram SELECT 出来。Tab 4 启一道 probe，现场拦住一次不该过的 promote。
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-8">
@@ -490,8 +490,8 @@ const Recipes = () => {
   return (
     <Section id="recipes" inverted>
       <Kicker number="05" title="Recipe" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">八个 recipe，方法论先落成动词</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">八个 recipe，方法论先落成动词</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         你的 task 只要能起名字，大概率就落在这八个 recipe 里。每个 recipe 都用一条 verify 命令收口。verify 没跑，闭环就没关上。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -566,8 +566,8 @@ const Architecture = () => {
   return (
     <Section id="architecture">
       <Kicker number="06" title="架构" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">什么场景下，该伸手拿什么</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">什么场景下，该伸手拿什么</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         第一天不用把五件家伙全摸一遍。下面这组 substrate piece，按多数项目真正撞上的顺序排：先讲你会遇到的 moment，再讲哪个 subsystem 接手。
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-16">
@@ -628,8 +628,8 @@ const Limits = () => {
   return (
     <Section id="limits" inverted>
       <Kicker number="07" title="什么时候不要用 BENE" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">四条诚实的边界</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">四条诚实的边界</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         你的 task 如果落进这四条，先用更轻的工具，别硬上。等你真的需要 provenance，再把 BENE 请回来。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -711,8 +711,8 @@ const Lore = () => {
   return (
     <Section id="lore" className="pb-32">
       <Kicker number="08" title="名字的来历 · 怎么参与" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">为什么叫它 BENE</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">为什么叫它 BENE</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         Dune 的比喻放在 demo、comparison、limits 后面才出场，这个顺序才稳。每一个 Bene Gesserit 的 beat，都能落到一个真的 CLI verb。
       </p>
       <div className="grid md:grid-cols-2 gap-16 mb-24">

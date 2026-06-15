@@ -84,8 +84,8 @@ const { useState, useEffect } = React;
 // warm-ink (#1F1D1C) on cream — same light↔dark rhythm factory.ai uses
 // between segments. Borders are now soft (rgb(var(--dim))) not stark.
 const Section = ({ id, children, className = '', inverted = false }) => (
-  <section id={id} className={`py-24 ${inverted ? 'section-inverted' : ''} ${className}`}>
-    <div className="max-w-6xl mx-auto px-6">{children}</div>
+  <section id={id} className={`py-16 md:py-20 lg:py-28 xl:py-32 ${inverted ? 'section-inverted' : ''} ${className}`}>
+    <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12">{children}</div>
   </section>
 );
 
@@ -186,7 +186,7 @@ const Nav = ({ theme, setTheme }) => {
   };
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-bene-bg/90 backdrop-blur-md border-b border-bene-dim">
-      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <svg viewBox="0 0 320 200" className="text-bene-accent h-5 w-auto" fill="currentColor" fillRule="evenodd" aria-label="BENE">
             <path d="M 38 26 H 112 Q 160 26 160 64 Q 160 100 112 100 H 38 Z M 58 42 H 112 Q 140 42 140 64 Q 140 84 112 84 H 58 Z M 38 100 H 112 Q 160 100 160 136 Q 160 174 112 174 H 38 Z M 58 116 H 112 Q 140 116 140 136 Q 140 158 112 158 H 58 Z"/>
@@ -255,8 +255,8 @@ const CopyLlmsTxtButton = ({ className = '', label = 'Copy llms.txt' } = {}) => 
 
 // ─── 00 · Hero ──────────────────────────────────────────────────────
 const Hero = () => (
-  <section className="min-h-screen flex flex-col justify-center pt-24 pb-16">
-    <div className="max-w-6xl mx-auto px-6 w-full">
+  <section className="pt-20 md:pt-24 lg:pt-32 xl:pt-40 pb-16 md:pb-24">
+    <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-5 md:px-8 lg:px-12 w-full">
       <div className="flex items-center gap-3 mb-8 font-mono text-[11px] tracking-[0.15em] uppercase text-bene-muted">
         <span className="w-1.5 h-1.5 rounded-full bg-bene-accent" />
         <span>v0.2.0</span>
@@ -265,11 +265,11 @@ const Hero = () => (
         <span className="text-bene-dim">·</span>
         <span>SQLite</span>
       </div>
-      <h1 className="font-display text-[clamp(44px,7vw,92px)] font-semibold tracking-[-0.025em] leading-[1.02] mb-6 max-w-5xl">
+      <h1 className="font-display text-[clamp(48px,8.5vw,128px)] font-semibold tracking-[-0.025em] leading-[1.02] mb-6 lg:mb-8 max-w-5xl xl:max-w-6xl">
         Your eval scored your last prompt.<br />
         <span className="text-bene-muted">It still shipped.</span>
       </h1>
-      <p className="text-xl md:text-2xl text-bene-muted max-w-3xl leading-snug mb-12">
+      <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-snug mb-12 lg:mb-16">
         For builders who ran LangGraph or CrewAI in prod and learned that scoring an eval is not the same as blocking a bad ship.
       </p>
       <div className="grid md:grid-cols-2 gap-12 items-start mb-16">
@@ -316,7 +316,7 @@ const Hero = () => (
 const TheGap = () => (
   <Section id="gap">
     <Kicker number="01" title="The Gap" />
-    <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">
+    <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">
       Four production gaps the research moved past.<br />
       <span className="text-bene-muted">Most agent stacks haven't picked them up yet.</span>
     </h2>
@@ -368,8 +368,8 @@ const Contract = () => {
   return (
     <Section id="contract" inverted>
       <Kicker number="02" title="The Contract — Four Invariants" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Four invariants the harness will not bend on</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Four invariants the harness will not bend on</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         Before any feature, BENE commits to four things — for every agent, every run, every promotion candidate, every L4 grant.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -410,8 +410,8 @@ const Comparison = () => {
   return (
     <Section id="comparison">
       <Kicker number="03" title="Plays well with your toolbox" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Keep your crew. Add a substrate underneath.</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-12">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Keep your crew. Add a substrate underneath.</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-12">
         You already run LangGraph, CrewAI, or whatever else turned out to fit your team. Keep it. BENE goes under that orchestration layer — same graph, same crew, same providers — and writes the engrams + gates + trust signal next to your run.
       </p>
       <div className="border border-bene-dim bg-bene-surface p-6 mb-16">
@@ -465,8 +465,8 @@ const Proof = () => {
   return (
     <Section id="proof">
       <Kicker number="04" title="30-second proof" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Install, smoke, grep, gate</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Install, smoke, grep, gate</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         Four tabs. Tab 1 installs and runs. Tab 2 spawns planner + executor over SharedLog. Tab 3 opens bene.db with sqlite3 and SELECTs the engrams the prior tabs wrote. Tab 4 fires a probe and watches it block a bad promotion.
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-8">
@@ -501,8 +501,8 @@ const Recipes = () => {
   return (
     <Section id="recipes" inverted>
       <Kicker number="05" title="Recipes" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Eight recipes — the methodology in verbs</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Eight recipes — the methodology in verbs</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         If you can name your task, one of these eight is it. Each recipe ends in a verify command. A recipe without its verify run is not done.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -577,8 +577,8 @@ const Architecture = () => {
   return (
     <Section id="architecture">
       <Kicker number="06" title="Architecture" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">What you reach for when</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">What you reach for when</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         You won’t meet all of this on day one. Below are the substrate pieces in roughly the order most projects encounter them — what the moment looks like, then which subsystem fires.
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-16">
@@ -639,8 +639,8 @@ const Limits = () => {
   return (
     <Section id="limits" inverted>
       <Kicker number="07" title="When NOT to use BENE" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Four honest limits</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Four honest limits</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         If your task fits one of these, use the simpler tool. Come back when you need provenance.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
@@ -722,8 +722,8 @@ const Lore = () => {
   return (
     <Section id="lore" className="pb-32">
       <Kicker number="08" title="Why the name · How to join" />
-      <h2 className="font-display text-3xl md:text-4xl font-semibold mb-6">Why we call it BENE</h2>
-      <p className="text-lg text-bene-muted max-w-3xl leading-relaxed mb-16">
+      <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Why we call it BENE</h2>
+      <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
         The Dune metaphor earns its place after the demo, the comparison, and the limits. Each Bene Gesserit beat is paired with a real CLI verb.
       </p>
       <div className="grid md:grid-cols-2 gap-16 mb-24">
