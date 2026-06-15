@@ -435,15 +435,85 @@ def test_badge_fetch_log_carries_structured_fields(tmp_path, caplog):
         )
     assert r.status_code == 200, r.text
 
-    fetch_records = [rec for rec in caplog.records if rec.message == "badge_fetch"]
+    fetch_records = [rec for rec in caplog.records if rec.message.startswith("badge_fetch ")]
     assert len(fetch_records) == 1, "expected exactly one badge_fetch log record"
     rec = fetch_records[0]
-    # Structured-field assertion: each value is a LogRecord attribute, NOT
-    # part of the message string.
+    # Structured-field assertion: each value is a LogRecord attribute, so
+    # a structured log handler (Datadog / Loki / JSON ingester) that reads
+    # extras gets typed fields. Locked since PR #139.
     assert rec.agent_name == "PolarBot"
     assert rec.referer_host == "github.com"
     assert rec.badge_token_kid == "badge-v1"
-    # Defense against regression: the message text must NOT carry the
-    # values inline (would re-open the space-in-agent-name parse hole).
-    assert "PolarBot" not in rec.message
-    assert "github.com" not in rec.message
+    # Stdout-handler assertion (PR #139 review #3411197007): the deployed
+    # __main__.main() formatter is `%(asctime)s %(levelname)s %(name)s
+    # %(message)s` and does NOT include extras. Without something in the
+    # message itself the Koyeb / Loki / stdout-only path lost the values
+    # entirely. The message body after the event-key prefix MUST be a
+    # canonical-JSON serialization of the same fields the extras carry,
+    # so a stdout parser can `json.loads(message.split(" ", 1)[1])` and
+    # recover them safely (JSON quoting closes the space-in-agent-name
+    # parse hole that the pre-PR-#139 free-form `agent=My Bot ...` had).
+    prefix, _, payload_json = rec.message.partition(" ")
+    assert prefix == "badge_fetch"
+    decoded = json.loads(payload_json)
+    assert decoded == {
+        "event": "badge_fetch",
+        "agent_name": "PolarBot",
+        "referer_host": "github.com",
+        "badge_token_kid": "badge-v1",
+    }
+
+
+def test_badge_fetch_log_message_safe_for_agent_name_with_space(tmp_path, caplog):
+    """`sanitize_name` allows a space inside `agent_name` ("My Bot"). The
+    pre-PR-#139 free-form `badge_fetch agent=%s referer_host=%s kid=%s`
+    line was parse-ambiguous against such names (a grep/awk would split
+    on space and get `agent=My`). PR #139's `extra={...}`-only emission
+    closed the parse hole but lost the values on stdout (review
+    #3411197007).
+
+    The current emission ("badge_fetch <canonical-json>") closes both
+    holes: a stdout parser can `json.loads(message.split(" ", 1)[1])`
+    and recover `agent_name="My Bot"` quoted-safely, regardless of how
+    many spaces or quotes the name contains. This test locks that the
+    safety still holds for a multi-token name; if a future change
+    re-introduces an unquoted/space-split shape it'll break here.
+    """
+    import logging
+
+    badge = _make_badge_authority()
+    now = 1_000_000.0
+    gateway = _make_gateway(tmp_path, badge_authority=badge, now=now)
+    _seed_ladder_entry(gateway, "My Bot")
+    gateway.authority.grant_membership("eddie@oppie.xyz", valid_until_epoch=now + 30 * 86_400)
+    app = create_app(gateway, sidecar_factory=Sidecar)
+
+    caplog.set_level(logging.INFO, logger="agentdex_arena.gateway")
+    with TestClient(app, raise_server_exceptions=False) as client:
+        consent_token = _mint_consent_token(gateway.authority, agent_name="My Bot")
+        badge_token = _mint_badge_via_endpoint(client, consent_token)
+        # URL-encode the space in the path so the request reaches the
+        # `agent_name=<sanitized>` handler — same posture as a third-
+        # party README would emit (the /badge/mint response also
+        # URL-encodes via urllib.parse.quote).
+        r = client.get(
+            f"/badge/My%20Bot/{badge_token}.svg",
+            headers={"Referer": "https://github.com/owner/repo"},
+        )
+    assert r.status_code == 200, r.text
+
+    fetch_records = [rec for rec in caplog.records if rec.message.startswith("badge_fetch ")]
+    assert len(fetch_records) == 1, "expected exactly one badge_fetch log record"
+    rec = fetch_records[0]
+
+    # Typed extras preserved across the space-in-name case.
+    assert rec.agent_name == "My Bot"
+
+    # The JSON payload after the prefix decodes cleanly and round-trips
+    # the space-containing name without any "split on whitespace" damage.
+    prefix, _, payload_json = rec.message.partition(" ")
+    assert prefix == "badge_fetch"
+    decoded = json.loads(payload_json)
+    assert decoded["agent_name"] == "My Bot"
+    assert decoded["referer_host"] == "github.com"
+    assert decoded["badge_token_kid"] == "badge-v1"

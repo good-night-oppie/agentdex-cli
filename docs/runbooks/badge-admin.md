@@ -180,10 +180,22 @@ would silently let a compromised key keep signing rendered badges.
 ## Q2 funnel log shape
 
 `GET /badge/<agent>/<token>.svg` emits one `badge_fetch` log record per
-request. The record uses the standard-library `logging.LogRecord` extra
-fields — NOT free-form string interpolation — so a structured log
-backend (Datadog / Loki / Koyeb's built-in JSON ingester) gets typed
-attributes the V2 aggregation endpoint can read without re-parsing.
+request. The record carries the funnel fields in **two parallel shapes**
+so structured AND stdout-only handlers both retain the values:
+
+1. **`extra={...}` keyword** → typed `LogRecord` attributes. Structured
+   handlers (Datadog / Loki / Koyeb's built-in JSON ingester) read them
+   verbatim; the V2 aggregation endpoint can ingest without re-parsing.
+2. **Canonical-JSON payload in the message itself** → `"badge_fetch
+   <canonical-json>"`. The deployed `Dockerfile` runs `python -m
+   agentdex_arena`, and `__main__.main()` configures stdlib logging with
+   `format="%(asctime)s %(levelname)s %(name)s %(message)s"` — stdlib
+   does NOT serialize `extra` attributes into the formatted message, so
+   any stdout-only / Koyeb-default reader (`koyeb service logs agentdex`)
+   would otherwise see only `... badge_fetch` and lose the funnel values
+   entirely. PR #139 review #3411197007 caught the regression; the JSON
+   payload restores stdout readability while keeping the parse-safety
+   win PR #139 was after.
 
 Fields on every `badge_fetch` record:
 
@@ -194,10 +206,26 @@ Fields on every `badge_fetch` record:
 | `referer_host` | string | `urlparse(Referer).hostname.lower()` — empty when the header is missing or malformed |
 | `badge_token_kid` | string `"badge-v1"` (today) | the `kid` field from the signed payload — distinguishes future rotations |
 
-The `LogRecord.message` is the literal string `"badge_fetch"` — values
-NEVER appear in the formatted text, so a space in `agent_name`
-(`sanitize_name` allows them) cannot make a grep-parse ambiguous (the
-pre-fix shape was `badge_fetch agent=My Bot referer_host=...`).
+The formatted message line looks like:
+
+```
+2026-06-15 06:30:01,234 INFO agentdex_arena.gateway badge_fetch {"agent_name": "PolarBot", "badge_token_kid": "badge-v1", "event": "badge_fetch", "referer_host": "github.com"}
+```
+
+The fields after the event-key prefix are valid JSON sorted by key, so a
+stdout parser can recover them safely with
+`json.loads(message.split(" ", 1)[1])`. JSON quoting closes the
+space-in-`agent_name` parse hole that the pre-PR-#139 free-form
+`agent=My Bot referer_host=...` shape had (the parse-safety win is
+preserved through the JSON encoding, not by removing the values from
+the message).
+
+Locked by:
+- `test_badge_fetch_log_carries_structured_fields` (standard fixture)
+- `test_badge_fetch_log_message_safe_for_agent_name_with_space` (locks
+  the round-trip for a space-containing `agent_name`)
+
+both in `packages/agentdex_arena/tests/test_badge_render_endpoint.py`.
 
 ## Health checks
 
