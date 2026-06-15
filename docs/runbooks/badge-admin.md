@@ -147,11 +147,21 @@ op item create --category="API Credential" \
 # 2. Update Koyeb secret
 koyeb secret update arena-badge-signing-key-hex --value "$NEW_BADGE_KEY"
 
-# 3. Container redeploys with the new seed. Verify via /verify (above) BEFORE
-#    notifying owners — a botched rotation that left the old seed live would
-#    silently let attackers continue to mint under the leaked key.
+# 3. Force a service redeploy so the running container picks up the new
+#    secret value. Per Koyeb env-var docs
+#    (https://www.koyeb.com/docs/build-and-deploy/environment-variables),
+#    `{{ secret.NAME }}` interpolation is resolved AT DEPLOY TIME and is
+#    NOT re-evaluated when the underlying secret later changes. Skipping
+#    this step leaves the running service on the old badge key until an
+#    unrelated deploy happens — UNACCEPTABLE for a rotation whose entire
+#    point is replacing trust-establishing material.
+koyeb services redeploy agentdex
 
-# 4. Notify owners: "All badge URLs minted before <timestamp> are invalid; re-call
+# 4. Verify via /verify (above) BEFORE notifying owners — a botched
+#    rotation that left the old seed live would silently let attackers
+#    continue to mint under the leaked key.
+
+# 5. Notify owners: "All badge URLs minted before <timestamp> are invalid; re-call
 #    POST /badge/mint to get a fresh badge_token. Existing membership unchanged."
 ```
 
@@ -164,10 +174,14 @@ treat it as a fire drill:
 ```bash
 # 1. Generate a fresh seed (see rotation procedure above) — DO NOT reuse any
 #    previous seed; the old one is permanently burned.
-# 2. Deploy the new seed via koyeb secret update.
-# 3. Verify the new public key on /verify before declaring the rotation complete.
-# 4. Notify owners that EVERY badge URL issued before <timestamp> is invalid.
-# 5. Open an incident-log entry citing the time the leak was detected and the
+# 2. Upload the new seed: `koyeb secret update arena-badge-signing-key-hex --value "$NEW_BADGE_KEY"`.
+# 3. Force a redeploy: `koyeb services redeploy agentdex`. The interpolated
+#    secret reference in the env var is resolved only at deploy time; without
+#    this step the container keeps signing with the burned seed and the
+#    revocation is silently a no-op until an unrelated deploy fires.
+# 4. Verify the new public key on /verify before declaring the rotation complete.
+# 5. Notify owners that EVERY badge URL issued before <timestamp> is invalid.
+# 6. Open an incident-log entry citing the time the leak was detected and the
 #    `kid` of the burned key (currently always "badge-v1" — V2 multi-kid
 #    rotation lands when the V2 SDD-versioned schema does).
 ```
