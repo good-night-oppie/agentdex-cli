@@ -131,22 +131,53 @@ def _render_badge_svg(*, agent_name: str, rating: float, rd: float, verify_url: 
     """shields.io-style 2-cell badge. Inline SVG so deployments don't need a
     template file; values are XML-escaped to block injection through the
     agent_name surface (the gateway already sanitize_name()s at enrollment,
-    but defense-in-depth at the render boundary is cheap)."""
+    but defense-in-depth at the render boundary is cheap).
+
+    Two escaping shapes used here, deliberately distinct (PR #132 review
+    #3411007726):
+      * Element-text escape (`_text_esc`) escapes `&<>` but NOT `"`. The
+        title element body is plain XML text, so leaving `"` literal is
+        safe AND keeps the screen-reader prose readable.
+      * Attribute-value escape (`_attr_esc`) escapes `&<>"` so the
+        `aria-label="..."` and any other double-quoted attribute survive
+        a value containing a `"` without letting the attacker close the
+        attribute and inject extra attributes.
+
+    The previous render only escaped element-text shape on the value used
+    inside `aria-label="..."` — a `verify_url` carrying a `"` produced a
+    malformed SVG and let the caller inject attributes. The test
+    `test_badge_svg_xml_escapes_agent_name` even fed an attacker-shaped
+    URL but only asserted the element-text side; the attribute path was
+    silently broken."""
     from xml.sax.saxutils import escape as _xml_escape
 
-    safe_name = _xml_escape(agent_name)
-    safe_verify_url = _xml_escape(verify_url)
+    def _text_esc(s: str) -> str:
+        # Default xml.sax.saxutils.escape covers `&`, `<`, `>`.
+        return _xml_escape(s)
+
+    def _attr_esc(s: str) -> str:
+        # Same as _text_esc plus `"` → `&quot;` so the value can sit inside
+        # a double-quoted attribute. Single-quoted-attr support isn't
+        # required (we never emit `'`-quoted attrs here).
+        return _xml_escape(s, {'"': "&quot;"})
+
+    safe_name_text = _text_esc(agent_name)
+    safe_verify_url_text = _text_esc(verify_url)
     color = _badge_rating_color(rating)
-    value_text = f"{safe_name} · {rating:.0f} ±{rd:.0f} ✓"
+    value_text = f"{safe_name_text} · {rating:.0f} ±{rd:.0f} ✓"
     label_text = "agentdex"
     label_w = 12 + int(6.2 * len(label_text)) + 12
     value_w = 12 + int(6.2 * len(value_text)) + 12
     total_w = label_w + value_w
-    title = f"agentdex verified badge — see {safe_verify_url}"
+    title_text = f"agentdex verified badge — see {safe_verify_url_text}"
+    # aria-label is an XML attribute, so it gets the attribute escape on
+    # the SAME raw input — NOT the element-text-escaped string (double-
+    # escaping `&` would surface as `&amp;amp;` in screen readers).
+    aria_label = _attr_esc(f"agentdex verified badge — see {verify_url}")
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20" '
-        f'role="img" aria-label="{title}">'
-        f"<title>{title}</title>"
+        f'role="img" aria-label="{aria_label}">'
+        f"<title>{title_text}</title>"
         f'<linearGradient id="s" x2="0" y2="100%">'
         f'<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
         f'<stop offset="1" stop-opacity=".1"/>'
