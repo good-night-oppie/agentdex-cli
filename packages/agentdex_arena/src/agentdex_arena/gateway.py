@@ -59,6 +59,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agentdex_arena.admin_auth import AdminAuthError, AdminAuthority
+from agentdex_arena.badge_auth import BadgeAuthError, BadgeAuthority
 from agentdex_arena.consent import (
     ConsentAuthority,
     ConsentClaims,
@@ -88,6 +89,11 @@ GYM_BADGES = {
     "gym-trick-room": "Trick Room Badge",
 }
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
+
+# 11c: 30-day badge_token TTL per design D3. Matches the monthly membership
+# cycle: a revoked member loses MINT immediately, but already-minted badges
+# render until expiry — same semantic as a paid cert.
+BADGE_TOKEN_TTL_SEC = 30 * 86_400
 
 # Break-the-mirror (#3, sandbox lane): each gym leader fields a FIXED, DISCLOSED
 # signature team drawn from the starter pack by sorted index — distinct from the
@@ -334,6 +340,7 @@ class ArenaGateway:
         now: Callable[[], float] = time.time,
         event_sync: Callable[[dict], None] | None = None,
         admin_authority: AdminAuthority | None = None,
+        badge_authority: BadgeAuthority | None = None,
     ) -> None:
         self.authority = authority
         # Admin bearer for operator-only routes (ADR-0011 11b.3). None means
@@ -341,6 +348,11 @@ class ArenaGateway:
         # the production __main__ constructs AdminAuthority eagerly so the
         # container fail-closed-boots if ARENA_ADMIN_TOKEN_HASH is missing.
         self.admin = admin_authority
+        # Badge signing authority for ADR-0011 11c (first paid feature). None
+        # means /badge/mint responds 503 'badge mint not configured' — the
+        # production __main__ constructs BadgeAuthority eagerly so the
+        # container fail-closed-boots if ARENA_BADGE_SIGNING_KEY_HEX is missing.
+        self.badge_auth = badge_authority
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
         for event in self.events.iter_events():
@@ -443,7 +455,7 @@ class ArenaGateway:
             owner=req.owner,
             agent_name=req.agent_name,
             agent_pubkey_hex=req.agent_pubkey_hex,
-            scopes=["enroll", "battle", "evolve"],
+            scopes=["enroll", "battle", "evolve", "badge_mint"],
             issued_at=self.now(),
             expires_at=self.now() + 7 * 86_400,
             confirmed_via=f"web-confirm:{code[:6]}…",
@@ -1408,6 +1420,44 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             if len(rows) >= 1000:
                 break
         return {"events": rows, "next_since_seq": rows[-1]["seq"] if rows else since}
+
+    @app.post("/badge/mint")
+    async def badge_mint(body: dict) -> dict:
+        """Mint a signed badge_token for the caller's agent (ADR-0011 11c.2,
+        first paid feature). Call order locked in CLAUDE.md doctrine:
+        verify(scope=badge_mint) → verify_membership → spend_quota → mint.
+
+        The SVG-render endpoint (`GET /badge/{agent}/{badge_token}.svg`) ships
+        in 11c.3; this PR only stands up the mint surface so an owner can
+        precompute a signed badge URL and paste it into their README.
+        """
+        if gateway.badge_auth is None:
+            raise _opaque_error(503, "badge mint not configured")
+        try:
+            claims = gateway.authority.verify(str(body.get("token", "")), scope="badge_mint")
+            gateway.authority.verify_membership(claims)
+            gateway.authority.spend_quota(claims, scope="badge_mint")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        signed_at = gateway.now()
+        valid_until = signed_at + BADGE_TOKEN_TTL_SEC
+        try:
+            badge_token = gateway.badge_auth.sign_badge(
+                {
+                    "agent_name": claims.agent_name,
+                    "signed_at": signed_at,
+                    "valid_until": valid_until,
+                    "kid": "badge-v1",
+                }
+            )
+        except BadgeAuthError as e:
+            raise _opaque_error(503, e) from None
+        return {
+            "badge_token": badge_token,
+            "svg_url": f"/badge/{claims.agent_name}/{badge_token}.svg",
+            "verify_url": f"/badge/{claims.agent_name}/{badge_token}/verify",
+            "valid_until_epoch": valid_until,
+        }
 
     @app.post("/evolution/request")
     async def evolution_request(body: dict) -> dict:
