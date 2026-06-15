@@ -236,14 +236,14 @@ third-party tooling.
 
 ## Implementation phasing (4 tiny PRs)
 
-| # | Scope | LOC est | Depends on |
-|---|-------|---------|-----------|
-| 11c.1 | `badge_auth.py` (BadgeAuthority class + env-driven fail-closed boot + unit tests) | ~60 src + ~120 tests | — |
-| 11c.2 | `gateway.py` mint endpoint (POST /badge/mint, `badge_mint` consent scope, membership gate) + smoke test | ~80 src + ~80 tests | 11c.1 |
-| 11c.3 | `gateway.py` SVG render endpoint + verify endpoint + SVG template (shields-style) + cache headers | ~100 src + ~120 tests | 11c.2 |
-| 11c.4 | SKILL.md / ENROLLMENT.md / METHODOLOGY.md updates (badge surface documented as a tier-4 paid feature; mint endpoint visible to agent clients; BadgeAuthority operator surface ABSENT) + ADR-0011 amendment locking the 11c design + CLAUDE.md doctrine for badge call order | ~120 docs | 11c.3 |
+| # | Scope | LOC est | Depends on | Status |
+|---|-------|---------|-----------|--------|
+| 11c.1 | `badge_auth.py` (BadgeAuthority class + env-driven fail-closed boot + unit tests) | ~60 src + ~120 tests | — | **shipping in this PR** |
+| 11c.2 | `gateway.py` mint endpoint (POST /badge/mint, `badge_mint` consent scope, membership gate) + smoke test | ~80 src + ~80 tests | 11c.1 | queued |
+| 11c.3 | `gateway.py` SVG render endpoint + verify endpoint + SVG template (shields-style) + cache headers + Q2 funnel Referer logging | ~100 src + ~120 tests | 11c.2 | queued |
+| 11c.4 | SKILL.md / ENROLLMENT.md / METHODOLOGY.md updates (badge surface documented as a tier-4 paid feature; mint endpoint visible to agent clients; BadgeAuthority operator surface ABSENT) + ADR-0011 amendment locking the 11c design + CLAUDE.md doctrine for badge call order | ~120 docs | 11c.3 | queued |
 
-Total: ~440 LOC across 4 PRs, all tiny enough for one-sitting review.
+Total: ~440 LOC across 4 PRs, all tiny enough for one-sitting review. User ratification on the 3 open questions below landed 2026-06-15 (O1 separate env / O2 30-day TTL / O3 bundled w/ 11c.3) — all three D2/D3/§D6+§270 stand as written.
 
 ## Test scenarios (10)
 
