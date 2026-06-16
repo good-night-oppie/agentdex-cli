@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BENE documentation — BENE docs</title>
-<meta name="description" content="BENE 0.2.0 documentation — BENE documentation" />
+<title>Integrating BENE — BENE 文档</title>
+<meta name="description" content="BENE 0.2.0 文档 — Integrating BENE" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -159,15 +159,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </head>
 <body>
 <div class="top"><div class="top-in">
-  <a class="brand" href="../index.html">BENE</a>
-  <a class="nav" href="../index.html">Landing</a>
-  <a class="nav" href="index.html">Docs index</a>
-  <a class="nav" href="../SKILL.md" target="_blank" rel="noopener noreferrer" title="Hand BENE to your agent in one URL">SKILL.md ↗</a>
-  <button class="nav copy-llms" data-llms-url="../llms.txt" data-copied-label="✓ copied" data-opened-label="↗ opened" title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context.">Copy llms.txt</button>
+  <a class="brand" href="../../index.html">BENE</a>
+  <a class="nav" href="../../index.html">Landing</a>
+  <a class="nav" href="index.html">文档索引</a>
+  <a class="nav" href="../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
+  <button class="nav copy-llms" data-llms-url="../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer">GitHub</a>
-  <a class="nav" href="../zh/docs/index.html" title="切换到中文" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">文</a>
+  <a class="nav" href="../../docs/integrating-bene.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
 </div></div>
-
+<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../docs/integrating-bene.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -205,7 +205,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="codegen.html">codegen</a>
 <a href="dashboard.html">dashboard</a>
 <a href="deployment.html">deployment</a>
-<a href="integrating-bene.html">integrating-bene</a>
+<a class="cur" href="integrating-bene.html">integrating-bene</a>
 <a href="mcp-integration.html">mcp-integration</a>
 <a href="memory.html">memory</a>
 <a href="meta-harness.html">meta-harness</a>
@@ -245,46 +245,84 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Infrastructure</h4>
 <a href="infra/DNS.html">DNS</a></aside>
 <main>
-
-<h1>BENE documentation</h1><p>44 documents, generated from <code>docs/</code>. Pick the job you are doing: start local, rewind a bad turn, connect an agent, verify a claim, or scale a run. These are the same files you can read <a href="https://github.com/EdwardTang/bene-site/tree/main/docs" target="_blank" rel="noopener noreferrer">on GitHub</a>. Edit the markdown, rerun <code>site/build-docs.py</code>; never edit the HTML.</p><div class="demo-embed"><div class="frame"><div class="dots"><i></i><i></i><i></i></div><img src="../assets/demos/demo-keyless.gif" alt="Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD." loading="lazy" onerror="this.closest('.demo-embed').style.display='none'"></div><p>Demo — keyless first value: bene init &amp;&amp; bene demo --no-ui, 0.3s, recorded live against bene-main HEAD.</p></div><div class="idx-group"><h2>Start, operate, recover</h2><ul><li><a href="README.html">BENE Documentation</a><span class="path">docs/README.md</span></li>
-<li><a href="architecture.html">BENE Architecture</a><span class="path">docs/architecture.md</span></li>
-<li><a href="checkpoints.html">Checkpoints — undo for agents</a><span class="path">docs/checkpoints.md</span></li>
-<li><a href="cli-reference.html">BENE CLI Reference</a><span class="path">docs/cli-reference.md</span></li>
-<li><a href="codegen.html">Code Generation as a BENE Capability</a><span class="path">docs/codegen.md</span></li>
-<li><a href="dashboard.html">BENE Dashboard</a><span class="path">docs/dashboard.md</span></li>
-<li><a href="deployment.html">Deploying BENE</a><span class="path">docs/deployment.md</span></li>
-<li><a href="integrating-bene.html">Integrating BENE</a><span class="path">docs/integrating-bene.md</span></li>
-<li><a href="mcp-integration.html">BENE as an MCP Server</a><span class="path">docs/mcp-integration.md</span></li>
-<li><a href="memory.html">Cross-Agent Memory</a><span class="path">docs/memory.md</span></li>
-<li><a href="meta-harness.html">Meta-Harness: Search Your Way to a Better Harness</a><span class="path">docs/meta-harness.md</span></li>
-<li><a href="philosophy.html">BENE Design Philosophy</a><span class="path">docs/philosophy.md</span></li>
-<li><a href="primitive-review-cycle.html">Primitive Review Cycle</a><span class="path">docs/primitive-review-cycle.md</span></li>
-<li><a href="schema.html">Inside bene.db</a><span class="path">docs/schema.md</span></li>
-<li><a href="shared-log.html">Shared Log</a><span class="path">docs/shared-log.md</span></li>
-<li><a href="skills.html">Skill Library</a><span class="path">docs/skills.md</span></li>
-<li><a href="use-cases.html">BENE Use Cases</a><span class="path">docs/use-cases.md</span></li></ul></div><div class="idx-group"><h2>Design and claims</h2><ul><li><a href="design/BENE2-DESIGN.html">BENE 2.0 — Architecture</a><span class="path">docs/design/BENE2-DESIGN.md</span></li>
-<li><a href="design/CLAIMS-AUDIT.html">BENE 2.0 — Claims Audit (2026-06-13)</a><span class="path">docs/design/CLAIMS-AUDIT.md</span></li>
-<li><a href="design/DESIGN-RATIONALE.html">BENE 2.0 — Design Rationale</a><span class="path">docs/design/DESIGN-RATIONALE.md</span></li>
-<li><a href="design/KERNEL-SPEC.html">BENE 2.0 — Kernel Spec (buildable)</a><span class="path">docs/design/KERNEL-SPEC.md</span></li>
-<li><a href="design/v0.3-roadmap-spec.html">BENE v0.3 — Roadmap Feature Spec</a><span class="path">docs/design/v0.3-roadmap-spec.md</span></li></ul></div><div class="idx-group"><h2>Evidence and research</h2><ul><li><a href="research/GAP-AUDIT.html">KAOS &amp; the 0.1.0 predecessor/BENE-0.1.0 Gap Audit</a><span class="path">docs/research/GAP-AUDIT.md</span></li>
-<li><a href="research/SYNTHESIS.html">BENE 2.0 Research Synthesis</a><span class="path">docs/research/SYNTHESIS.md</span></li>
-<li><a href="research/product-comms/mom-test.html">The Mom Test — Rob Fitzpatrick</a><span class="path">docs/research/product-comms/mom-test.md</span></li>
-<li><a href="research/product-comms/nobody-wants-to-read.html">Nobody Wants to Read Your Sht — Steven Pressfield</a><span class="path">docs/research/product-comms/nobody-wants-to-read.md</span></li>
-<li><a href="research/product-comms/on-writing-well.html">On Writing Well: The Classic Guide to Writing Nonfiction — William Zinsser</a><span class="path">docs/research/product-comms/on-writing-well.md</span></li>
-<li><a href="research/product-comms/storyworthy.html">Storyworthy: Engage, Teach, Persuade, and Change Your Life through the Power of Storytelling — Matthew Dicks</a><span class="path">docs/research/product-comms/storyworthy.md</span></li>
-<li><a href="research/tech-doc-writing-2026.html">Tech-doc writing 2026 — distilled evidence base</a><span class="path">docs/research/tech-doc-writing-2026.md</span></li></ul></div><div class="idx-group"><h2>Benchmarks and gates</h2><ul><li><a href="benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT — BENE alongside KAOS/the 0.1.0 predecessor across community benchmarks (pre-registered run, 2026-06-11)</a><span class="path">docs/benchmarks/COMMUNITY-BENCH-REPORT.md</span></li>
-<li><a href="benchmarks/PREREG.html">Pre-registered Evaluation Protocol — BENE vs KAOS/the 0.1.0 predecessor unique benchmarks</a><span class="path">docs/benchmarks/PREREG.md</span></li></ul></div><div class="idx-group"><h2>Tutorial playbooks</h2><ul><li><a href="tutorials/t00-bene-e2e-walkthrough.html">BENE in 10 Minutes: An End-to-End Walkthrough</a><span class="path">docs/tutorials/t00-bene-e2e-walkthrough.md</span></li>
-<li><a href="tutorials/t01-bene-meta-harness.html">From 48% to 83%: How BENE v0.6.0 Automates Multi-Agent AI Research</a><span class="path">docs/tutorials/t01-bene-meta-harness.md</span></li>
-<li><a href="tutorials/t02-e2e-self-healing.html">Undo an Agent&#x27;s Bad Fix in 0.3 Seconds, Repo Untouched</a><span class="path">docs/tutorials/t02-e2e-self-healing.md</span></li>
-<li><a href="tutorials/t03-security-swarm.html">Parallel security review: four agents, one query</a><span class="path">docs/tutorials/t03-security-swarm.md</span></li>
-<li><a href="tutorials/t04-migration-rollback.html">Roll Back a Bad Migration in 0.3 Seconds</a><span class="path">docs/tutorials/t04-migration-rollback.md</span></li>
-<li><a href="tutorials/t05-incident-response.html">Find What Changed in 12 Seconds</a><span class="path">docs/tutorials/t05-incident-response.md</span></li>
-<li><a href="tutorials/t06-ml-research-lab.html">Four Hypotheses, One Night: an Overnight ML Research Lab on BENE</a><span class="path">docs/tutorials/t06-ml-research-lab.md</span></li>
-<li><a href="tutorials/t07-regression-guard.html">Swap Models Without Shipping Regressions</a><span class="path">docs/tutorials/t07-regression-guard.md</span></li>
-<li><a href="tutorials/t08-hundred-agents-scale.html">Hundreds of Agents, One Database, Zero Regressions</a><span class="path">docs/tutorials/t08-hundred-agents-scale.md</span></li>
-<li><a href="tutorials/t10-ci-overnight-bene-swarm.html">t10 — Self-Healing CI Overnight: Regression Gate, Auto-Fix, Review and Refactor Swarms</a><span class="path">docs/tutorials/t10-ci-overnight-bene-swarm.md</span></li>
-<li><a href="tutorials/t11-local-agents-vllm.html">t11 — Local Agents with vLLM: a Zero-Cost, Auditable Multi-Agent Stack</a><span class="path">docs/tutorials/t11-local-agents-vllm.md</span></li></ul></div><div class="idx-group"><h2>Case studies</h2><ul><li><a href="case-studies/cs02-ci-self-healing-refactor-swarm.html">Self-Healing CI as a Multi-Agent System: Design, Insights, and Cross-Team Influence</a><span class="path">docs/case-studies/cs02-ci-self-healing-refactor-swarm.md</span></li></ul></div><div class="idx-group"><h2>Infrastructure</h2><ul><li><a href="infra/DNS.html">agentdex.builders — DNS / redirection record</a><span class="path">docs/infra/DNS.md</span></li></ul></div>
-
+<div class="crumbs"><a href="index.html">docs</a> / integrating-bene.md</div>
+<h1 id="integrating-bene">Integrating BENE</h1>
+<p>BENE goes <em>under</em> your agent — keep LangGraph, CrewAI, AutoGen, smolagents, Letta, or your own loop on top. This page is the honest map of what you get for free versus what you wire yourself, so you can scope an integration before you start.</p>
+<p>The short version: <strong>the agent loop is turnkey; everything else is lego.</strong> BENE gives you real primitives for five stages of a coding-agent system, but only the loop is chained together for you. The rest are parts you assemble — there is no single adapter package that wires all five.</p>
+<h2 id="turnkey-on-by-default-zero-wiring">Turnkey — on by default, zero wiring</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>What you get with no setup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Agent loop</strong></td>
+<td>Run through <code>ClaudeCodeRunner</code> (or attach the kernel to your own loop) and every turn lands a tier-0 trace engram, plus one trace engram per tool call (<code>tool_name</code>, <code>status</code>, <code>error_message</code>), plus the append-only event journal. Opt out per run with <code>emit_engrams=False</code> / <code>kernel.emit_engrams: false</code>.</td>
+</tr>
+<tr>
+<td><strong>Failure localization</strong></td>
+<td>Because the loop leaves per-tool trace engrams by default, <code>bene failure localize &lt;agent&gt;</code> finds the earliest decisive failing step on a <strong>real run</strong> — no opt-in, no hand-seeded traces. (See <a href="cli-reference.html#bene-failure-localize">cli-reference</a>.)</td>
+</tr>
+<tr>
+<td><strong>Read-only inspection</strong></td>
+<td><code>bene query</code> is read-only at the SQLite engine level (<code>PRAGMA query_only</code>) — safe to hand to an agent. <code>bene ls</code> / <code>status</code> / <code>logs</code> / <code>read</code> / <code>search</code> all read the same one file.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="wire-yourself-real-primitives-you-assemble-them">Wire-yourself — real primitives, you assemble them</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Primitive</th>
+<th>The glue you write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Fault</strong> (recovery beyond localize)</td>
+<td><code>bene.checkpoints</code> (checkpoint / diff / restore), pollution recovery</td>
+<td>Decide <em>when</em> to checkpoint and <em>what</em> triggers a restore in your loop.</td>
+</tr>
+<tr>
+<td><strong>Harden</strong> (eval gate)</td>
+<td><code>bene.kernel.eval</code> — <code>Probe(name, [gate], fn).register(store, conn, baseline=...)</code> seals the spec under sha256; <code>bene.kernel.evolve.promote(candidate, ...)</code> runs it → ACCEPT / REJECT / VOID</td>
+<td>A Python driver that defines the <code>Probe</code>, registers it, and calls <code>promote()</code> at your CI / promotion point.</td>
+</tr>
+<tr>
+<td><strong>Skills</strong></td>
+<td>skill store + distillation</td>
+<td>A driver that distills traces into skills and decides retention.</td>
+</tr>
+<tr>
+<td><strong>Data</strong> (data-driven evolution)</td>
+<td><code>bene.kernel.evolve</code> — <code>mh search</code>, genome / Pareto, gated promote</td>
+<td>Python-only drivers for distill / breed; the end-to-end bridge is manual today.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-three-recurring-pieces-a-consumer-wires">The three recurring pieces a consumer wires</h3>
+<ol>
+<li><strong>Python-only probe / distill / breed drivers</strong> — the eval, distillation, and evolution primitives are libraries, not CLI pipelines. You call them from your own code.</li>
+<li><strong>Auto-promote / plasticity scheduling</strong> — <code>AutonomyPolicy.auto_promote()</code> exists and is opt-in (L0–L3 by trust + probe; <strong>L4 stays human-only</strong>, always). You decide when it runs; nothing schedules it for you.</li>
+<li>~~<strong>Structured failure-metadata re-emit</strong>~~ — <strong>no longer needed.</strong> Until the 0.30 runner change, a consumer had to re-emit tool outcomes as engram metadata for <code>localize</code> to work on a live run. The runner now emits per-tool trace engrams itself, so real runs are localizable out of the box.</li>
+</ol>
+<h2 id="what-changed-in-the-030-kernel-pass">What changed in the 0.30 kernel pass</h2>
+<p>These are kernel-side fixes shipped to the runtime (the published package is still <code>0.2.0</code>; this section is the docs/landing framing for the change set):</p>
+<ul>
+<li><strong><code>bene failure localize</code> works on a real run</strong> — the runner emits a tier-0 trace engram per tool call (<code>tool_name</code> / <code>status</code> / <code>error_message</code>) at every completion path, so the "a run leaves engrams → localize finds where it went wrong" composition is exercised end-to-end, not just on hand-seeded test traces.</li>
+<li><strong><code>bene query</code> is read-only at the engine level</strong> — enforced by <code>PRAGMA query_only</code>, so a <code>WITH … DELETE</code> CTE or a comment-prefixed write can no longer slip past a keyword guard; a blocked write raises <code>PermissionError</code>.</li>
+</ul>
+<h2 id="see-also">See also</h2>
+<ul>
+<li><a href="cli-reference.html">CLI reference</a> — every command, with verify lines.</li>
+<li><a href="architecture.html">Architecture</a> — how the engram ladder, kill gate, and trust ledger sit in one SQLite file.</li>
+<li><a href="design/v0.3-roadmap-spec.html">v0.3 roadmap spec</a> — what is still wire-yourself and on the roadmap to chain.</li>
+</ul>
+<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/integrating-bene.md" target="_blank" rel="noopener noreferrer">docs/integrating-bene.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
 <footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>

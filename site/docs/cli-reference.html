@@ -205,6 +205,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="codegen.html">codegen</a>
 <a href="dashboard.html">dashboard</a>
 <a href="deployment.html">deployment</a>
+<a href="integrating-bene.html">integrating-bene</a>
 <a href="mcp-integration.html">mcp-integration</a>
 <a href="memory.html">memory</a>
 <a href="meta-harness.html">meta-harness</a>
@@ -344,6 +345,14 @@ bene<span class="w"> </span>logs<span class="w"> </span>&lt;agent-id&gt;<span cl
 bene<span class="w"> </span><span class="nb">read</span><span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span>/src/auth.py
 </code></pre></div>
 
+<h3 id="bene-failure-localize"><code>bene failure localize</code></h3>
+<p>Blame the earliest decisive step in a failed run. It reads the agent's trace engrams — every <code>run_agent</code> turn lands one, plus one per tool call (<code>tool_name</code>, <code>status</code>, <code>error_message</code>) by default — builds a timeline, and points at the first error everything downstream followed from.</p>
+<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;
+bene<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span>--persist<span class="w">    </span><span class="c1"># record the verdict as a tier-1 episodic engram</span>
+bene<span class="w"> </span>--json<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.localized, .step&#39;</span>
+</code></pre></div>
+
+<p>This works on a <strong>real run by default</strong> (no opt-in, no hand-seeding) because the runner emits the per-tool trace engrams <code>localize</code> keys on. If a run was executed with <code>emit_engrams=False</code> / <code>kernel.emit_engrams: false</code>, there are no trace engrams to read and it returns <code>localized: false</code>.</p>
 <hr />
 <h2 id="find-anything">Find anything</h2>
 <h3 id="bene-search"><code>bene search</code></h3>
@@ -354,7 +363,7 @@ bene<span class="w"> </span>--json<span class="w"> </span>search<span class="w">
 </code></pre></div>
 
 <h3 id="bene-query"><code>bene query</code></h3>
-<p>Run any SQL you want against the database.</p>
+<p>Run read-only SQL against the database — safe to hand to an agent. Reads are enforced at the SQLite engine level (<code>PRAGMA query_only</code>), so any write — <code>INSERT</code>/<code>UPDATE</code>/<code>DELETE</code>, a <code>WITH … DELETE</code> CTE, or a comment-prefixed statement — is rejected by the engine, not by a keyword check that can be worded around. A blocked write raises <code>PermissionError</code>.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT name, status FROM agents&quot;</span>
 bene<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT SUM(token_count) FROM tool_calls&quot;</span>
 bene<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT * FROM events WHERE agent_id = &#39;abc123&#39; ORDER BY timestamp&quot;</span>

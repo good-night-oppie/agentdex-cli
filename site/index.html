@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BENE — multi-agent harness with hash-locked kill gates</title>
-<meta name="description" content="Drop BENE into your CrewAI or LangGraph run. Every prompt clears a hash-locked gate before it ships. Open bene.db with sqlite3 and grep what the last agent learned." />
+<meta name="description" content="Drop BENE into your CrewAI or LangGraph run. Every promotion clears a hash-locked gate before it ships. Open bene.db with sqlite3 and grep what the last agent learned." />
 <link rel="icon" type="image/svg+xml" href="assets/bene-logo.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -283,18 +283,23 @@ const Hero = () => (
           </p>
         </div>
         <div className="flex flex-col gap-3">
-          <Pill>30 seconds: install, smoke, grep your agent's memory</Pill>
+          <Pill>30 seconds with the repo: init, smoke, grep your agent's memory</Pill>
           <Pill>one bene.db, no cloud, no keys</Pill>
           <Pill>works inside Claude Code, Cursor, Aider</Pill>
         </div>
       </div>
-      <Terminal copyText="uv add bene && uv run bene init && uv run bene demo --no-ui">
-        <span className="text-bene-accent">uv</span> add bene && <span className="text-bene-accent">uv</span> run bene init && <span className="text-bene-accent">uv</span> run bene demo --no-ui
+      <Terminal>
+        <span className="text-bene-muted"># coming to PyPI — early access</span>
         <br />
-        <span className="text-bene-muted"># story complete in &lt;1s — 12 engrams, 4 experiment runs.</span>
+        <span className="text-bene-accent">pip</span> install bene
         <br />
         <br />
-        sqlite3 bene.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY ts DESC LIMIT 5;"</span>
+        <span className="text-bene-muted"># have the repo? smoke it (≈1s — 12 engrams, 4 experiment runs):</span>
+        <br />
+        <span className="text-bene-accent">uv</span> run bene init && <span className="text-bene-accent">uv</span> run bene demo --no-ui
+        <br />
+        <br />
+        sqlite3 /tmp/bene-demo-*/story.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(title,1,60) FROM engrams ORDER BY created_at DESC LIMIT 5;"</span>
       </Terminal>
       <div className="mt-8 pt-6 border-t border-bene-dim flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
         <p className="text-xs text-bene-muted leading-snug">
@@ -352,7 +357,7 @@ const TheGap = () => (
       </Card>
     </div>
     <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-      Four production-ready capabilities, on disk, composable with whatever you already run.
+      Four gaps, closed in one file you can cp, rsync, and diff.
     </p>
   </Section>
 );
@@ -370,7 +375,7 @@ const Contract = () => {
       <Kicker number="02" title="The Contract — Four Invariants" />
       <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Invariants the harness will not bend on</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
-        Before any feature, BENE commits to four things — for every agent, every run, every promotion candidate, every L4 grant.
+        These four hold for every agent, every run, every promotion candidate, every L4 grant — before any feature sits on top.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {inv.map((i) => (
@@ -384,7 +389,7 @@ const Contract = () => {
         ))}
       </div>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        Same gate whether a human writes the strategy or an agent breeds one with <code className="text-bene-text">bene mh search</code> — clear the sha256-locked probe or <code className="text-bene-text">promote()</code> raises, and every attempt lands in <code className="text-bene-text">bene.db</code> as the next run's input. The rest is plumbing.
+        Same gate whether a human writes the strategy or an agent breeds one with <code className="text-bene-text">bene mh search</code> — clear the sha256-locked probe or <code className="text-bene-text">promote()</code> raises, and every attempt lands in <code className="text-bene-text">bene.db</code> as the next run's input. Everything else — VFS, MCP, dashboard — is wiring around those four.
       </p>
     </Section>
   );
@@ -402,12 +407,12 @@ const Comparison = () => {
   ];
   const adds = [
     "A prompt can't ship just because its eval score went up",
-    'At 3 a.m. you can grep what the last agent learned and why it shipped',
+    'Grep what the last agent learned and why it shipped',
     "Two agents can't share state by accident — isolation lives in the per-agent VFS, not in ACL configs",
     'Cross-agent decisions follow one auditable path; you can replay who voted what',
     'Run `bene trust <agent>` and 4 signals come back from the audit trail — no YAML flag flips them',
     'Strategies can evolve; only the ones that pass the gate reach production',
-    'At 3 a.m. open bene.db with sqlite3 — cp, rsync, diff all just work',
+    'Open bene.db with sqlite3 — cp, rsync, diff all just work',
   ];
   return (
     <Section id="comparison">
@@ -437,9 +442,12 @@ const Comparison = () => {
         <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
           Bring your own framework. Bring your own provider. BENE writes the engrams, gates, and trust signal underneath; you ship through one bene.db.
         </p>
+        <p className="text-sm text-bene-muted max-w-3xl leading-relaxed">
+          The agent loop is turnkey — engrams and the event journal are on by default, no wiring. The gate, memory consolidation, skills, and evolution are patterns you assemble yourself — real parts, but not chained together for you. The honest map is in <a href="docs/integrating-bene.html" className="text-bene-accent hover:underline">Integrating BENE</a>.
+        </p>
         <div className="pt-8 border-t border-bene-dim flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-bene-muted max-w-2xl">
-            Receipts and limits are in the docs below; this section's not a scorecard.
+            Receipts and limits are in the docs below.
           </p>
           <div className="flex gap-4 font-mono text-xs">
             <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="text-bene-accent hover:underline">CLAIMS-AUDIT.md</a>
@@ -455,12 +463,12 @@ const Comparison = () => {
 const Proof = () => {
   const [a, setA] = useState(0);
   const tabs = [
-    { l: 'Tab 1: Install + smoke', c: 'First value: zero keys, zero cloud.',
-      r: (<><span>$ uv add bene && uv run bene init && uv run bene demo --no-ui</span><br/><span className="text-bene-muted">[trace]</span> initializing harness...<br/><span className="text-bene-accent">[probe]</span> running baseline evaluation...<br/><span className="text-bene-muted">[evolve]</span> generating candidate strategies...<br/><span className="text-bene-muted">[trace]</span> complete. 12 engrams written.</>) },
+    { l: 'Tab 1: Install + smoke', c: 'Runs with zero keys, zero cloud.',
+      r: (<><span className="text-bene-muted"># coming to PyPI — early access</span><br/>$ pip install bene<br/><br/><span className="text-bene-muted"># have the repo? smoke it:</span><br/>$ uv run bene init && uv run bene demo --no-ui<br/><span className="text-bene-muted">[trace]</span> initializing harness...<br/><span className="text-bene-accent">[probe]</span> running baseline evaluation...<br/><span className="text-bene-muted">[evolve]</span> generating candidate strategies...<br/><span className="text-bene-muted">[trace]</span> story complete in 0.3s — 12 engrams, 4 experiment runs.</>) },
     { l: 'Tab 2: Planner + Executor', c: 'Two agents, one bene.db. Intent → vote → decide is the only path between shared decisions.',
-      r: (<><span className="text-bene-accent">from</span> bene <span className="text-bene-accent">import</span> Bene, Agent<br/><br/>harness = Bene()<br/>planner = Agent(name=<span className="text-[#A3E635]">'planner'</span>)<br/>executor = Agent(name=<span className="text-[#A3E635]">'executor'</span>)<br/><br/><span className="text-bene-muted"># Write to VFS</span><br/>planner.vfs.write(<span className="text-[#A3E635]">'/plan.md'</span>, <span className="text-[#A3E635]">'1. init\n2. run'</span>)<br/><br/><span className="text-bene-muted"># Intent → Vote → Decide</span><br/>harness.log.propose(intent=<span className="text-[#A3E635]">'execute_plan'</span>)</>) },
-    { l: 'Tab 3: Grep the engrams', c: "Open bene.db with sqlite3, SELECT FROM engrams — no vendor API between you and what shipped.",
-      r: (<>$ sqlite3 bene.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY ts DESC LIMIT 5;"</span><br/><br/>4|strategy|Use exponential backoff for rate limits...<br/>3|procedural|Retry logic implementation details...<br/>2|semantic|Anthropic API rate limit characteristics...<br/>1|episodic|Failed request to claude-3-opus at 14:32...<br/>0|trace|HTTP 429 Too Many Requests...</>) },
+      r: (<><span className="text-bene-accent">from</span> bene <span className="text-bene-accent">import</span> Bene<br/><span className="text-bene-accent">from</span> bene.shared_log <span className="text-bene-accent">import</span> SharedLog<br/><br/>harness = Bene(<span className="text-[#A3E635]">'bene.db'</span>)<br/>log = SharedLog(harness.conn)<br/>planner = harness.spawn(<span className="text-[#A3E635]">'planner'</span>)<br/>executor = harness.spawn(<span className="text-[#A3E635]">'executor'</span>)<br/><br/><span className="text-bene-muted"># Intent → Vote → Decide — the only path between shared decisions</span><br/>i = log.intent(agent_id=planner, action=<span className="text-[#A3E635]">'execute_plan'</span>)<br/>log.vote(agent_id=executor, intent_id=i, approve=<span className="text-bene-accent">True</span>, reason=<span className="text-[#A3E635]">'plan looks safe'</span>)<br/>log.decide(intent_id=i, agent_id=planner)<br/><br/><span className="text-bene-muted"># decision passed: True — 1 approve</span></>) },
+    { l: 'Tab 3: Grep the engrams', c: "Open the demo's story.db with sqlite3, SELECT FROM engrams — no vendor API between you and what shipped.",
+      r: (<>$ sqlite3 /tmp/bene-demo-*/story.db <span className="text-[#A3E635]">"SELECT tier, kind, substr(title,1,46) FROM engrams ORDER BY created_at DESC LIMIT 5;"</span><br/><br/>0|trust|denial:evolve.promote<br/>0|eval|verdict:story-probe:ACCEPT<br/>0|eval|probe-lock:story-probe<br/>4|strategic|genome:01KV8RS1QPE6E488WKWCCY4N5N<br/>4|strategic|genome:01KV8RS1QPFVQDSERJ7RHAGNEH</>) },
     { l: 'Tab 4: Probe ACCEPT vs REJECT', c: "Tamper the spec, LockTamperError. A gate that can't kill the baseline registers VOID, not ACCEPT.",
       r: (<><span className="text-bene-accent">def</span> <span className="text-[#60A5FA]">test_candidate</span>(eval_run):<br/>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">if</span> eval_run.quality &lt; <span className="text-[#FBBF24]">0.70</span>:<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-bene-accent">raise</span> PromotionBlocked(<span className="text-[#A3E635]">'Quality regression'</span>)<br/><br/><span className="text-bene-muted"># Run 1: quality=0.71</span><br/><span className="text-[#A3E635]">ACCEPT</span>: Candidate promoted to tier 4.<br/><br/><span className="text-bene-muted"># Run 2: quality=0.62</span><br/><span className="text-bene-accent">PromotionBlocked</span>: Quality regression. Promotion aborted.</>) },
   ];
@@ -469,7 +477,7 @@ const Proof = () => {
       <Kicker number="04" title="30-second proof" />
       <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Install, smoke, grep, gate</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
-        Four tabs. Tab 1 installs and runs. Tab 2 spawns planner + executor over SharedLog. Tab 3 opens bene.db with sqlite3 and SELECTs the engrams the prior tabs wrote. Tab 4 fires a probe and watches it block a bad promotion.
+        Four tabs. Tab 1 installs and runs. Tab 2 spawns planner + executor over SharedLog. Tab 3 opens the demo's story.db with sqlite3 and SELECTs the engrams Tab 1 wrote. Tab 4 fires a probe and watches it block a bad promotion.
       </p>
       <div className="border border-bene-dim bg-bene-surface mb-8">
         <div className="flex overflow-x-auto border-b border-bene-dim hide-scrollbar">
@@ -493,19 +501,19 @@ const Recipes = () => {
   const rs = [
     { id: 'R1', t: 'Recover from a bad turn', m: 'bene.checkpoints', who: 'you', flow: ['agent run', 'checkpoint("green")', 'diff → restore'], d: 'Litany loop.', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
     { id: 'R2', t: 'Coordinate two agents', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner.intent', 'SharedLog.vote', 'executor.decide'], d: '2-agent pattern for tasks over 3 steps.', c: '# See Tab 2 in Proof section', v: 'bene log tail --n 5  →  intent, vote, decide all present' },
-    { id: 'R3', t: 'Gate the next promote', m: 'bene.kernel.eval', who: 'you + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "Five lines that define BENE's promotion contract.", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  the verdict' },
-    { id: 'R4', t: 'Compound memory across runs', m: 'bene.kernel.memory', who: 'you → agents', flow: ['legacy store', 'attach_kernel', 'memory.search hit'], d: 'Mirror legacy stores into engrams; consolidate; adaptive retrieval.', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<task hint>"  →  hits from prior sessions' },
+    { id: 'R3', t: 'Gate the next promote', m: 'bene.kernel.eval', who: 'you + CI', flow: ['Probe(...).register()', 'promote()', 'ACCEPT / REJECT / VOID'], d: "Five lines that define BENE's promotion contract.", c: 'Probe(name, [gate], fn).register(store, conn, baseline=base)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  the verdict' },
+    { id: 'R4', t: 'Compound memory across runs', m: 'bene.kernel.memory', who: 'you → agents', flow: ['legacy store', 'attach_kernel', 'memory.search hit'], d: 'Mirror legacy stores into engrams; consolidate; adaptive retrieval.', c: 'attach_kernel(harness, memory=legacy_store)', v: 'bene memory search "<task hint>"  →  hits from prior sessions' },
     { id: 'R5', t: 'Keep context inside budget', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['ContextOS()', 'assemble(budget_tokens)', 'never overshoots'], d: 'Budgeted assembly, pollution detector.', c: 'packed = ContextOS().assemble(items, budget_tokens=8192)', v: 'packed.manifest["estimated_tokens"] <= 8192  →  True' },
     { id: 'R6', t: 'Escalate autonomy by probe', m: 'bene.kernel.trust + .harness', who: 'agent climbs · human signs L4', flow: ['4 signals', 'composite ∈ [0,1]', 'human signs L4'], d: 'Grants escalate by passing probes, not editing YAML.', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust <agent>  →  composite ∈ [0,1]' },
     { id: 'R7', t: 'Breed a better strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: 'Breed strategies; bridge is manual today, end-to-end wiring on roadmap.', c: 'bene mh search --benchmark <name>', v: 'bene mh frontier <search_agent_id> | jq .' },
-    { id: 'R8', t: 'Plug BENE into your agent', m: 'bene.mcp', who: 'you, once', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls'], d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
+    { id: 'R8', t: 'Plug BENE into your agent', m: 'bene.mcp', who: 'you, once', flow: ['bene serve --transport stdio', 'MCP server', 'claude mcp ls'], d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
   ];
   return (
     <Section id="recipes" inverted>
       <Kicker number="05" title="Recipes" />
       <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">Eight recipes — the methodology in verbs</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-16">
-        If you can name your task, one of these eight is it. Each recipe ends in a verify command. A recipe without its verify run is not done.
+        If you can name your task, one of these eight is it. Each recipe ends in a verify command you can paste and watch pass.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
         {rs.map(r => (
@@ -537,7 +545,7 @@ const Recipes = () => {
         ))}
       </div>
       <p className="font-mono text-sm text-bene-text border-l-2 border-bene-accent pl-4">
-        Pick the recipe whose verb matches your task. Run the verify. Paste the output. That is shipping on BENE.
+        Eight verbs, eight verify commands — the one that matches your task is the one to run.
       </p>
     </Section>
   );
@@ -566,7 +574,7 @@ const Architecture = () => {
           <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier 4 strategic</span>
         </div>
       ),
-      verify: 'bene query "SELECT tier, kind, substr(summary,1,60) FROM engrams ORDER BY id DESC LIMIT 5"',
+      verify: 'bene query "SELECT tier, kind, substr(title,1,60) FROM engrams ORDER BY created_at DESC LIMIT 5"',
     },
     {
       key: 'probe',
@@ -574,11 +582,11 @@ const Architecture = () => {
       oneLine: 'the gate before promotion',
       scene: 'A new prompt passes eval with a 2-point lift over baseline. You do not want to push it and then discover it regresses on some case nobody covered.',
       common: 'A reminder in CI to "ask someone to review prompt changes" or a GitHub Action that compares eval scores. Both are cultural conventions, not structural constraints.',
-      mechanism: 'register_probe(target, fn) seals the spec under sha256. promote(candidate) runs the candidate through the probe; the verdict is ACCEPT, REJECT, or VOID (the probe is inadmissible — a gate that can't kill its own baseline; REJECT means the candidate failed an admissible gate). No ACCEPT means PromotionBlocked is raised and CI halts on the exception. Try to evolve the spec to flip the verdict? The sha256 will not match and the probe refuses to run (LockTamperError). The verdict itself lands as an engram, re-readable months later.',
+      mechanism: 'Probe(name, [gate], fn).register(...) seals the spec under sha256. promote(candidate) runs the candidate through the probe; the verdict is ACCEPT, REJECT, or VOID (the probe is inadmissible — a gate that cannot kill its own baseline; REJECT means the candidate failed an admissible gate). No ACCEPT means PromotionBlocked is raised and CI halts on the exception. Try to evolve the spec to flip the verdict? The sha256 will not match and the probe refuses to run (LockTamperError). The verdict itself lands as an engram, re-readable months later.',
       diagram: (
         <div className="font-mono text-[11px] lg:text-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">register_probe(target, fn)</span>
+            <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">Probe(...).register()</span>
             <span className="text-bene-accent">→</span>
             <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">promote(candidate)</span>
             <span className="text-bene-accent">→</span>
@@ -614,7 +622,7 @@ const Architecture = () => {
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">LLM</span>
         </div>
       ),
-      verify: 'bene senses --md | grep "context_budget"',
+      verify: 'ContextOS().assemble(items, budget_tokens=8192).manifest["estimated_tokens"] <= 8192',
     },
     {
       key: 'autonomy',
@@ -650,7 +658,7 @@ const Architecture = () => {
     {
       key: 'breeding',
       name: 'Breeding program',
-      oneLine: 'strategies that cross-generation themselves better',
+      oneLine: 'strategies that get better across generations',
       scene: "You have run the same task class fifty times with slightly different prompts or strategies. You want the Pareto front of the survivors across generations, not another hand-tune.",
       common: 'AutoML or a DSPy compile run produces a candidate; either someone copy-pastes it into production, or it replaces deploy.py directly — straight into a reward-hack on the metric.',
       mechanism: 'mh_search generates candidates → genome encoding makes the control signals dense → Pareto front filters survivors → promote() routes them through the same kill gate any other promotion uses — every promotion goes through it, no separate path. The mh_search-to-promote bridge is manual today (CLAIMS-AUDIT line 36 marks it partial); end-to-end wiring is on the roadmap and not claimed as shipping.',
@@ -665,7 +673,7 @@ const Architecture = () => {
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier-4 engram</span>
         </div>
       ),
-      verify: 'bene mh frontier | jq .',
+      verify: 'bene mh frontier <search_agent_id> | jq .',
     },
   ];
   const modules = [
@@ -685,7 +693,7 @@ const Architecture = () => {
       <Kicker number="06" title="Architecture" />
       <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">3 a.m. and prod broke. Where do you find the receipts?</h2>
       <p className="text-lg lg:text-xl xl:text-2xl text-bene-muted max-w-3xl lg:max-w-4xl xl:max-w-5xl leading-relaxed mb-12 lg:mb-16">
-        Whatever's on top — LangGraph, CrewAI, your own loop — is fine. When something breaks in production, most stacks leave you with an LLM provider dashboard, CloudWatch logs, a few hand-copied traces — none of which sit in git, and none of which <code className="text-bene-text font-mono">cp</code>, <code className="text-bene-text font-mono">rsync</code>, or <code className="text-bene-text font-mono">diff</code> can touch. BENE writes the receipts, the kill gate, and the trust signal <span className="text-bene-text">into code and onto a single SQLite file</span>: open it with sqlite3 when things go wrong. No portal.
+        Whatever's on top — LangGraph, CrewAI, your own loop — is fine. When something breaks in production, most stacks leave you with an LLM provider dashboard, CloudWatch logs, a few hand-copied traces — none of which sit in git, and none of which <code className="text-bene-text font-mono">cp</code>, <code className="text-bene-text font-mono">rsync</code>, or <code className="text-bene-text font-mono">diff</code> can touch. BENE writes the receipts, the kill gate, and the trust signal <span className="text-bene-text">into code and onto a single SQLite file</span>: open it with sqlite3, or run <code className="text-bene-text font-mono">bene failure localize &lt;agent&gt;</code> to blame the earliest decisive step — on a real run, by default. No portal.
       </p>
 
       {/* dual-path loop: human static Harness + agent dynamic Meta-Harness → bene.db → next run */}
@@ -694,7 +702,7 @@ const Architecture = () => {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">human</span>
-            <span className="text-bene-accent">— register_probe() / promote() →</span>
+            <span className="text-bene-accent">— Probe(...).register() / promote() →</span>
             <span className="border border-bene-accent text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">the kill gate</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -813,7 +821,7 @@ const Limits = () => {
     { t: 'Single-shot one-file edits', d: "A plain agent is faster. BENE's spawn + checkpoint + engram overhead doesn't pay off below roughly 3 agents or 3 steps." },
     { t: 'Hard OS sandboxing', d: 'Per-agent VFS gives logical isolation — reach for Docker, Firecracker, or E2B when the code is untrusted.' },
     { t: 'Realtime sub-100ms loops', d: 'CLI spawn + uv overhead per call is the floor; SQLite write fsync sets the throughput. Batch yes. Realtime serving no.' },
-    { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Adaptive ranking is currently static BM25 (measured −13.3pp vs outcome-weighted ranking in the COMMUNITY-BENCH A1b row against KAOS). Outcome-weighted ranking is planned, not shipped.' },
+    { t: 'Vector-search workloads', d: 'Retrieval is lexical FTS5 + association links. No embeddings. Default retrieval ranking is static BM25; outcome-weighted ranking ships opt-in (bene skills search --rank weighted, +13.33pp on the COMMUNITY-BENCH A2 row) but is not the default and does not feed auto-retrieval (−13.3pp on A1b vs KAOS). Wiring it into the default path is planned.' },
   ];
   return (
     <Section id="limits" inverted>
@@ -834,7 +842,7 @@ const Limits = () => {
         <div>
           <h4 className="font-mono text-sm text-bene-text mb-2">Implemented vs planned discipline</h4>
           <p className="text-sm text-bene-muted max-w-3xl leading-relaxed">
-            <span className="text-bene-accent">On the roadmap, not yet shipping:</span> skill demotion / retirement policy (outcome-weighted ranking already shipped); the external CLI / cron wiring around nightly consolidation (the deterministic planner already shipped); the consumer-side CLI for deterministic replay (the journal + manifest already shipped); in-episode harness mutation; MemGAS entropy routing. Full spec at <code className="text-bene-text font-mono">docs/design/v0.3-roadmap-spec.md</code>.
+            <span className="text-bene-accent">On the roadmap, not yet shipping:</span> skill demotion / retirement policy (outcome-weighted ranking already ships opt-in; wiring it into the default retrieval path is the open item); the external CLI / cron wiring around nightly consolidation (the deterministic planner already shipped); the consumer-side CLI for deterministic replay (the journal + manifest already shipped); in-episode harness mutation; MemGAS entropy routing. Full spec at <code className="text-bene-text font-mono">docs/design/v0.3-roadmap-spec.md</code>.
           </p>
         </div>
         <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/CLAIMS-AUDIT.md" target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-bene-accent hover:underline whitespace-nowrap shrink-0">CLAIMS-AUDIT.md</a>
@@ -892,7 +900,7 @@ const Badge = ({ kind }) => {
 // ─── 08 · Lore + Community ──────────────────────────────────────────
 const Lore = () => {
   const m = [
-    { badge:'other-memory', l:'Other Memory', v:['bene memory search','bene engram search'] },
+    { badge:'other-memory', l:'Other Memory', v:['bene memory search','bene retrieve'] },
     { badge:'missionaria',  l:'Missionaria Protectiva', v:['bene skills save','bene skills apply'] },
     { badge:'breeding',     l:'The Breeding Program', v:['bene mh search','genome_from_candidate','promote()'] },
     { badge:'litany',       l:'The Litany Against Fear', v:['bene checkpoint','bene diff','bene restore'] },
@@ -925,7 +933,14 @@ const Lore = () => {
       </div>
       <div className="max-w-3xl mx-auto mb-24">
         <Terminal>
-          uv add bene && uv run bene init && uv run bene demo --no-ui && uv run bene dashboard
+          <span className="text-bene-muted"># coming to PyPI — early access</span>
+          <br />
+          pip install bene
+          <br />
+          <span className="text-bene-muted"># have the repo? init, smoke, watch it live:</span>
+          <br />
+          uv run bene init && uv run bene demo --no-ui && uv run bene dashboard
+          <br />
           <br />
           <span className="text-bene-muted"># MCP-capable agents:</span>
           <br />

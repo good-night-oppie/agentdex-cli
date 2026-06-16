@@ -205,6 +205,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../codegen.html">codegen</a>
 <a href="../dashboard.html">dashboard</a>
 <a href="../deployment.html">deployment</a>
+<a href="../integrating-bene.html">integrating-bene</a>
 <a href="../mcp-integration.html">mcp-integration</a>
 <a href="../memory.html">memory</a>
 <a href="../meta-harness.html">meta-harness</a>
@@ -317,15 +318,15 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 </tr>
 <tr>
 <td>Scheduled/nightly consolidation automation (SkillClaw-style)</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td>deterministic <code>ScheduledConsolidator</code> planner/runner records replay manifests and <code>experiment_runs</code>; external scheduler/cron/CLI/config wiring not shipped (<code>bene/kernel/memory/lifecycle.py</code> · <code>test_scheduled_consolidation_*</code>)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>bene consolidate plan/run/ls/show</code> — cron-spawnable, exit 0 (ran/interval-skip) / 1 (error/unknown-policy) / 2 (insufficient-turns) — over <code>ScheduledConsolidator</code>, with built-in + <code>kernel.consolidation</code> policies (<code>bene/cli/main.py</code> · <code>bene/config.py</code> · <code>tests/test_cli_consolidate.py</code> + <code>tests/test_consolidation_config.py</code>). No in-process daemon by scope — operators wire cron/systemd/launchd</td>
 </tr>
 <tr>
 <td>Skill plasticity: decay / demotion / retirement of failing skills</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td>search-time outcome weighting + recency decay shipped (Round-3, below); demotion/retirement policy still planned (GAP-AUDIT BENE-4 partially open)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td>outcome-weighted ranking (Round-3) + <code>PlasticityScanner</code> probe-gated demotion/retirement (ACCEPT=degraded→demote, REJECT=hold, VOID=hold): append-only <code>skill_lifecycle</code> audit + <code>eval</code>/<code>intervention</code> engrams linked <code>gated_by</code>; <code>search(include_demoted=False)</code> drops demoted; <code>bene skills plasticity scan/lifecycle/restore</code> (<code>bene/kernel/memory/plasticity.py</code> · <code>bene/skills.py</code> · <code>tests/kernel/test_plasticity.py</code> (9) + <code>tests/test_skills_plasticity_search.py</code>). Closes GAP-AUDIT BENE-4</td>
 </tr>
 <tr>
 <td>Outcome-weighted retrieval ranking (BM25 × Wilson lower bound × recency, opt-in <code>rank="weighted"</code>)</td>
@@ -371,15 +372,15 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 </tr>
 <tr>
 <td>In-episode/continual harness mutation (Continual Harness)</td>
-<td><strong>planned</strong></td>
-<td><strong>UNVERIFIED</strong></td>
-<td>between-generation only today</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>ContinualMutator.maybe_mutate</code> swaps one genome component mid-episode ONLY behind a registered probe ACCEPT → <code>promote()</code> front door → <code>continual_swaps</code> audit + active-genome pointer; REJECT/VOID hold; autonomy L3 cap <code>evolve.in_episode_swap</code>; budgets (min_turns/max_swaps); default swappable = context_strategy/retrieval_policy. <code>bene evolve continual status</code> read surface (<code>bene/kernel/evolve/continual.py</code> · <code>tests/kernel/test_continual.py</code> (9)). Runner auto-trigger wiring (loop-guard/pollution → maybe_mutate) deferred per the §7 adversarial split-scope</td>
 </tr>
 <tr>
 <td>metaharness → evolve backend</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td><code>mh_search</code> now persists evaluated candidates as tier-4 strategic genome engrams plus <code>/harnesses/&lt;id&gt;/evolve.json</code>; promotion still requires the existing manual probe/ACCEPT flow (<code>bene/metaharness/search.py</code> · <code>test_store_result_bridges_candidate_to_evolve_engram</code>)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td>candidates bridge to tier-4 genome engrams AND auto-promote through the kill gate: <code>gated_promote</code> / <code>auto_promote_evolved</code> / <code>build_improvement_probe</code> (<code>bene/kernel/evolve/autopromote.py</code>) run an admissible improvement probe and call <code>promote()</code> ONLY on ACCEPT (REJECT/VOID → held). Opt-in <code>SearchConfig.auto_promote</code> wires it into <code>MetaHarnessSearch._store_result</code> (<code>tests/test_mh_autopromote.py</code> (8)). No back-door — <code>promote()</code> still demands the ACCEPT verdict</td>
 </tr>
 <tr>
 <td>Granules: 4 levels = ladder tiers, associations</td>
@@ -395,9 +396,9 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 </tr>
 <tr>
 <td>MemGAS entropy-routed multi-granularity retrieval</td>
-<td><strong>planned</strong></td>
-<td><strong>UNVERIFIED</strong></td>
-<td>deterministic familiarity heuristic shipped instead (documented, pluggable)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>MemGASRouter</code> (opt-in subclass of <code>AdaptiveRetriever</code>): per-tier normalized entropy of softmax(-bm25) → softmin tier routing → weighted merge → familiarity fast/slow. <code>bene retrieve</code> CLI + <code>kernel.memgas</code> config opt-in (<code>bene/kernel/memory/retrieval.py</code> · <code>bene/cli/main.py</code> · <code>bene/config.py</code> · <code>tests/kernel/test_memgas.py</code> (8) + <code>tests/test_cli_retrieve.py</code>). Default stays <code>AdaptiveRetriever</code>; default-flip gated on probe ACCEPT</td>
 </tr>
 <tr>
 <td>ContextOS: 3 strategies, signal routing, budget-capped manifests</td>
@@ -419,9 +420,9 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 </tr>
 <tr>
 <td>VEA-style evidence re-highlighting before re-retrieval</td>
-<td><strong>planned</strong></td>
-<td><strong>UNVERIFIED</strong></td>
-<td>cited in design; not shipped</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>EvidenceRehighlighter</code> foregrounds in-context items matching the consolidated intent + dims the rest (deterministic term-overlap score, auditable manifest); <code>PollutionDetector.rehighlight</code> + <code>recover(reask=…)</code> make it the cheap first rung of the recovery ladder — gated on <code>evidence_present</code>, restore is SKIPPED when re-asking with the re-highlighted context succeeds, and it escalates to consolidate→restore otherwise. <code>bene memory rehighlight</code> read surface (<code>bene/kernel/memory/rehighlight.py</code> · <code>bene/kernel/memory/pollution.py</code> · <code>bene/cli/main.py</code> · <code>tests/kernel/test_memory_os.py</code> (+13)). Live-runner auto-trigger deferred (consistent with the §pollution recovery split-scope).</td>
 </tr>
 <tr>
 <td>Autonomy ladder L0–L4 enforced, per-domain, L4 human-only, denials → trust engrams</td>
@@ -467,21 +468,21 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 </tr>
 <tr>
 <td>Spec-as-artifact workflow (proposal→acceptance gating)</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td>engram kind <code>spec</code>/<code>proposal</code> + mirrors shipped; full SDD gating workflow planned</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>SpecWorkflow</code> (<code>bene/kernel/spec.py</code>): <code>propose</code> (kind=proposal) → <code>accept</code> creates a <code>spec</code> engram <code>derived_from</code> the proposal + <code>gated_by</code> an ACCEPT verdict ONLY behind a probe ACCEPT eval engram OR a named-human decision (<code>SpecGateBlocked</code> otherwise); <code>reject</code> append-only; status derived from the link graph. <code>bene spec propose/accept/reject/ls</code> CLI + senses (<code>tests/kernel/test_spec.py</code>)</td>
 </tr>
 <tr>
-<td>Deterministic replay surfaces</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td>journal + checkpoints remain the substrate; scheduled consolidation now emits deterministic replay manifests, but end-to-end replay tooling/CLI is not shipped</td>
+<td>Deterministic replay surfaces (<code>bene replay</code> export/verify/cite; ed25519-signed self-contained envelopes)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>bene/kernel/replay/</code> (manifest/exporter/verifier/keys) · <code>bene replay</code> CLI group (<code>bene/cli/main.py</code>) · <code>tests/kernel/test_replay.py</code> (19) + <code>tests/test_cli_replay.py</code> (7). Covers <code>kind=consolidation</code> (re-plan the deterministic batcher) AND <code>kind=probe</code> (re-hash the locked gate spec → <code>lock_sha256</code>, re-derive the verdict from the recorded gate values; tamper → <code>probe-lock-mismatch</code>/<code>verdict-status-mismatch</code>/<code>gate-result-inconsistent</code>) — so a held-out promotion (C2) is independently re-derivable + signed-citable; evolution kind is the remaining follow-up</td>
 </tr>
 <tr>
 <td><code>bene.yaml</code> <code>kernel:</code> config section (enabled, autonomy defaults, consolidation schedule)</td>
-<td><strong>partial</strong></td>
-<td><strong>PARTIAL</strong></td>
-<td><code>kernel.context_os</code> and <code>kernel.loop_guard</code> now configure live runner middleware through CLI/MCP entry points and <code>bene setup</code> templates; autonomy defaults and consolidation schedule wiring still planned (<code>bene/config.py</code> · <code>bene/cli/main.py</code> · <code>tests/test_config.py</code> · <code>tests/test_cli_serve.py</code>)</td>
+<td><strong>implemented</strong></td>
+<td><strong>VERIFIED</strong></td>
+<td><code>kernel.context_os</code>, <code>kernel.loop_guard</code>, <code>kernel.observability</code>, <code>kernel.consolidation</code>, and <code>kernel.autonomy</code> now wire through config/CLI; consolidation schedule shipped (row 26); <strong>autonomy defaults shipped</strong> — <code>autonomy_config_from_config</code>/<code>autonomy_policy_from_config[_file]</code> parse <code>kernel.autonomy.{default_level,grants}</code> (default_level is a 0..3 floor; L4 stays human-grant-only) + <code>bene autonomy show/grant</code> CLI (<code>bene/config.py</code> · <code>bene/kernel/harness/autonomy.py</code> · <code>bene/cli/main.py</code> · <code>tests/test_config.py</code> (+7) · <code>tests/kernel/test_harness_layer.py</code> (+6))</td>
 </tr>
 <tr>
 <td><code>bene demo</code> 5-pillar story, keyless, fresh dir, &lt;60s</td>
@@ -513,7 +514,7 @@ bridge. Pass/skip counts drift per env; the invariant is <strong>0 failed</stron
 <ul>
 <li><strong>20 kept / 11 kept+</strong> rows: hold by construction — legacy modules untouched, full legacy suite green at every phase commit (the per-phase gate). (#45 UI panels is kept+: legacy UI kept, engram/trust panels added ✓.)</li>
 <li><strong>17 surpassed</strong> rows: #4 (pollution-recovery wrapper ✓), #10 (eval+admissibility ✓), #15/42 (ContextOS ✓), #16 (UI panels ✓), #17 (demo story ✓), #20/37 (granules+adaptive retrieval ✓), #21/38 (procedural engrams w/ provenance ✓; plasticity decay planned), #22/39 (weighted tally ✓), #25/48 (gated promotion + structured genomes ✓; full mh integration partial), #29 (ladder ✓), #32 (senses-from-db ✓), #55 (engram FTS + lineage ✓).</li>
-<li><strong>7 re-derived</strong> rows: #6/7 dream/neuroplasticity → consolidation mechanism ✓, scheduled consolidation helper <strong>partial</strong>, external scheduler + demotion/retirement policy <strong>planned</strong>; #8/9 failure intelligence/localizer → evidence-chain analysts ✓ (distill), dedicated failure-lookup CLI <strong>planned</strong>; #11 experiments ✓; #12 ISA → probe gate specs ✓; #28 doctor/alerts → senses+sweeper+guards ✓.</li>
+<li><strong>7 re-derived</strong> rows: #6/7 dream/neuroplasticity → consolidation mechanism ✓, scheduled consolidation helper <strong>partial</strong>, external scheduler + demotion/retirement policy <strong>planned</strong>; #8/9 failure intelligence/localizer → evidence-chain analysts ✓ (distill), dedicated failure-lookup CLI ✓ (<code>bene failure localize</code> over <code>localize_steps</code>/<code>steps_from_engrams</code>, blames the earliest decisive step in a run's trace engrams; <code>tests/test_cli_failure.py</code>); #11 experiments ✓; #12 ISA → probe gate specs ✓; #28 doctor/alerts → senses+sweeper+guards ✓.</li>
 </ul>
 <h2 id="beyond-both-capabilities-bene2-design-5">Beyond-both capabilities (BENE2-DESIGN §5)</h2>
 <table>
