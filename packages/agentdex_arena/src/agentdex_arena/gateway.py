@@ -52,7 +52,7 @@ from adx_showdown.protocol import (
     sanitize_name,
 )
 from adx_showdown.sidecar import Sidecar, SidecarError
-from adx_showdown.sim import BattleContext, call_policy
+from adx_showdown.sim import BattleContext, Policy, call_policy
 from adx_showdown.teams import pack_team, starter_pack, validate_team
 from agentdex_engine.modules.arena import (
     EventLog,
@@ -273,6 +273,50 @@ def _opponent_policy(name: str, sidecar: Sidecar, seed: int):
     return _anchor_policy(name, sidecar, seed)
 
 
+# Default-sandbox autopilot-punisher (codex dogfood P2). The default sandbox
+# opponent (no gym_leader) is anchor-random, which loses to "always choose 1" —
+# a reward hack on the sandbox win-signal (win without playing). Rather than raise
+# the floor for everyone (which breaks the gentle on-ramp doctrine), detect the
+# low-entropy autopilot SIGNATURE and escalate only against it. Sandbox-only:
+# never wired into the rated lane, so it cannot touch the Glicko / anti-pay-to-rank
+# rails.
+_AUTOPILOT_WINDOW = 3
+
+
+def _is_autopilot(session: BattleSession) -> bool:
+    """True once the visitor shows the autopilot signature: the last
+    _AUTOPILOT_WINDOW choices identical. LATCHES — varying play after the latch
+    does not de-escalate, closing the vary-once-to-reset game."""
+    if session.autopilot_escalated:
+        return True
+    recent = session.visitor_choices[-_AUTOPILOT_WINDOW:]
+    if len(recent) >= _AUTOPILOT_WINDOW and len(set(recent)) == 1:
+        session.autopilot_escalated = True
+    return session.autopilot_escalated
+
+
+def autopilot_punisher(
+    sidecar: Sidecar,
+    seed: int,
+    *,
+    on_autopilot: Callable[[], bool],
+    gentle: Policy | None = None,
+    strong: Policy | None = None,
+) -> Policy:
+    """Default sandbox opponent: gentle random play until ``on_autopilot()`` flips
+    True, then max-damage for the rest of the battle. A real player who varies
+    their moves keeps the gentle bot (on-ramp preserved); only low-entropy
+    autopilot triggers the escalation. ``gentle``/``strong`` are injectable so the
+    routing is testable without a sidecar."""
+    gentle_policy = gentle if gentle is not None else random_bot(seed)
+    strong_policy = strong if strong is not None else max_damage_bot(sidecar, fallback_seed=seed)
+
+    async def _policy(req: ParsedRequest, ctx: BattleContext) -> str | None:
+        return await call_policy(strong_policy if on_autopilot() else gentle_policy, req, ctx)
+
+    return _policy
+
+
 def _hp_pct(condition: str) -> int | None:
     """'245/371 par' -> 66; '0 fnt' -> 0. Server-rendered condition strings only."""
     if not condition:
@@ -353,6 +397,9 @@ class BattleSession:
     p1_team: str | None = None
     p2_team: str | None = None
     visitor_choices: list[str] = field(default_factory=list)
+    # Latched once the default sandbox opponent escalates against autopilot play
+    # (see autopilot_punisher / _is_autopilot). Sandbox-only; never set in rated.
+    autopilot_escalated: bool = False
     parent: tuple[str, int] | None = None
     scratchpad: str = ""
     last_state: dict[str, Any] | None = None
@@ -639,6 +686,14 @@ class ArenaGateway:
             sidecar=sidecar,
             opponent_policy=_opponent_policy(opponent, sidecar, seed[0] + 13),
         )
+        # Default sandbox opponent (no explicit gym): swap the plain anchor-random
+        # for the autopilot-punisher so "always choose 1" no longer trivially wins,
+        # while a player who actually varies their play still faces the gentle bot.
+        # Explicit gym picks keep their chosen difficulty; rated lane is untouched.
+        if req.lane == "sandbox" and req.gym_leader is None:
+            session.opponent_policy = autopilot_punisher(
+                sidecar, seed[0] + 13, on_autopilot=lambda: _is_autopilot(session)
+            )
         session.p1_team = None  # set below once the visitor team is resolved
         team = req.team
         if team is None:
