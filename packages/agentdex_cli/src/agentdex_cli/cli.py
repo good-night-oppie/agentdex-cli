@@ -286,6 +286,11 @@ async def _run_expedition(args: argparse.Namespace) -> int:
 
     trace_dir = output_dir / "trace"
     trace_dir.mkdir(exist_ok=True)
+    # Remove pre-rename artifacts so a re-run into an existing dir does not leave
+    # stale *_full_trace.jsonl alongside the *_trace_excerpt.jsonl this run writes
+    # (the legacy name overstated the contents; PR #163 review #3423352058).
+    for _legacy in trace_dir.glob("*_full_trace.jsonl"):
+        _legacy.unlink()
 
     _write_yaml(output_dir / "task_card.yaml", task_card.model_dump())
     for rc in result_cards:
