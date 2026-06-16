@@ -176,11 +176,6 @@ def _active_hp_pct(req: ParsedRequest) -> float:
     return 100.0
 
 
-def _active_species(req: ParsedRequest) -> str:
-    active = next((p for p in req.bench if p.active), None)
-    return active.species if active else ""
-
-
 async def _stab_max_damage(
     sidecar: Sidecar,
     req: ParsedRequest,

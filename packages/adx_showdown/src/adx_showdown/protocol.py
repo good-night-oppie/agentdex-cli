@@ -143,6 +143,19 @@ def legal_choices(req: ParsedRequest) -> list[str]:
     return choices
 
 
+def active_species(req: ParsedRequest) -> str | None:
+    """The species of this side's active Pokemon, read from the request itself.
+
+    Showdown flags exactly one bench entry ``active: true``. At the opening (and
+    any turn where the caller's ``state["active"]`` map lacks this side) that
+    flag is the only reliable source of "who is in front", so it is the fallback
+    for ``BattleContext.my_species`` — otherwise the renderer prints
+    ``Your active: ?`` while the bench clearly lists an ``[active]`` mon
+    (agentdex-cli audit / codex dogfood P1)."""
+    active = next((p for p in req.bench if p.active and p.species), None)
+    return active.species if active else None
+
+
 def move_only_choices(req: ParsedRequest) -> list[str]:
     """Fallback set when a switch was rejected (maybeTrapped revealed late)."""
     return [c for c in legal_choices(req) if c.startswith("move")]
