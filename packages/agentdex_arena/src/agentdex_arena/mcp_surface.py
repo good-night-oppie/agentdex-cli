@@ -82,6 +82,22 @@ def _verify_token_opaque(
         raise ValueError(f"arena error (ref: {err_id})") from None
 
 
+def _opaque_mcp_error(label: str, exc: Exception | str) -> ValueError:
+    """Mirror gateway._opaque_error for the MCP path (PR #169 review #3423698025).
+
+    MCP tool errors surface to the visiting agent verbatim, so any
+    ``raise ValueError(f"... {e!r}")`` leaks local exception detail —
+    filesystem paths, errno strings, sidecar internals. Mirror what HTTP
+    does on equivalent failure modes: log the detail server-side with a
+    correlation ref, then raise ValueError with just the ref. Use for any
+    NEW visitor-facing failure mode introduced after the original
+    enroll/auth boundary (which already uses ``_verify_token_opaque``).
+    """
+    err_id = uuid.uuid4().hex[:12]
+    logger.warning("mcp arena error (label=%s, ref=%s): %s", label, err_id, exc)
+    return ValueError(f"arena error (ref: {err_id})")
+
+
 def get_mcp_app(gateway: ArenaGateway) -> FastMCP:
     global _gateway
     _gateway = gateway
@@ -171,7 +187,10 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
         )
         success = True
     except Exception as e:
-        raise ValueError(f"Battle step error: {e}") from None
+        # Step failed BEFORE the move executed — roll back session state in
+        # the finally and surface opaquely; the original `f"Battle step
+        # error: {e}"` leaked exception detail (PR #169 review #3423698025).
+        raise _opaque_mcp_error("choose:step", e) from None
     finally:
         if not success:
             if len(session.visitor_choices) > 0:
@@ -198,19 +217,38 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
         session.ended = {
             "winner": "",
             "turns": session.turns,
-            "reason": f"fatal: event log write failed: {e!r}",
+            "reason": "fatal: event log write failed",
         }
         if sidecar is not None:
             try:
                 await sidecar.request("stop", battle=battle_id)
             except Exception:
                 pass
-        raise ValueError(f"event log write failed: {e!r}") from None
+        # Opaque visitor-facing error (PR #169 review #3423698025); detail logged.
+        raise _opaque_mcp_error("choose:audit-append", e) from None
     session.last_touch = gw.now()
     try:
         return await gw._advance(session, resp["state"], visitor_choice=None)
     except Exception as e:
-        raise ValueError(f"Battle advance error: {e}") from None
+        # PR #169 review #3423698020: when _advance fails after the initial
+        # step succeeded (opponent-policy error / sidecar error during
+        # opponent auto-advance), the audit row is already durable but
+        # session.pending was cleared and never re-populated. Without
+        # fail-closed cleanup the battle is wedged: get_battle_state /
+        # choose_action will only report "No pending request" until turn-
+        # budget timeout. Mirror the audit-append fail-closed posture: end
+        # the battle, stop the sidecar, and surface opaquely.
+        session.ended = {
+            "winner": "",
+            "turns": session.turns,
+            "reason": "fatal: battle advance failed after move executed",
+        }
+        if sidecar is not None:
+            try:
+                await sidecar.request("stop", battle=battle_id)
+            except Exception:
+                pass
+        raise _opaque_mcp_error("choose:advance", e) from None
 
 
 @mcp.tool()
