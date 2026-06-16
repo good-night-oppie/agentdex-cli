@@ -881,6 +881,103 @@ def test_choose_event_write_failure_safety(arena):
     assert "event log write failed" in session.ended.get("reason", "")
 
 
+def test_begin_event_write_failure_fail_closed(arena):
+    """PASS 37 (Class A): an EventLog append failure during /battle/begin must
+    leave NO live session — the begin receipt is durable before the session is
+    published, so an append failure 500s without orphaning a choosable battle."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="BeginFailBot")
+
+    original_append = gateway.events.append
+
+    def mock_append_fail(event_type, payload):
+        if event_type == "battle_begin":
+            raise OSError("mock write failure")
+        return original_append(event_type, payload)
+
+    gateway.events.append = mock_append_fail
+    start = client.post("/battle/start", json={"token": token}).json()
+    sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+    r = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": start["battle_nonce"],
+            "pop_signature_hex": sig,
+            "lane": "sandbox",
+        },
+    )
+    gateway.events.append = original_append
+
+    assert r.status_code == 500
+    # no orphan: the session was never published, and the log carries no begin row
+    assert gateway.sessions == {}
+    assert not any(e.get("type") == "battle_begin" for e in gateway.events.iter_events())
+
+
+@pytest.mark.timeout(90)
+def test_finish_event_write_failure_fail_closed(arena):
+    """PASS 38/39 (Class A): an append failure while finishing a battle must
+    publish NO /replay record and NO completion artifact — battle_end anchors the
+    durable group, so a fail-closed finish 500s and leaves nothing public."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="FinishFailBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    original_append = gateway.events.append
+
+    def mock_append_fail(event_type, payload):
+        if event_type == "battle_end":
+            raise OSError("mock write failure")
+        return original_append(event_type, payload)
+
+    gateway.events.append = mock_append_fail
+    # force the turn-budget forfeit so the next choose finalizes the battle
+    gateway.now = lambda: time.time() + 1000
+    r = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
+    gateway.events.append = original_append
+
+    assert r.status_code == 500
+    # fail-closed: no public replay, no completion artifact, session ended-fatal
+    assert battle_id not in gateway.replays
+    assert not (gateway.artifacts_dir / f"{battle_id}.inputlog.json").exists()
+    session = gateway.sessions[battle_id]
+    assert session.ended is not None
+    assert "event log write failed" in session.ended.get("reason", "")
+    assert not any(e.get("type") == "battle_end" for e in gateway.events.iter_events())
+
+
+@pytest.mark.timeout(120)
+def test_fork_event_write_failure_fail_closed(arena):
+    """PASS 40 (Class A): an append failure while forking must leave NO live fork
+    session — the fork-lineage row is durable before the fork is published and
+    replayed, so a fail-closed fork 500s without orphaning a parentless fork."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ForkFailBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+    src = receipt["battle_id"]
+    sessions_before = set(gateway.sessions)
+
+    original_append = gateway.events.append
+
+    def mock_append_fail(event_type, payload):
+        if event_type == "battle_fork":
+            raise OSError("mock write failure")
+        return original_append(event_type, payload)
+
+    gateway.events.append = mock_append_fail
+    r = client.post(f"/battle/{src}/fork", json={"token": token, "turn": 2})
+    gateway.events.append = original_append
+
+    assert r.status_code == 500
+    # no orphan fork: no new sandbox-fork- session published, no fork lineage row
+    new_sessions = set(gateway.sessions) - sessions_before
+    assert all(not s.startswith("sandbox-fork-") for s in new_sessions)
+    assert not any(e.get("type") == "battle_fork" for e in gateway.events.iter_events())
+
+
 @pytest.mark.timeout(90)
 def test_collusion_forensics_quarantine(arena):
     client, gateway, owner_inbox, agent_key = arena

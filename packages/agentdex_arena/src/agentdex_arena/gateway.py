@@ -634,6 +634,45 @@ class ArenaGateway:
         self.battle_nonces[nonce] = claims.token_id
         return {"battle_nonce": nonce, "pop_challenge": f"arena-pop:{claims.token_id}:{nonce}"}
 
+    async def _append_or_fail_closed(
+        self,
+        type_: str,
+        payload: dict[str, Any],
+        *,
+        sidecar: Sidecar | None = None,
+        battle_id: str | None = None,
+        session: BattleSession | None = None,
+    ) -> dict[str, Any]:
+        """Append a canonical EventLog row with Class-A fail-closed semantics.
+
+        Every externally visible side effect — publishing a session into
+        ``self.sessions``, writing a replay/artifact to disk, returning a
+        completion receipt — MUST be preceded by the durable EventLog append
+        that records it, so a fresh recompute from the log can never disagree
+        with what an owner or agent already saw (the honesty contract A8).
+
+        If the append throws (e.g. disk full), FAIL CLOSED: tear down the live
+        sidecar battle (no orphan live-but-unlogged battle), mark any live
+        session ended-fatal so a retry sees the failure instead of a hang, and
+        surface an opaque 500. The caller therefore never publishes a receipt
+        the log cannot back. This generalizes the known-good ``/choose`` path.
+        """
+        try:
+            return self.events.append(type_, payload)
+        except Exception as e:  # noqa: BLE001 — any append failure is fail-closed
+            if session is not None:
+                session.ended = {
+                    "winner": "",
+                    "turns": getattr(session, "turns", 0),
+                    "reason": f"fatal: event log write failed: {e!r}",
+                }
+            if sidecar is not None and battle_id is not None:
+                try:
+                    await sidecar.request("stop", battle=battle_id)
+                except Exception:  # noqa: BLE001 — best-effort teardown
+                    pass
+            raise _opaque_error(500, f"event log write failed: {e!r}") from None
+
     async def battle_begin(self, req: BeginRequest, *, sidecar: Sidecar) -> dict[str, Any]:
         try:
             claims = self.authority.verify(req.token, scope="battle")
@@ -743,11 +782,15 @@ class ArenaGateway:
                     detail="arena at capacity — finish or forfeit an active battle, then retry",
                 ) from None
             raise
-        self.sessions[battle_id] = session
-        # Chain event (mirrors to Postgres write-behind). NO seed in the payload:
-        # mirror rows are tenant-readable and the rated seed stays secret until
-        # the post-result disclosure (A3).
-        self.events.append(
+        # Class A (atomicity): the durable begin receipt MUST exist before the
+        # session is published into self.sessions — otherwise an append failure
+        # would leave a live, choosable battle the log never recorded. Append
+        # fail-closed FIRST; on failure the live sidecar battle is stopped and
+        # we 500, so the session below is never reached. Chain event mirrors to
+        # Postgres write-behind. NO seed in the payload: mirror rows are
+        # tenant-readable and the rated seed stays secret until the post-result
+        # disclosure (A3).
+        await self._append_or_fail_closed(
             "battle_begin",
             {
                 "tenant_id": claims.token_id,
@@ -756,7 +799,10 @@ class ArenaGateway:
                 "visitor": visitor,
                 "opponent": opponent,
             },
+            sidecar=sidecar,
+            battle_id=battle_id,
         )
+        self.sessions[battle_id] = session
         state = await self._advance(session, resp["state"], visitor_choice=None)
         out = {"battle_id": battle_id, "lane": req.lane, **state}
         if gym_team_name is not None:
@@ -935,11 +981,12 @@ class ArenaGateway:
         winner = sanitize_name(end.get("winner") or "")
         input_log = list(end.get("inputLog") or [])
         log_digest = hashlib.blake2b("\n".join(input_log).encode(), digest_size=16).hexdigest()
-        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-        (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
-            json.dumps(input_log, indent=1) + "\n"
-        )
-        session.ended = {"winner": winner, "turns": int(end.get("turns", 0))}
+        turns = int(end.get("turns", 0))
+        # Internal end-marker drives the collusion check below (_check_collusion
+        # reads session.ended["turns"]); it is in-memory only and is overwritten
+        # by the full receipt once every canonical append has succeeded — or by
+        # the fail-closed fatal marker if one throws.
+        session.ended = {"winner": winner, "turns": turns}
 
         # Check collusion forensics
         collusion_reason = self._check_collusion(session)
@@ -947,36 +994,119 @@ class ArenaGateway:
             session.ended["quarantined"] = True
             session.ended["quarantine_reason"] = collusion_reason
 
-        # Check if they earned a gym badge in sandbox
+        # Sandbox gym badge eligibility — computed here, appended in the durable
+        # phase below so a badge is never written without its battle_end anchor.
         badge_awarded = None
         if (
             session.lane == "sandbox"
             and session.opponent in GYM_BADGES
             and winner == session.visitor_name
         ):
-            badge_name = GYM_BADGES[session.opponent]
-            badge_awarded = badge_name
-            self.events.append(
-                "badge",
-                {
-                    "agent_name": session.visitor_name,
-                    "badge": badge_name,
-                    "battle_id": session.battle_id,
-                    "timestamp": self.now(),
-                },
-            )
+            badge_awarded = GYM_BADGES[session.opponent]
 
         signatures = [
             s.model_dump()
             for s in extract_signatures(list(end.get("keyLines") or []), side=session.visitor_side)
         ]
+
+        # ---- Class A (atomicity): durable append phase, fail-closed ----
+        # Every canonical EventLog row is committed BEFORE any externally visible
+        # publish (artifact file, /replay record, returned receipt). battle_end is
+        # the completion receipt and anchors the group, so a badge / quarantine /
+        # rating period can never outlive a missing completion receipt (PASS
+        # 38/39). If any append throws, _append_or_fail_closed stops the sidecar,
+        # marks the session ended-fatal, and 500s — nothing below is published.
+        await self._append_or_fail_closed(
+            "battle_end",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": session.battle_id,
+                "lane": session.lane,
+                "winner": winner,
+                "turns": turns,
+                "input_log_blake2b16": log_digest,
+            },
+            sidecar=session.sidecar,
+            battle_id=session.battle_id,
+            session=session,
+        )
+        if badge_awarded:
+            await self._append_or_fail_closed(
+                "badge",
+                {
+                    "agent_name": session.visitor_name,
+                    "badge": badge_awarded,
+                    "battle_id": session.battle_id,
+                    "timestamp": self.now(),
+                },
+                sidecar=session.sidecar,
+                battle_id=session.battle_id,
+                session=session,
+            )
+        if collusion_reason:
+            await self._append_or_fail_closed(
+                "quarantine",
+                {
+                    "battle_id": session.battle_id,
+                    "reason": collusion_reason,
+                    "timestamp": self.now(),
+                },
+                sidecar=session.sidecar,
+                battle_id=session.battle_id,
+                session=session,
+            )
+        rating_block: dict[str, Any] | None = None
+        if session.lane == "rated" and len(input_log) > 0:
+            for name in (session.visitor_name, session.opponent):
+                if name not in self._registered:
+                    await self._append_or_fail_closed(
+                        "register",
+                        {"name": name, "frozen": name.startswith("anchor-")},
+                        sidecar=session.sidecar,
+                        battle_id=session.battle_id,
+                        session=session,
+                    )
+                    self._registered.add(name)
+            before = recompute_ladder(self.events.path).rating(session.visitor_name)
+            await self._append_or_fail_closed(
+                "period",
+                {
+                    "events": [
+                        RatingEvent(
+                            battle_id=session.battle_id,
+                            p1=session.visitor_name,
+                            p2=session.opponent,
+                            winner=winner,
+                            input_log_blake2b16=log_digest,
+                        ).model_dump()
+                    ]
+                },
+                sidecar=session.sidecar,
+                battle_id=session.battle_id,
+                session=session,
+            )
+            after = recompute_ladder(self.events.path).rating(session.visitor_name)
+            delta = Ladder.published_delta(before, after)
+            rating_block = {
+                "rating": round(after.rating, 1),
+                "rd": round(after.rd, 1),
+                "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
+                "seed_disclosure": session.seed,  # revealed post-result (A3)
+                "opponent_team_disclosure": session.p2_team,  # i.i.d. team revealed post-result (#8)
+            }
+
+        # ---- publish phase: reached only once every append above succeeded ----
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
+            json.dumps(input_log, indent=1) + "\n"
+        )
         receipt: dict[str, Any] = {
             "status": "ended",
             "battle_id": session.battle_id,
             "lane": session.lane,
             "winner": winner,
             "you_won": winner == session.visitor_name,
-            "turns": session.ended["turns"],
+            "turns": turns,
             "failure_signatures": signatures,
             "replay": f"/replay/{session.battle_id}",
             "input_log_blake2b16": log_digest,
@@ -987,27 +1117,6 @@ class ArenaGateway:
             receipt["quarantine_reason"] = collusion_reason
         if badge_awarded:
             receipt["badge_awarded"] = badge_awarded
-
-        self.events.append(
-            "battle_end",
-            {
-                "tenant_id": session.claims_token_id,
-                "battle_id": session.battle_id,
-                "lane": session.lane,
-                "winner": winner,
-                "turns": session.ended["turns"],
-                "input_log_blake2b16": log_digest,
-            },
-        )
-        if collusion_reason:
-            self.events.append(
-                "quarantine",
-                {
-                    "battle_id": session.battle_id,
-                    "reason": collusion_reason,
-                    "timestamp": self.now(),
-                },
-            )
         if session.parent is not None:
             receipt["parent_battle_id"], receipt["fork_turn"] = session.parent
         # Internal record is richer than the public /replay view (which filters to
@@ -1028,37 +1137,8 @@ class ArenaGateway:
         }
         if badge_awarded:
             self.replays[session.battle_id]["badge_awarded"] = badge_awarded
-        if session.lane == "rated" and len(input_log) > 0:
-            for name in (session.visitor_name, session.opponent):
-                if name not in self._registered:
-                    self.events.append(
-                        "register", {"name": name, "frozen": name.startswith("anchor-")}
-                    )
-                    self._registered.add(name)
-            before = recompute_ladder(self.events.path).rating(session.visitor_name)
-            self.events.append(
-                "period",
-                {
-                    "events": [
-                        RatingEvent(
-                            battle_id=session.battle_id,
-                            p1=session.visitor_name,
-                            p2=session.opponent,
-                            winner=winner,
-                            input_log_blake2b16=log_digest,
-                        ).model_dump()
-                    ]
-                },
-            )
-            after = recompute_ladder(self.events.path).rating(session.visitor_name)
-            delta = Ladder.published_delta(before, after)
-            receipt["rating"] = {
-                "rating": round(after.rating, 1),
-                "rd": round(after.rd, 1),
-                "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
-                "seed_disclosure": session.seed,  # revealed post-result (A3)
-                "opponent_team_disclosure": session.p2_team,  # i.i.d. team revealed post-result (#8)
-            }
+        if rating_block is not None:
+            receipt["rating"] = rating_block
         session.ended = receipt
         return receipt
 
@@ -1093,6 +1173,22 @@ class ArenaGateway:
             p1={"name": session.visitor_name, "team": session.p1_team},
             p2={"name": session.opponent, "team": session.p2_team},
         )
+        # Class A (atomicity): record the fork lineage durably BEFORE the fork
+        # session is published/replayed — an append failure must not leave a live
+        # fork with no parent-lineage row. The payload is independent of the
+        # choice replay below, so appending it up-front loses nothing. Fail-closed
+        # stops the sidecar battle and 500s before the session is reachable.
+        await self._append_or_fail_closed(
+            "battle_fork",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": battle_id,
+                "parent_battle_id": src_battle_id,
+                "fork_turn": turn,
+            },
+            sidecar=sidecar,
+            battle_id=battle_id,
+        )
         self.sessions[battle_id] = session
         state = await self._advance(session, resp["state"], visitor_choice=None)
         for ch in src.get("visitor_choices", []):
@@ -1105,15 +1201,6 @@ class ArenaGateway:
                 "step", battle=battle_id, choices={session.visitor_side: ch}
             )
             state = await self._advance(session, step["state"], visitor_choice=None)
-        self.events.append(
-            "battle_fork",
-            {
-                "tenant_id": session.claims_token_id,
-                "battle_id": battle_id,
-                "parent_battle_id": src_battle_id,
-                "fork_turn": turn,
-            },
-        )
         return {
             "battle_id": battle_id,
             "lane": "sandbox",
@@ -1425,29 +1512,23 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
                 session.recent = old_recent
                 session.pending = old_pending
 
-        try:
-            gw.events.append(
-                "battle",
-                {
-                    "tenant_id": session.claims_token_id,
-                    "battle_id": battle_id,
-                    "turn": session.turns,
-                    "choice": choice,
-                    "choice_label": label,
-                    "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
-                },
-            )
-        except Exception as e:
-            session.ended = {
-                "winner": "",
-                "turns": session.turns,
-                "reason": f"fatal: event log write failed: {e!r}",
-            }
-            try:
-                await sidecar.request("stop", battle=battle_id)
-            except Exception:
-                pass
-            raise _opaque_error(500, f"event log write failed: {e!r}") from None
+        # Class A (atomicity): the move executed above, so its audit row MUST be
+        # durable before we advance/return — shared fail-closed append stops the
+        # sidecar + marks the session ended-fatal + 500s if the write throws.
+        await gw._append_or_fail_closed(
+            "battle",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": battle_id,
+                "turn": session.turns,
+                "choice": choice,
+                "choice_label": label,
+                "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
+            },
+            sidecar=sidecar,
+            battle_id=battle_id,
+            session=session,
+        )
         session.pending = None
         session.last_touch = gw.now()
         try:
