@@ -268,9 +268,12 @@ def render_markdown(board: dict[str, Any]) -> str:
         )
         comments = card.get("comments", [])
         if comments:
-            lines.append("- Recent comments: " + " / ".join(
-                f"{comment.get('author')}: {comment.get('body')}" for comment in comments[-3:]
-            ))
+            lines.append(
+                "- Recent comments: "
+                + " / ".join(
+                    f"{comment.get('author')}: {comment.get('body')}" for comment in comments[-3:]
+                )
+            )
         lines.append("")
 
     events = board.get("events", [])[-12:]
@@ -492,7 +495,10 @@ def cmd_move(args: argparse.Namespace) -> int:
             action="move",
             actor=args.author,
             card_id=card["id"],
-            detail={"before": before, "after": {"status": card["status"], "assignee": card["assignee"]}},
+            detail={
+                "before": before,
+                "after": {"status": card["status"], "assignee": card["assignee"]},
+            },
         )
         write_board(path, board)
         maybe_render_after_write(path, board, args.markdown)
