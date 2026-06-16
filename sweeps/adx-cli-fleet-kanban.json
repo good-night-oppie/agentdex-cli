@@ -27,9 +27,9 @@
       "impact": "Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.",
       "lane": "integrity",
       "priority": "P0",
-      "status": "ready",
+      "status": "review",
       "title": "Make arena receipts atomic before claiming honesty",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-16T21:49:18Z"
     },
     {
       "assignee": "adx-cli",
@@ -59,7 +59,13 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-cli-10",
+          "body": "Shipped as PR #175 (fix/owner-export-completeness): badge events carry tenant_id + /my/events does two-pass scan (top-level tenant_id OR agent_name fallback for legacy badge OR nested events[].battle_id for period rows). 4 regression tests incl. anti-leak guard. Babysitting to MERGED.",
+          "created_at": "2026-06-16T21:42:30Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass17",
@@ -74,13 +80,19 @@
       "impact": "Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.",
       "lane": "owner-data",
       "priority": "P1",
-      "status": "todo",
+      "status": "review",
       "title": "Make owner export include replay, badge, and rating lineage",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-16T21:42:30Z"
     },
     {
       "assignee": "harness",
-      "comments": [],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "Shipped fix in test_trace_propagation.py and documented fallback in phase-4-r3-spike-outcome.md",
+          "created_at": "2026-06-16T22:43:18Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass31",
@@ -91,13 +103,19 @@
       "impact": "The platform can pass trace-propagation tests while producing no usable trace/span link.",
       "lane": "observability",
       "priority": "P1",
-      "status": "todo",
+      "status": "review",
       "title": "Make observability acceptance fail when traces are absent",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-16T22:43:18Z"
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-cli-10",
+          "body": "Shipped as PR #174 (fix/admin-auth-before-parse): include_in_schema=False + raw Request with await request.json() AFTER _check_admin succeeds. 3 admin tests (1 original + 2 new for PASS 24/25); full arena suite 171 pass/1 skip/1 pre-existing fork-determinism fail. Babysitting to MERGED.",
+          "created_at": "2026-06-16T21:37:07Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass24",
@@ -108,9 +126,9 @@
       "impact": "Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.",
       "lane": "security",
       "priority": "P1",
-      "status": "todo",
+      "status": "review",
       "title": "Tighten admin surface and auth-before-parse contract",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-16T21:37:07Z"
     },
     {
       "assignee": "codex",
@@ -173,6 +191,25 @@
       "status": "done",
       "title": "Preserve verified strengths while fixing gaps",
       "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "og",
+      "comments": [],
+      "created_by": "og",
+      "evidence": [
+        "A2A#227(bene-10 clarification)",
+        "A2A#223(goal correction)",
+        "bene-core-4 pane(403 stall)",
+        "workflow JS(345dfc28/b1ae0bdc)"
+      ],
+      "fix": "Installed loop+codex-loop skills to ~/.claude/skills + ~/.agents/skills + ~/.gemini/config/plugins. bene-core-4 needs /login to clear 403. Reviewer persona is in .claude/workflows/bene-docs-accuracy-review.js and 345dfc28 session workflow scripts. bene-10 actual work = FRAMEWORK-HELP roadmap (langfuse v4 fix + probe run CLI + lighthouse probe), NOT prompts.py.",
+      "id": "ADX-P1-005",
+      "impact": "bene-core-4 stalled (403 quota); loop+codex-loop skills were missing; reviewer persona (SKEPTICAL FIRST-TIME USER + PG/KDB lenses) lives in workflow JS, not in bene/ccr/prompts.py; bene-10 clarified NO system-prompt takeover exists",
+      "lane": "docs",
+      "priority": "P1",
+      "status": "triage",
+      "title": "BENE docs/UI/frontend CN+EN review \u2014 loop skill installed",
+      "updated_at": "2026-06-16T22:03:43Z"
     }
   ],
   "events": [
@@ -216,8 +253,116 @@
       "card_id": "ADX-P1-001",
       "created_at": "2026-06-16T21:27:41Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-004",
+      "created_at": "2026-06-16T21:37:07Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-004",
+      "created_at": "2026-06-16T21:37:07Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P0-001",
+      "created_at": "2026-06-16T21:39:03Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "ready"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-002",
+      "created_at": "2026-06-16T21:42:30Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-002",
+      "created_at": "2026-06-16T21:42:30Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P0-001",
+      "created_at": "2026-06-16T21:49:18Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "add",
+      "actor": "og",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-16T22:03:43Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "harness",
+      "card_id": "ADX-P1-003",
+      "created_at": "2026-06-16T22:43:10Z",
+      "detail": {
+        "after": {
+          "assignee": "harness",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "harness",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "harness",
+      "card_id": "ADX-P1-003",
+      "created_at": "2026-06-16T22:43:18Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-16T21:27:41Z"
+  "updated_at": "2026-06-16T22:43:18Z"
 }

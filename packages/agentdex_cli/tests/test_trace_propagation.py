@@ -81,7 +81,6 @@ def test_orchestrator_to_gateway_trace_round_trip():
         assert "X-Langfuse-Trace-Id" in headers
         # Simulate gateway-side ingestion
         propagated = set_trace_context_from_headers(headers)
-        # The pass/fail of `propagated` IS the R3 spike outcome; both paths are
-        # honest. False here means we fall back to per-baseline-root traces
-        # (documented in phase-4-r3-spike-outcome.md).
-        assert isinstance(propagated, bool)
+        # We require actual trace link presence in acceptance tests.
+        # Fallback mode is documented separately in phase-4-r3-spike-outcome.md.
+        assert propagated is True, "Trace propagation failed. Traces are absent."

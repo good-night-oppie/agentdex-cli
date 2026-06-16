@@ -44,28 +44,19 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
+| ADX-P1-005 | P1 | og | docs | BENE docs/UI/frontend CN+EN review — loop skill installed | A2A#227(bene-10 clarification), A2A#223(goal correction), bene-core-4 pane(403 stall), workflow JS(345dfc28/b1ae0bdc) |
 | ADX-P2-001 | P2 | codex | agent-ux | Reduce starter and CLI footguns for visiting agents | pass14, pass15, pass16, pass29 |
 | ADX-P2-002 | P2 | codex | gameplay | Make arena gameplay feedback more legible and less first-legal | pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13 |
-
-### todo
-
-| ID | Pri | Assignee | Lane | Title | Evidence |
-|---|---|---|---|---|---|
-| ADX-P1-002 | P1 | adx-cli | owner-data | Make owner export include replay, badge, and rating lineage | pass17, pass19, pass20, pass21, pass41, pass42-candidate |
-| ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
-| ADX-P1-004 | P1 | adx-cli | security | Tighten admin surface and auth-before-parse contract | pass24, pass25 |
-
-### ready
-
-| ID | Pri | Assignee | Lane | Title | Evidence |
-|---|---|---|---|---|---|
-| ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
 
 ### review
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
+| ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
 | ADX-P1-001 | P1 | adx-cli | fairness | Stop spending rated/evolution/badge quota before work is accepted | pass26, pass33, pass34, pass35, pass36 |
+| ADX-P1-002 | P1 | adx-cli | owner-data | Make owner export include replay, badge, and rating lineage | pass17, pass19, pass20, pass21, pass41, pass42-candidate |
+| ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
+| ADX-P1-004 | P1 | adx-cli | security | Tighten admin surface and auth-before-parse contract | pass24, pass25 |
 
 ### done
 
@@ -78,42 +69,22 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
 - Priority: `P0`
-- Status: `ready`
+- Status: `review`
 - Assignee: `adx-cli`
 - Lane: `integrity`
 - Impact: Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.
 - Suggested fix: Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.
 - Evidence: pass27, pass28, pass37, pass38, pass39, pass40
 
-### ADX-P1-002 - Make owner export include replay, badge, and rating lineage
+### ADX-P1-005 - BENE docs/UI/frontend CN+EN review — loop skill installed
 
 - Priority: `P1`
-- Status: `todo`
-- Assignee: `adx-cli`
-- Lane: `owner-data`
-- Impact: Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.
-- Suggested fix: Select events by canonical agent/battle joins and nested period payloads, not only top-level tenant_id.
-- Evidence: pass17, pass19, pass20, pass21, pass41, pass42-candidate
-
-### ADX-P1-003 - Make observability acceptance fail when traces are absent
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `harness`
-- Lane: `observability`
-- Impact: The platform can pass trace-propagation tests while producing no usable trace/span link.
-- Suggested fix: Require actual trace context/link presence in acceptance tests; document fallback mode separately.
-- Evidence: pass31, pass32
-
-### ADX-P1-004 - Tighten admin surface and auth-before-parse contract
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `adx-cli`
-- Lane: `security`
-- Impact: Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.
-- Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
-- Evidence: pass24, pass25
+- Status: `triage`
+- Assignee: `og`
+- Lane: `docs`
+- Impact: bene-core-4 stalled (403 quota); loop+codex-loop skills were missing; reviewer persona (SKEPTICAL FIRST-TIME USER + PG/KDB lenses) lives in workflow JS, not in bene/ccr/prompts.py; bene-10 clarified NO system-prompt takeover exists
+- Suggested fix: Installed loop+codex-loop skills to ~/.claude/skills + ~/.agents/skills + ~/.gemini/config/plugins. bene-core-4 needs /login to clear 403. Reviewer persona is in .claude/workflows/bene-docs-accuracy-review.js and 345dfc28 session workflow scripts. bene-10 actual work = FRAMEWORK-HELP roadmap (langfuse v4 fix + probe run CLI + lighthouse probe), NOT prompts.py.
+- Evidence: A2A#227(bene-10 clarification), A2A#223(goal correction), bene-core-4 pane(403 stall), workflow JS(345dfc28/b1ae0bdc)
 
 ### ADX-P1-001 - Stop spending rated/evolution/badge quota before work is accepted
 
@@ -125,6 +96,39 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Move quota debit after validation and successful durable acceptance, or add explicit refund records on retryable failures.
 - Evidence: pass26, pass33, pass34, pass35, pass36
 - Recent comments: adx-cli-10: Shipped as PR #173 (fix/class-b-quota-spend-after-success): rated begin spend after sidecar.start, badge_mint spend after sign_badge, evolve spend after offer_seeds. 4 sidecar-free regression tests + full arena suite 169 pass/1 skip/1 pre-existing fork-determinism fail. Babysitting to MERGED.
+
+### ADX-P1-002 - Make owner export include replay, badge, and rating lineage
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `adx-cli`
+- Lane: `owner-data`
+- Impact: Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.
+- Suggested fix: Select events by canonical agent/battle joins and nested period payloads, not only top-level tenant_id.
+- Evidence: pass17, pass19, pass20, pass21, pass41, pass42-candidate
+- Recent comments: adx-cli-10: Shipped as PR #175 (fix/owner-export-completeness): badge events carry tenant_id + /my/events does two-pass scan (top-level tenant_id OR agent_name fallback for legacy badge OR nested events[].battle_id for period rows). 4 regression tests incl. anti-leak guard. Babysitting to MERGED.
+
+### ADX-P1-003 - Make observability acceptance fail when traces are absent
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `harness`
+- Lane: `observability`
+- Impact: The platform can pass trace-propagation tests while producing no usable trace/span link.
+- Suggested fix: Require actual trace context/link presence in acceptance tests; document fallback mode separately.
+- Evidence: pass31, pass32
+- Recent comments: harness: Shipped fix in test_trace_propagation.py and documented fallback in phase-4-r3-spike-outcome.md
+
+### ADX-P1-004 - Tighten admin surface and auth-before-parse contract
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `adx-cli`
+- Lane: `security`
+- Impact: Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.
+- Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
+- Evidence: pass24, pass25
+- Recent comments: adx-cli-10: Shipped as PR #174 (fix/admin-auth-before-parse): include_in_schema=False + raw Request with await request.json() AFTER _check_admin succeeds. 3 admin tests (1 original + 2 new for PASS 24/25); full arena suite 171 pass/1 skip/1 pre-existing fork-determinism fail. Babysitting to MERGED.
 
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
@@ -160,10 +164,18 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-16T20:14:58Z | seed | codex |  | {"cards": 8} |
 | 2026-06-16T20:14:58Z | init | codex |  | {"force": true} |
 | 2026-06-16T21:27:41Z | move | adx-cli-10 | ADX-P1-001 | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "adx-cli", "status": "todo"}} |
 | 2026-06-16T21:27:41Z | comment | adx-cli-10 | ADX-P1-001 | {} |
+| 2026-06-16T21:37:07Z | move | adx-cli-10 | ADX-P1-004 | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "adx-cli", "status": "todo"}} |
+| 2026-06-16T21:37:07Z | comment | adx-cli-10 | ADX-P1-004 | {} |
+| 2026-06-16T21:39:03Z | move | codex | ADX-P0-001 | {"after": {"assignee": "codex", "status": "running"}, "before": {"assignee": "adx-cli", "status": "ready"}} |
+| 2026-06-16T21:42:30Z | move | adx-cli-10 | ADX-P1-002 | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "adx-cli", "status": "todo"}} |
+| 2026-06-16T21:42:30Z | comment | adx-cli-10 | ADX-P1-002 | {} |
+| 2026-06-16T21:49:18Z | move | codex | ADX-P0-001 | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "codex", "status": "running"}} |
+| 2026-06-16T22:03:43Z | add | og | ADX-P1-005 | {} |
+| 2026-06-16T22:43:10Z | move | harness | ADX-P1-003 | {"after": {"assignee": "harness", "status": "review"}, "before": {"assignee": "harness", "status": "todo"}} |
+| 2026-06-16T22:43:18Z | comment | harness | ADX-P1-003 | {} |
 
 ## Source Pattern
 
