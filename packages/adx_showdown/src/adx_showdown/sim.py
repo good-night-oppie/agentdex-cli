@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.protocol import (
     ParsedRequest,
+    active_species,
     fainted_switch_choices,
     legal_choices,
     move_only_choices,
@@ -214,7 +215,7 @@ async def run_battle(
             last_req[side] = req
             ctx = BattleContext(
                 side=side,
-                my_species=(state.get("active") or {}).get(side),
+                my_species=(state.get("active") or {}).get(side) or active_species(req),
                 opponent_species=(state.get("active") or {}).get(OTHER[side]),
                 turns=int(state.get("turns", 0)),
             )

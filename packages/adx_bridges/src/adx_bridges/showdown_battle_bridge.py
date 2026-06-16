@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
-from adx_showdown.protocol import ParsedRequest, legal_choices
+from adx_showdown.protocol import ParsedRequest, active_species, legal_choices
 from adx_showdown.sidecar import Sidecar
 from adx_showdown.sim import BattleContext, BattleResult, Policy, run_battle
 
@@ -77,9 +77,10 @@ def render_state(
     """Bounded battle-state prompt. Strings inside `req` were sanitized at the
     protocol parse boundary (A6); this renderer only ever shrinks content."""
     choices = legal_choices(req)
+    my_active = ctx.my_species or active_species(req)
     lines = [
         f"# Turn {ctx.turns} — you are {ctx.side}",
-        f"Your active: {ctx.my_species or '?'} | Opponent active: {ctx.opponent_species or '?'}",
+        f"Your active: {my_active or '?'} | Opponent active: {ctx.opponent_species or '?'}",
         "",
         "## Your options (reply with the NUMBER of your choice)",
     ]

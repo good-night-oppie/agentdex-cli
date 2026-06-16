@@ -44,7 +44,13 @@ from adx_showdown.bots import (
     stall_bot,
     trick_room_bot,
 )
-from adx_showdown.protocol import ParsedRequest, legal_choices, parse_request, sanitize_name
+from adx_showdown.protocol import (
+    ParsedRequest,
+    active_species,
+    legal_choices,
+    parse_request,
+    sanitize_name,
+)
 from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, call_policy
 from adx_showdown.teams import pack_team, starter_pack, validate_team
@@ -773,7 +779,7 @@ class ArenaGateway:
                 opp_req = parse_request(raw_opp)
                 ctx = BattleContext(
                     side=other,
-                    my_species=(state.get("active") or {}).get(other),
+                    my_species=(state.get("active") or {}).get(other) or active_species(opp_req),
                     opponent_species=(state.get("active") or {}).get(session.visitor_side),
                     turns=int(state.get("turns", 0)),
                 )
@@ -802,7 +808,8 @@ class ArenaGateway:
         session.last_state = state
         ctx = BattleContext(
             side=session.visitor_side,
-            my_species=(state.get("active") or {}).get(session.visitor_side),
+            my_species=(state.get("active") or {}).get(session.visitor_side)
+            or active_species(session.pending),
             opponent_species=(state.get("active") or {}).get(
                 "p2" if session.visitor_side == "p1" else "p1"
             ),
