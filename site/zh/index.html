@@ -321,7 +321,7 @@ const TheGap = () => (
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 2：跨 agent 的记忆，得带 provenance「溯源」</h3>
         <p className="text-bene-muted leading-relaxed">
-          对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。挂上 BENE 的 kernel，每轮交互就都写成这种 engram。
+          对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。BENE 每次 run 默认就把每轮交互写成这种 engram。
         </p>
         <GapDemo gif="gap-2-engram.gif" caption="bene query 直接打开 demo db：tier 分布 + 每个 tier 的样例 title。trace / episodic / strategic 都在，provenance 强制入库。" />
       </Card>
@@ -350,7 +350,7 @@ const TheGap = () => (
 const Contract = () => {
   const inv = [
     { n: '1', t: 'agent 之间，不会莫名其妙串了状态', d: '每个 agent 自带一份 SQLite-backed 的 VFS「虚拟文件系统」，能 diff、能 restore。跨 agent 想读数据，先显式声明；跨 agent 想拍板，必须走 SharedLog「共享日志」的 intent → vote → decide。隔离写在结构里——不靠运维半夜补 ACL。' },
-    { n: '2', t: '下一个 agent 进场，grep 一把就知道上一个学到了啥', d: '挂上 kernel 之后，run 会落 5 tier 的带类型 engram：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。promote 只写新结论，不动源数据。provenance 强制入库，少一个字段都过不了。' },
+    { n: '2', t: '下一个 agent 进场，grep 一把就知道上一个学到了啥', d: '默认每次 run 都落 5 tier 的带类型 engram（想关可以按 run 关掉）：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。promote 只写新结论，不动源数据。provenance 强制入库，少一个字段都过不了。' },
     { n: '3', t: '烂 prompt 别想着跑过 eval 就溜上线', d: "任何想 evolve 的东西，先过一道 sha256-locked probe。spec 一动，直接拒。连 baseline 都打不穿的 gate，只配注册成 VOID，没资格拿 ACCEPT。verdict 也会写成 engram，三个月后翻出来，还能复盘当时为啥放行。" },
     { n: '4', t: 'L4 这一档，只能由人按名字签发', d: "四个 signal 合成 [0,1] 区间的 composite「合成分」。想拿 L4，granted_by 必须写 human:<name>，不然 API 当场抛错。没有自动晋升——任何配置都绕不过这个 human 签名。" },
   ];
@@ -541,7 +541,7 @@ const Architecture = () => {
       oneLine: '5 层带类型的执行记忆',
       scene: '一个 agent 卡了重跑，你想知道前一次它到底学到了什么、为什么走到这一步。',
       common: '调 LLM provider 的 trace UI、看 chain-of-thought log、关键决策手抄到 Notion。要么没有，要么没分类，要么过几天被新数据 overwrite。',
-      mechanism: '挂上 kernel 之后，一次 run 落 5 层带类型的 engram：tier 0 原始 trace、tier 1 一次事件回顾、tier 2 跨事件抽象、tier 3 可复用 procedure、tier 4 候选 strategy。升一层得过 probe；新结论留下来，不动原始数据。',
+      mechanism: '默认每次 run 每轮落一条 tier-0 trace engram（想关：emit_engrams=False 或 kernel.emit_engrams: false）；consolidation 再往上抬 5 层：tier 0 原始 trace、tier 1 一次事件回顾、tier 2 跨事件抽象、tier 3 可复用 procedure、tier 4 候选 strategy。升一层得过 probe；新结论留下来，不动原始数据。',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier 0 trace</span>

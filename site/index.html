@@ -332,7 +332,7 @@ const TheGap = () => (
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 2. Cross-agent memory with provenance</h3>
         <p className="text-bene-muted leading-relaxed">
-          Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. Attach BENE's kernel and every turn lands as that kind of engram.
+          Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. Every BENE run lands each turn as that kind of engram by default.
         </p>
         <GapDemo gif="gap-2-engram.gif" caption="bene query on the demo db shows the tier distribution: trace, episodic, strategic — each with title + provenance." />
       </Card>
@@ -361,7 +361,7 @@ const TheGap = () => (
 const Contract = () => {
   const inv = [
     { n: '1', t: 'Your agents do not share state by accident', d: 'Every agent owns a SQLite-backed virtual filesystem you can diff and restore. Cross-agent reads are explicit; cross-agent decisions ride SharedLog (intent → vote → decide). Isolation is structural — no ACL maintenance.' },
-    { n: '2', t: 'The next agent walks in and greps what the last one learned', d: 'With the kernel attached, runs leave typed engrams on a 5-tier ladder: trace 0, episodic 1, semantic 2, procedural 3, strategic 4. Promotion never mutates sources. Provenance is mandatory.' },
+    { n: '2', t: 'The next agent walks in and greps what the last one learned', d: 'Every run leaves typed engrams on a 5-tier ladder by default (opt out per run): trace 0, episodic 1, semantic 2, procedural 3, strategic 4. Promotion never mutates sources. Provenance is mandatory.' },
     { n: '3', t: 'A bad prompt cannot ship by passing eval alone', d: "Anything that evolves passes a sha256-locked falsifiable probe before promotion. Tamper the spec, the probe refuses. A gate that can't kill the baseline registers as VOID. Verdicts are themselves engrams, re-readable months later." },
     { n: '4', t: 'L4 grants come from a named human only', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion, and no flag bypasses the human grant." },
   ];
@@ -552,7 +552,7 @@ const Architecture = () => {
       oneLine: 'five-tier typed execution memory',
       scene: "An agent stalled mid-run; you replay and want to know what it learned the first time and why it ended up here.",
       common: "Open the LLM provider's trace UI, scroll chain-of-thought logs, copy the decisive lines into Notion. Often missing, often untyped, often overwritten by the next batch of data.",
-      mechanism: 'With the kernel attached, a run drops five tiers of typed engrams: tier 0 raw trace, tier 1 one-episode summary, tier 2 cross-episode abstraction, tier 3 reusable procedure, tier 4 candidate strategy. A promotion between tiers must pass a probe; the new conclusion lands in a new row, the original is never mutated.',
+      mechanism: 'By default every run drops a tier-0 trace engram per turn (opt out with emit_engrams=False or kernel.emit_engrams: false); consolidation lifts them up five tiers: tier 0 raw trace, tier 1 one-episode summary, tier 2 cross-episode abstraction, tier 3 reusable procedure, tier 4 candidate strategy. A promotion between tiers must pass a probe; the new conclusion lands in a new row, the original is never mutated.',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier 0 trace</span>
