@@ -279,7 +279,7 @@ const Hero = () => (
             <span className="text-bene-text font-medium">No vendor portal. No dashboard you're waiting on.</span>
           </p>
           <p className="text-sm text-bene-muted leading-relaxed font-mono">
-            That gate is what the next ship has to clear: <code className="text-bene-text">promote()</code> raises <code className="text-bene-text">PromotionBlocked</code> until a sha256-locked probe says ACCEPT, and CI halts on the exception. An agent can breed a better strategy with <code className="text-bene-text">bene mh search</code> — but it hits the same locked gate, no back door. Win or lose, the attempt lands in <code className="text-bene-text">bene.db</code> as the next run's input.
+            That gate is what the next ship has to clear: <code className="text-bene-text">promote()</code> raises <code className="text-bene-text">PromotionBlocked</code> until a sha256-locked probe says ACCEPT, and CI halts on the exception. An agent can breed a better strategy with <code className="text-bene-text">bene mh search</code> — but it hits the same locked gate, no second path. Win or lose, the attempt lands in <code className="text-bene-text">bene.db</code> as the next run's input.
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -318,7 +318,7 @@ const TheGap = () => (
     <Kicker number="01" title="The Gap" />
     <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">
       Production gaps the research moved past.<br />
-      <span className="text-bene-muted">Most agent stacks haven't picked them up yet.</span>
+      <span className="text-bene-muted">Your stack closes some — BENE closes them in one auditable file.</span>
     </h2>
     <p className="font-mono text-xs text-bene-muted mb-8">The 4 clips below are real bene-main HEAD runs — no output edits.</p>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
@@ -332,7 +332,7 @@ const TheGap = () => (
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">Gap 2. Cross-agent memory with provenance</h3>
         <p className="text-bene-muted leading-relaxed">
-          Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. BENE writes every turn as that kind of engram by default.
+          Conversation history and single-agent memory blocks are common; what’s rare is typed, provenance-linked engrams on a 5-tier ladder that another agent can grep months later and trust. Attach BENE's kernel and every turn lands as that kind of engram.
         </p>
         <GapDemo gif="gap-2-engram.gif" caption="bene query on the demo db shows the tier distribution: trace, episodic, strategic — each with title + provenance." />
       </Card>
@@ -361,9 +361,9 @@ const TheGap = () => (
 const Contract = () => {
   const inv = [
     { n: '1', t: 'Your agents do not share state by accident', d: 'Every agent owns a SQLite-backed virtual filesystem you can diff and restore. Cross-agent reads are explicit; cross-agent decisions ride SharedLog (intent → vote → decide). Isolation is structural — no ACL maintenance.' },
-    { n: '2', t: 'The next agent walks in and greps what the last one learned', d: 'Every run leaves typed engrams on a 5-tier ladder: trace 0, episodic 1, semantic 2, procedural 3, strategic 4. Promotion never mutates sources. Provenance is mandatory.' },
+    { n: '2', t: 'The next agent walks in and greps what the last one learned', d: 'With the kernel attached, runs leave typed engrams on a 5-tier ladder: trace 0, episodic 1, semantic 2, procedural 3, strategic 4. Promotion never mutates sources. Provenance is mandatory.' },
     { n: '3', t: 'A bad prompt cannot ship by passing eval alone', d: "Anything that evolves passes a sha256-locked falsifiable probe before promotion. Tamper the spec, the probe refuses. A gate that can't kill the baseline registers as VOID. Verdicts are themselves engrams, re-readable months later." },
-    { n: '4', t: 'L4 grants come from a named human only', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion. No YAML knob for it." },
+    { n: '4', t: 'L4 grants come from a named human only', d: "Four signals fold into a [0,1] composite. L4 grants require granted_by='human:<name>' or the API raises. No self-promotion, and no flag bypasses the human grant." },
   ];
   return (
     <Section id="contract" inverted>
@@ -405,7 +405,7 @@ const Comparison = () => {
     'At 3 a.m. you can grep what the last agent learned and why it shipped',
     "Two agents can't share state by accident — isolation lives in the per-agent VFS, not in ACL configs",
     'Cross-agent decisions follow one auditable path; you can replay who voted what',
-    'Run `bene trust show <agent>` and 4 signals come back from the audit trail — no YAML flag flips them',
+    'Run `bene trust <agent>` and 4 signals come back from the audit trail — no YAML flag flips them',
     'Strategies can evolve; only the ones that pass the gate reach production',
     'At 3 a.m. open bene.db with sqlite3 — cp, rsync, diff all just work',
   ];
@@ -424,7 +424,7 @@ const Comparison = () => {
           ))}
         </ul>
       </div>
-      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">Integration recipes</h3>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">Integration patterns — you wire these yourself (no separate adapter package)</h3>
       <div className="border border-bene-dim bg-bene-surface mb-16">
         {recipes.map((r, i) => (
           <div key={r.n} className={'flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4 ' + (i < recipes.length - 1 ? 'border-b border-bene-dim' : '')}>
@@ -492,12 +492,12 @@ const Proof = () => {
 const Recipes = () => {
   const rs = [
     { id: 'R1', t: 'Recover from a bad turn', m: 'bene.checkpoints', who: 'you', flow: ['agent run', 'checkpoint("green")', 'diff → restore'], d: 'Litany loop.', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
-    { id: 'R2', t: 'Coordinate two agents', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner.intent', 'SharedLog.vote', 'executor.decide'], d: '2-agent pattern for tasks over 3 steps.', c: '# See Tab 2 in Proof section', v: 'bene log show --topic plan/v1  →  intent, vote, decide all present' },
-    { id: 'R3', t: 'Gate the next promote', m: 'bene.kernel.eval', who: 'you + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "Five lines that define BENE's promotion contract.", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  one line' },
+    { id: 'R2', t: 'Coordinate two agents', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner.intent', 'SharedLog.vote', 'executor.decide'], d: '2-agent pattern for tasks over 3 steps.', c: '# See Tab 2 in Proof section', v: 'bene log tail --n 5  →  intent, vote, decide all present' },
+    { id: 'R3', t: 'Gate the next promote', m: 'bene.kernel.eval', who: 'you + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "Five lines that define BENE's promotion contract.", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  the verdict' },
     { id: 'R4', t: 'Compound memory across runs', m: 'bene.kernel.memory', who: 'you → agents', flow: ['legacy store', 'attach_kernel', 'memory.search hit'], d: 'Mirror legacy stores into engrams; consolidate; adaptive retrieval.', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<task hint>"  →  hits from prior sessions' },
-    { id: 'R5', t: 'Keep context inside budget', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['budget=8192', 'ContextOS.assemble', 'never overshoots'], d: 'Budgeted assembly, pollution detector.', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget never overshoots' },
-    { id: 'R6', t: 'Escalate autonomy by probe', m: 'bene.kernel.trust + .harness', who: 'agent climbs · human signs L4', flow: ['4 signals', 'composite ∈ [0,1]', 'human signs L4'], d: 'Grants escalate by passing probes, not editing YAML.', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
-    { id: 'R7', t: 'Breed a better strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: 'Breed strategies; bridge is manual today, end-to-end wiring on roadmap.', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
+    { id: 'R5', t: 'Keep context inside budget', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['ContextOS()', 'assemble(budget_tokens)', 'never overshoots'], d: 'Budgeted assembly, pollution detector.', c: 'packed = ContextOS().assemble(items, budget_tokens=8192)', v: 'packed.manifest["estimated_tokens"] <= 8192  →  True' },
+    { id: 'R6', t: 'Escalate autonomy by probe', m: 'bene.kernel.trust + .harness', who: 'agent climbs · human signs L4', flow: ['4 signals', 'composite ∈ [0,1]', 'human signs L4'], d: 'Grants escalate by passing probes, not editing YAML.', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust <agent>  →  composite ∈ [0,1]' },
+    { id: 'R7', t: 'Breed a better strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: 'Breed strategies; bridge is manual today, end-to-end wiring on roadmap.', c: 'bene mh search --benchmark <name>', v: 'bene mh frontier <search_agent_id> | jq .' },
     { id: 'R8', t: 'Plug BENE into your agent', m: 'bene.mcp', who: 'you, once', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls'], d: 'One line in Claude Code, Cursor, Aider.', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  bene listed' },
   ];
   return (
@@ -552,7 +552,7 @@ const Architecture = () => {
       oneLine: 'five-tier typed execution memory',
       scene: "An agent stalled mid-run; you replay and want to know what it learned the first time and why it ended up here.",
       common: "Open the LLM provider's trace UI, scroll chain-of-thought logs, copy the decisive lines into Notion. Often missing, often untyped, often overwritten by the next batch of data.",
-      mechanism: 'Every run drops five tiers of typed engrams: tier 0 raw trace, tier 1 one-episode summary, tier 2 cross-episode abstraction, tier 3 reusable procedure, tier 4 candidate strategy. A promotion between tiers must pass a probe; the new conclusion lands in a new row, the original is never mutated.',
+      mechanism: 'With the kernel attached, a run drops five tiers of typed engrams: tier 0 raw trace, tier 1 one-episode summary, tier 2 cross-episode abstraction, tier 3 reusable procedure, tier 4 candidate strategy. A promotion between tiers must pass a probe; the new conclusion lands in a new row, the original is never mutated.',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier 0 trace</span>
@@ -574,7 +574,7 @@ const Architecture = () => {
       oneLine: 'the gate before promotion',
       scene: 'A new prompt passes eval with a 2-point lift over baseline. You do not want to push it and then discover it regresses on some case nobody covered.',
       common: 'A reminder in CI to "ask someone to review prompt changes" or a GitHub Action that compares eval scores. Both are cultural conventions, not structural constraints.',
-      mechanism: 'register_probe(target, fn) seals the spec under sha256. promote(candidate) runs the candidate through the probe; the verdict is ACCEPT, REJECT, or VOID (failed to beat baseline). No ACCEPT means PromotionBlocked is raised and CI halts on the exception. Try to evolve the spec to flip the verdict? The sha256 will not match and the probe REJECTs. The verdict itself lands as an engram, re-readable months later.',
+      mechanism: 'register_probe(target, fn) seals the spec under sha256. promote(candidate) runs the candidate through the probe; the verdict is ACCEPT, REJECT, or VOID (the probe is inadmissible — a gate that can't kill its own baseline; REJECT means the candidate failed an admissible gate). No ACCEPT means PromotionBlocked is raised and CI halts on the exception. Try to evolve the spec to flip the verdict? The sha256 will not match and the probe refuses to run (LockTamperError). The verdict itself lands as an engram, re-readable months later.',
       diagram: (
         <div className="font-mono text-[11px] lg:text-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -619,10 +619,10 @@ const Architecture = () => {
     {
       key: 'autonomy',
       name: 'Autonomy ladder + trust ledger',
-      oneLine: 'Run `bene trust show <agent>`; four signals fold into a [0,1] composite',
+      oneLine: 'Run `bene trust <agent>`; four signals fold into a [0,1] composite',
       scene: 'An agent has run three weeks without an error and the team wants it to own a class of decisions outright. Question: by what evidence is that the right call?',
       common: "Set autonomy_level: 3 in a YAML, or the lead approves it from gut. When something breaks, dig commit messages to find out who signed off.",
-      mechanism: 'Four signals are computed from the audit trail: verification_coverage (probe pass rate), audit (review hit rate), checkpoint (rollback frequency), outcome (task success rate). They fold into a [0,1] composite that lands the agent on L0 / L1 / L2 / L3 — these tiers auto-promote when probes pass. L4 (the top tier) is a hard contract: granted_by="human:<name>" or the API raises. No bene.config flag changes it.',
+      mechanism: 'Four signals are computed from the audit trail: verification_coverage (probe pass rate), audit (review hit rate), checkpoint (rollback frequency), outcome (task success rate). They fold into a [0,1] composite that places the agent on L0 / L1 / L2 / L3. The composite is advisory — every level change is an explicit grant, never automatic. L4 (the top tier) is a hard contract: granted_by="human:<name>" or the API raises. No config flag bypasses that human requirement.',
       diagram: (
         <div className="font-mono text-[11px] lg:text-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -636,7 +636,7 @@ const Architecture = () => {
           <div className="flex flex-wrap items-center gap-2 pl-4">
             <span className="text-bene-accent">→</span>
             <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">L0 / L1 / L2 / L3</span>
-            <span className="text-bene-muted">probe-gated auto-promotion</span>
+            <span className="text-bene-muted">advisory — grants are explicit</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 pl-4">
             <span className="text-bene-accent">→</span>
@@ -645,7 +645,7 @@ const Architecture = () => {
           </div>
         </div>
       ),
-      verify: 'bene trust show <agent>',
+      verify: 'bene trust <agent>',
     },
     {
       key: 'breeding',
@@ -653,7 +653,7 @@ const Architecture = () => {
       oneLine: 'strategies that cross-generation themselves better',
       scene: "You have run the same task class fifty times with slightly different prompts or strategies. You want the Pareto front of the survivors across generations, not another hand-tune.",
       common: 'AutoML or a DSPy compile run produces a candidate; either someone copy-pastes it into production, or it replaces deploy.py directly — straight into a reward-hack on the metric.',
-      mechanism: 'mh_search generates candidates → genome encoding makes the control signals dense → Pareto front filters survivors → promote() routes them through the same kill gate any other promotion uses. No back door. The mh_search-to-promote bridge is manual today (CLAIMS-AUDIT line 36 marks it partial); end-to-end wiring is on the roadmap and not claimed as shipping.',
+      mechanism: 'mh_search generates candidates → genome encoding makes the control signals dense → Pareto front filters survivors → promote() routes them through the same kill gate any other promotion uses — every promotion goes through it, no separate path. The mh_search-to-promote bridge is manual today (CLAIMS-AUDIT line 36 marks it partial); end-to-end wiring is on the roadmap and not claimed as shipping.',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">mh_search</span>
@@ -709,7 +709,7 @@ const Architecture = () => {
           </div>
         </div>
         <p className="text-bene-muted mt-4 leading-relaxed normal-case">
-          You set the boundary in code (the static Harness); an agent evolves strategy against it (the Meta-Harness). Both hit the same sha256-locked gate, no back door. Win or lose, the attempt lands in <code className="text-bene-text">bene.db</code> and feeds the next run.
+          You set the boundary in code (the static Harness); an agent evolves strategy against it (the Meta-Harness). Both hit the same sha256-locked gate — no separate promotion path. Win or lose, the attempt lands in <code className="text-bene-text">bene.db</code> and feeds the next run.
         </p>
       </div>
 

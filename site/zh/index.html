@@ -268,7 +268,7 @@ const Hero = () => (
             <span className="text-bene-text font-medium">不用进厂商门户，也不用盯着还在转圈的仪表盘。</span>
           </p>
           <p className="text-sm text-bene-muted leading-relaxed font-mono">
-            下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。agent 想更好，可以用 <code className="text-bene-text">bene mh search</code> 自己繁育新 strategy——但照样得撞这道锁，没有后门。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，成为下一轮的输入。
+            下一次上线，先过这道 gate「关卡」。<code className="text-bene-text">promote()</code> 拿不到 sha256-locked probe 的 ACCEPT「通过结论」，就直接抛 <code className="text-bene-text">PromotionBlocked</code>；CI 撞上这个 exception「异常」，流程当场停住。agent 想更好，可以用 <code className="text-bene-text">bene mh search</code> 自己繁育新 strategy——但照样得撞这道锁，没有第二条路。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，成为下一轮的输入。
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -307,7 +307,7 @@ const TheGap = () => (
     <Kicker number="01" title="四个卡点" />
     <h2 className="font-display text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-semibold mb-6 lg:mb-8">
       论文里早翻过去的四个线上卡点。<br />
-      <span className="text-bene-muted">多数 Agent 技术栈还没接住。</span>
+      <span className="text-bene-muted">你现在那套能接住一部分——BENE 把它们收进同一份可审计的文件。</span>
     </h2>
     <p className="font-mono text-xs text-bene-muted mb-8">下面 4 段录屏都是对 bene-main HEAD 实跑出来的；输出没改过一个字。</p>
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-16">
@@ -321,7 +321,7 @@ const TheGap = () => (
       <Card className="md:col-span-6 h-full">
         <h3 className="font-mono text-bene-accent mb-4">卡点 2：跨 agent 的记忆，得带 provenance「溯源」</h3>
         <p className="text-bene-muted leading-relaxed">
-          对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。BENE 默认把每轮交互都写成这种 engram。
+          对话历史、单个 agent 的 memory block「记忆块」现在都不稀奇。真正少见的是 engram：有类型、有 provenance 链路，还分 5 tier「层级」。三个月后换一个 agent grep「检索」进来，仍然知道这段东西从哪来、凭什么信。挂上 BENE 的 kernel，每轮交互就都写成这种 engram。
         </p>
         <GapDemo gif="gap-2-engram.gif" caption="bene query 直接打开 demo db：tier 分布 + 每个 tier 的样例 title。trace / episodic / strategic 都在，provenance 强制入库。" />
       </Card>
@@ -350,9 +350,9 @@ const TheGap = () => (
 const Contract = () => {
   const inv = [
     { n: '1', t: 'agent 之间，不会莫名其妙串了状态', d: '每个 agent 自带一份 SQLite-backed 的 VFS「虚拟文件系统」，能 diff、能 restore。跨 agent 想读数据，先显式声明；跨 agent 想拍板，必须走 SharedLog「共享日志」的 intent → vote → decide。隔离写在结构里——不靠运维半夜补 ACL。' },
-    { n: '2', t: '下一个 agent 进场，grep 一把就知道上一个学到了啥', d: '每一次 run 落 5 tier 的带类型 engram：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。promote 只写新结论，不动源数据。provenance 强制入库，少一个字段都过不了。' },
+    { n: '2', t: '下一个 agent 进场，grep 一把就知道上一个学到了啥', d: '挂上 kernel 之后，run 会落 5 tier 的带类型 engram：trace 0、episodic 1、semantic 2、procedural 3、strategic 4。promote 只写新结论，不动源数据。provenance 强制入库，少一个字段都过不了。' },
     { n: '3', t: '烂 prompt 别想着跑过 eval 就溜上线', d: "任何想 evolve 的东西，先过一道 sha256-locked probe。spec 一动，直接拒。连 baseline 都打不穿的 gate，只配注册成 VOID，没资格拿 ACCEPT。verdict 也会写成 engram，三个月后翻出来，还能复盘当时为啥放行。" },
-    { n: '4', t: 'L4 这一档，只能由人按名字签发', d: "四个 signal 合成 [0,1] 区间的 composite「合成分」。想拿 L4，granted_by 必须写 human:<name>，不然 API 当场抛错。没有自动晋升，也没有 YAML 旋钮可以偷偷拧。" },
+    { n: '4', t: 'L4 这一档，只能由人按名字签发', d: "四个 signal 合成 [0,1] 区间的 composite「合成分」。想拿 L4，granted_by 必须写 human:<name>，不然 API 当场抛错。没有自动晋升——任何配置都绕不过这个 human 签名。" },
   ];
   return (
     <Section id="contract" inverted>
@@ -413,7 +413,7 @@ const Comparison = () => {
           ))}
         </ul>
       </div>
-      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">怎么接进来</h3>
+      <h3 className="font-mono text-bene-accent text-sm mb-6 tracking-widest uppercase">接法 — 用 BENE 的原生能力自己接（没有单独的 adapter 包）</h3>
       <div className="border border-bene-dim bg-bene-surface mb-16">
         {recipes.map((r, i) => (
           <div key={r.n} className={'flex flex-col md:flex-row md:items-center gap-2 md:gap-6 p-4 ' + (i < recipes.length - 1 ? 'border-b border-bene-dim' : '')}>
@@ -481,12 +481,12 @@ const Proof = () => {
 const Recipes = () => {
   const rs = [
     { id: 'R1', t: '上线翻车后回滚一次', m: 'bene.checkpoints', who: '你', flow: ['agent 跑一轮', 'checkpoint("green")', 'diff → restore'], d: 'Litany 循环。', c: 'bene checkpoint <agent> --label green; bene diff ...; bene restore ...', v: 'bene --json checkpoints <agent> | jq length  →  ≥ 1' },
-    { id: 'R2', t: '两个 agent 拍板', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner 提议', 'SharedLog vote', 'executor 拍板'], d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log show --topic plan/v1  →  intent、vote、decide 都在' },
-    { id: 'R3', t: '卡住下一次 promote', m: 'bene.kernel.eval', who: '你 + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  一行' },
+    { id: 'R2', t: '两个 agent 拍板', m: 'bene.shared_log', who: 'agent ↔ agent', flow: ['planner 提议', 'SharedLog vote', 'executor 拍板'], d: '超过 3 步的 task 用这个 2-agent pattern。', c: '# 参考 Proof 这一节的 Tab 2', v: 'bene log tail --n 5  →  intent、vote、decide 都在' },
+    { id: 'R3', t: '卡住下一次 promote', m: 'bene.kernel.eval', who: '你 + CI', flow: ['register_probe(...)', 'promote()', 'ACCEPT / REJECT / VOID'], d: "五行代码定义 BENE 的 promotion contract。", c: 'harness.register_probe(target, fn)', v: 'bene experiments show <run> | grep -E "ACCEPT|REJECT|VOID"  →  那条 verdict' },
     { id: 'R4', t: '把 memory 跨 run 累积', m: 'bene.kernel.memory', who: '你 → agent', flow: ['legacy store', 'attach_kernel', '下次 search 命中'], d: '把 legacy store 映射成 engram；consolidate；adaptive retrieval。', c: 'harness.memory.attach_kernel(legacy_store)', v: 'bene memory search "<任务关键词>"  →  之前 session 的 hit' },
-    { id: 'R5', t: 'context 不爆预算', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['budget=8192', 'ContextOS.assemble', '不爆预算'], d: 'Budgeted assembly + pollution detector。', c: 'ctx = ContextOS(budget=8192)', v: 'bene senses --md | grep "context_budget"  →  budget 从不溢出' },
-    { id: 'R6', t: '提权 L0 → L4', m: 'bene.kernel.trust + .harness', who: 'agent 爬 · 人签 L4', flow: ['4 个 signal', 'composite ∈ [0,1]', 'human 签 L4'], d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust show <agent>  →  composite ∈ [0,1]' },
-    { id: 'R7', t: '繁育更好的 strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --target <task>', v: 'bene mh frontier | jq ...' },
+    { id: 'R5', t: 'context 不爆预算', m: 'bene.kernel.memory.ContextOS', who: 'agent runtime', flow: ['ContextOS()', 'assemble(budget_tokens)', '不爆预算'], d: 'Budgeted assembly + pollution detector。', c: 'packed = ContextOS().assemble(items, budget_tokens=8192)', v: 'packed.manifest["estimated_tokens"] <= 8192  →  True' },
+    { id: 'R6', t: '提权 L0 → L4', m: 'bene.kernel.trust + .harness', who: 'agent 爬 · 人签 L4', flow: ['4 个 signal', 'composite ∈ [0,1]', 'human 签 L4'], d: '提权靠跑过 probe，不靠改 YAML。', c: "agent.grant_level(4, granted_by='human:alice')", v: 'bene trust <agent>  →  composite ∈ [0,1]' },
+    { id: 'R7', t: '繁育更好的 strategy', m: 'bene.kernel.evolve', who: 'agent / CI', flow: ['mh search', 'genome (Pareto)', 'gated promote'], d: '繁育 strategy；目前 bridge 还是手动接，end-to-end wiring 在 roadmap。', c: 'bene mh search --benchmark <name>', v: 'bene mh frontier <search_agent_id> | jq .' },
     { id: 'R8', t: '把 BENE 挂到 agent 里', m: 'bene.mcp', who: '你，一次', flow: ['bene serve --stdio', 'MCP server', 'claude mcp ls 看到'], d: 'Claude Code / Cursor / Aider 各一行。', c: 'bene serve --transport stdio', v: 'claude mcp ls  →  能看到 bene' },
   ];
   return (
@@ -541,7 +541,7 @@ const Architecture = () => {
       oneLine: '5 层带类型的执行记忆',
       scene: '一个 agent 卡了重跑，你想知道前一次它到底学到了什么、为什么走到这一步。',
       common: '调 LLM provider 的 trace UI、看 chain-of-thought log、关键决策手抄到 Notion。要么没有，要么没分类，要么过几天被新数据 overwrite。',
-      mechanism: '每一次 run 落 5 层带类型的 engram：tier 0 原始 trace、tier 1 一次事件回顾、tier 2 跨事件抽象、tier 3 可复用 procedure、tier 4 候选 strategy。升一层得过 probe；新结论留下来，不动原始数据。',
+      mechanism: '挂上 kernel 之后，一次 run 落 5 层带类型的 engram：tier 0 原始 trace、tier 1 一次事件回顾、tier 2 跨事件抽象、tier 3 可复用 procedure、tier 4 候选 strategy。升一层得过 probe；新结论留下来，不动原始数据。',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">tier 0 trace</span>
@@ -563,7 +563,7 @@ const Architecture = () => {
       oneLine: '上线前那道闸',
       scene: '一个新 prompt 跑过了 eval、分数比 baseline 高 2 个点。你不想 push 之后才发现它会在某类 case 上 regress。',
       common: '在 CI 里加 "请人 review prompt 改动" 的 reminder、或者写个 GitHub Action 比 eval 分数——但这些都是文化默契，不是结构约束。',
-      mechanism: 'register_probe(target, fn) 把 spec 用 sha256 锁死，promote(candidate) 调用时把 candidate 喂给 probe 跑一遍。verdict 只能是 ACCEPT / REJECT / VOID（达不到 baseline）。没 ACCEPT 就 raise PromotionBlocked，CI 看到 exception 直接停。spec 改了？sha256 对不上，REJECT。verdict 本身写成 engram，三个月后还能查。',
+      mechanism: 'register_probe(target, fn) 把 spec 用 sha256 锁死，promote(candidate) 调用时把 candidate 喂给 probe 跑一遍。verdict 只能是 ACCEPT / REJECT / VOID（probe 不合格——连自己 baseline 都打不穿的 gate；REJECT 才是 candidate 没过一道合格的 gate）。没 ACCEPT 就 raise PromotionBlocked，CI 看到 exception 直接停。spec 改了？sha256 对不上，直接拒跑（LockTamperError）。verdict 本身写成 engram，三个月后还能查。',
       diagram: (
         <div className="font-mono text-[11px] lg:text-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -611,7 +611,7 @@ const Architecture = () => {
       oneLine: '信任是算出来的，不是 YAML 写的',
       scene: '一个 agent 跑了三周一直没出错，团队想让它接管一类决策（不再每次 human-in-loop）。问题：怎么决定它可以？基于什么证据？',
       common: '在 YAML 里加一行 autonomy_level: 3、或者负责人拍脑袋。出事时翻 commit message 看是谁批的。',
-      mechanism: '4 个 signal 全部从 audit trail 里算：verification_coverage（probe 通过率）、audit（review 命中率）、checkpoint（回滚频率）、outcome（任务成功率）。合成 [0,1] 的 composite，决定它现在落在 L0 / L1 / L2 / L3 哪一档——这几档是 probe-gated 自动晋升。L4（最高权）是硬契约：必须 granted_by="human:<name>"，不签就 API raise，bene.config 改一行都改不了。',
+      mechanism: '4 个 signal 全部从 audit trail 里算：verification_coverage（probe 通过率）、audit（review 命中率）、checkpoint（回滚频率）、outcome（任务成功率）。合成 [0,1] 的 composite，决定它现在落在 L0 / L1 / L2 / L3 哪一档。composite 是参考值——每次升档都得显式 grant，不会自动跳。L4（最高权）是硬契约：必须 granted_by="human:<name>"，不签就 API raise，任何 config 都绕不过这个 human 签名。',
       diagram: (
         <div className="font-mono text-[11px] lg:text-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -625,7 +625,7 @@ const Architecture = () => {
           <div className="flex flex-wrap items-center gap-2 pl-4">
             <span className="text-bene-accent">→</span>
             <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">L0 / L1 / L2 / L3</span>
-            <span className="text-bene-muted">probe-gated 自动晋升</span>
+            <span className="text-bene-muted">参考值，升档要显式 grant</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 pl-4">
             <span className="text-bene-accent">→</span>
@@ -634,7 +634,7 @@ const Architecture = () => {
           </div>
         </div>
       ),
-      verify: 'bene trust show <agent>',
+      verify: 'bene trust <agent>',
     },
     {
       key: 'breeding',
@@ -642,7 +642,7 @@ const Architecture = () => {
       oneLine: 'strategy 自己跨代变好',
       scene: '同一类 task 你跑了 50 次，每次 prompt / strategy 略有不同。你想跨代搜出 Pareto 最优的几条，而不是每次手调。',
       common: 'AutoML / DSPy compile 跑一遍出 candidate；要么手动复制粘贴上生产，要么直接 replace deploy.py——容易 reward-hack 上线。',
-      mechanism: 'mh_search 生成 candidate → 编码成 genome（控制信号 dense 表达）→ Pareto 前沿筛 → 想 promote 时走和普通 prompt 一样的 kill-gate，不开后门。今天 mh_search → promote 的 bridge 还是手动接（CLAIMS-AUDIT line 36 标 partial）；end-to-end wiring 在 roadmap，没声称在跑。',
+      mechanism: 'mh_search 生成 candidate → 编码成 genome（控制信号 dense 表达）→ Pareto 前沿筛 → 想 promote 时走和普通 prompt 一样的 kill-gate，没有第二条 promote 路径。今天 mh_search → promote 的 bridge 还是手动接（CLAIMS-AUDIT line 36 标 partial）；end-to-end wiring 在 roadmap，没声称在跑。',
       diagram: (
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] lg:text-xs">
           <span className="border border-bene-dim text-bene-text px-2 py-0.5 rounded-sm whitespace-nowrap">mh_search</span>
@@ -698,7 +698,7 @@ const Architecture = () => {
           </div>
         </div>
         <p className="text-bene-muted mt-4 leading-relaxed">
-          边界你用代码定死（静态那层 Harness）；agent 对着它繁育新 strategy（动态那层 Meta-Harness）。两边撞的是同一道 sha256-locked gate，没有后门。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，喂给下一轮。
+          边界你用代码定死（静态那层 Harness）；agent 对着它繁育新 strategy（动态那层 Meta-Harness）。两边撞的是同一道 sha256-locked gate——没有第二条 promote 路径。这一把不管赢还是输，都落进 <code className="text-bene-text">bene.db</code>，喂给下一轮。
         </p>
       </div>
 
