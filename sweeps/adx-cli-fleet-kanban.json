@@ -1,0 +1,194 @@
+{
+  "agents": [
+    "harness",
+    "adx-cli",
+    "codex",
+    "bene",
+    "bene-core",
+    "shellfish",
+    "eddie-agi-kb"
+  ],
+  "board": "adx-cli-global-feedback",
+  "cards": [
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass27",
+        "pass28",
+        "pass37",
+        "pass38",
+        "pass39",
+        "pass40"
+      ],
+      "fix": "Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.",
+      "id": "ADX-P0-001",
+      "impact": "Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.",
+      "lane": "integrity",
+      "priority": "P0",
+      "status": "ready",
+      "title": "Make arena receipts atomic before claiming honesty",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass26",
+        "pass33",
+        "pass34",
+        "pass35",
+        "pass36"
+      ],
+      "fix": "Move quota debit after validation and successful durable acceptance, or add explicit refund records on retryable failures.",
+      "id": "ADX-P1-001",
+      "impact": "Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.",
+      "lane": "fairness",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Stop spending rated/evolution/badge quota before work is accepted",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass17",
+        "pass19",
+        "pass20",
+        "pass21",
+        "pass41",
+        "pass42-candidate"
+      ],
+      "fix": "Select events by canonical agent/battle joins and nested period payloads, not only top-level tenant_id.",
+      "id": "ADX-P1-002",
+      "impact": "Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.",
+      "lane": "owner-data",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Make owner export include replay, badge, and rating lineage",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "harness",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass31",
+        "pass32"
+      ],
+      "fix": "Require actual trace context/link presence in acceptance tests; document fallback mode separately.",
+      "id": "ADX-P1-003",
+      "impact": "The platform can pass trace-propagation tests while producing no usable trace/span link.",
+      "lane": "observability",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Make observability acceptance fail when traces are absent",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass24",
+        "pass25"
+      ],
+      "fix": "Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.",
+      "id": "ADX-P1-004",
+      "impact": "Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.",
+      "lane": "security",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Tighten admin surface and auth-before-parse contract",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass14",
+        "pass15",
+        "pass16",
+        "pass29"
+      ],
+      "fix": "Update `/skill.md`, add or explicitly defer `adx arena` commands, normalize starter-kit errors, and test missing battle IDs.",
+      "id": "ADX-P2-001",
+      "impact": "Agents hit stale docs, missing `adx` arena commands, traceback setup errors, and asymmetric MCP proxy behavior.",
+      "lane": "agent-ux",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Reduce starter and CLI footguns for visiting agents",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass2",
+        "pass3",
+        "pass4",
+        "pass6",
+        "pass7",
+        "pass8",
+        "pass12",
+        "pass13"
+      ],
+      "fix": "Repair gym mapping, expose opponent HP/recent turns, enrich replay metadata, and test anchor/gym coverage.",
+      "id": "ADX-P2-002",
+      "impact": "Agents can win or lose for shallow reasons and cannot always understand losses from state/replay alone.",
+      "lane": "gameplay",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Make arena gameplay feedback more legible and less first-legal",
+      "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "harness",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "pass5",
+        "pass11",
+        "pass22",
+        "pass23",
+        "pass30"
+      ],
+      "fix": "Keep recompute ladder, anti-pay-to-rank property tests, `/whoami` redaction, team validation, and local log idempotence in the regression suite.",
+      "id": "ADX-P2-003",
+      "impact": "Known-good surfaces are easy to break while fixing adjacent defects.",
+      "lane": "regression-guard",
+      "priority": "P2",
+      "status": "done",
+      "title": "Preserve verified strengths while fixing gaps",
+      "updated_at": "2026-06-16T20:14:58Z"
+    }
+  ],
+  "events": [
+    {
+      "action": "seed",
+      "actor": "codex",
+      "card_id": null,
+      "created_at": "2026-06-16T20:14:58Z",
+      "detail": {
+        "cards": 8
+      }
+    },
+    {
+      "action": "init",
+      "actor": "codex",
+      "card_id": null,
+      "created_at": "2026-06-16T20:14:58Z",
+      "detail": {
+        "force": true
+      }
+    }
+  ],
+  "schema_version": 1,
+  "updated_at": "2026-06-16T20:14:58Z"
+}
