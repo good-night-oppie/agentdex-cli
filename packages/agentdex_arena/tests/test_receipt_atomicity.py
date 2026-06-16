@@ -15,11 +15,13 @@ test_visitor_surface.py behind the node gate.
 from __future__ import annotations
 
 import asyncio
+import time
+import unittest.mock as mock
 from pathlib import Path
 
 import pytest
-from agentdex_arena.consent import ConsentAuthority
-from agentdex_arena.gateway import ArenaGateway, BattleSession
+from agentdex_arena.consent import ConsentAuthority, ConsentClaims
+from agentdex_arena.gateway import ArenaGateway, BattleSession, BeginRequest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
@@ -194,3 +196,77 @@ def test_finish_artifact_write_failure_keeps_public_receipt_shape(tmp_path: Path
     assert session.ended == receipt
     assert session.battle_id in gateway.replays
     assert [event["type"] for event in gateway.events.iter_events()] == ["battle_end"]
+
+
+def test_rated_quota_debited_after_durable_append(tmp_path: Path) -> None:
+    """Class-B ordering: spend_quota fires AFTER _append_or_fail_closed for rated begins.
+
+    When quota is already exhausted after the append succeeds:
+    - battle_begin IS in the durable log (append completed before quota check)
+    - sidecar "stop" was called (no orphan live battle)
+    - 403 raised (not 500)
+    - battle_id NOT in gateway.sessions (session never published)
+    """
+    agent_key = Ed25519PrivateKey.generate()
+    agent_pubkey_hex = agent_key.public_key().public_bytes_raw().hex()
+    signing_key_hex = Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    authority = ConsentAuthority(signing_key_hex=signing_key_hex)
+
+    claims = ConsentClaims(
+        token_id="test-tok-rated-p2a",
+        owner="tester@example.com",
+        agent_name="TestBotP2A",
+        agent_pubkey_hex=agent_pubkey_hex,
+        scopes=["battle"],
+        quotas={"battle": 1},
+        issued_at=time.time(),
+        expires_at=time.time() + 3600,
+        confirmed_via="test",
+    )
+    token = authority.mint(claims)
+
+    # Pre-exhaust: 1/1 battle slots used today.
+    day = time.strftime("%Y%m%d", time.gmtime())
+    authority.quota_used[f"tester@example.com:battle:{day}"] = 1
+
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+
+    nonce = "rated-nonce-p2a-test"
+    gateway.battle_nonces[nonce] = claims.token_id
+    pop_challenge = f"arena-pop:{claims.token_id}:{nonce}".encode()
+    sig_hex = agent_key.sign(pop_challenge).hex()
+
+    req = BeginRequest(
+        token=token,
+        battle_nonce=nonce,
+        pop_signature_hex=sig_hex,
+        lane="rated",
+    )
+
+    stop_calls: list[str] = []
+
+    class _FakeSidecar:
+        async def request(self, cmd: str, **kwargs):
+            if cmd == "stop":
+                stop_calls.append(kwargs.get("battle", ""))
+            return {"state": {}}
+
+    async def _fake_pack_team(sidecar, team_spec):
+        return "fakepacked"
+
+    with mock.patch("agentdex_arena.gateway.pack_team", _fake_pack_team):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(gateway.battle_begin(req, sidecar=_FakeSidecar()))
+
+    assert exc.value.status_code == 403
+    # append happened BEFORE quota check — battle_begin IS in the durable log
+    assert [e["type"] for e in gateway.events.iter_events()] == ["battle_begin"]
+    # sidecar battle was stopped (no orphan live battle)
+    assert len(stop_calls) == 1
+    # session was never published
+    assert all("rated" not in bid for bid in gateway.sessions)
