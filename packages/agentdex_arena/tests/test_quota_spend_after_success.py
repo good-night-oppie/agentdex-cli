@@ -178,3 +178,35 @@ def test_evolve_sidecar_error_does_not_burn_quota(tmp_path: Path):
         seeds_mod.offer_seeds = original
         # silence unused-import linter; we re-import gw_mod elsewhere
         _ = gw_mod
+
+
+def test_exhausted_evolve_quota_rejected_before_sidecar_work(tmp_path: Path):
+    """Pre-check fast-fail: if the daily evolve cap is already hit, the gateway
+    returns 403 BEFORE calling offer_seeds — no sidecar resources are burned.
+
+    Pins the check_quota guard added in PR #173 P2 item 2.
+    """
+    import agentdex_arena.offered_seeds as seeds_mod
+
+    offer_seeds_calls: list[bool] = []
+
+    async def spy(*_args, **_kwargs):
+        offer_seeds_calls.append(True)
+        return {}
+
+    app, gateway, owner_inbox = _arena_client(tmp_path)
+    original = seeds_mod.offer_seeds
+    seeds_mod.offer_seeds = spy  # type: ignore[assignment]
+    agent_key = Ed25519PrivateKey.generate()
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            token = _enroll(client, owner_inbox, agent_key, name="ExhaustedEvolveBot")
+            # Pre-exhaust: 2/2 slots used (default cap per ADR-0011)
+            day = time.strftime("%Y%m%d", time.gmtime(gateway.now()))
+            gateway.authority.quota_used[f"ExhaustedEvolveBot:evolve:{day}"] = 2
+            r = client.post("/evolution/request", json={"token": token, "reasoning": "test"})
+            assert r.status_code == 403, r.text
+            # offer_seeds was NOT called — fast-fail before sidecar work
+            assert not offer_seeds_calls, "offer_seeds must not be called when quota is exhausted"
+    finally:
+        seeds_mod.offer_seeds = original

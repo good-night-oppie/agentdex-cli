@@ -181,6 +181,24 @@ class ConsentAuthority:
         self.quota_used[key] = used + 1
         return cap - used - 1
 
+    def check_quota(self, claims: ConsentClaims, *, scope: Scope) -> None:
+        """Read-only quota probe — raises ConsentError if the cap is already hit.
+
+        Does NOT increment the counter; callers must still follow up with
+        spend_quota (which is the authoritative debit). Use this as a
+        fast-fail guard before expensive work so already-exhausted agents
+        receive a 403 without burning sidecar resources.
+        """
+        day = time.strftime("%Y%m%d", time.gmtime(self._now()))
+        if scope == "battle":
+            key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"
+        else:
+            key = f"{claims.agent_name}:{scope}:{day}"
+        used = self.quota_used.get(key, 0)
+        cap = claims.quotas.get(scope, 0)
+        if used >= cap:
+            raise ConsentError(f"{scope} quota exhausted ({used}/{cap} today)")
+
     def revoke(self, token_id: str) -> None:
         self.revoked.add(token_id)
 

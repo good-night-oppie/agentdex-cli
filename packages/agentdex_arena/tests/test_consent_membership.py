@@ -160,3 +160,37 @@ def test_verify_membership_does_not_leak_owner_in_exception():
         auth.verify_membership(_make_claims(owner="leaked-owner-marker@bad.com"))
     except ConsentError as e:
         assert "leaked-owner-marker" not in str(e)
+
+
+# ---- check_quota ----
+
+
+def test_check_quota_passes_when_under_cap():
+    auth = ConsentAuthority(signing_key_hex=_SIGNING_KEY_HEX)
+    claims = _make_claims()
+    claims = claims.model_copy(update={"quotas": {"evolve": 2}})
+    auth.check_quota(claims, scope="evolve")  # 0/2 used — must not raise
+
+
+def test_check_quota_raises_when_at_cap():
+    now = time.time()
+    auth = ConsentAuthority(signing_key_hex=_SIGNING_KEY_HEX, now=lambda: now)
+    claims = _make_claims()
+    claims = claims.model_copy(update={"quotas": {"evolve": 2}, "agent_name": "PeekBot"})
+    day = time.strftime("%Y%m%d", time.gmtime(now))
+    auth.quota_used["PeekBot:evolve:" + day] = 2
+    with pytest.raises(ConsentError, match="quota exhausted"):
+        auth.check_quota(claims, scope="evolve")
+
+
+def test_check_quota_does_not_increment_counter():
+    """check_quota is read-only — calling it must not consume a slot."""
+    now = time.time()
+    auth = ConsentAuthority(signing_key_hex=_SIGNING_KEY_HEX, now=lambda: now)
+    claims = _make_claims()
+    claims = claims.model_copy(update={"quotas": {"evolve": 2}, "agent_name": "ReadOnlyBot"})
+    day = time.strftime("%Y%m%d", time.gmtime(now))
+    key = "ReadOnlyBot:evolve:" + day
+    auth.check_quota(claims, scope="evolve")  # 0/2 — passes
+    auth.check_quota(claims, scope="evolve")  # still 0/2 — no increment
+    assert auth.quota_used.get(key, 0) == 0
