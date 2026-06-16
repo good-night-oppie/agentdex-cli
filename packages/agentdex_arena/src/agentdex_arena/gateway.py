@@ -1400,7 +1400,12 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         data = gateway.replays.get(battle_id)
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
-        # public view only — seed/teams/choices/tenant stay server-side (fork fuel)
+        # Public view: omits the separate seed/teams/choices/tenant keys, but note
+        # input_log is the FULL re-simulable Showdown log — it embeds the seed,
+        # both packed teams, and every choice BY DESIGN (the outsider re-sim /
+        # receipt guarantee; see ENROLLMENT.md "Replay publicity"). Only `tenant`
+        # (the owning token_id) is truly server-side here; the rest is fork fuel
+        # the server keeps as separate keys but is also derivable from input_log.
         res = {
             "input_log": data["input_log"],
             "winner": data["winner"],

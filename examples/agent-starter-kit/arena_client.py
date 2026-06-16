@@ -81,7 +81,7 @@ class ArenaClient:
         )
 
     def enroll_confirm(self, code: str) -> str:
-        """Returns the bearer token. 7-day expiry; scopes = [enroll, battle, evolve]."""
+        """Returns the bearer token. 7-day expiry; scopes = [enroll, battle, evolve, badge_mint]."""
         return self._http.post(f"/enroll/confirm/{code}").raise_for_status().json()["token"]
 
     # ---- team ----
