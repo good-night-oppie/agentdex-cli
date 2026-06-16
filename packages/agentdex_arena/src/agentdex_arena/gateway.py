@@ -827,23 +827,6 @@ class ArenaGateway:
                     detail="arena at capacity — finish or forfeit an active battle, then retry",
                 ) from None
             raise
-        # Class B (quota spend-after-success): the rated battle has now passed
-        # every fallible gate (verify / pop / publication_allowed / team-
-        # validate / pack_team / sidecar.start). Spend the daily slot HERE so
-        # a 422 invalid-team (PASS 35) / 503 capacity (PASS 36) / sidecar error
-        # never burns a slot. If the cap is exhausted the sidecar battle is
-        # stopped before we return 403, so no orphan live battle is left
-        # behind. Sandbox lanes don't have a "battle" quota, so this stays
-        # behind the `rated` guard.
-        if req.lane == "rated":
-            try:
-                self.authority.spend_quota(claims, scope="battle")
-            except ConsentError as e:
-                try:
-                    await sidecar.request("stop", battle=battle_id)
-                except Exception:  # noqa: BLE001 — best-effort teardown
-                    pass
-                raise _opaque_error(403, e) from None
         # Class A (atomicity): the durable begin receipt MUST exist before the
         # session is published into self.sessions — otherwise an append failure
         # would leave a live, choosable battle the log never recorded. Append
@@ -864,6 +847,22 @@ class ArenaGateway:
             sidecar=sidecar,
             battle_id=battle_id,
         )
+        # Class B (quota spend-after-success): the rated battle has now passed
+        # every fallible gate (verify / pop / publication_allowed / team-
+        # validate / pack_team / sidecar.start / durable append). Spend the
+        # daily slot HERE so any earlier failure cannot cost the user a slot.
+        # If the cap is exhausted the sidecar battle is stopped before we
+        # return 403, so no orphan live battle is left behind. Sandbox lanes
+        # don't have a "battle" quota, so this stays behind the `rated` guard.
+        if req.lane == "rated":
+            try:
+                self.authority.spend_quota(claims, scope="battle")
+            except ConsentError as e:
+                try:
+                    await sidecar.request("stop", battle=battle_id)
+                except Exception:  # noqa: BLE001 — best-effort teardown
+                    pass
+                raise _opaque_error(403, e) from None
         self.sessions[battle_id] = session
         state = await self._advance(session, resp["state"], visitor_choice=None)
         out = {"battle_id": battle_id, "lane": req.lane, **state}
