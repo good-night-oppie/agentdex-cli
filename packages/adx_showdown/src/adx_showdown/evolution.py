@@ -129,21 +129,25 @@ class HarnessWorkspace:
             return None
         return ChangeManifest.model_validate_json(path.read_text())
 
-    def consume_manifest(self) -> ChangeManifest | None:
-        """Read the pending manifest AND remove it from the working tree.
+    def clear_manifest(self) -> None:
+        """Remove the consumed manifest from the working tree.
 
         The manifest is a SINGLE-USE pending prediction: written at the END of
         generation N (targeting N+1) and consumed by generation N+1's
-        falsification check. Leaving it on disk after consumption is the P0
-        leak — a None-return Refiner at the next generation lets the stale
-        manifest linger, the `generation == gen` guard then silently goes False,
-        no falsification window runs, and the loop reports NEUTRAL forever.
-        Consuming = clearing; the `git add -A` at the next `commit_edits` records
-        the removal so the tree stays honest.
+        falsification check. Leaving it on disk afterward is the P0 leak — a
+        None-return Refiner at the next generation lets the stale manifest
+        linger, the `generation == gen` guard then silently goes False, no
+        falsification window runs, and the loop reports NEUTRAL forever.
+
+        CRITICAL TIMING (PR #155 review #3418161864 + #3418161865): clearing is
+        DEFERRED to generation completion — called only after the verdict is
+        about to be durably committed, and only when no NEW manifest replaced it.
+        If the window/refiner/verdict step raises before then, the manifest stays
+        on disk so a retry re-runs the required falsification instead of silently
+        skipping it. The wrong-generation guard likewise raises with the manifest
+        still present, preserving the evidence for the operator.
         """
-        manifest = self.read_manifest()
         (self.root / "change_manifest.json").unlink(missing_ok=True)
-        return manifest
 
     def commit_edits(self, msg: str) -> str:
         _git(self.root, "add", "-A")
@@ -303,11 +307,15 @@ class EvolutionLoop:
         # for generation gen+1's falsification)
         self.workspace.tag_state(f"gen-{gen}")
         live_team = self.workspace.team
-        # Consume (read + clear) the single-use pending manifest. A present
+        # READ (do NOT delete yet) the single-use pending manifest. Deletion is
+        # deferred to generation completion (clear_manifest below) so any failure
+        # in the window/verdict path leaves the manifest on disk for a clean
+        # retry instead of silently dropping the falsification. A present
         # manifest MUST target THIS generation; a wrong-generation manifest is
         # corrupt run state (crash mid-write / manual edit / a rollback that
-        # failed to clear) and is raised, never silently skipped.
-        manifest = self.workspace.consume_manifest()
+        # failed to clear) and is raised — with the manifest STILL PRESENT so the
+        # evidence survives for the operator (PR #155 reviews #3418161864/65).
+        manifest = self.workspace.read_manifest()
         if manifest is not None and manifest.generation != gen:
             raise EvolutionStateError(
                 f"change_manifest targets generation {manifest.generation} but generation "
@@ -358,6 +366,15 @@ class EvolutionLoop:
             next_manifest = self.refiner(self.workspace, distilled, gen + 1)
             if next_manifest is not None:
                 self.workspace.write_manifest(next_manifest)
+        # Clear the consumed manifest ONLY now (post-verdict, pre-commit) and
+        # ONLY when no new manifest replaced it. Deferring to here means a
+        # failure anywhere in the window/verdict/refiner path above left the
+        # manifest on disk for a clean retry; a non-None refiner already
+        # overwrote it with the next prediction (PR #155 reviews
+        # #3418161864/#3418161865). The unlink + the new write are both captured
+        # by commit_edits's `git add -A`, recording the state atomically.
+        if next_manifest is None:
+            self.workspace.clear_manifest()
         commit = self.workspace.commit_edits(
             f"edits for generation {gen + 1}"
             + (f": {next_manifest.summary}" if next_manifest else " (none)")
