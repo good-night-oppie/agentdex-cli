@@ -17,7 +17,6 @@ recoverable by the owner that earned it.
 
 from __future__ import annotations
 
-import hashlib
 import time
 from pathlib import Path
 
@@ -67,10 +66,17 @@ def test_my_events_includes_badge_with_tenant_id(tmp_path: Path):
     app, gateway, _ = _arena_client(tmp_path)
     with TestClient(app, raise_server_exceptions=False) as client:
         agent_key = Ed25519PrivateKey.generate()
-        token = _enroll(
-            client, gateway.notify_owner.__self__ if False else None, agent_key,
-            owner="eddie@oppie.xyz", name="BadgeBot",
-        ) if False else None  # _enroll uses owner_inbox via app fixture; rebuild inline
+        token = (
+            _enroll(
+                client,
+                gateway.notify_owner.__self__ if False else None,
+                agent_key,
+                owner="eddie@oppie.xyz",
+                name="BadgeBot",
+            )
+            if False
+            else None
+        )  # _enroll uses owner_inbox via app fixture; rebuild inline
     # rebuild client cleanly (owner_inbox lives in closure of the fixture above)
     app, gateway, owner_inbox = _arena_client(tmp_path / "x")
     agent_key = Ed25519PrivateKey.generate()
@@ -115,9 +121,9 @@ def test_my_events_includes_legacy_badge_via_agent_name(tmp_path: Path):
         r = client.post("/my/events", json={"token": token, "since_seq": -1})
         assert r.status_code == 200, r.text
         rows = r.json()["events"]
-        assert any(e["type"] == "badge" and e["payload"].get("badge") == "Cascade Badge" for e in rows), (
-            f"legacy badge missing from owner export: {[(e['type'], e['payload']) for e in rows]}"
-        )
+        assert any(
+            e["type"] == "badge" and e["payload"].get("badge") == "Cascade Badge" for e in rows
+        ), f"legacy badge missing from owner export: {[(e['type'], e['payload']) for e in rows]}"
 
 
 def test_my_events_does_not_leak_other_owners_legacy_badge(tmp_path: Path):
