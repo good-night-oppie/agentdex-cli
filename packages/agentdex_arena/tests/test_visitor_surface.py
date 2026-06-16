@@ -925,18 +925,18 @@ def test_finish_event_write_failure_fail_closed(arena):
     state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
     battle_id = state["battle_id"]
 
-    original_append = gateway.events.append
+    original_append_many = gateway.events.append_many
 
-    def mock_append_fail(event_type, payload):
-        if event_type == "battle_end":
+    def mock_append_many_fail(items):
+        if any(event_type == "battle_end" for event_type, _ in items):
             raise OSError("mock write failure")
-        return original_append(event_type, payload)
+        return original_append_many(items)
 
-    gateway.events.append = mock_append_fail
+    gateway.events.append_many = mock_append_many_fail
     # force the turn-budget forfeit so the next choose finalizes the battle
     gateway.now = lambda: time.time() + 1000
     r = client.post(f"/battle/{battle_id}/choose", json={"token": token, "choice_index": 1})
-    gateway.events.append = original_append
+    gateway.events.append_many = original_append_many
 
     assert r.status_code == 500
     # fail-closed: no public replay, no completion artifact, session ended-fatal

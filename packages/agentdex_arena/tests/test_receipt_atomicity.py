@@ -134,3 +134,63 @@ def test_append_success_returns_event_no_teardown(tmp_path: Path) -> None:
     assert event["type"] == "battle_begin"
     assert sidecar.calls == []  # nothing stopped on the happy path
     assert [e["type"] for e in gateway.events.iter_events()] == ["battle_begin"]
+
+
+def test_finish_group_append_failure_leaves_no_partial_receipt(tmp_path: Path) -> None:
+    """Grouped finish append throws -> no replay, no artifact, no partial log."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+
+    def boom(items):
+        raise OSError("mock grouped write failure")
+
+    gateway.events.append_many = boom  # type: ignore[method-assign]
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            gateway._finish(
+                session,
+                {
+                    "winner": "anchor-random",
+                    "turns": 4,
+                    "inputLog": ["line1", "line2"],
+                    "keyLines": [],
+                },
+            )
+        )
+
+    assert exc.value.status_code == 500
+    assert ("stop", "sandbox-deadbeef") in sidecar.calls
+    assert session.battle_id not in gateway.replays
+    assert not (gateway.artifacts_dir / f"{session.battle_id}.inputlog.json").exists()
+    assert list(gateway.events.iter_events()) == []
+    assert session.ended is not None
+    assert "event log write failed" in session.ended.get("reason", "")
+
+
+def test_finish_artifact_write_failure_keeps_public_receipt_shape(tmp_path: Path) -> None:
+    """After the durable group commits, artifact I/O must not leave a skeletal
+    internal ended marker that turns retry responses into malformed receipts."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+    gateway.artifacts_dir = tmp_path / "not-a-dir"
+    gateway.artifacts_dir.write_text("blocks mkdir")
+
+    receipt = asyncio.run(
+        gateway._finish(
+            session,
+            {
+                "winner": "anchor-random",
+                "turns": 4,
+                "inputLog": ["line1", "line2"],
+                "keyLines": [],
+            },
+        )
+    )
+
+    assert receipt["status"] == "ended"
+    assert session.ended == receipt
+    assert session.battle_id in gateway.replays
+    assert [event["type"] for event in gateway.events.iter_events()] == ["battle_end"]

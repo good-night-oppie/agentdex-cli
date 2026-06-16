@@ -242,6 +242,47 @@ def test_event_log_unknown_types_ignored_by_recompute(tmp_path):
     assert "X" in ladder.entrants and len(ladder.entrants) == 1
 
 
+def test_event_log_append_many_commits_one_hash_chain_group(tmp_path):
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+    elog.append("register", {"name": "A", "frozen": False})
+
+    events = elog.append_many(
+        [
+            ("register", {"name": "B", "frozen": False}),
+            ("battle_end", {"tenant_id": "t1", "battle_id": "b1", "winner": "A"}),
+        ]
+    )
+
+    assert [event["seq"] for event in events] == [1, 2]
+    assert [event["type"] for event in elog.iter_events()] == [
+        "register",
+        "register",
+        "battle_end",
+    ]
+    assert elog.verify_chain() == 3
+
+
+def test_event_log_append_many_replace_failure_leaves_log_unchanged(tmp_path, monkeypatch):
+    import agentdex_engine.modules.arena.events as events_mod
+
+    path = tmp_path / "events.jsonl"
+    elog = EventLog(path)
+    elog.append("register", {"name": "A", "frozen": False})
+    before = path.read_text()
+
+    def boom(src, dst):
+        raise OSError("mock replace failure")
+
+    monkeypatch.setattr(events_mod.os, "replace", boom)
+    with pytest.raises(OSError, match="mock replace failure"):
+        elog.append_many([("battle_end", {"tenant_id": "t1", "battle_id": "b1"})])
+
+    assert path.read_text() == before
+    assert [event["type"] for event in EventLog(path).iter_events()] == ["register"]
+    assert EventLog(path).verify_chain() == 1
+
+
 def test_event_log_tail_edit_verification(tmp_path):
     path = tmp_path / "events.jsonl"
     elog = EventLog(path)
