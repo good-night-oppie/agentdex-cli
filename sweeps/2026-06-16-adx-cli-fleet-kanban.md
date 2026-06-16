@@ -51,7 +51,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
-| ADX-P1-001 | P1 | adx-cli | fairness | Stop spending rated/evolution/badge quota before work is accepted | pass26, pass33, pass34, pass35, pass36 |
 | ADX-P1-002 | P1 | adx-cli | owner-data | Make owner export include replay, badge, and rating lineage | pass17, pass19, pass20, pass21, pass41, pass42-candidate |
 | ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
 | ADX-P1-004 | P1 | adx-cli | security | Tighten admin surface and auth-before-parse contract | pass24, pass25 |
@@ -61,6 +60,12 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
+
+### review
+
+| ID | Pri | Assignee | Lane | Title | Evidence |
+|---|---|---|---|---|---|
+| ADX-P1-001 | P1 | adx-cli | fairness | Stop spending rated/evolution/badge quota before work is accepted | pass26, pass33, pass34, pass35, pass36 |
 
 ### done
 
@@ -79,16 +84,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.
 - Suggested fix: Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.
 - Evidence: pass27, pass28, pass37, pass38, pass39, pass40
-
-### ADX-P1-001 - Stop spending rated/evolution/badge quota before work is accepted
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `adx-cli`
-- Lane: `fairness`
-- Impact: Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.
-- Suggested fix: Move quota debit after validation and successful durable acceptance, or add explicit refund records on retryable failures.
-- Evidence: pass26, pass33, pass34, pass35, pass36
 
 ### ADX-P1-002 - Make owner export include replay, badge, and rating lineage
 
@@ -119,6 +114,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.
 - Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
 - Evidence: pass24, pass25
+
+### ADX-P1-001 - Stop spending rated/evolution/badge quota before work is accepted
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `adx-cli`
+- Lane: `fairness`
+- Impact: Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.
+- Suggested fix: Move quota debit after validation and successful durable acceptance, or add explicit refund records on retryable failures.
+- Evidence: pass26, pass33, pass34, pass35, pass36
+- Recent comments: adx-cli-10: Shipped as PR #173 (fix/class-b-quota-spend-after-success): rated begin spend after sidecar.start, badge_mint spend after sign_badge, evolve spend after offer_seeds. 4 sidecar-free regression tests + full arena suite 169 pass/1 skip/1 pre-existing fork-determinism fail. Babysitting to MERGED.
 
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
@@ -156,6 +162,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 |---|---|---|---|---|
 | 2026-06-16T20:14:58Z | seed | codex |  | {"cards": 8} |
 | 2026-06-16T20:14:58Z | init | codex |  | {"force": true} |
+| 2026-06-16T21:27:41Z | move | adx-cli-10 | ADX-P1-001 | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "adx-cli", "status": "todo"}} |
+| 2026-06-16T21:27:41Z | comment | adx-cli-10 | ADX-P1-001 | {} |
 
 ## Source Pattern
 

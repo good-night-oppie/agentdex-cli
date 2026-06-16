@@ -33,7 +33,13 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-cli-10",
+          "body": "Shipped as PR #173 (fix/class-b-quota-spend-after-success): rated begin spend after sidecar.start, badge_mint spend after sign_badge, evolve spend after offer_seeds. 4 sidecar-free regression tests + full arena suite 169 pass/1 skip/1 pre-existing fork-determinism fail. Babysitting to MERGED.",
+          "created_at": "2026-06-16T21:27:41Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass26",
@@ -47,9 +53,9 @@
       "impact": "Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.",
       "lane": "fairness",
       "priority": "P1",
-      "status": "todo",
+      "status": "review",
       "title": "Stop spending rated/evolution/badge quota before work is accepted",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-16T21:27:41Z"
     },
     {
       "assignee": "adx-cli",
@@ -187,8 +193,31 @@
       "detail": {
         "force": true
       }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-001",
+      "created_at": "2026-06-16T21:27:41Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli-10",
+      "card_id": "ADX-P1-001",
+      "created_at": "2026-06-16T21:27:41Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-16T20:14:58Z"
+  "updated_at": "2026-06-16T21:27:41Z"
 }
