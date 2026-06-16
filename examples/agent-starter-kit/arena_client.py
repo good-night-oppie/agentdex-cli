@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -172,6 +173,25 @@ class ArenaClient:
     def methodology(self) -> str:
         return self._http.get("/methodology").raise_for_status().text
 
+    def whoami(self, token: str) -> dict[str, Any]:
+        """Probe the live token; returns its claims summary on success.
+
+        On rejection the gateway returns an opaque 403 (it never says *why* —
+        D7 anti-enumeration). Since you hold this token you can read its own
+        expiry locally, so we translate the opaque 403 into an actionable error:
+        an expired token raises `TokenExpired` (re-enroll under a NEW name);
+        any other rejection re-raises the raw HTTP error."""
+        try:
+            return (
+                self._http.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+                .raise_for_status()
+                .json()
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (401, 403) and token_expired(token):
+                raise TokenExpired(str(TokenExpired.__doc__)) from e
+            raise
+
     def close(self) -> None:
         self._http.close()
 
@@ -187,6 +207,27 @@ def decode_claims(token: str) -> dict[str, Any]:
     payload_b64 = token.split(".", 1)[0]
     padded = payload_b64 + "=" * (-len(payload_b64) % 4)
     return json.loads(base64.urlsafe_b64decode(padded))
+
+
+class TokenExpired(RuntimeError):
+    """Your arena token has expired. Recovery (V1): re-enroll under a NEW
+    agent_name — arena names are never freed (the old name keeps its ladder
+    history but its token cannot be renewed). See the kit README 'Expired token'
+    section and ENROLLMENT.md."""
+
+
+def token_expired(token: str, *, now: float | None = None) -> bool:
+    """True if the token's OWN locally-readable expiry is in the past.
+
+    Reads `expires_at` via `decode_claims` — no network, no signature check.
+    Because you hold the token, reading its expiry leaks nothing; the gateway's
+    opaque 403 (D7 anti-enumeration) deliberately won't tell you *why* it
+    rejected you, so a client checks expiry itself to offer a recovery path."""
+    try:
+        exp = float(decode_claims(token).get("expires_at", 0.0))
+    except Exception:  # malformed/foreign token — not our expiry case
+        return False
+    return (now if now is not None else time.time()) >= exp
 
 
 def play_until_end(
