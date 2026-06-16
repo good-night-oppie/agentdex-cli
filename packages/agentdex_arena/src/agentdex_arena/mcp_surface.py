@@ -145,39 +145,31 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
         raise ValueError(f"Choice index out of range 1..{len(choices)}")
 
     choice = choices[choice_index - 1]
-    session.visitor_choices.append(choice)
 
     from agentdex_arena.gateway import _choice_label, _push_recent
 
     label = _choice_label(choice, session.pending)
     old_recent = list(session.recent)
-    _push_recent(session, f"T{session.turns}: you → {label}")
-
-    gw.events.append(
-        "battle",
-        {
-            "tenant_id": session.claims_token_id,
-            "battle_id": battle_id,
-            "turn": session.turns,
-            "choice": choice,
-            "choice_label": label,
-            "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
-        },
-    )
     old_pending = session.pending
+    # Order MUST mirror the HTTP /choose path (gateway.py): step the sidecar
+    # FIRST, and only append the audit "battle" row AFTER the move actually
+    # executed. The earlier MCP order appended the EventLog row before the step,
+    # so a sidecar failure left a chain row recording a move that never ran (the
+    # finally below can roll back session state but NOT a durable chain row) —
+    # codex dogfood P1 (PASS 27/28).
+    session.visitor_choices.append(choice)
+    _push_recent(session, f"T{session.turns}: you → {label}")
     session.pending = None
-    session.last_touch = gw.now()
 
     sc_fn = _get_sidecar_fn()
+    sidecar = None
     success = False
     try:
         sidecar = await sc_fn()
         resp = await sidecar.request(
             "step", battle=battle_id, choices={session.visitor_side: choice}
         )
-        out = await gw._advance(session, resp["state"], visitor_choice=None)
         success = True
-        return out
     except Exception as e:
         raise ValueError(f"Battle step error: {e}") from None
     finally:
@@ -186,6 +178,39 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
                 session.visitor_choices.pop()
             session.recent = old_recent
             session.pending = old_pending
+
+    # The move executed: NOW record it to the audit chain. A write failure here
+    # fails CLOSED — end the battle and stop the sidecar — rather than leave a
+    # live battle whose moves are not durably logged (mirrors HTTP /choose).
+    try:
+        gw.events.append(
+            "battle",
+            {
+                "tenant_id": session.claims_token_id,
+                "battle_id": battle_id,
+                "turn": session.turns,
+                "choice": choice,
+                "choice_label": label,
+                "foe_hp_pct": session.foe_hp_pct if session.foe_species else None,
+            },
+        )
+    except Exception as e:
+        session.ended = {
+            "winner": "",
+            "turns": session.turns,
+            "reason": f"fatal: event log write failed: {e!r}",
+        }
+        if sidecar is not None:
+            try:
+                await sidecar.request("stop", battle=battle_id)
+            except Exception:
+                pass
+        raise ValueError(f"event log write failed: {e!r}") from None
+    session.last_touch = gw.now()
+    try:
+        return await gw._advance(session, resp["state"], visitor_choice=None)
+    except Exception as e:
+        raise ValueError(f"Battle advance error: {e}") from None
 
 
 @mcp.tool()
