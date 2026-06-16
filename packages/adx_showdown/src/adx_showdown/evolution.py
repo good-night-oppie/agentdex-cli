@@ -57,6 +57,29 @@ def _git(workspace: Path, *args: str) -> str:
     return out.stdout.strip()
 
 
+# Sentinel delta used for the POWERED/INCONCLUSIVE power check when NO glicko
+# delta was measured (the <2*RD case, glicko_delta is None). It asks "had this
+# window enough battles to detect even a sizeable ~50-Elo move?".
+_MISSING_DELTA_SENTINEL = 50.0
+
+
+def _power_input_delta(glicko_delta: float | None) -> float:
+    """Delta fed to ``window_verdict`` for the POWERED/INCONCLUSIVE check.
+
+    A genuine *measured* delta of ``0.0`` must pass through as ``0.0`` — equal
+    teams mean no finite window can "power" a detection of difference, so the
+    verdict is correctly INCONCLUSIVE. Only a *missing* measurement
+    (``glicko_delta is None``) falls back to ``_MISSING_DELTA_SENTINEL``.
+
+    The earlier expression ``abs(delta) if delta else 50.0`` treated a real
+    ``0.0`` as falsy and fabricated a 50-Elo move, reporting a made-up POWERED
+    verdict for a window that measured exactly no difference (P0 silent-failure
+    bug). The ``is not None`` guard is the fix (mirrors the correct guard already
+    used when rendering ``glicko_delta`` on the EvolutionCard).
+    """
+    return abs(glicko_delta) if glicko_delta is not None else _MISSING_DELTA_SENTINEL
+
+
 class HarnessWorkspace:
     """Git-init'd 5-store harness state. Refiner writes HERE only (runs/ are
     read-only to it); every generation is a commit + tag, auditable and
@@ -310,7 +333,7 @@ class EvolutionLoop:
             glicko_delta=delta,
             rating=rating,
             rd=rd,
-            power_verdict=window_verdict(abs(delta) if delta else 50.0, battles=self.k_battles),
+            power_verdict=window_verdict(_power_input_delta(delta), battles=self.k_battles),
             rolled_back=rolled_back,
             manifest_summary=manifest.summary if manifest else "",
         )
