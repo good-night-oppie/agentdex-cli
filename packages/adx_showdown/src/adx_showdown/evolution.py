@@ -339,6 +339,9 @@ class EvolutionLoop:
             )
 
         results = await self._window(sidecar, team=live_team, gen=gen, label="live")
+        # Capture the pre-window published baseline so a HARMFUL quarantine can
+        # recompute the receipt's delta against it (see the HARMFUL branch).
+        pre_window = recompute_ladder(self.events_path).rating(self.entrant)
         rating, rd, delta = self._rate(results, gen)
 
         verdict: GenerationVerdict = "NEUTRAL"
@@ -378,6 +381,19 @@ class EvolutionLoop:
                 # battle_id in the rolled-back window; recompute_ladder filters
                 # them out of the period (events.py pre-scan + period filter).
                 self._quarantine_window(results)
+                # Refresh the reported rating/rd/delta from the POST-quarantine
+                # ladder so the GenerationReport + the A4 receipt (rendered from
+                # it in evolution_card) match the published ladder, which now
+                # excludes the voided window. _rate computed these from the
+                # pre-quarantine period; leaving them stale would re-introduce
+                # the exact receipt-vs-ladder divergence this quarantine removes,
+                # just moved into the report fields (PR #158 review #3421911866).
+                # A fully-quarantined window reverts the entrant to its
+                # pre-window state, so published_delta vs pre_window is None
+                # (no move worth selling).
+                post = recompute_ladder(self.events_path).rating(self.entrant)
+                rating, rd = post.rating, post.rd
+                delta = Ladder.published_delta(pre_window, post)
             elif verdict == "EFFECTIVE":
                 self.workspace.mark_best_ever()
 
