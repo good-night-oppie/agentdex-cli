@@ -310,25 +310,24 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li><strong>State changed</strong> — KV keys gained, dropped, or given new values</li>
 <li><strong>Tool calls between</strong> — calls made between the two captures</li>
 </ul>
-<p>A typical report:</p>
-<div class="codehilite"><pre><span></span><code>Files added (2):
-  /src/auth_v2.py        4.2 KB
-  /tests/test_auth.py    1.8 KB
-
-Files modified (1):
-  /src/auth.py           (1.1 KB → 2.4 KB)
-
-Files removed (1):
-  /src/auth_legacy.py
+<p>A typical report — a table keyed by path and status (no file sizes), then the state and tool-call sections:</p>
+<div class="codehilite"><pre><span></span><code>           File Changes
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ Status     ┃ Path               ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ ADDED      │ /tests/test_auth.py│
+│ MODIFIED   │ /src/auth.py       │
+│ REMOVED    │ /src/auth_legacy.py│
+└────────────┴────────────────────┘
 
 State changes:
   progress:  75 → 100
   status:    &quot;in-progress&quot; → &quot;complete&quot;
 
 Tool calls between checkpoints: 12
-  8 success, 3 error, 1 running
 </code></pre></div>
 
+<p>With <code>--json</code>, the same diff comes back as <code>{"files": {"added": [...], "removed": [...], "modified": [...]}, "state": {"added": {...}, "removed": {...}, "modified": {...}}, "tool_calls": [...]}</code>. (When nothing changed in a section the CLI prints <code>No state changes</code> / <code>No tool calls between checkpoints</code>.)</p>
 <h3 id="compare-two-attempts">Compare two attempts</h3>
 <p>Snapshot each approach, then diff them:</p>
 <div class="codehilite"><pre><span></span><code><span class="n">cp_a</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;approach-A&quot;</span><span class="p">)</span>
