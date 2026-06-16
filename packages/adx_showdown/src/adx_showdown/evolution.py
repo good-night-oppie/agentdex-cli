@@ -47,6 +47,12 @@ STORE_FILES = ("prompt.md", "subagents.json", "skills.json", "memory.json", "tea
 GenerationVerdict = Literal["EFFECTIVE", "NEUTRAL", "HARMFUL", "INCONCLUSIVE"]
 
 
+class EvolutionStateError(RuntimeError):
+    """Corrupt run state detected (e.g. a change_manifest left on disk for the
+    wrong generation). Raised rather than silently skipping the falsification
+    window — a silent skip is exactly the P0 failure mode this guards."""
+
+
 def _git(workspace: Path, *args: str) -> str:
     out = subprocess.run(
         ["git", "-C", str(workspace), *args],
@@ -123,6 +129,22 @@ class HarnessWorkspace:
             return None
         return ChangeManifest.model_validate_json(path.read_text())
 
+    def consume_manifest(self) -> ChangeManifest | None:
+        """Read the pending manifest AND remove it from the working tree.
+
+        The manifest is a SINGLE-USE pending prediction: written at the END of
+        generation N (targeting N+1) and consumed by generation N+1's
+        falsification check. Leaving it on disk after consumption is the P0
+        leak — a None-return Refiner at the next generation lets the stale
+        manifest linger, the `generation == gen` guard then silently goes False,
+        no falsification window runs, and the loop reports NEUTRAL forever.
+        Consuming = clearing; the `git add -A` at the next `commit_edits` records
+        the removal so the tree stays honest.
+        """
+        manifest = self.read_manifest()
+        (self.root / "change_manifest.json").unlink(missing_ok=True)
+        return manifest
+
     def commit_edits(self, msg: str) -> str:
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-q", "--allow-empty", "-m", msg)
@@ -138,6 +160,11 @@ class HarnessWorkspace:
     def rollback_to_best_ever(self) -> str:
         """HARMFUL rail: restore every store from the best_ever tag."""
         _git(self.root, "checkout", "best_ever", "--", ".")
+        # A rollback discards the pending prediction too. best_ever's restored
+        # tree can carry a stale change_manifest.json that would otherwise trip
+        # the wrong-generation guard at the next run_generation (false
+        # EvolutionStateError). Clear it so rollback lands a clean state.
+        (self.root / "change_manifest.json").unlink(missing_ok=True)
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-q", "--allow-empty", "-m", "rollback to best_ever")
         return _git(self.root, "rev-parse", "best_ever")
@@ -276,7 +303,17 @@ class EvolutionLoop:
         # for generation gen+1's falsification)
         self.workspace.tag_state(f"gen-{gen}")
         live_team = self.workspace.team
-        manifest = self.workspace.read_manifest()
+        # Consume (read + clear) the single-use pending manifest. A present
+        # manifest MUST target THIS generation; a wrong-generation manifest is
+        # corrupt run state (crash mid-write / manual edit / a rollback that
+        # failed to clear) and is raised, never silently skipped.
+        manifest = self.workspace.consume_manifest()
+        if manifest is not None and manifest.generation != gen:
+            raise EvolutionStateError(
+                f"change_manifest targets generation {manifest.generation} but generation "
+                f"{gen} is starting — a manifest is single-use and must be consumed by the "
+                f"generation it targets. This is corrupt run state, not a recoverable skip."
+            )
 
         results = await self._window(sidecar, team=live_team, gen=gen, label="live")
         rating, rd, delta = self._rate(results, gen)
@@ -285,7 +322,9 @@ class EvolutionLoop:
         p_value: float | None = None
         rolled_back = False
         pairs = 0
-        if manifest is not None and manifest.generation == gen:
+        if manifest is not None:
+            # manifest.generation == gen is now an invariant (the mismatch
+            # raised above), so a present manifest always falsifies THIS gen.
             # CRN falsification: replay the SAME seeds with the FROZEN
             # (pre-manifest) team = the control replica.
             frozen_team = self._team_at_tag(f"gen-{gen - 1}")
