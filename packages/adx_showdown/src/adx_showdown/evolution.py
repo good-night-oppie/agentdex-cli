@@ -22,7 +22,10 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
-from collections.abc import Awaitable, Callable
+from collections import Counter
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -45,6 +48,32 @@ from adx_showdown.sim import BattleResult, Policy, run_battle
 
 STORE_FILES = ("prompt.md", "subagents.json", "skills.json", "memory.json", "teams.json")
 GenerationVerdict = Literal["EFFECTIVE", "NEUTRAL", "HARMFUL", "INCONCLUSIVE"]
+
+# Observability for the "load-bearing surface": which of the 5 stores does the
+# battle path actually READ? Today only teams.json is read on the behavioral
+# path (the battler reads no store; the loop reads workspace.team -> teams.json);
+# prompt.md/subagents.json/skills.json/memory.json are written + committed but
+# never read, so edits to them are inert and unmeasurable by the falsification
+# rail. This tracer turns that fact into a test-asserted, RED-on-regression
+# invariant — and means that when a store is wired into the policy, its reads
+# WILL show up here. ALL behavioral store reads must go through
+# HarnessWorkspace.read_store so the trace stays honest.
+_STORE_READS: ContextVar[Counter[str] | None] = ContextVar("_store_reads", default=None)
+
+
+@contextmanager
+def trace_store_reads() -> Iterator[Counter[str]]:
+    """Record each HarnessWorkspace.read_store call within the block.
+
+    Returns a Counter keyed by store filename; stores never read register as 0
+    (Counter semantics). Reentrancy-safe via a ContextVar token (propagates into
+    the async run_generation since it runs in the same task)."""
+    counter: Counter[str] = Counter()
+    token = _STORE_READS.set(counter)
+    try:
+        yield counter
+    finally:
+        _STORE_READS.reset(token)
 
 
 class EvolutionStateError(RuntimeError):
@@ -110,9 +139,19 @@ class HarnessWorkspace:
         _git(ws.root, "tag", "-f", "best_ever")
         return ws
 
+    def read_store(self, name: str) -> str:
+        """Read a store file's text, recording the read under any active
+        trace_store_reads context. EVERY behavioral store read must go through
+        here so the load-bearing surface stays observable (store_shas is exempt:
+        it is integrity hashing, not behavioral consumption)."""
+        reads = _STORE_READS.get()
+        if reads is not None:
+            reads[name] += 1
+        return (self.root / name).read_text()
+
     @property
     def team(self) -> str:
-        return json.loads((self.root / "teams.json").read_text())["active"]
+        return json.loads(self.read_store("teams.json"))["active"]
 
     def store_shas(self) -> dict[str, str]:
         return {
