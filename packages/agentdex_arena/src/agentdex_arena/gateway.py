@@ -1180,18 +1180,43 @@ class ArenaGateway:
         fresh-seeded opponent policy; the visitor's recorded choices replay through
         the live step protocol up to the fork point, then control returns to the
         agent. Deterministic anchors make the same-choice suffix reproduce; the
-        only free variable is the decision at the fork."""
+        only free variable is the decision at the fork.
+
+        Fork-determinism (#168 review follow-on): the opponent policy MUST
+        mirror what the original battle_begin built, not a plain anchor —
+        otherwise a default-sandbox battle (which escalates anchor-random to
+        the autopilot_punisher when low-entropy play is detected, gateway.py
+        :745) would reproduce here with a gentler bot and the same-choice
+        suffix could diverge. So:
+          - dispatch through `_opponent_policy` so gym leaders' actual bots
+            come back from a fork instead of falling through to anchor-random;
+          - when the source opponent is the default `anchor-random`, mirror
+            battle_begin and wire up the autopilot_punisher escalation, with
+            `_is_autopilot` reading the fork session's own visitor_choices
+            list (populated below as choices replay).
+        """
         battle_id = f"sandbox-fork-{uuid.uuid4().hex[:8]}"
+        opponent = str(src["opponent"])
         session = BattleSession(
             battle_id=battle_id,
             claims_token_id=str(src["tenant"]),
             visitor_name=str(src["visitor"]),
             lane="sandbox",
-            opponent=str(src["opponent"]),
+            opponent=opponent,
             seed=list(src["seed"]),
             sidecar=sidecar,
-            opponent_policy=_anchor_policy(str(src["opponent"]), sidecar, src["seed"][0] + 13),
+            opponent_policy=_opponent_policy(opponent, sidecar, src["seed"][0] + 13),
         )
+        # Mirror battle_begin's default-sandbox escalation so a fork of a
+        # default-sandbox battle replays through the SAME bot the original
+        # faced (gateway.py:745). Explicit gym picks keep their chosen bot;
+        # rated forks can never get here (battle_fork is sandbox-only).
+        if opponent == "anchor-random":
+            session.opponent_policy = autopilot_punisher(
+                sidecar,
+                src["seed"][0] + 13,
+                on_autopilot=lambda: _is_autopilot(session),
+            )
         session.p1_team, session.p2_team = src["teams"]
         session.parent = (src_battle_id, turn)
         resp = await sidecar.request(
@@ -1226,6 +1251,14 @@ class ArenaGateway:
             if session.pending is None:
                 break
             session.pending = None
+            # Mirror what /battle/{id}/choose does for live choices: record the
+            # replayed choice on the fork session so _is_autopilot sees the
+            # same low-entropy sequence the original opponent saw. Without this
+            # the autopilot_punisher (re-wired above for default sandbox forks)
+            # would never escalate on the replayed prefix even though the
+            # original battle had already escalated — same-choice suffix would
+            # then diverge.
+            session.visitor_choices.append(ch)
             step = await sidecar.request(
                 "step", battle=battle_id, choices={session.visitor_side: ch}
             )
