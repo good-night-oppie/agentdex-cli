@@ -642,7 +642,7 @@ KAOS = observability, monitoring, babysitting, gap detection
 <h3 id="parallel-execution">Parallel Execution</h3>
 <p><code>ClaudeCodeRunner.run_parallel()</code> runs agents with <code>asyncio.gather()</code> and a semaphore. The default <code>max_parallel_agents</code> value is 8.</p>
 <h3 id="tool-registry">Tool Registry</h3>
-<p><code>bene/ccr/tools.py</code> owns built-in and custom tool definitions. Built-in <code>fs_</code> and <code>state_</code> tools receive the active <code>agent_id</code> automatically so their operations stay inside the caller's namespace.</p>
+<p><code>bene/ccr/tools.py</code> owns built-in and custom tool definitions. Built-in <code>fs_</code> and <code>state_</code> tools receive the active <code>agent_id</code> automatically so their operations stay inside the caller's namespace. The table below lists the core <code>fs_</code>/<code>state_</code>/<code>shell</code> tools; <code>tools.py</code> also registers a <code>squirrel_localpath</code> helper (translates internal/Jira URLs to NFS paths) that an internal deployment may keep or de-register.</p>
 <table>
 <thead>
 <tr>

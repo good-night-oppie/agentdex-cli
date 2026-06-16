@@ -252,7 +252,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>The entire state of your agent fleet is one SQLite file — query it, <code>cp</code> it, back it up; nothing leaves your machine.</strong></p>
 </blockquote>
 <p>The schema is at version <strong>4</strong>, defined in <code>bene/schema.py</code>.</p>
-<p>Original anchor map: <a href="#overview">Overview</a>, <a href="#agents">agents</a>, <a href="#files">files</a>, <a href="#blobs">blobs</a>, <a href="#tool_calls">tool_calls</a>, <a href="#state">state</a>, <a href="#events">events</a>, <a href="#checkpoints">checkpoints</a>, <a href="#schema_version">schema_version</a>, <a href="#relationships">Relationships</a>, <a href="#index-reference">Index Reference</a>.</p>
 <hr />
 <p><a id="overview"></a></p>
 <h2 id="one-file-eleven-tables">One file, eleven tables</h2>
@@ -372,7 +371,7 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 </tbody>
 </table>
 <h3 id="event-types">Event types</h3>
-<p>Every <code>event_type</code> bene emits, with the payload shape each carries:</p>
+<p>The standard <code>event_type</code>s bene emits, with the payload shape each carries (the Temporal runtime emits a few additional types):</p>
 <table>
 <thead>
 <tr>
@@ -441,6 +440,11 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <td><code>tool_call_end</code></td>
 <td><code>{"call_id": "...", "status": "success"}</code></td>
 <td>Tool execution completed</td>
+</tr>
+<tr>
+<td><code>llm_call</code></td>
+<td><code>{"model": "...", "prompt_len": 1234, "input_tokens": 800, "output_tokens": 120, "cache_read_tokens": 0, "cache_creation_tokens": 0}</code></td>
+<td>Model call completed</td>
 </tr>
 <tr>
 <td><code>checkpoint_create</code></td>

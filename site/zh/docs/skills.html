@@ -304,8 +304,9 @@ bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w">
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bene</span><span class="w"> </span><span class="kn">import</span> <span class="n">Bene</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">bene.skills</span><span class="w"> </span><span class="kn">import</span> <span class="n">SkillStore</span>
 
-<span class="n">bene</span> <span class="o">=</span> <span class="n">Bene</span><span class="p">(</span><span class="s2">&quot;project.db&quot;</span><span class="p">)</span>
-<span class="n">sk</span>   <span class="o">=</span> <span class="n">SkillStore</span><span class="p">(</span><span class="n">bene</span><span class="o">.</span><span class="n">conn</span><span class="p">)</span>
+<span class="n">bene</span>  <span class="o">=</span> <span class="n">Bene</span><span class="p">(</span><span class="s2">&quot;project.db&quot;</span><span class="p">)</span>
+<span class="n">sk</span>    <span class="o">=</span> <span class="n">SkillStore</span><span class="p">(</span><span class="n">bene</span><span class="o">.</span><span class="n">conn</span><span class="p">)</span>
+<span class="n">agent</span> <span class="o">=</span> <span class="n">bene</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="s2">&quot;classifier-dev&quot;</span><span class="p">)</span>   <span class="c1"># source_agent_id is a FK → must be a real spawned agent</span>
 
 <span class="c1"># Save a skill after discovering a reliable pattern</span>
 <span class="n">sid</span> <span class="o">=</span> <span class="n">sk</span><span class="o">.</span><span class="n">save</span><span class="p">(</span>
@@ -316,7 +317,7 @@ bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w">
         <span class="s2">&quot;Use </span><span class="si">{voting}</span><span class="s2"> voting. Tune the decision threshold to </span><span class="si">{threshold}</span><span class="s2">.&quot;</span>
     <span class="p">),</span>
     <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;classification&quot;</span><span class="p">,</span> <span class="s2">&quot;ensemble&quot;</span><span class="p">,</span> <span class="s2">&quot;accuracy&quot;</span><span class="p">],</span>
-    <span class="n">source_agent_id</span><span class="o">=</span><span class="s2">&quot;agent-01&quot;</span><span class="p">,</span>
+    <span class="n">source_agent_id</span><span class="o">=</span><span class="n">agent</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Search before starting a similar task</span>
@@ -482,7 +483,7 @@ Zhou, Chai, Chen, et al. (2026)
 </tr>
 <tr>
 <td>Harness</td>
-<td><code>MetaHarness</code> — evolutionary strategy optimization</td>
+<td><code>MetaHarnessSearch</code> — evolutionary strategy optimization</td>
 </tr>
 </tbody>
 </table>
