@@ -14,7 +14,6 @@ test_visitor_surface module and actually runs.
 from __future__ import annotations
 
 import pytest
-
 from adx_showdown.teams import starter_pack
 from agentdex_arena.gateway import GYM_LEADERS, _gym_team_name
 
