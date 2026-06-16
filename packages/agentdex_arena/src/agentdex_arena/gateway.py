@@ -1063,6 +1063,13 @@ class ArenaGateway:
             await self._append_or_fail_closed(
                 "badge",
                 {
+                    # ADX-P1-002 (owner export): badge events carry the owner's
+                    # tenant_id so /my/events can return them via the same
+                    # top-level filter every other tenant-owned row uses (the
+                    # earlier `agent_name`-only payload meant /my/events missed
+                    # earned badges entirely, so the local SQLite Pokédex never
+                    # saw its own badge receipts — PASS 41).
+                    "tenant_id": session.claims_token_id,
                     "agent_name": session.visitor_name,
                     "badge": badge_awarded,
                     "battle_id": session.battle_id,
@@ -1747,8 +1754,26 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
 
     @app.post("/my/events")
     async def my_events(body: dict) -> dict:
-        """P4 client pull: a tenant's own chain rows (battle events only), paged by
-        chain seq — the feed `local_log.pull` materializes into ~/.adx/arena.sqlite."""
+        """P4 client pull: a tenant's own chain rows, paged by chain seq — the
+        feed `local_log.pull` materializes into ~/.adx/arena.sqlite.
+
+        ADX-P1-002 (owner export completeness): the export now includes every
+        chain row that belongs to this owner, not just rows with a top-level
+        `tenant_id` match. Three cases:
+
+          1. Top-level tenant_id match — battle_begin, battle_end, battle_fork,
+             quarantine, badge (post-PR), membership_grant.
+          2. `badge` events emitted before badge-tenant_id shipped — fall back
+             to `agent_name == claims.agent_name` so a re-enrolled / pre-fix
+             owner can still pull their own badge receipts (PASS 41).
+          3. `period` events — top-level payload has no `tenant_id`, only a
+             nested `events: [{battle_id, ...}, ...]` list. A period belongs to
+             this owner if ANY nested rating_event's battle_id matches one of
+             the owner's begin/end/fork rows. Two-pass scan: collect owned
+             battle_ids in pass 1, filter rows in pass 2.
+
+        The 1000-row cap is preserved.
+        """
         try:
             claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
         except ConsentError as e:
@@ -1756,16 +1781,47 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         since = body.get("since_seq", -1)
         if not isinstance(since, int):
             raise _opaque_error(422, "since_seq must be an int")
-        rows = []
+
+        # Pass 1: collect this owner's battle_ids by scanning top-level tenant_id
+        # matches across the whole chain (cheap — chain rows are <1KB JSON each).
+        owned_battle_ids: set[str] = set()
+        for ev in gateway.events.iter_events():
+            payload = ev.get("payload") or {}
+            if payload.get("tenant_id") == claims.token_id:
+                bid = payload.get("battle_id")
+                if isinstance(bid, str):
+                    owned_battle_ids.add(bid)
+
+        def _belongs_to_owner(ev: dict[str, Any]) -> bool:
+            payload = ev.get("payload") or {}
+            # Case 1: top-level tenant_id match (the common path).
+            if payload.get("tenant_id") == claims.token_id:
+                return True
+            etype = ev.get("type")
+            # Case 2: legacy badge rows pre-PR (no tenant_id). Match by
+            # agent_name — the agent_name → owner mapping is unforgeable
+            # because `claims.agent_name` came from a verified consent token.
+            if etype == "badge" and payload.get("agent_name") == claims.agent_name:
+                return True
+            # Case 3: period rows wrap rating_events that reference owned
+            # battle_ids. The owner's rating delta is "their" period even
+            # though the row itself has no tenant_id.
+            if etype == "period":
+                for nested in payload.get("events") or []:
+                    nested_bid = nested.get("battle_id") if isinstance(nested, dict) else None
+                    if isinstance(nested_bid, str) and nested_bid in owned_battle_ids:
+                        return True
+            return False
+
+        # Pass 2: page the actual response by chain seq (post-`since`).
+        rows: list[dict[str, Any]] = []
         for ev in gateway.events.iter_events():
             if ev["seq"] <= since:
                 continue
-            payload = ev.get("payload") or {}
-            if payload.get("tenant_id") != claims.token_id:
-                continue
-            rows.append(ev)
-            if len(rows) >= 1000:
-                break
+            if _belongs_to_owner(ev):
+                rows.append(ev)
+                if len(rows) >= 1000:
+                    break
         return {"events": rows, "next_since_seq": rows[-1]["seq"] if rows else since}
 
     @app.post("/badge/mint")
