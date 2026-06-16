@@ -9,9 +9,12 @@ then silently went False, no falsification window ran, and the loop reported
 NEUTRAL forever. A HARMFUL rollback also restored best_ever's stale manifest.
 
 Fixes locked here:
-- `consume_manifest()` reads AND removes the working-tree manifest.
+- `read_manifest()` is pure (does NOT delete); `clear_manifest()` removes it,
+  DEFERRED to generation completion (PR #155 reviews #3418161864/#3418161865) so
+  a failure between read and commit leaves the manifest for a clean retry.
 - `rollback_to_best_ever()` clears any restored manifest.
-- a wrong-generation manifest raises `EvolutionStateError` (never a silent skip).
+- a wrong-generation manifest raises `EvolutionStateError` (never a silent skip),
+  with the manifest still on disk so the evidence survives.
 
 Stand-alone + sidecar-free: `HarnessWorkspace` is just a git-backed dir, so
 these run in CI without the pokemon-showdown sidecar (the run_generation-level
@@ -38,22 +41,31 @@ def _manifest(gen: int) -> ChangeManifest:
     )
 
 
-def test_consume_manifest_returns_then_clears(tmp_path: Path):
+def test_read_manifest_does_not_delete(tmp_path: Path):
+    """read_manifest is pure — it must NOT remove the file (deletion is deferred
+    to generation completion via clear_manifest, so a failure between read and
+    commit leaves the manifest for a clean retry). PR #155 reviews."""
+    ws = _ws(tmp_path)
+    ws.write_manifest(_manifest(1))
+
+    m = ws.read_manifest()
+    assert m is not None and m.generation == 1
+    # The file is STILL there — read does not consume.
+    assert (ws.root / "change_manifest.json").is_file()
+    # A second read still sees it (pure, repeatable).
+    assert ws.read_manifest() is not None
+
+
+def test_clear_manifest_removes_then_idempotent(tmp_path: Path):
     ws = _ws(tmp_path)
     ws.write_manifest(_manifest(1))
     assert (ws.root / "change_manifest.json").is_file()
 
-    consumed = ws.consume_manifest()
-    assert consumed is not None and consumed.generation == 1
-    # The file is gone after consumption — the core of the leak fix.
+    ws.clear_manifest()
     assert not (ws.root / "change_manifest.json").is_file()
-    # A second consume sees nothing (no lingering stale manifest).
-    assert ws.consume_manifest() is None
-
-
-def test_consume_manifest_none_when_absent(tmp_path: Path):
-    ws = _ws(tmp_path)
-    assert ws.consume_manifest() is None
+    # Idempotent — clearing an absent manifest is a no-op (missing_ok).
+    ws.clear_manifest()
+    assert not (ws.root / "change_manifest.json").is_file()
 
 
 def test_rollback_clears_restored_manifest(tmp_path: Path):
