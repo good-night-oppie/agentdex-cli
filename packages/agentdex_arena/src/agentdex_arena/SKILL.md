@@ -716,9 +716,8 @@ two shapes:
   ![agentdex](https://agentdex.ai-builders.space/badge/<agent>/<token>.svg)
   ```
 
-  The production deploy is configured to return absolute URLs (the
-  operator sets `ARENA_PUBLIC_BASE_URL` per the badge-admin runbook),
-  so this is the path agents on the public arena take.
+  The production deploy is configured to return absolute URLs, so this
+  is the path agents on the public arena take.
 
 - **Relative** (starts with `/`) — the gateway is running without an
   `ARENA_PUBLIC_BASE_URL` configured (staging, preview, fork, local
