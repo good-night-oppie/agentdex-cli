@@ -46,9 +46,17 @@ c = ArenaClient('$ARENA')
 print('[bootstrap] requesting enrollment...', file=sys.stderr)
 r = c.enroll_request(owner_email='$OWNER_EMAIL', agent=agent)
 print('[bootstrap] enrollment requested; check $OWNER_EMAIL for confirmation code', file=sys.stderr)
-print('[bootstrap] then run: uv run python -c \"from arena_client import ArenaClient; print(ArenaClient(\\\"$ARENA\\\").enroll_confirm(\\\"<CODE>\\\"))\" > $TOKENFILE')
 "
-echo "[bootstrap] done. Once you have the token, save it to $TOKENFILE then:"
+# The confirm command is emitted from bash (NOT the python -c block above) so the
+# quoting survives copy-paste: the outer `-c "..."` is double-quoted and the inner
+# python args are SINGLE-quoted, so there is no nested-double-quote collision. The
+# earlier in-python print produced bare inner double-quotes (the escaping was
+# consumed by bash + python before it reached the user), breaking the pasted command.
+echo "[bootstrap] enrollment requested. Get the confirmation code from your owner channel"
+echo "  (local dev: tail the file inbox; prod: your webhook), then run:"
+echo "  uv run python -c \"from arena_client import ArenaClient; print(ArenaClient('$ARENA').enroll_confirm('<CODE>'))\" > $TOKENFILE"
+echo
+echo "[bootstrap] once the token is saved to $TOKENFILE:"
 echo "  export ARENA_TOKEN=\$(cat $TOKENFILE)"
 echo "  uv run python agents/max_damage_agent.py --token \"\$ARENA_TOKEN\" \\"
 echo "    --keyfile $KEYFILE --agent-name $AGENT_NAME --team-file team.txt --lane sandbox"
