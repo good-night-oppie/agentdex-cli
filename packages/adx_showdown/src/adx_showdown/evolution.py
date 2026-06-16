@@ -313,6 +313,26 @@ class EvolutionLoop:
         for r in results:
             elog.append("quarantine", {"battle_id": r.battle_id})
 
+    def _harmful_refresh(self) -> tuple[float, float, float | None]:
+        """Report values for a rolled-back (HARMFUL) window, read AFTER
+        `_quarantine_window`. rating/rd come from the POST-quarantine ladder so
+        the GenerationReport + the A4 receipt match what `/ladder` now publishes
+        (it excludes the voided window); the move delta is ALWAYS None — a
+        voided window sells no move.
+
+        The delta is unconditionally None, NOT `published_delta(pre_window,
+        post)`. A generation that fails after `_rate` appended the live period
+        but before the verdict is retried, and the retry reuses the
+        deterministic `live-g{gen}-b{i}` battle_ids — so `_rate` appends a
+        SECOND period with the SAME ids and the quarantine voids them across
+        BOTH periods (recompute_ladder filters battle_ids globally). `post`
+        therefore reverts PAST the retry's pre-window baseline (back to before
+        the abandoned attempt), and `published_delta(pre_window, post)` would
+        advertise a spurious positive move on a rolled-back report — the exact
+        A4 lie the quarantine exists to prevent (PR #159 review #3422007501)."""
+        post = recompute_ladder(self.events_path).rating(self.entrant)
+        return post.rating, post.rd, None
+
     async def run_generation(self, sidecar: Sidecar, gen: int) -> GenerationReport:
         """One full cycle. The verdict for generation N's EDIT comes from
         generation N's window — which runs AFTER the edit was committed at
@@ -339,9 +359,6 @@ class EvolutionLoop:
             )
 
         results = await self._window(sidecar, team=live_team, gen=gen, label="live")
-        # Capture the pre-window published baseline so a HARMFUL quarantine can
-        # recompute the receipt's delta against it (see the HARMFUL branch).
-        pre_window = recompute_ladder(self.events_path).rating(self.entrant)
         rating, rd, delta = self._rate(results, gen)
 
         verdict: GenerationVerdict = "NEUTRAL"
@@ -381,19 +398,13 @@ class EvolutionLoop:
                 # battle_id in the rolled-back window; recompute_ladder filters
                 # them out of the period (events.py pre-scan + period filter).
                 self._quarantine_window(results)
-                # Refresh the reported rating/rd/delta from the POST-quarantine
-                # ladder so the GenerationReport + the A4 receipt (rendered from
-                # it in evolution_card) match the published ladder, which now
-                # excludes the voided window. _rate computed these from the
-                # pre-quarantine period; leaving them stale would re-introduce
-                # the exact receipt-vs-ladder divergence this quarantine removes,
-                # just moved into the report fields (PR #158 review #3421911866).
-                # A fully-quarantined window reverts the entrant to its
-                # pre-window state, so published_delta vs pre_window is None
-                # (no move worth selling).
-                post = recompute_ladder(self.events_path).rating(self.entrant)
-                rating, rd = post.rating, post.rd
-                delta = Ladder.published_delta(pre_window, post)
+                # Refresh the reported rating/rd from the POST-quarantine ladder
+                # and void the move delta — see _harmful_refresh. _rate computed
+                # the stale values from the pre-quarantine period; leaving them
+                # would re-introduce the receipt-vs-ladder divergence the
+                # quarantine removes, just moved into the report fields (PR #158
+                # review #3421911866 + PR #159 review #3422007501).
+                rating, rd, delta = self._harmful_refresh()
             elif verdict == "EFFECTIVE":
                 self.workspace.mark_best_ever()
 
