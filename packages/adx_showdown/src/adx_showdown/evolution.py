@@ -298,6 +298,21 @@ class EvolutionLoop:
         after = recompute_ladder(self.events_path).rating(self.entrant)
         return after.rating, after.rd, Ladder.published_delta(before, after)
 
+    def _quarantine_window(self, results: list[BattleResult]) -> None:
+        """Quarantine every battle in a rolled-back (HARMFUL) window so its
+        already-appended RatingEvents stop counting toward the published ladder.
+
+        `_rate` appends the window's RatingEvents to the period log before the
+        verdict is known; a HARMFUL git rollback restores the stores but leaves
+        those events in place. recompute_ladder pre-scans for `quarantine`
+        events and filters matching battle_ids out of every period, so emitting
+        one `quarantine` event per battle_id reverts the ladder impact without
+        rewriting history (the period event stays, truthfully recording that the
+        battles happened; the quarantine records that they were voided)."""
+        elog = EventLog(self.events_path)
+        for r in results:
+            elog.append("quarantine", {"battle_id": r.battle_id})
+
     async def run_generation(self, sidecar: Sidecar, gen: int) -> GenerationReport:
         """One full cycle. The verdict for generation N's EDIT comes from
         generation N's window — which runs AFTER the edit was committed at
@@ -354,6 +369,15 @@ class EvolutionLoop:
             if verdict == "HARMFUL":
                 self.workspace.rollback_to_best_ever()
                 rolled_back = True
+                # _rate already appended this live window's RatingEvents to the
+                # period log BEFORE the verdict was known. The git rollback
+                # restores the STORES but never touches events.jsonl, so without
+                # this the reverted team's losses stay baked into
+                # recompute_ladder — the published rating + the A4 receipt would
+                # advertise a team that was rolled back. Quarantine every
+                # battle_id in the rolled-back window; recompute_ladder filters
+                # them out of the period (events.py pre-scan + period filter).
+                self._quarantine_window(results)
             elif verdict == "EFFECTIVE":
                 self.workspace.mark_best_ever()
 
