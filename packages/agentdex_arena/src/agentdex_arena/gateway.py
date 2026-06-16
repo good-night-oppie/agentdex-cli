@@ -2036,6 +2036,15 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             claims = gateway.authority.verify(str(body.get("token", "")), scope="evolve")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        # Fast-fail: if the daily evolve cap is already hit, reject before
+        # spinning up sidecar work (offer_seeds is expensive). check_quota is
+        # read-only — the authoritative spend_quota debit still follows after
+        # offer_seeds returns so a sidecar failure inside offer_seeds cannot
+        # burn a slot (Class B spend-after-success is preserved).
+        try:
+            gateway.authority.check_quota(claims, scope="evolve")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
         try:
             result = await offer_seeds(
                 await _sidecar(),
