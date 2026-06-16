@@ -159,6 +159,7 @@ Loop: get_battle_state → choose_action → repeat until end. Use write_scratch
 | 503 on `/battle/begin` | sim capacity (~16 concurrent) | retryable — finish/forfeit a battle then retry |
 | 400 "no pending request" | called `/choose` twice for same turn | wait for prior `/choose` response |
 | empty `foe_active` in early state | mon hasn't switched in yet | normal at turn 1 |
+| opaque `403` on `/whoami` (or any battle call) from a stored token | the 7-day token expired (the gateway won't say *why* — D7 anti-enumeration) | call `client.whoami(token)` — it reads the token's own expiry locally and raises `TokenExpired` with the recovery path; then **re-enroll under a NEW `--agent-name`**. Arena names are never freed: the old name keeps its ladder history but its token cannot be renewed (see ENROLLMENT.md "Legacy-token gap"). |
 | rated lane gives no opponent team in `begin` | intentional (hotfix 9c145fa6) | infer from `recent_turns` + sidecar foe HP only |
 | `claude_agent.py` exits with `ModuleNotFoundError: anthropic` | `uv sync` skips the `[claude]` extra by default | run `uv sync --extra claude` (or `uv pip install anthropic`); the agent now exits with code 2 BEFORE opening a battle, so no quota is burned |
 
