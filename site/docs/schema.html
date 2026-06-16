@@ -247,16 +247,16 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <main>
 <div class="crumbs"><a href="index.html">docs</a> / schema.md</div>
 <h1 id="inside-benedb">Inside bene.db</h1>
-<p>Open <code>bene.db</code> with any SQLite client and you can answer, in plain SQL, every question your agents can raise: what they did, what they wrote, what they remember, and where you can roll them back to. This page maps each of the 8 tables to the question it answers, documents every column, and hands you queries ready to paste.</p>
+<p>Open <code>bene.db</code> with any SQLite client and you can answer, in plain SQL, every question your agents can raise: what they did, what they wrote, what they remember, and where you can roll them back to. This page maps each of the 11 tables to the question it answers, documents every column, and hands you queries ready to paste.</p>
 <blockquote>
 <p><strong>The entire state of your agent fleet is one SQLite file — query it, <code>cp</code> it, back it up; nothing leaves your machine.</strong></p>
 </blockquote>
-<p>The schema is at version <strong>1</strong>, defined in <code>bene/schema.py</code>.</p>
+<p>The schema is at version <strong>4</strong>, defined in <code>bene/schema.py</code>.</p>
 <p>Original anchor map: <a href="#overview">Overview</a>, <a href="#agents">agents</a>, <a href="#files">files</a>, <a href="#blobs">blobs</a>, <a href="#tool_calls">tool_calls</a>, <a href="#state">state</a>, <a href="#events">events</a>, <a href="#checkpoints">checkpoints</a>, <a href="#schema_version">schema_version</a>, <a href="#relationships">Relationships</a>, <a href="#index-reference">Index Reference</a>.</p>
 <hr />
 <p><a id="overview"></a></p>
-<h2 id="one-file-eight-tables">One file, eight tables</h2>
-<p>bene keeps everything in a single SQLite database opened in WAL (Write-Ahead Logging) mode. Five tables hang off <code>agents</code>; <code>blobs</code> holds the bytes that <code>files</code> points at:</p>
+<h2 id="one-file-eleven-tables">One file, eleven tables</h2>
+<p>bene keeps everything in a single SQLite database opened in WAL (Write-Ahead Logging) mode. Several tables hang off <code>agents</code> (<code>files</code>, <code>events</code>, <code>tool_calls</code>, <code>state</code>, <code>checkpoints</code>, <code>memory</code>, <code>agent_skills</code>, <code>shared_log</code>); <code>blobs</code> holds the bytes that <code>files</code> points at:</p>
 <div class="codehilite"><pre><span></span><code>agents  ----&lt;  files         (1:N - each agent has many files)
         ----&lt;  tool_calls    (1:N - each agent has many tool calls)
         ----&lt;  state         (1:N - each agent has many KV pairs)
@@ -1185,7 +1185,7 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <td><code>version</code></td>
 <td>INTEGER</td>
 <td>PRIMARY KEY</td>
-<td>The migration number. Current: 1.</td>
+<td>The migration number. Current: 4.</td>
 </tr>
 <tr>
 <td><code>applied_at</code></td>
@@ -1197,7 +1197,7 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 </table>
 <h3 id="migration-mechanics">Migration mechanics</h3>
 <ul>
-<li>First initialization inserts version 1.</li>
+<li>First initialization inserts version 4.</li>
 <li>On later opens, a database that trails the code's <code>SCHEMA_VERSION</code> is brought forward by incremental migrations through <code>_apply_migrations()</code>.</li>
 <li>Future steps land as <code>if from_version &lt; N:</code> blocks in <code>bene/schema.py</code>.</li>
 </ul>

@@ -697,7 +697,7 @@ sqlite3 bene.db <span class="str">"SELECT tier, kind, substr(title,1,60) FROM en
 <script>
 document.getElementById('copyInstall').addEventListener('click', async (e) => {
   try {
-    await navigator.clipboard.writeText('uv add bene && uv run bene init && uv run bene demo --no-ui');
+    await navigator.clipboard.writeText('# coming to PyPI — early access. have the repo? uv run bene init && uv run bene demo --no-ui');
     e.target.textContent = '✓ copied';
     setTimeout(() => { e.target.textContent = 'copy install ↗'; }, 2000);
   } catch { e.target.textContent = '✗ blocked'; }
