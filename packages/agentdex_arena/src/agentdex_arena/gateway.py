@@ -404,6 +404,12 @@ class BattleSession:
     # Latched once the default sandbox opponent escalates against autopilot play
     # (see autopilot_punisher / _is_autopilot). Sandbox-only; never set in rated.
     autopilot_escalated: bool = False
+    # True when the visitor explicitly named an opponent via req.gym_leader
+    # (as opposed to leaving it defaulted to GYM_LEADERS[0] = anchor-random).
+    # Persisted to the replay record so battle_fork can restore the same policy:
+    # default anchor-random forks install autopilot_punisher (mirror battle_begin);
+    # explicit anchor-random forks keep the plain random bot the visitor chose.
+    explicit_opponent: bool = False
     parent: tuple[str, int] | None = None
     scratchpad: str = ""
     last_state: dict[str, Any] | None = None
@@ -763,6 +769,7 @@ class ArenaGateway:
         if req.lane == "sandbox":
             gym_team_name = _gym_team_name(opponent)
             opp_team = await pack_team(sidecar, starter_pack()[gym_team_name])
+            session.explicit_opponent = req.gym_leader is not None
         else:
             # Rated lane: i.i.d. anchor-team matchmaking (#8). Draw opponent team
             # from RATED_ANCHOR_TEAMS via extended nonce hash, independent of visitor
@@ -1166,6 +1173,7 @@ class ArenaGateway:
             "seed": list(session.seed),
             "visitor": session.visitor_name,
             "opponent": session.opponent,
+            "explicit_opponent": session.explicit_opponent,
             "teams": [session.p1_team, session.p2_team],
             "visitor_choices": list(session.visitor_choices),
             "parent": session.parent,
@@ -1218,7 +1226,12 @@ class ArenaGateway:
         # default-sandbox battle replays through the SAME bot the original
         # faced (gateway.py:745). Explicit gym picks keep their chosen bot;
         # rated forks can never get here (battle_fork is sandbox-only).
-        if opponent == "anchor-random":
+        # `explicit_opponent` is persisted in the replay record: True when the
+        # visitor named their opponent (req.gym_leader is not None). An explicit
+        # anchor-random pick must NOT escalate — the visitor chose the gentle
+        # bot; rewiring to autopilot_punisher in the fork diverges from the
+        # original outcome (PR #176 review follow-up).
+        if opponent == "anchor-random" and not src.get("explicit_opponent", False):
             session.opponent_policy = autopilot_punisher(
                 sidecar,
                 src["seed"][0] + 13,
