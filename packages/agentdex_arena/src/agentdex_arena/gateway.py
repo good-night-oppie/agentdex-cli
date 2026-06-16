@@ -1353,10 +1353,17 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     def _check_admin(
         x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
     ) -> str:
-        """FastAPI dependency: verifies the admin header BEFORE pydantic body
-        parse so a malformed body cannot leak schema via 422 to an unauthed
-        probe. Returns the opaque actor_hash (first 8 hex of the stored hash)
-        for audit. Uniform _opaque_error(403, ...) on every failure mode."""
+        """FastAPI dependency: verifies the admin header BEFORE the route body
+        runs. Returns the opaque actor_hash (first 8 hex of the stored hash)
+        for audit. Uniform _opaque_error(403, ...) on every failure mode.
+
+        Note: FastAPI dependencies on path-operation params don't enforce
+        ordering vs body parsing — a route declared as ``async def f(req:
+        Model, _=Depends(_check_admin))`` will Pydantic-parse the body BEFORE
+        calling _check_admin, leaking a 422 ``json_invalid`` / schema error
+        to an unauthed probe (PASS 25). The /admin/grant-membership route
+        below therefore takes a raw ``Request`` and parses the body manually
+        AFTER the admin dependency runs."""
         if gateway.admin is None:
             raise _opaque_error(403, "admin not configured")
         try:
@@ -1365,15 +1372,37 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             log.warning("admin auth rejected: %s", e)
             raise _opaque_error(403, e) from None
 
-    @app.post("/admin/grant-membership")
+    @app.post("/admin/grant-membership", include_in_schema=False)
     async def grant_membership(
-        req: GrantMembershipRequest,
+        request: Request,
         actor_hash: str = Depends(_check_admin),
     ) -> dict:
         """Grant a per-owner monthly membership (ADR-0011 11b). V1 manual
         flip-the-bit; Stripe deferred to V2. Last-write-wins on owner so this
         endpoint is idempotent on intent; revocation is a grant with
-        valid_until_epoch <= now (single code path; audit trail preserved)."""
+        valid_until_epoch <= now (single code path; audit trail preserved).
+
+        ADR-0011 11b.3 anti-enumeration posture:
+          - ``include_in_schema=False`` keeps the route OUT of OpenAPI / Swagger
+            so an unauthed agent client cannot enumerate the admin surface
+            (PASS 24). Operators discover the route via
+            docs/runbooks/membership-admin.md, not /docs.
+          - Auth runs BEFORE body parsing. The body is read with
+            ``await request.json()`` and validated AFTER ``_check_admin``
+            succeeds, so a malformed JSON body sent by an unauthed probe
+            returns 403 (uniform admin posture) instead of 422 with
+            ``json_invalid`` schema info (PASS 25).
+        """
+        # Body parse runs AFTER the _check_admin Depends — a malformed body
+        # from an unauthed probe never reaches this point (PASS 25).
+        try:
+            body = await request.json()
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(422, f"invalid JSON body: {e!r}") from None
+        try:
+            req = GrantMembershipRequest.model_validate(body)
+        except Exception as e:  # noqa: BLE001 — opaque boundary; pydantic raises ValidationError
+            raise _opaque_error(422, e) from None
         # Upper-bound check using gateway clock (field validator can't see it).
         now = gateway.now()
         if req.valid_until_epoch > now + MAX_GRANT_HORIZON_SEC:
