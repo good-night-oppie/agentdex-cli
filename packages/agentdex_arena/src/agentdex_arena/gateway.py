@@ -684,7 +684,15 @@ class ArenaGateway:
                 raise ConsentError("unknown battle nonce")
             self.authority.verify_pop(claims, req.battle_nonce, req.pop_signature_hex)
             if req.lane == "rated":
-                self.authority.spend_quota(claims, scope="battle")
+                # Class B (quota spend-after-success): publication_allowed is
+                # the instrument-red kill-switch (PASS 36) — it is the
+                # operator's responsibility, not the visiting agent's. Reject
+                # BEFORE we spend a daily slot so the user does not lose a
+                # rated slot to a server-side outage. The actual `spend_quota`
+                # call moves below to AFTER the durable battle_begin append
+                # succeeds, so invalid-team 422 (PASS 35) / capacity 503 /
+                # sidecar error / append failure can no longer cost the user a
+                # daily slot.
                 if not self.publication_allowed:
                     raise ConsentError("rated lane paused: instrument self-test red")
         except ConsentError as e:
@@ -786,6 +794,23 @@ class ArenaGateway:
                     detail="arena at capacity — finish or forfeit an active battle, then retry",
                 ) from None
             raise
+        # Class B (quota spend-after-success): the rated battle has now passed
+        # every fallible gate (verify / pop / publication_allowed / team-
+        # validate / pack_team / sidecar.start). Spend the daily slot HERE so
+        # a 422 invalid-team (PASS 35) / 503 capacity (PASS 36) / sidecar error
+        # never burns a slot. If the cap is exhausted the sidecar battle is
+        # stopped before we return 403, so no orphan live battle is left
+        # behind. Sandbox lanes don't have a "battle" quota, so this stays
+        # behind the `rated` guard.
+        if req.lane == "rated":
+            try:
+                self.authority.spend_quota(claims, scope="battle")
+            except ConsentError as e:
+                try:
+                    await sidecar.request("stop", battle=battle_id)
+                except Exception:  # noqa: BLE001 — best-effort teardown
+                    pass
+                raise _opaque_error(403, e) from None
         # Class A (atomicity): the durable begin receipt MUST exist before the
         # session is published into self.sessions — otherwise an append failure
         # would leave a live, choosable battle the log never recorded. Append
@@ -1684,8 +1709,11 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     @app.post("/badge/mint")
     async def badge_mint(body: dict) -> dict:
         """Mint a signed badge_token for the caller's agent (ADR-0011 11c.2,
-        first paid feature). Call order locked in CLAUDE.md doctrine:
-        verify(scope=badge_mint) → verify_membership → spend_quota → mint.
+        first paid feature). Class B (quota spend-after-success): verify +
+        membership gate run up front (no slot spent on auth/membership 403),
+        then sign_badge runs, and only AFTER the signer succeeds do we spend
+        the daily mint slot. A 503 BadgeAuthError from sign_badge (signer
+        outage) therefore never burns a quota slot.
 
         The SVG-render endpoint (`GET /badge/{agent}/{badge_token}.svg`) ships
         in 11c.3; this PR only stands up the mint surface so an owner can
@@ -1696,7 +1724,6 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         try:
             claims = gateway.authority.verify(str(body.get("token", "")), scope="badge_mint")
             gateway.authority.verify_membership(claims)
-            gateway.authority.spend_quota(claims, scope="badge_mint")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         signed_at = gateway.now()
@@ -1712,6 +1739,10 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             )
         except BadgeAuthError as e:
             raise _opaque_error(503, e) from None
+        try:
+            gateway.authority.spend_quota(claims, scope="badge_mint")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
         # URL-encode the agent_name in the path so unicode / spaces /
         # gateway-reserved chars survive the README-paste-and-render
         # round-trip (PR #130 review #3410920009). `safe=''` URL-encodes
@@ -1835,17 +1866,26 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
 
         try:
             claims = gateway.authority.verify(str(body.get("token", "")), scope="evolve")
-            gateway.authority.spend_quota(claims, scope="evolve")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         try:
-            return await offer_seeds(
+            result = await offer_seeds(
                 await _sidecar(),
                 current_team=str(body.get("team", "")) or None,
                 reasoning=sanitize_name(str(body.get("reasoning", "")), max_len=200),
             )
+        except HTTPException:
+            raise
         except Exception as e:  # noqa: BLE001
             raise _opaque_error(400, e) from None
+        # Class B (quota spend-after-success): spend the evolve slot AFTER
+        # offer_seeds returns. A sidecar / infra failure inside offer_seeds
+        # raised above and exited via the 400 path — no slot was burned.
+        try:
+            gateway.authority.spend_quota(claims, scope="evolve")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+        return result
 
     from agentdex_arena.mcp_surface import init_mcp, mcp
 
