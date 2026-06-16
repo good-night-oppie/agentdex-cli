@@ -15,7 +15,9 @@ cross_cutting: true
 Async co-opetition (合作竞争) orchestrator across subscription-CLI baselines
 (Claude Code, Codex app-server, Manus / codex-web fallback). Produces a
 Pokédex-style record of each Expedition: 3 Result Cards, 1 Pareto verdict,
-1 Evolution Card with mutation seeds, plus full per-bridge traces.
+1 Evolution Card with mutation seeds, plus a per-bridge trace excerpt
+(metrics + response excerpt + `langfuse_trace_id` pointer; the full Langfuse
+span-tree export is an M6+ target, not yet wired).
 
 See [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) for the
 unifying architecture and [CLAUDE.md](CLAUDE.md) for codebase doctrine.
@@ -55,7 +57,7 @@ Artifacts land under `expeditions/<id>/`:
 - `result_card_<agent>.yaml` (×3)
 - `pareto_verdict.yaml`
 - `evolution_card.yaml`
-- `trace/<agent>_full_trace.jsonl` (×3)
+- `trace/<agent>_trace_excerpt.jsonl` (×3)
 
 KAOS lineage is persisted under `kaos.db` (or `--kaos-db <path>`).
 
