@@ -43,14 +43,14 @@ The point of the heartbeat: BENE itself evolves (it eats its own tail via mh_sea
 ```bash
 cd <repo-with-bene>          # /home/admin/gh/bene-main if working on BENE itself
 uv sync                      # 1. deps
-uv run bene demo --no-ui     # 2. keyless 5-pillar smoke (expect "story complete in <1s — 12 engrams, 4 experiment runs.")
+uv run bene demo --no-ui     # 2. keyless five-capability smoke (expect "story complete in <1s — 12 engrams, 4 experiment runs.")
 uv run bene init             # 3. creates ./bene.db (expect "Initialized BENE database: ./bene.db")
 uv run bene --json ls | jq . # 4. expect [] on a fresh db
 ```
 If step 2 fails, STOP — nothing downstream is trustworthy. See Failure modes.
 
-**5-pillar mental model (10 lines):**
-1. **Engram ladder** — one substrate, tiers 0 trace → 1 episodic → 2 semantic → 3 procedural (skills) → 4 strategic (genomes/genes); promotion never mutates sources; provenance is mandatory.
+**Five-capability mental model (10 lines):**
+1. **Engram ladder** — one engram store, tiers 0 trace → 1 episodic → 2 semantic → 3 procedural (skills) → 4 strategic (genomes/genes); promotion never mutates sources; provenance is mandatory.
 2. **Probes + kill gates** — pre-registered gate specs, sha256-locked; tamper → refuse; a gate that can't kill the baseline is VOID; verdicts are ACCEPT/REJECT/VOID engrams.
 3. **Breeding program** — structured genomes (5 components), reflective mutation, Pareto frontier; `promote()` raises `PromotionBlocked` without an ACCEPT verdict.
 4. **Context OS + pollution recovery** — budget-capped context assembly with an included/dropped manifest; deterministic pollution signals → consolidate requirements → restore checkpoint.

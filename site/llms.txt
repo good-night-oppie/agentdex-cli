@@ -15,7 +15,7 @@ If you are not an AI agent, you can keep reading too — humans should find this
 ## Reference (fetch on demand)
 
 - [Quickstart README](https://agentdex.ai-builders.space/bene/docs/README.html): install, smoke, first commands
-- [Architecture](https://agentdex.ai-builders.space/bene/docs/architecture.html): engram substrate, autonomy ladder, lore mapping
+- [Architecture](https://agentdex.ai-builders.space/bene/docs/architecture.html): engram store, autonomy ladder, lore mapping
 - [CLI reference](https://agentdex.ai-builders.space/bene/docs/cli-reference.html): every `bene` command
 - [MCP integration](https://agentdex.ai-builders.space/bene/docs/mcp-integration.html): 37 MCP tools across 9 categories
 - [Schema](https://agentdex.ai-builders.space/bene/docs/schema.html): the SQLite schema
