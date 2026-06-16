@@ -261,7 +261,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li><a href="#the-cheaper-path-the---json-cli">The cheaper path: the <code>--json</code> CLI</a></li>
 <li><a href="#tool-reference">Tool reference</a></li>
 <li><a href="#conversations-that-work-today">Conversations that work today</a></li>
-<li><a href="#what-v052-changed">What v0.5.2 changed</a></li>
+<li><a href="#what-the-cli-first-path-adds">What the CLI-first path adds</a></li>
 </ul>
 <p>Original anchor map: <a href="#overview">Overview</a>, <a href="#cli-alternative">CLI Alternative</a>, <a href="#starting-the-mcp-server">Starting the MCP Server</a>, <a href="#claude-code-integration">Claude Code Integration</a>, <a href="#available-tools">Available Tools</a>, <a href="#example-conversation-flows">Example Conversation Flows</a>.</p>
 <p>Under the hood: the server lives in <code>bene/mcp/server.py</code>, built on the <code>mcp</code> Python package. It wraps one <code>Bene</code> instance plus a <code>ClaudeCodeRunner</code> and publishes 37 tools spanning 9 categories — Lifecycle, VFS, Checkpoints, Query, Orchestration, Meta-Harness, Memory, Shared Log, and Skills. Any <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> client gets the same surface.</p>
@@ -317,7 +317,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p>"What BENE tools are available?"</p>
 </blockquote>
-<p>All 18 should come back in the answer.</p>
+<p>All 37 should come back in the answer.</p>
 <hr />
 <p><a id="starting-the-mcp-server"></a></p>
 <h2 id="run-the-server-directly">Run the server directly</h2>
@@ -379,7 +379,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <hr />
 <p><a id="cli-alternative"></a></p>
 <h2 id="the-cheaper-path-the-json-cli">The cheaper path: the <code>--json</code> CLI</h2>
-<p>Since v0.5.2, every BENE command accepts <code>--json</code>. That means any agent that can run a shell command can drive BENE with structured output — no MCP client, no schema injection:</p>
+<p>Every BENE command accepts <code>--json</code>. That means any agent that can run a shell command can drive BENE with structured output — no MCP client, no schema injection:</p>
 <div class="codehilite"><pre><span></span><code><span class="c1"># Structured JSON output — any agent can parse this</span>
 bene<span class="w"> </span>--json<span class="w"> </span>ls
 bene<span class="w"> </span>--json<span class="w"> </span>status<span class="w"> </span>&lt;agent-id&gt;
@@ -1012,7 +1012,7 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 <td><code>benchmark</code></td>
 <td>string</td>
 <td>yes</td>
-<td>Benchmark name: <code>text_classify</code>, <code>math_rag</code>, <code>agentic_coding</code>, <code>lawbench</code>, <code>symptom2disease</code>, <code>uspto_50k</code>, or a custom registered benchmark.</td>
+<td>Benchmark name: <code>text_classify</code>, <code>math_rag</code>, <code>agentic_coding</code>, or a custom registered benchmark.</td>
 </tr>
 <tr>
 <td><code>max_iterations</code></td>
@@ -1238,9 +1238,9 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 
 <p><strong>Claude Code reports:</strong> resumed at iteration 4, ran through 10 iterations total, 23 harnesses evaluated, best accuracy 87% (harness 01HXY1F...), and 4 harnesses sit on the Pareto frontier.</p>
 <hr />
-<h2 id="what-v052-changed">What v0.5.2 changed</h2>
+<h2 id="what-the-cli-first-path-adds">What the CLI-first path adds</h2>
 <ul>
-<li><strong>CLI first.</strong> Every command takes <code>--json</code>, so an agent can shell out to <code>bene --json ls</code> rather than carry MCP schemas in context — 10-32x cheaper on tokens.</li>
+<li><strong>CLI first.</strong> Every command takes <code>--json</code>, so an agent can shell out to <code>bene --json ls</code> rather than carry MCP schemas in context — which saves the per-call schema overhead.</li>
 <li><strong>Big results don't flood the wire.</strong> When an agent's output runs past 4KB, the full text lands in its VFS at <code>/result.txt</code>; over MCP you get a preview plus a pointer to fetch the rest with <code>agent_read</code>.</li>
 <li><strong>The JSON-RPC stream stays clean.</strong> On stdio startup, the server points <code>sys.stdout</code> at <code>sys.stderr</code>, so stray library logging can never corrupt the protocol.</li>
 <li><strong>Searches outlive the connection.</strong> <code>mh_search</code> and <code>mh_resume</code> hand work to detached worker processes; an MCP disconnect doesn't kill a running search. Workers log to <code>bene-worker-*.log</code>.</li>

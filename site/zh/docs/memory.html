@@ -262,9 +262,12 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <span class="n">bene</span> <span class="o">=</span> <span class="n">Bene</span><span class="p">(</span><span class="s2">&quot;project.db&quot;</span><span class="p">)</span>
 <span class="n">mem</span>  <span class="o">=</span> <span class="n">MemoryStore</span><span class="p">(</span><span class="n">bene</span><span class="o">.</span><span class="n">conn</span><span class="p">)</span>
 
+<span class="c1"># Spawn the agent first — memory rows FK to agents; spawn returns the id string</span>
+<span class="n">agent_id</span> <span class="o">=</span> <span class="n">bene</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="s2">&quot;proposer-iter-3&quot;</span><span class="p">)</span>
+
 <span class="c1"># Any agent writes a result</span>
 <span class="n">mid</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
-    <span class="n">agent_id</span><span class="o">=</span><span class="s2">&quot;proposer-iter-3&quot;</span><span class="p">,</span>
+    <span class="n">agent_id</span><span class="o">=</span><span class="n">agent_id</span><span class="p">,</span>
     <span class="n">content</span><span class="o">=</span><span class="s2">&quot;Ensemble voting with 3 Sonnet calls achieved accuracy=0.847.&quot;</span><span class="p">,</span>
     <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;result&quot;</span><span class="p">,</span>
     <span class="n">key</span><span class="o">=</span><span class="s2">&quot;iter3-best&quot;</span><span class="p">,</span>

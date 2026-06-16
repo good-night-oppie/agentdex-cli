@@ -256,13 +256,13 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h2 id="from-clone-to-demo">From clone to demo</h2>
 <div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/good-night-oppie/bene.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>bene
 uv<span class="w"> </span>sync
-bene<span class="w"> </span>setup<span class="w">       </span><span class="c1"># configure models, init database, install MCP server</span>
-bene<span class="w"> </span>demo<span class="w">        </span><span class="c1"># see it in action — no API keys needed</span>
+uv<span class="w"> </span>run<span class="w"> </span>bene<span class="w"> </span>setup<span class="w">       </span><span class="c1"># configure models, init database, install MCP server</span>
+uv<span class="w"> </span>run<span class="w"> </span>bene<span class="w"> </span>demo<span class="w">        </span><span class="c1"># see it in action — no API keys needed</span>
 </code></pre></div>
 
 <hr />
 <h2 id="drive-it-from-your-editor">Drive it from your editor</h2>
-<p>After <code>bene setup</code>, Claude Code, Cursor, and other MCP clients can drive BENE in plain language:</p>
+<p>After <code>uv run bene setup</code>, Claude Code, Cursor, and other MCP clients can drive BENE in plain language:</p>
 <div class="codehilite"><pre><span></span><code>with bene, review my payments module — security agent and test-writing agent in parallel
 </code></pre></div>
 

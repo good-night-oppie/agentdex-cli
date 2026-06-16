@@ -322,7 +322,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>Problem.</strong> Rare positive class; false negatives expensive; manual feature engineering exhausted.</p>
 <p><strong>BENE.</strong> Meta-Harness proposer learns red-flag checklists from prior attempt traces.</p>
 <p><img alt="Fraud Detection — Meta-Harness raises recall while preserving precision" src="demos/bene_uc06_fraud_detection.gif" onerror="this.style.display='none'" /></p>
-<p>→ Component: <a href="meta-harness.html#examples">Meta-Harness — Examples</a> · CLI: <code>bene mh search -b fraud_detection</code></p>
+<p>→ Component: <a href="meta-harness.html#examples">Meta-Harness — Examples</a> · Script: <code>examples/meta_harness_fraud_detection.py</code> (<code>fraud_detection</code> is not a built-in <code>-b</code> value; <code>-b</code> takes <code>text_classify</code> / <code>math_rag</code> / <code>agentic_coding</code>)</p>
 <hr />
 <h2 id="multi-agent-co-evolution-coral">Multi-Agent Co-Evolution (CORAL)</h2>
 <p><strong>Problem.</strong> A single search agent plateaus.</p>
@@ -390,7 +390,7 @@ cp<span class="w"> </span>bene.db<span class="w"> </span>full-backup-<span class
 <tr>
 <td><code>cov-drop</code></td>
 <td>classifier</td>
-<td>Measured coverage is below <code>.coverage-floor</code> by more than <code>COV_DROP_LIMIT</code> (default 0.1%)</td>
+<td>Measured coverage is below <code>.coverage-floor</code> by more than <code>BENE_COV_DROP_LIMIT</code> (default 0.1%)</td>
 <td>Block merge</td>
 </tr>
 <tr>

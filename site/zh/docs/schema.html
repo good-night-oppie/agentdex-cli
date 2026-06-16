@@ -931,7 +931,7 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <span class="w">    </span><span class="n">label</span><span class="p">,</span>
 <span class="w">    </span><span class="n">created_at</span><span class="p">,</span>
 <span class="w">    </span><span class="n">json_array_length</span><span class="p">(</span><span class="n">file_manifest</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">file_count</span><span class="p">,</span>
-<span class="w">    </span><span class="n">json_object_length</span><span class="p">(</span><span class="n">state_snapshot</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">state_keys</span>
+<span class="w">    </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">json_each</span><span class="p">(</span><span class="n">state_snapshot</span><span class="p">))</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">state_keys</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="p">;</span>
 

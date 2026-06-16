@@ -396,7 +396,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   Write (serialized)        Read (concurrent)        Read (concurrent)
 </code></pre></div>
 
-<p>SQLite WAL mode permits many readers while writes serialize. BENE pairs that with one SQLite connection per thread through <code>threading.local()</code>, and the CCR semaphore caps active agent loops so parallel work does not become resource exhaustion. <code>busy_timeout</code> gives write contention up to 5000ms before surfacing an error.</p>
+<p>SQLite WAL mode permits many readers while writes serialize. BENE pairs that with one SQLite connection per thread through <code>threading.local()</code>, and the CCR semaphore caps active agent loops so parallel work does not become resource exhaustion. <code>busy_timeout</code> gives write contention up to 30000ms (30s) before surfacing an error.</p>
 <hr />
 <h2 id="system-overview">System Overview</h2>
 <p>BENE is the runtime boundary around agent work. External clients talk to the CLI or MCP server; agent loops use CCR and the Tier router; durable state lands in <code>Bene</code> and its SQLite-backed stores.</p>
@@ -454,10 +454,11 @@ KAOS = observability, monitoring, babysitting, gap detection
 <h3 id="sqlite-configuration">SQLite Configuration</h3>
 <div class="codehilite"><pre><span></span><code><span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA journal_mode=WAL&quot;</span><span class="p">)</span>    <span class="c1"># Write-Ahead Logging</span>
 <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA foreign_keys=ON&quot;</span><span class="p">)</span>      <span class="c1"># Referential integrity</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA busy_timeout=5000&quot;</span><span class="p">)</span>    <span class="c1"># 5s retry on lock contention</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA busy_timeout=30000&quot;</span><span class="p">)</span>   <span class="c1"># 30s retry on lock contention</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;PRAGMA wal_autocheckpoint=100&quot;</span><span class="p">)</span>
 </code></pre></div>
 
-<p>Those pragmas are the database contract: WAL for concurrent readers, foreign keys for referential integrity, and a 5s retry window for lock contention.</p>
+<p>Those pragmas are the database contract: WAL for concurrent readers, foreign keys for referential integrity, and a 30s retry window for lock contention.</p>
 <h3 id="thread-safety">Thread Safety</h3>
 <p>Each worker thread gets a separate SQLite connection. That keeps SQLite's connection rules simple while letting independent agent loops run in parallel.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Bene</span><span class="p">:</span>
@@ -762,12 +763,12 @@ KAOS = observability, monitoring, babysitting, gap detection
 <p>Any uncovered complexity level uses <code>fallback_model</code>. An agent-level <code>force_model</code> skips classification entirely.</p>
 <p>The discrete-tier dispatch (rather than learning a continuous score) most closely matches AutoMix (<a href="https://arxiv.org/abs/2310.12963">Aggarwal, Madaan et al. 2023</a>) and Hybrid LLM (<a href="https://arxiv.org/abs/2404.14618">Ding et al. 2024</a>). Hybrid LLM is the closest mechanical ancestor of the binary version of this dispatch; Tier generalizes it from 2 tiers to 4.</p>
 <h3 id="context-compression">Context Compression</h3>
-<p><code>ContextCompressor</code> in <code>bene/router/context.py</code> estimates tokens at roughly 4 characters per token, truncates long tool outputs above 2000 characters to the first 1000 plus last 500 characters with a <code>[truncated]</code> marker, drops middle messages while preserving the system message, first user message, and last 8 messages, then trims more aggressively if the context still does not fit. It targets 85% of the selected model's <code>max_context</code>.</p>
+<p><code>ContextCompressor</code> in <code>bene/router/context.py</code> estimates tokens at roughly 4 characters per token, truncates long tool outputs above 2000 characters to the first 1000 plus last 500 characters with a <code>[truncated]</code> marker, drops middle messages while preserving the system message and the last 8 messages (PRESERVE_RECENT), summarizing everything in between, then trims more aggressively if the context still does not fit. It targets 85% of the selected model's <code>max_context</code>.</p>
 <p>The "summarize the middle into a synthetic system message, preserve recent messages verbatim" pattern descends from MemGPT (<a href="https://arxiv.org/abs/2310.08560">Packer et al. 2023</a>) and <em>Recursively Summarizing Enables Long-Term Dialogue Memory in LLMs</em> (<a href="https://arxiv.org/abs/2308.15022">Wang et al. 2023</a>). The implementation is faithful to Anthropic's productized <code>/compact</code> mechanism (Claude API beta <code>compact-2026-01-12</code>).</p>
 <h3 id="vllm-client">vLLM Client</h3>
 <p><code>bene/router/vllm_client.py</code> is a small async HTTP client, not an SDK wrapper. It lazily creates an <code>httpx.AsyncClient</code>, calls <code>POST {base_url}/chat/completions</code>, sends OpenAI-compatible fields (<code>model</code>, <code>messages</code>, <code>temperature</code>, <code>max_tokens</code>, <code>tools</code>, <code>tool_choice</code>), parses raw JSON into typed dataclasses (<code>ChatCompletion</code>, <code>ChatChoice</code>, <code>ChatMessage</code>, <code>Usage</code>), and exposes <code>close()</code> for cleanup. The default timeout is 120s.</p>
 <h3 id="retry-and-fallback">Retry and Fallback</h3>
-<p>The router retries failed model calls up to <code>max_retries</code>; the default is 3. If a non-fallback model keeps failing, later attempts switch to the configured fallback model.</p>
+<p>The router retries failed model calls up to <code>max_retries</code>; the default is 1 (a single attempt, no retry). If a non-fallback model keeps failing, later attempts switch to the configured fallback model.</p>
 <h3 id="research-lineage">Research Lineage</h3>
 <table>
 <thead>

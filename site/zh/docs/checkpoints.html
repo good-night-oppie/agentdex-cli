@@ -352,11 +352,14 @@ bene<span class="w"> </span>--json<span class="w"> </span>checkpoints<span class
 
 <h3 id="annotate-a-snapshot">Annotate a snapshot</h3>
 <p>Labels name a capture; metadata explains it — test results, triggers, notes:</p>
-<div class="codehilite"><pre><span></span><code><span class="n">cp</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;v2-attempt&quot;</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
-    <span class="s2">&quot;notes&quot;</span><span class="p">:</span> <span class="s2">&quot;Switched to JWT — session-based auth removed&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;test_results&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;passed&quot;</span><span class="p">:</span> <span class="mi">14</span><span class="p">,</span> <span class="s2">&quot;failed&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
-    <span class="s2">&quot;triggered_by&quot;</span><span class="p">:</span> <span class="s2">&quot;CI pipeline run #428&quot;</span><span class="p">,</span>
-<span class="p">})</span>
+<div class="codehilite"><pre><span></span><code><span class="n">cp</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;v2-attempt&quot;</span><span class="p">)</span>
+
+<span class="c1"># The Bene facade takes just a label. For rich metadata, call the manager directly:</span>
+<span class="c1"># db.checkpoints.create(agent_id, label=&quot;v2-attempt&quot;, metadata={</span>
+<span class="c1">#     &quot;notes&quot;: &quot;Switched to JWT — session-based auth removed&quot;,</span>
+<span class="c1">#     &quot;test_results&quot;: {&quot;passed&quot;: 14, &quot;failed&quot;: 0},</span>
+<span class="c1">#     &quot;triggered_by&quot;: &quot;CI pipeline run #428&quot;,</span>
+<span class="c1"># })</span>
 </code></pre></div>
 
 <p>It shows up in <code>bene checkpoints &lt;agent-id&gt;</code> and the dashboard's Checkpoints tab.</p>
@@ -364,7 +367,7 @@ bene<span class="w"> </span>--json<span class="w"> </span>checkpoints<span class
 <h2 id="what-snapshots-cost">What snapshots cost</h2>
 <p>Almost nothing. File bodies live once in the blob store (SHA-256 keys, zstd compression); a checkpoint is just pointers. Two captures sharing 95% of their files cost barely more than one.</p>
 <p>Reclaim blobs nothing references anymore:</p>
-<div class="codehilite"><pre><span></span><code><span class="n">db</span><span class="o">.</span><span class="n">gc</span><span class="p">()</span>  <span class="c1"># removes blobs not referenced by any file or checkpoint</span>
+<div class="codehilite"><pre><span></span><code><span class="n">db</span><span class="o">.</span><span class="n">blobs</span><span class="o">.</span><span class="n">gc</span><span class="p">()</span>  <span class="c1"># removes blobs whose ref_count has dropped to 0</span>
 </code></pre></div>
 
 <hr />
