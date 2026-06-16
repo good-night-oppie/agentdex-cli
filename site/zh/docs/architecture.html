@@ -748,7 +748,7 @@ KAOS = observability, monitoring, babysitting, gap detection
 <li><code>MODERATE_PATTERNS</code>: implement, create function, write test, fix bug, etc. (+1.5 each)</li>
 <li><code>TRIVIAL_PATTERNS</code>: format, rename, comment, typo, import, etc. (-1.0 each)</li>
 </ul>
-<p>It also adds +2.0 for context above 50K chars, +1.0 for context above 20K chars, +1.0 for 10+ tools, and +1.0 for task descriptions longer than 500 chars. Scores map to &gt;= 5.0 critical, &gt;= 3.0 complex, &gt;= 1.0 moderate, otherwise trivial. Confidence is <code>min(0.9, 0.5 + |score| * 0.1)</code>.</p>
+<p>It also adds +2.0 for context above 50K chars, +1.0 for context above 20K chars, +1.0 for more than 10 tools (11+), and +1.0 for task descriptions longer than 500 chars. Scores map to &gt;= 5.0 critical, &gt;= 3.0 complex, &gt;= 1.0 moderate, otherwise trivial. Confidence is <code>min(0.9, 0.5 + |score| * 0.1)</code>.</p>
 <h3 id="routing-table">Routing Table</h3>
 <p>The routing table comes from each model's <code>use_for</code> list in <code>bene.yaml</code>:</p>
 <div class="codehilite"><pre><span></span><code><span class="nt">models</span><span class="p">:</span>

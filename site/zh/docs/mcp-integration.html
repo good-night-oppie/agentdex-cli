@@ -1080,12 +1080,19 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 <td>yes</td>
 <td>Search agent ID of the interrupted search.</td>
 </tr>
+<tr>
+<td><code>benchmark</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Benchmark the search was started on (<code>text_classify</code>, <code>math_rag</code>, or <code>agentic_coding</code>) — the worker needs it to resume scoring.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Returns:</strong> JSON carrying <code>search_agent_id</code>, <code>summary</code>, <code>frontier</code>, <code>total_harnesses</code>, <code>resumed_from_iteration</code>, and <code>duration_seconds</code>.</p>
 <p><strong>Example:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span>
+<span class="w">  </span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;benchmark&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;text_classify&quot;</span>
 <span class="p">}</span>
 </code></pre></div>
 
@@ -1233,7 +1240,7 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 <h3 id="recover-a-crashed-search">Recover a crashed search</h3>
 <p><strong>You:</strong> "The search died at iteration 4 — pick it up where it stopped."</p>
 <p><strong>Claude Code calls:</strong> <code>mh_resume</code></p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">}</span>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;benchmark&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;text_classify&quot;</span><span class="p">}</span>
 </code></pre></div>
 
 <p><strong>Claude Code reports:</strong> resumed at iteration 4, ran through 10 iterations total, 23 harnesses evaluated, best accuracy 87% (harness 01HXY1F...), and 4 harnesses sit on the Pareto frontier.</p>
