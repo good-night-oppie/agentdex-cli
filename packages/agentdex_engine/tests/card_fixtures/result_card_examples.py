@@ -28,7 +28,7 @@ BOUNDARY_ZERO_PASS_RATE = {
     "cost_token": 0,
     "speed_wall_clock_sec": 0.0,
     "pareto_position": "dominated",
-    "failure_trace_path": "expeditions/.../trace/codex_full_trace.jsonl",
+    "failure_trace_path": "expeditions/.../trace/codex_trace_excerpt.jsonl",
     "langfuse_trace_id": None,
     "langfuse_trace_url": None,
 }

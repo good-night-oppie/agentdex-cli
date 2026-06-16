@@ -68,9 +68,9 @@ def test_all_artifacts_exist(run_mocked_expedition):
         "result_card_claude.yaml",
         "result_card_codex.yaml",
         "result_card_manus.yaml",
-        "trace/claude_full_trace.jsonl",
-        "trace/codex_full_trace.jsonl",
-        "trace/manus_full_trace.jsonl",
+        "trace/claude_trace_excerpt.jsonl",
+        "trace/codex_trace_excerpt.jsonl",
+        "trace/manus_trace_excerpt.jsonl",
     ]
     missing = [p for p in expected if not (d / p).is_file()]
     assert missing == [], f"missing artifacts: {missing}"
@@ -137,7 +137,7 @@ def test_r6_seed_provenance_present(run_mocked_expedition):
 
 def test_trace_jsonl_non_empty(run_mocked_expedition):
     trace_dir = run_mocked_expedition / "trace"
-    files = list(trace_dir.glob("*_full_trace.jsonl"))
+    files = list(trace_dir.glob("*_trace_excerpt.jsonl"))
     assert len(files) == 3
     for f in files:
         body = f.read_text()

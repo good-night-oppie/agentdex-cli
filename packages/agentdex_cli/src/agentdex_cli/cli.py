@@ -188,9 +188,12 @@ def _write_yaml(path: Path, payload: dict) -> None:
 
 
 def _write_trace_jsonl(path: Path, expedition_id: str, result_card, response_text: str) -> None:
-    """Best-effort per-bridge trace jsonl — one record per turn (M5 MVP shim).
+    """Per-bridge trace EXCERPT — a single summary record (metrics + a truncated
+    response excerpt + the langfuse_trace_id pointer), NOT a full span tree.
 
-    Phase-8 polish replaces this with the full Langfuse-exported span tree.
+    The full Langfuse-exported span tree is an M6+ target and is not yet wired;
+    until then this file is named ``*_trace_excerpt.jsonl`` so the artifact's name
+    matches its contents (truth-in-advertising; agentdex-cli audit P1).
     """
     record = {
         "expedition_id": expedition_id,
@@ -297,7 +300,7 @@ async def _run_expedition(args: argparse.Namespace) -> int:
         agent_slug = rc.agent_id.replace("(", "_").replace(")", "").replace("/", "_")
         excerpt = _MOCKED_RESPONSE_BY_AGENT.get(rc.agent_id, "")
         _write_trace_jsonl(
-            trace_dir / f"{agent_slug}_full_trace.jsonl",
+            trace_dir / f"{agent_slug}_trace_excerpt.jsonl",
             evolution_card.expedition_id,
             rc,
             excerpt,
