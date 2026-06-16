@@ -1626,3 +1626,52 @@ def test_offline_resim_audit_fails_on_missing_or_corrupt_log(arena):
     log_file.write_text("not a valid json {")
     with pytest.raises(ValueError, match="Failed to parse input log"):
         asyncio.run(run_audit(gateway.events.path, gateway.artifacts_dir, audit_rate=0.0))
+
+
+def test_fork_explicit_anchor_random_does_not_escalate(arena, monkeypatch):
+    """PR #176 review follow-up: forking a battle started with an explicit
+    gym_leader='anchor-random' must NOT rewire the opponent to autopilot_punisher.
+    Only the default (req.gym_leader is None) sandbox path escalates."""
+    import agentdex_arena.gateway as gw_mod
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ForkExplicit")
+
+    # Start a sandbox battle with an EXPLICIT anchor-random pick
+    start = client.post("/battle/start", json={"token": token}).json()
+    nonce = start["battle_nonce"]
+    sig = agent_key.sign(start["pop_challenge"].encode()).hex()
+    resp = client.post(
+        "/battle/begin",
+        json={
+            "token": token,
+            "battle_nonce": nonce,
+            "pop_signature_hex": sig,
+            "lane": "sandbox",
+            "gym_leader": "anchor-random",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    state = resp.json()
+    receipt, _ = _play_to_end(client, token, state)
+    src = receipt["battle_id"]
+
+    # The replay record must flag this as an explicit pick
+    assert gateway.replays[src]["explicit_opponent"] is True
+
+    # Spy on autopilot_punisher to assert it is NOT called during the fork
+    autopilot_calls: list[bool] = []
+    real_ap = gw_mod.autopilot_punisher
+
+    def spy_ap(*args, **kwargs):
+        autopilot_calls.append(True)
+        return real_ap(*args, **kwargs)
+
+    monkeypatch.setattr(gw_mod, "autopilot_punisher", spy_ap)
+
+    r = client.post(f"/battle/{src}/fork", json={"token": token, "turn": 1000})
+    assert r.status_code == 200, r.text
+
+    assert not autopilot_calls, (
+        "autopilot_punisher must not be installed for explicit anchor-random forks"
+    )
