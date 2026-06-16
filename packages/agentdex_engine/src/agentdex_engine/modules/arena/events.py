@@ -12,6 +12,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
+import tempfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -93,6 +95,69 @@ class EventLog:
             except Exception:
                 log.exception("event sync failed (local log remains authoritative)")
         return event
+
+    def append_many(self, items: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+        """Append a group of events as one local-log transaction.
+
+        Arena receipts can span several chain rows (battle_end + badge +
+        quarantine + rating period). A partial group would let the durable log
+        claim a different result than the public receipt/replay surface. Build
+        the whole next file under the log lock and atomically replace the log so
+        either every row lands with a valid hash chain or none do.
+        """
+        if not items:
+            return []
+
+        lock_path = self.path.parent / f"{self.path.name}.lock"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        import fcntl
+
+        events: list[dict[str, Any]] = []
+        tmp_name: str | None = None
+        with open(lock_path, "w") as lock_fh:
+            fcntl.flock(lock_fh, fcntl.LOCK_EX)
+            seq, prev, size = self._current_watermark()
+            lines: list[str] = []
+            for offset, (type_, payload) in enumerate(items):
+                event = {
+                    "seq": seq + offset,
+                    "type": type_,
+                    "prev": prev,
+                    "payload": payload,
+                }
+                line = json.dumps(event, sort_keys=True, separators=(",", ":"))
+                events.append(event)
+                lines.append(line + "\n")
+                prev = _digest(line)
+
+            old = self.path.read_bytes() if self.path.is_file() else b""
+            data = "".join(lines).encode()
+            try:
+                with tempfile.NamedTemporaryFile(
+                    "wb", delete=False, dir=self.path.parent, prefix=f".{self.path.name}."
+                ) as tmp:
+                    tmp_name = tmp.name
+                    tmp.write(old)
+                    tmp.write(data)
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
+                os.replace(tmp_name, self.path)
+                tmp_name = None
+                self._watermark = (seq + len(events), prev, size + len(data))
+            finally:
+                if tmp_name is not None:
+                    try:
+                        os.unlink(tmp_name)
+                    except FileNotFoundError:
+                        pass
+
+        if self._sync is not None:
+            for event in events:
+                try:
+                    self._sync(event)
+                except Exception:
+                    log.exception("event sync failed (local log remains authoritative)")
+        return events
 
     def iter_events(self) -> Iterator[dict[str, Any]]:
         if not self.path.is_file():
