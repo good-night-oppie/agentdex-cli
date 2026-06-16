@@ -293,8 +293,12 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <td><a href="#agents-the-roster">agents</a></td>
 </tr>
 <tr>
-<td>What does an agent remember right now?</td>
+<td>What is an agent's current working state (short-term scratch)?</td>
 <td><a href="#state-per-agent-key-value-memory">state</a></td>
+</tr>
+<tr>
+<td>What does an agent durably remember / recall across sessions?</td>
+<td><code>memory</code> + <code>memory_fts</code> — full-text searchable (<code>SELECT … FROM memory_fts WHERE memory_fts MATCH '…'</code>); see <a href="memory.html">memory.md</a></td>
 </tr>
 <tr>
 <td>Where can I roll back to?</td>
@@ -323,8 +327,13 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
 <span class="w">    </span><span class="n">event_type</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
 <span class="w">    </span><span class="n">payload</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;{}&#39;</span><span class="p">,</span>
-<span class="w">    </span><span class="k">timestamp</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">))</span>
+<span class="w">    </span><span class="k">timestamp</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">)),</span>
+<span class="w">    </span><span class="n">idempotency_key</span><span class="w"> </span><span class="nb">TEXT</span>
 <span class="p">);</span>
+<span class="c1">-- schema v4 also adds a partial unique index for safe (Temporal) retries:</span>
+<span class="c1">-- CREATE UNIQUE INDEX idx_events_idem ON events(agent_id, idempotency_key)</span>
+<span class="c1">--   WHERE idempotency_key IS NOT NULL;</span>
+<span class="c1">-- The same `idempotency_key TEXT` column + partial unique index exist on `tool_calls` and `files`.</span>
 </code></pre></div>
 
 <h3 id="column-guide">Column guide</h3>
@@ -367,6 +376,12 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <td>TEXT</td>
 <td>NOT NULL, auto-generated</td>
 <td>ISO 8601, millisecond precision, written automatically.</td>
+</tr>
+<tr>
+<td><code>idempotency_key</code></td>
+<td>TEXT</td>
+<td>nullable, unique per agent when set (v4)</td>
+<td>A replayed write with the same key is a no-op instead of a duplicate — enables safe Temporal activity retries. Also on <code>tool_calls</code> and <code>files</code>.</td>
 </tr>
 </tbody>
 </table>
