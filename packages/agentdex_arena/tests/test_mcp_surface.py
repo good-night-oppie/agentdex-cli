@@ -211,3 +211,102 @@ def test_mcp_surface_multi_instance_context(tmp_path: Path):
             # Request to app2 using t1 should fail with opaque error since t1 is invalid for app2's authority
             with pytest.raises(ValueError, match=r"arena error \(ref: [0-9a-f]+\)"):
                 _call_tool(c2, "get_my_ladder_history", token=t1)
+
+
+def test_mcp_choose_audit_write_failure_returns_opaque_error(arena):
+    """PR #169 review #3423698025: when the audit append fails on the MCP
+    choose_action path (disk full / perm error / etc.), the visiting agent
+    MUST get the opaque ``arena error (ref: ...)`` shape — NOT the raw
+    ``f"... {e!r}"`` that leaks filesystem paths and other exception detail.
+    The HTTP /choose path already redacts; this pins parity for MCP."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="OpaqueMcpBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+
+    original_append = gateway.events.append
+
+    def boom(event_type, payload):
+        if event_type == "battle":
+            # Use an OSError carrying a path-shaped string to make the leak
+            # visible: if redaction is missing the test fails with the path
+            # appearing in the visitor-facing exception message.
+            raise OSError("[Errno 28] No space left on device: '/tmp/leaky-path/events.jsonl'")
+        return original_append(event_type, payload)
+
+    gateway.events.append = boom  # type: ignore[method-assign]
+    try:
+        with pytest.raises(ValueError) as exc:
+            _call_tool(client, "choose_action", token=token, battle_id=battle_id, choice_index=1)
+    finally:
+        gateway.events.append = original_append
+
+    msg = str(exc.value)
+    # The opaque ref shape is mandatory — and the leaky path / errno text
+    # MUST be redacted to server-side logs.
+    import re
+
+    assert re.search(r"arena error \(ref: [0-9a-f]+\)", msg), (
+        f"expected opaque arena-error shape, got: {msg!r}"
+    )
+    assert "/tmp/leaky-path" not in msg, f"filesystem path leaked: {msg!r}"
+    assert "Errno 28" not in msg, f"errno detail leaked: {msg!r}"
+    # And the audit-failure session-fatal posture from PR #169 is preserved:
+    # the session is ended with the fail-closed reason but WITHOUT the leaky
+    # exception detail in the publicly-visible reason string.
+    session = gateway.sessions[battle_id]
+    assert session.ended is not None
+    assert "event log write failed" in session.ended.get("reason", "")
+    assert "/tmp/leaky-path" not in session.ended.get("reason", "")
+    assert "Errno 28" not in session.ended.get("reason", "")
+
+
+def test_mcp_choose_advance_failure_after_step_fails_closed(arena):
+    """PR #169 review #3423698020: when ``_advance()`` fails after the initial
+    ``step`` succeeded (opponent-policy / sidecar error during opponent
+    auto-advance), the audit row is already durable but ``session.pending``
+    was cleared. Without fail-closed cleanup, get_battle_state / choose_action
+    would only report 'No pending request' until turn-budget timeout. Mirror
+    the audit-append fail-closed posture: end the battle + stop the sidecar
+    + opaque visitor error."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="AdvanceFailBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    battle_id = state["battle_id"]
+    session = gateway.sessions[battle_id]
+
+    original_advance = gateway._advance
+    call_count = {"n": 0}
+
+    async def boom_on_second_advance(*args, **kwargs):
+        # The choose flow path is:
+        #   - the initial step succeeds
+        #   - audit row appends
+        #   - gw._advance() is called to render the next request
+        # Failing _advance HERE simulates the reviewer's scenario.
+        call_count["n"] += 1
+        raise RuntimeError("simulated opponent-policy crash mid-advance")
+
+    gateway._advance = boom_on_second_advance  # type: ignore[method-assign]
+    try:
+        with pytest.raises(ValueError) as exc:
+            _call_tool(client, "choose_action", token=token, battle_id=battle_id, choice_index=1)
+    finally:
+        gateway._advance = original_advance
+
+    msg = str(exc.value)
+    import re
+
+    assert re.search(r"arena error \(ref: [0-9a-f]+\)", msg), (
+        f"expected opaque arena-error shape, got: {msg!r}"
+    )
+    assert "opponent-policy crash" not in msg, f"exception detail leaked: {msg!r}"
+    # Fail-closed: session is ended-fatal so a follow-up get_battle_state sees
+    # the failure instead of reporting "No pending request" until timeout.
+    assert session.ended is not None
+    assert "battle advance failed" in session.ended.get("reason", "")
+    # The audit row IS durable (the move executed); the fail-closed end-marker
+    # is in-memory only — distinct from the (1) initial-step-fail (no audit row)
+    # and (2) audit-fail (audit row missing) cases.
+    types = [e["type"] for e in gateway.events.iter_events()]
+    assert types.count("battle") == 1
