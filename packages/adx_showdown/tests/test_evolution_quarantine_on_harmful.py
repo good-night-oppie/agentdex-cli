@@ -21,6 +21,7 @@ from pathlib import Path
 from adx_showdown.evolution import EvolutionLoop, HarnessWorkspace
 from adx_showdown.sim import BattleResult
 from agentdex_engine.modules.arena.events import EventLog, recompute_ladder
+from agentdex_engine.modules.arena.ladder import Ladder
 
 _ENTRANT = "house-evolver"
 _ANCHOR = "anchor-opponent"
@@ -74,6 +75,34 @@ def test_quarantine_emits_one_event_per_battle(tmp_path: Path):
         e["payload"]["battle_id"] for e in elog.iter_events() if e["type"] == "quarantine"
     }
     assert quarantined == {"live-g2-b0", "live-g2-b1", "live-g2-b2"}
+
+
+def test_post_quarantine_report_values_match_published_ladder(tmp_path: Path):
+    """After a HARMFUL quarantine, the values run_generation refreshes into the
+    GenerationReport (rating/rd from the post-quarantine ladder, delta via
+    published_delta vs the pre-window baseline) must match the published ladder
+    — NOT the stale pre-quarantine `_rate` output, which still reflects the
+    voided losing window. Otherwise the A4 receipt rendered from the report
+    diverges from the ladder — the exact bug P0-3 removes, just moved into the
+    report fields (PR #158 review #3421911866)."""
+    loop = _loop(tmp_path)
+    loop._register()
+    pre_window = recompute_ladder(loop.events_path).rating(_ENTRANT)
+
+    results = _all_losses(gen=1, k=5)
+    stale_rating, _stale_rd, _stale_delta = loop._rate(results, gen=1)
+    # `_rate`'s output reflects the (about-to-be-voided) losing window.
+    assert stale_rating < pre_window.rating
+
+    loop._quarantine_window(results)
+    post = recompute_ladder(loop.events_path).rating(_ENTRANT)
+    # The refreshed report values == the published ladder == the pre-window
+    # baseline (a fully-quarantined window reverts exactly), and != the stale
+    # `_rate` output the report would otherwise have carried.
+    assert post.rating == pre_window.rating
+    assert post.rating != stale_rating
+    # A voided window sells no move: published_delta vs pre_window is None.
+    assert Ladder.published_delta(pre_window, post) is None
 
 
 def test_period_event_is_preserved_not_rewritten(tmp_path: Path):
