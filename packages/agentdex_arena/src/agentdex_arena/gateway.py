@@ -215,7 +215,11 @@ ARCHETYPE_GYM_TEAMS = {
     "gym-balance": "01-balance-tusk-gambit",
     "gym-hyper-offense": "02-hyper-offense",
     "gym-stall": "03-stall",
-    "gym-trick-room": "04-trick-room",
+    # starter_pack() ships trick-room as 09-trick-room (04 is 04-sand-balance);
+    # the old "04-trick-room" KeyError'd starter_pack() -> 500 on this advertised
+    # gym, dead-ending the agent. Locked by test_every_gym_resolves_to_a_real_team
+    # (codex dogfood P1).
+    "gym-trick-room": "09-trick-room",
 }
 GYM_TEAM_INDEX = {"anchor-random": 1, "anchor-max_damage": 2, "anchor-heuristic": 3}
 RATED_ANCHOR_TEAMS = (
