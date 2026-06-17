@@ -310,6 +310,212 @@
       "status": "triage",
       "title": "Unbounded sessions/replays dicts \u2014 eventual OOM on long-running deploy",
       "updated_at": "2026-06-17T08:12:49Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "adx-cli",
+      "evidence": [
+        "PR#200",
+        "PR#201",
+        ".supergoal-v3/ROADMAP.md"
+      ],
+      "fix": "Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.",
+      "id": "ADX-ONLINE-001",
+      "impact": "Getting agentdex ONLINE means a watchable arena \u2014 the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).",
+      "lane": "launch-ux",
+      "priority": "P1",
+      "status": "running",
+      "title": "launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)",
+      "updated_at": "2026-06-17T22:31:10Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-cli",
+      "evidence": [
+        "wf:agentdex-100-user-readiness(54/71)",
+        "a2a#312",
+        "a2a#320"
+      ],
+      "fix": "Complete the agentdex-100-user-readiness assessment (in progress, 54/71 agents) -> capacity + integrity + security punch-list + go/no-go. Coordinate fixes with adx-cli; P0/P1 integrity items (atomic receipts ADX-P0-001) gate launch.",
+      "id": "ADX-ONLINE-002",
+      "impact": "Getting agentdex online today requires a measured readiness verdict across the user-facing surface (capacity, integrity, security). This is the launch go/no-go gate the UX rides on top of.",
+      "lane": "launch-gate",
+      "priority": "P0",
+      "status": "running",
+      "title": "launch gate: agentdex 100-user readiness assessment + go/no-go",
+      "updated_at": "2026-06-17T22:31:10Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "site/build-docs.py",
+        "site/index.html"
+      ],
+      "fix": "Add site/blog/ index + post template + nav link (EN+zh) and build-docs.py blog-page generation; rebase on og in-flight build-docs.py changes, do not clobber; render-verify.",
+      "id": "BENE-DOC-01",
+      "impact": "No blog exists yet; the WHY/WHAT/HOW narrative needs a home. Render lane (bene).",
+      "lane": "blog",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Scaffold the new /blog section on bene-site (index + post template + nav)",
+      "updated_at": "2026-06-17T22:32:11Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "CLAUDE.md",
+        "docs/README.md"
+      ],
+      "fix": "Write blog/why-bene.md (EN). ABSTRACT ONLY: pseudo-code, NO agentdex-cli internals. zh routed to og.",
+      "id": "BENE-DOC-02",
+      "impact": "Frames the whole site: BENE is the durable, auditable local-first multi-agent substrate that backs agentdex-cli (the arena). Gom-jabbar harness thesis.",
+      "lane": "blog-content",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Blog post: WHY we build BENE \u2014 the harness behind the arena",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "examples/library_basics.py",
+        "bene/cli/main.py",
+        "docs/architecture.md"
+      ],
+      "fix": "Write blog/what-is-bene.md (EN); each pillar with one REAL example snippet from examples/, ground-truthed against the CLI/code.",
+      "id": "BENE-DOC-03",
+      "impact": "Crisp WHAT: per-agent VFS, checkpoints, engrams, eval-probe kill-gates, autonomy ladder, MCP server, evolutionary meta-harness search.",
+      "lane": "blog-content",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Blog post: WHAT BENE is \u2014 the seven pillars",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "bene/kernel/eval",
+        "bene/metaharness",
+        "docs/meta-harness.md"
+      ],
+      "fix": "Write blog/how-we-build-bene.md (EN), grounded in the real repo (probes, mh search, tiny-PR discipline).",
+      "id": "BENE-DOC-04",
+      "impact": "Answers HOW: tiny PRs, falsifiable eval-probe kill-gates, the breeding program, trace-based RAG.",
+      "lane": "blog-content",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Blog post: HOW we build BENE \u2014 harness engineering + eval-gated evolution",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "examples/",
+        "docs/architecture.md",
+        "docs/cli-reference.md"
+      ],
+      "fix": "Expand docs (architecture/quickstart/pillar pages) with runnable, explained snippets drawn from examples/*.py; each ground-truth-run exit 0.",
+      "id": "BENE-DOC-05",
+      "impact": "Mission asks for REAL examples; 19 example scripts exist but are not woven into the docs narrative.",
+      "lane": "docs-examples",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Surface real runnable examples per pillar in the docs",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/case-studies/cs02-ci-self-healing-refactor-swarm.md"
+      ],
+      "fix": "Write docs/case-studies/cs03-multi-agent-arena.md. HARD CONSTRAINT: agentdex-cli is the real consumer but DO NOT expose internals \u2014 pseudo-code/abstract ONLY.",
+      "id": "BENE-DOC-06",
+      "impact": "Flagship case study and the concrete WHY: BENE as the substrate backing a competitive multi-agent coding platform.",
+      "lane": "case-study",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Case study: multi-agent coding arena on BENE (ABSTRACT)",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "bene/kernel/memory",
+        "docs/memory.md"
+      ],
+      "fix": "Write docs/case-studies/cs04-trace-rag-other-memory.md grounded in the real engram/retrieve CLI.",
+      "id": "BENE-DOC-07",
+      "impact": "Shows engrams + trace-based RAG \u2014 the next agent never starts cold.",
+      "lane": "case-study",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Case study: trace-based RAG / Other Memory (engrams)",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "bene/metaharness",
+        "docs/meta-harness.md"
+      ],
+      "fix": "Write docs/case-studies/cs05-meta-harness-evolution.md grounded in the mh CLI + eval probes.",
+      "id": "BENE-DOC-08",
+      "impact": "Shows the breeding program \u2014 kill-gated promotion of evolved harness strategies.",
+      "lane": "case-study",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Case study: evolutionary meta-harness search",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/architecture.md"
+      ],
+      "fix": "Author mermaid diagrams for the single-file Nexus, engram compression ladder (tiers 0-4), autonomy ladder L0-L4; embed in docs (final HTML render routed to bene).",
+      "id": "BENE-DOC-09",
+      "impact": "Mission asks for designs; visual diagrams make the architecture legible.",
+      "lane": "design",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Design: architecture diagrams (Nexus, engram ladder, autonomy ladder)",
+      "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "site/build-docs.py"
+      ],
+      "fix": "Regen HTML via build-docs.py, sync the 4-copy mirror chain, Koyeb deploy, render-verify all 4 view x lang per the bilingual-render lesson; coordinate with og translation pass.",
+      "id": "BENE-DOC-10",
+      "impact": "New content must reach the live site; recurring render/deploy lane (bene).",
+      "lane": "render-deploy",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Render + deploy all new blog/docs/case-study/design content",
+      "updated_at": "2026-06-17T22:32:12Z"
     }
   ],
   "events": [
@@ -517,8 +723,92 @@
       "card_id": "ADX-P2-005",
       "created_at": "2026-06-17T08:24:47Z",
       "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-001",
+      "created_at": "2026-06-17T22:31:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-002",
+      "created_at": "2026-06-17T22:31:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-01",
+      "created_at": "2026-06-17T22:32:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-02",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-03",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-04",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-05",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-06",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-07",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-08",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-09",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-10",
+      "created_at": "2026-06-17T22:32:12Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-17T08:24:47Z"
+  "updated_at": "2026-06-17T22:32:12Z"
 }

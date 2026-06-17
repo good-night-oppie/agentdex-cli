@@ -53,16 +53,33 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
+| BENE-DOC-02 | P0 | bene-core | blog-content | Blog post: WHY we build BENE — the harness behind the arena | CLAUDE.md, docs/README.md |
 | ADX-P1-001 | P1 | adx-cli | fairness | Stop spending rated/evolution/badge quota before work is accepted | pass26, pass33, pass34, pass35, pass36 |
 | ADX-P1-002 | P1 | adx-cli | owner-data | Make owner export include replay, badge, and rating lineage | pass17, pass19, pass20, pass21, pass41, pass42-candidate |
 | ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
 | ADX-P1-004 | P1 | adx-cli | security | Tighten admin surface and auth-before-parse contract | pass24, pass25 |
+| BENE-DOC-01 | P1 | bene | blog | Scaffold the new /blog section on bene-site (index + post template + nav) | site/build-docs.py, site/index.html |
+| BENE-DOC-03 | P1 | bene-core | blog-content | Blog post: WHAT BENE is — the seven pillars | examples/library_basics.py, bene/cli/main.py, docs/architecture.md |
+| BENE-DOC-04 | P1 | bene-core | blog-content | Blog post: HOW we build BENE — harness engineering + eval-gated evolution | bene/kernel/eval, bene/metaharness, docs/meta-harness.md |
+| BENE-DOC-05 | P1 | bene-core | docs-examples | Surface real runnable examples per pillar in the docs | examples/, docs/architecture.md, docs/cli-reference.md |
+| BENE-DOC-06 | P1 | bene-core | case-study | Case study: multi-agent coding arena on BENE (ABSTRACT) | docs/case-studies/cs02-ci-self-healing-refactor-swarm.md |
+| BENE-DOC-10 | P1 | bene | render-deploy | Render + deploy all new blog/docs/case-study/design content | site/build-docs.py |
+| BENE-DOC-07 | P2 | bene-core | case-study | Case study: trace-based RAG / Other Memory (engrams) | bene/kernel/memory, docs/memory.md |
+| BENE-DOC-08 | P2 | bene-core | case-study | Case study: evolutionary meta-harness search | bene/metaharness, docs/meta-harness.md |
+| BENE-DOC-09 | P2 | bene-core | design | Design: architecture diagrams (Nexus, engram ladder, autonomy ladder) | docs/architecture.md |
 
 ### ready
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
+
+### running
+
+| ID | Pri | Assignee | Lane | Title | Evidence |
+|---|---|---|---|---|---|
+| ADX-ONLINE-002 | P0 | adx-core | launch-gate | launch gate: agentdex 100-user readiness assessment + go/no-go | wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320 |
+| ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
 
 ### review
 
@@ -81,6 +98,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 ## Card Detail
 
+### BENE-DOC-02 - Blog post: WHY we build BENE — the harness behind the arena
+
+- Priority: `P0`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `blog-content`
+- Impact: Frames the whole site: BENE is the durable, auditable local-first multi-agent substrate that backs agentdex-cli (the arena). Gom-jabbar harness thesis.
+- Suggested fix: Write blog/why-bene.md (EN). ABSTRACT ONLY: pseudo-code, NO agentdex-cli internals. zh routed to og.
+- Evidence: CLAUDE.md, docs/README.md
+
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
 - Priority: `P0`
@@ -90,6 +117,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.
 - Suggested fix: Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.
 - Evidence: pass27, pass28, pass37, pass38, pass39, pass40
+
+### ADX-ONLINE-002 - launch gate: agentdex 100-user readiness assessment + go/no-go
+
+- Priority: `P0`
+- Status: `running`
+- Assignee: `adx-core`
+- Lane: `launch-gate`
+- Impact: Getting agentdex online today requires a measured readiness verdict across the user-facing surface (capacity, integrity, security). This is the launch go/no-go gate the UX rides on top of.
+- Suggested fix: Complete the agentdex-100-user-readiness assessment (in progress, 54/71 agents) -> capacity + integrity + security punch-list + go/no-go. Coordinate fixes with adx-cli; P0/P1 integrity items (atomic receipts ADX-P0-001) gate launch.
+- Evidence: wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320
 
 ### ADX-P1-006 - Dispute event appended BEFORE re-sim — duplicate events on retry
 
@@ -151,6 +188,76 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
 - Evidence: pass24, pass25
 
+### BENE-DOC-01 - Scaffold the new /blog section on bene-site (index + post template + nav)
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene`
+- Lane: `blog`
+- Impact: No blog exists yet; the WHY/WHAT/HOW narrative needs a home. Render lane (bene).
+- Suggested fix: Add site/blog/ index + post template + nav link (EN+zh) and build-docs.py blog-page generation; rebase on og in-flight build-docs.py changes, do not clobber; render-verify.
+- Evidence: site/build-docs.py, site/index.html
+
+### BENE-DOC-03 - Blog post: WHAT BENE is — the seven pillars
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `blog-content`
+- Impact: Crisp WHAT: per-agent VFS, checkpoints, engrams, eval-probe kill-gates, autonomy ladder, MCP server, evolutionary meta-harness search.
+- Suggested fix: Write blog/what-is-bene.md (EN); each pillar with one REAL example snippet from examples/, ground-truthed against the CLI/code.
+- Evidence: examples/library_basics.py, bene/cli/main.py, docs/architecture.md
+
+### BENE-DOC-04 - Blog post: HOW we build BENE — harness engineering + eval-gated evolution
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `blog-content`
+- Impact: Answers HOW: tiny PRs, falsifiable eval-probe kill-gates, the breeding program, trace-based RAG.
+- Suggested fix: Write blog/how-we-build-bene.md (EN), grounded in the real repo (probes, mh search, tiny-PR discipline).
+- Evidence: bene/kernel/eval, bene/metaharness, docs/meta-harness.md
+
+### BENE-DOC-05 - Surface real runnable examples per pillar in the docs
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `docs-examples`
+- Impact: Mission asks for REAL examples; 19 example scripts exist but are not woven into the docs narrative.
+- Suggested fix: Expand docs (architecture/quickstart/pillar pages) with runnable, explained snippets drawn from examples/*.py; each ground-truth-run exit 0.
+- Evidence: examples/, docs/architecture.md, docs/cli-reference.md
+
+### BENE-DOC-06 - Case study: multi-agent coding arena on BENE (ABSTRACT)
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `case-study`
+- Impact: Flagship case study and the concrete WHY: BENE as the substrate backing a competitive multi-agent coding platform.
+- Suggested fix: Write docs/case-studies/cs03-multi-agent-arena.md. HARD CONSTRAINT: agentdex-cli is the real consumer but DO NOT expose internals — pseudo-code/abstract ONLY.
+- Evidence: docs/case-studies/cs02-ci-self-healing-refactor-swarm.md
+
+### BENE-DOC-10 - Render + deploy all new blog/docs/case-study/design content
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene`
+- Lane: `render-deploy`
+- Impact: New content must reach the live site; recurring render/deploy lane (bene).
+- Suggested fix: Regen HTML via build-docs.py, sync the 4-copy mirror chain, Koyeb deploy, render-verify all 4 view x lang per the bilingual-render lesson; coordinate with og translation pass.
+- Evidence: site/build-docs.py
+
+### ADX-ONLINE-001 - launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)
+
+- Priority: `P1`
+- Status: `running`
+- Assignee: `adx-cli`
+- Lane: `launch-ux`
+- Impact: Getting agentdex ONLINE means a watchable arena — the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).
+- Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
+- Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
+
 ### ADX-P1-005 - Collusion quarantine_reason leaks heuristic internals to the agent (D7)
 
 - Priority: `P1`
@@ -181,6 +288,36 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: ArenaGateway.sessions and .replays (gateway.py:564/567) grow ~1KB/session + ~2KB/replay with zero eviction (no del/pop/clear anywhere; _expire_if_stale only marks ended, doesn't remove). A long-running deploy OOMs after enough battles. Low urgency on a nano deploy that restarts often → P2.
 - Suggested fix: Bounded LRU/OrderedDict (cap N most-recent) for sessions+replays, or a TTL sweep that evicts ended sessions; replays should fall back to the durable EventLog/store rather than living in RAM forever.
 - Evidence: gateway.py:564/567 (init), :872/:1202/:1309 (insert), no eviction. adversarially confirmed (dogfood audit 2026-06-17)
+
+### BENE-DOC-07 - Case study: trace-based RAG / Other Memory (engrams)
+
+- Priority: `P2`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `case-study`
+- Impact: Shows engrams + trace-based RAG — the next agent never starts cold.
+- Suggested fix: Write docs/case-studies/cs04-trace-rag-other-memory.md grounded in the real engram/retrieve CLI.
+- Evidence: bene/kernel/memory, docs/memory.md
+
+### BENE-DOC-08 - Case study: evolutionary meta-harness search
+
+- Priority: `P2`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `case-study`
+- Impact: Shows the breeding program — kill-gated promotion of evolved harness strategies.
+- Suggested fix: Write docs/case-studies/cs05-meta-harness-evolution.md grounded in the mh CLI + eval probes.
+- Evidence: bene/metaharness, docs/meta-harness.md
+
+### BENE-DOC-09 - Design: architecture diagrams (Nexus, engram ladder, autonomy ladder)
+
+- Priority: `P2`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `design`
+- Impact: Mission asks for designs; visual diagrams make the architecture legible.
+- Suggested fix: Author mermaid diagrams for the single-file Nexus, engram compression ladder (tiers 0-4), autonomy ladder L0-L4; embed in docs (final HTML render routed to bene).
+- Evidence: docs/architecture.md
 
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
@@ -229,18 +366,18 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-17T08:01:32Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "running"}} |
-| 2026-06-17T08:01:32Z | comment | codex | ADX-P2-002 | {} |
-| 2026-06-17T08:12:29Z | add | codex | ADX-P1-005 | {} |
-| 2026-06-17T08:12:29Z | add | codex | ADX-P1-006 | {} |
-| 2026-06-17T08:12:29Z | add | codex | ADX-P1-007 | {} |
-| 2026-06-17T08:12:49Z | add | codex | ADX-P2-004 | {} |
-| 2026-06-17T08:12:49Z | add | codex | ADX-P2-005 | {} |
-| 2026-06-17T08:12:49Z | add | codex | ADX-P2-006 | {} |
-| 2026-06-17T08:19:26Z | move | codex | ADX-P1-005 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "triage"}} |
-| 2026-06-17T08:19:26Z | comment | codex | ADX-P1-005 | {} |
-| 2026-06-17T08:24:47Z | move | codex | ADX-P2-005 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "triage"}} |
-| 2026-06-17T08:24:47Z | comment | codex | ADX-P2-005 | {} |
+| 2026-06-17T22:31:10Z | add | adx-cli | ADX-ONLINE-001 | {} |
+| 2026-06-17T22:31:10Z | add | adx-cli | ADX-ONLINE-002 | {} |
+| 2026-06-17T22:32:11Z | add | bene-core | BENE-DOC-01 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-02 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-03 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-04 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-05 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-06 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-07 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-08 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-09 | {} |
+| 2026-06-17T22:32:12Z | add | bene-core | BENE-DOC-10 | {} |
 
 ## Source Pattern
 
