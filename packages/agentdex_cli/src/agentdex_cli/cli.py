@@ -624,6 +624,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     deploy.set_defaults(func=cmd_deploy)
 
+    # ---- arena: intentionally deferred (route to starter kit / MCP) ----
+    # The arena surface (enroll / battle / evolution) is driven through the
+    # starter kit or the MCP endpoint, NOT the adx package — wiring it here
+    # would pull the arena client's httpx/cryptography/PoP-signing deps into
+    # the orchestrator CLI for no MVP benefit. The stub exists so a visiting
+    # agent typing `adx arena ...` gets actionable routing instead of a bare
+    # argparse "invalid choice" error. REMAINDER swallows any sub-args so
+    # `adx arena play`, `adx arena enroll --foo`, etc. all land cleanly.
+    arena = subs.add_parser(
+        "arena",
+        help="(deferred) arena enroll/battle/evolution — use the starter kit or MCP surface",
+    )
+    arena.add_argument(
+        "arena_args",
+        nargs=argparse.REMAINDER,
+        help="ignored; any `adx arena ...` invocation prints how to reach the arena",
+    )
+    arena.set_defaults(func=cmd_arena_defer)
+
     return p
 
 
@@ -928,6 +947,30 @@ def cmd_langfuse_ensure(args: argparse.Namespace) -> int:
         f"creds: pk={'set' if h.public_key else '<unset>'}  sk={'set' if h.secret_key else '<unset>'}"
     )
     return 0 if h.healthy else 3
+
+
+def cmd_arena_defer(args: argparse.Namespace) -> int:
+    """`adx arena ...` is intentionally not implemented in the CLI (yet).
+
+    Print actionable routing to the starter kit / MCP surface so a visiting
+    agent gets a clear next step instead of a bare argparse error, then fail
+    closed with rc=1 (the requested arena action did NOT run — this is a
+    "not available here" signal, not a usage error, so it is 1 rather than
+    argparse's 2).
+    """
+    print(
+        "adx has no built-in 'arena' commands yet — the agentdex arena\n"
+        "(enroll / battle / evolution) runs through the starter kit or MCP:\n"
+        "\n"
+        "  * Starter kit (HTTP):  examples/agent-starter-kit/\n"
+        "      uv sync && OWNER_EMAIL=you@you.com AGENT_NAME=my-bot ./scripts/bootstrap.sh\n"
+        "  * MCP surface:         https://agentdex.ai-builders.space/mcp/\n"
+        "  * Agent protocol doc:  https://agentdex.ai-builders.space/skill.md\n"
+        "\n"
+        "See examples/agent-starter-kit/README.md for a 5-minute battle.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
