@@ -63,6 +63,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -1401,9 +1402,21 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             await app.state.sidecar.start()
         return app.state.sidecar
 
-    @app.get("/")
-    async def health() -> dict:
-        return {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
+    _ARENA_HEALTH = {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
+
+    @app.get("/", include_in_schema=False)
+    async def root(request: Request):
+        # Browsers (Accept: text/html) get the agentdex landing page; API clients
+        # and platform health checks (Accept: */* or application/json) get the JSON
+        # health body — byte-compatible with the previous GET / behavior.
+        landing = Path("web/index.html")
+        if "text/html" in request.headers.get("accept", "") and landing.is_file():
+            return FileResponse(str(landing), media_type="text/html")
+        return _ARENA_HEALTH
+
+    @app.get("/healthz", include_in_schema=False)
+    async def healthz() -> dict:
+        return _ARENA_HEALTH
 
     @app.get("/ladder")
     async def ladder() -> dict:
