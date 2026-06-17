@@ -152,6 +152,49 @@ def test_step_unknown_battle_raises():
         _run(p.request("step", battle="ghost"))
 
 
+def test_replay_routes_to_unowned_sidecar():
+    """A `replay` is a transient self-cleaning battle — it must route WITHOUT a
+    prior owner (the /battle/{id}/dispute re-sim path in pool mode). It records
+    no ownership and leaks no load. PR#197 #3431602204 / PR#198 #3431616702."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+
+    async def go():
+        lines = [">start {}", ">p1 move 1"]
+        resp = await p.request("replay", battle="d1", lines=lines)  # no prior start
+        assert resp["ok"]
+        assert "d1" not in p._owner  # no ownership recorded
+        assert all(p._load.get(id(s), 0) == 0 for s in FakeSidecar.instances)
+        # some sidecar actually ran the replay
+        assert any(
+            o == ("replay", {"battle": "d1", "lines": lines})
+            for s in FakeSidecar.instances
+            for o in s.ops
+        )
+
+    _run(go())
+
+
+def test_replay_with_state_end_does_not_underflow_load():
+    """A real replay response carries state.end; the release guard must pop
+    nothing (replay was never owned) — no negative/leaked load."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        s = p._sidecars[0]
+
+        async def replay_ending(op, **kw):
+            return {"ok": True, "state": {"end": {"winner": "p1"}}}
+
+        s.request = replay_ending  # type: ignore[method-assign]
+        await p.request("replay", battle="d1", lines=[])
+        assert p._load.get(id(s), 0) == 0
+        assert "d1" not in p._owner
+
+    _run(go())
+
+
 def test_capacity_raises_when_pool_full():
     p = SidecarPool(size=1, max_battles_per_sidecar=1)
     _run(p.start())
