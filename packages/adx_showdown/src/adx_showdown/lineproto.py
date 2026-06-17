@@ -31,10 +31,11 @@ Two cross-cutting protocol facts, ground-truthed against ``pokemon-showdown``
 
 Faithfulness contract: :attr:`ProtocolEvent.raw` is the verbatim line and is
 never mutated, so the protocol log round-trips for re-simulation hashing. The
-A6 sanitizer (``[A-Za-z0-9 _-]`` allowlist) is applied ONLY to the one
+A6 sanitizer (``[A-Za-z0-9 _-]`` allowlist) is applied to the one
 opponent-controlled free-text field — the nickname inside a Pokémon ident
-(:class:`PokemonIdent`) — which is what reaches a human renderer or an agent
-context. Numeric/structural args (HP ``176/298``, kwargs) stay verbatim.
+(:class:`PokemonIdent`) — wherever it appears: positional args AND ident-shaped
+kwarg values (``[of] p2a: <nick>``). Numeric/structural args (HP ``176/298``)
+and non-ident effect kwargs (``[from] item: Life Orb``) stay verbatim.
 """
 
 from __future__ import annotations
@@ -348,6 +349,19 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         rest = parts[1:]
         positional, kwargs = _split_args(rest)
     idents = [PokemonIdent.parse(a) for a in positional if _IDENT_RE.match(a.strip())]
+    # Kwarg values can ALSO carry an opponent-controlled ident — e.g.
+    # `|-ability|...|[of] p2a: <nickname>` on cause lines. Left verbatim, a
+    # renderer/agent prompt that shows `[of]` ownership would bypass the A6
+    # nickname boundary. Extract a sanitized PokemonIdent AND rewrite the kwarg
+    # value's nickname in place so every consumable surface is sanitized; only
+    # `raw` stays verbatim for hashing (PR #200 review 3431806028).
+    for key, val in kwargs.items():
+        if _IDENT_RE.match(val.strip()):
+            ident = PokemonIdent.parse(val)
+            idents.append(ident)
+            kwargs[key] = (
+                f"{ident.side}{ident.position}: {ident.name}" if ident.side else ident.name
+            )
     turn_no: int | None = None
     if msg_type == "turn" and positional:
         try:

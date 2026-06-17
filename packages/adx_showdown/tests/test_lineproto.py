@@ -211,6 +211,23 @@ def test_empty_request_payload():
     assert ev.type == "request" and ev.args == [""]
 
 
+def test_kwarg_idents_are_sanitized():
+    """An opponent ident inside a kwarg ([of] p2a: <nick>) must be sanitized in
+    both ev.idents AND the kwarg value — no A6 bypass. PR #200 review 3431806028.
+    """
+    ev = parse_line("|-ability|p1a: Gardevoir|Trace|[from] ability: Trace|[of] p2a: Swampert")
+    of_idents = [i for i in ev.idents if i.side == "p2"]
+    assert of_idents and of_idents[0].name == "Swampert"
+    assert ev.kwargs["of"] == "p2a: Swampert"
+    assert ev.kwargs["from"] == "ability: Trace"  # an effect, not an ident — verbatim
+
+    # injection case: a markup nickname in [of] is stripped everywhere consumable
+    ev2 = parse_line("|-damage|p1a: X|50/100|[from] move: Tackle|[of] p2a: Evil<script>Name")
+    assert all("<" not in i.name for i in ev2.idents)
+    assert "<script>" not in ev2.kwargs["of"]
+    assert ev2.raw.endswith("Evil<script>Name")  # raw stays faithful for hashing
+
+
 def test_normal_lines_still_split_after_opaque_change():
     # the opaque carve-out must not affect ordinary pipe-delimited messages
     ev = parse_line("|move|p1a: Garchomp|Earthquake|p2a: Skarmory")
