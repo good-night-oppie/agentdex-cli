@@ -1759,3 +1759,22 @@ def test_replay_surfaces_opponent_archetype(arena):
     assert replay["opponent"] in GYM_LEADERS
     # still the full public receipt (winner + re-simulable log present)
     assert replay["winner"] and replay["input_log"]
+
+
+def test_initial_state_recent_turns_has_battle_start_marker(arena):
+    """ADX-P2-002 legibility: the turn-0 state carries a self-describing
+    "(battle start)" marker in recent_turns instead of an ambiguous empty list,
+    and real turn lines append AFTER it once play begins (matches SKILL.md §3a).
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="StartMarkerBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    assert state["recent_turns"] == ["(battle start)"], state.get("recent_turns")
+
+    # after a move the marker is retained as the first line; a real turn appends
+    nxt = client.post(
+        f"/battle/{state['battle_id']}/choose", json={"token": token, "choice_index": 1}
+    ).json()
+    rt = nxt.get("recent_turns") or []
+    assert rt[0] == "(battle start)", rt
+    assert len(rt) > 1, "a real turn line should append after the start marker"
