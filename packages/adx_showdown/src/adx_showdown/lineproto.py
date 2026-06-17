@@ -31,10 +31,11 @@ Two cross-cutting protocol facts, ground-truthed against ``pokemon-showdown``
 
 Faithfulness contract: :attr:`ProtocolEvent.raw` is the verbatim line and is
 never mutated, so the protocol log round-trips for re-simulation hashing. The
-A6 sanitizer (``[A-Za-z0-9 _-]`` allowlist) is applied ONLY to the one
+A6 sanitizer (``[A-Za-z0-9 _-]`` allowlist) is applied to the one
 opponent-controlled free-text field — the nickname inside a Pokémon ident
-(:class:`PokemonIdent`) — which is what reaches a human renderer or an agent
-context. Numeric/structural args (HP ``176/298``, kwargs) stay verbatim.
+(:class:`PokemonIdent`) — wherever it appears: positional args AND ident-shaped
+kwarg values (``[of] p2a: <nick>``). Numeric/structural args (HP ``176/298``)
+and non-ident effect kwargs (``[from] item: Life Orb``) stay verbatim.
 """
 
 from __future__ import annotations
