@@ -6,10 +6,19 @@ Surface:
 - :mod:`adx_showdown.protocol` — |request| parsing + the A6 sanitizer boundary.
 - :mod:`adx_showdown.lineproto` — typed |TYPE|args battle line-protocol (P1-a):
   the single wire format every renderer (TUI/web/replay) folds over.
+- :mod:`adx_showdown.client` — the state reducer (P1-b): folds the protocol
+  stream into one queryable :class:`~adx_showdown.client.BattleState`.
 - :mod:`adx_showdown.sim` — lockstep battle driver + inputLog re-simulation (A2).
 - :mod:`adx_showdown.teams` — curated CI-validated gen9 OU starter pack (F3).
 """
 
+from adx_showdown.client import (
+    BattleClient,
+    BattleState,
+    SideState,
+    reduce,
+    reduce_lines,
+)
 from adx_showdown.lineproto import (
     MESSAGE_TYPES,
     NONDETERMINISTIC_TYPES,
@@ -34,8 +43,13 @@ from adx_showdown.sim import (
 __all__ = [
     "MESSAGE_TYPES",
     "NONDETERMINISTIC_TYPES",
+    "BattleClient",
     "BattleResult",
+    "BattleState",
     "PokemonIdent",
+    "SideState",
+    "reduce",
+    "reduce_lines",
     "ProtocolEvent",
     "Sidecar",
     "SidecarError",

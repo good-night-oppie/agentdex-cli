@@ -1,0 +1,140 @@
+"""Phase P1-b — adx-client state reducer (client.py).
+
+Folds the typed protocol stream into one queryable BattleState. The golden log
+is a real pokemon-showdown 0.11.10 gen9randombattle slice (turns 1-7), so the
+expected final state is what the engine actually produced.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from adx_showdown.client import BattleClient, BattleState, hp_pct_of, reduce, reduce_lines
+from adx_showdown.lineproto import parse_stream
+
+GOLDEN = Path(__file__).resolve().parent / "golden" / "arena" / "protocol_log_sample.txt"
+
+
+def _golden_lines() -> list[str]:
+    return GOLDEN.read_text(encoding="utf-8").splitlines()
+
+
+def test_reduce_golden_log_final_state():
+    state = reduce_lines(_golden_lines())
+    assert state.turn_no == 7
+    # p1: Azumarill + Arcanine fainted → Gardevoir freshly in at full HP
+    assert state.p1.player_name == "Alpha"
+    assert state.p1.team_size == 6
+    assert state.p1.active_species == "Gardevoir"
+    assert state.p1.hp_pct == 100
+    assert state.p1.fainted_count == 2
+    assert state.p1.remaining_pips == 4
+    # p2: Lumineon fainted → Swampert in, healed to 60% by Leftovers
+    assert state.p2.active_species == "Swampert"
+    assert state.p2.hp_pct == 60
+    assert state.p2.fainted_count == 1
+    # battle still going
+    assert state.winner is None and state.ended is False
+
+
+def test_incremental_equals_batch_at_every_turn_boundary():
+    events = parse_stream(_golden_lines())
+    client = BattleClient()
+    for i, ev in enumerate(events):
+        client.apply(ev)
+        if ev.type == "turn":
+            batch = reduce(events[: i + 1])
+            assert client.state.model_dump() == batch.model_dump(), (
+                f"incremental != batch at turn {ev.turn_no}"
+            )
+
+
+def test_hp_changes_only_on_damage_events():
+    base = [
+        "|switch|p1a: Pika|Pikachu, L50, M|100/100",
+        "|turn|1",
+    ]
+    # no damage yet → full HP
+    assert reduce_lines(base).p1.hp_pct == 100
+    # a -damage event moves it; nothing else does
+    with_damage = base + ["|move|p2a: X|Tackle|p1a: Pika", "|-damage|p1a: Pika|55/100"]
+    assert reduce_lines(with_damage).p1.hp_pct == 55
+    # remove ONLY the -damage line → HP stays at 100 (no independent source)
+    without = [ln for ln in with_damage if not ln.startswith("|-damage|")]
+    assert reduce_lines(without).p1.hp_pct == 100
+
+
+def test_boosts_track_and_reset_on_switch():
+    lines = [
+        "|switch|p1a: Mon|Garchomp, L78, M|100/100",
+        "|-boost|p1a: Mon|atk|2",
+        "|-unboost|p1a: Mon|spe|1",
+    ]
+    s = reduce_lines(lines)
+    assert s.p1.boosts == {"atk": 2, "spe": -1}
+    # a switch-in clears the previous mon's boosts (per-mon volatile)
+    s2 = reduce_lines(lines + ["|switch|p1a: Other|Tyranitar, L80|100/100"])
+    assert s2.p1.boosts == {}
+    assert s2.p1.active_species == "Tyranitar"
+
+
+def test_status_set_and_cleared():
+    s = reduce_lines(["|switch|p1a: Mon|Jirachi, L80|100/100", "|-status|p1a: Mon|par"])
+    assert s.p1.status == "par"
+    s2 = reduce_lines(
+        [
+            "|switch|p1a: Mon|Jirachi, L80|100/100",
+            "|-status|p1a: Mon|par",
+            "|-curestatus|p1a: Mon|par",
+        ]
+    )
+    assert s2.p1.status == ""
+
+
+def test_win_and_tie():
+    assert reduce_lines(["|win|Beta"]).winner == "Beta"
+    assert reduce_lines(["|win|Beta"]).ended is True
+    assert reduce_lines(["|tie"]).winner == ""
+    assert reduce_lines(["|tie"]).ended is True
+
+
+def test_reasoning_folded_by_turn():
+    lines = [
+        "|turn|1",
+        "|-reasoning|p1|Lead with priority to deny the switch",
+        "|move|p1a: X|Aqua Jet|p2a: Y",
+        "|turn|2",
+        "|-reasoning|p2|Pivot out before the boost lands",
+    ]
+    s = reduce_lines(lines)
+    assert s.reasoning_by_turn[1]["p1"] == "Lead with priority to deny the switch"
+    assert s.reasoning_by_turn[2]["p2"] == "Pivot out before the boost lands"
+
+
+def test_empty_input_is_empty_state_not_crash():
+    s = reduce([])
+    assert isinstance(s, BattleState)
+    assert s.turn_no == 0 and s.winner is None and s.p1.hp_pct == 100
+
+
+def test_hp_pct_parsing_edge_cases():
+    assert hp_pct_of("298/298") == 100
+    assert hp_pct_of("176/298") == 59
+    assert hp_pct_of("60/100") == 60
+    assert hp_pct_of("0 fnt") == 0
+    assert hp_pct_of("264/291 par") == 91  # status suffix ignored for HP
+    assert hp_pct_of("garbage") == 100  # never crashes
+
+
+def test_unknown_events_are_safe_noops():
+    # a malformed / unknown type must not crash the fold (digest §7)
+    s = reduce_lines(["|turn|1", "|totallymadeup|x|y", "|-neverseen|p1a: Z"])
+    assert s.turn_no == 1
+
+
+def test_battlestate_is_strict():
+    # extra fields forbidden — the state is a closed, audited shape
+    import pytest
+
+    with pytest.raises(Exception):
+        BattleState(turn_no=1, bogus="x")  # type: ignore[call-arg]
