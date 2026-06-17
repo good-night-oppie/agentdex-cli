@@ -252,16 +252,24 @@ class ProtocolEvent(BaseModel):
 
     :attr:`raw` is verbatim (faithful for re-sim hashing); :attr:`args` are the
     raw positional args (HP strings etc. preserved); :attr:`idents` exposes the
-    sanitized Pokémon idents found in the positional args.
+    sanitized Pokémon idents found in the positional args + ident-shaped kwargs.
+
+    The sequence fields are **tuples**, not lists: ``frozen=True`` only blocks
+    field *reassignment*, so a ``list``/``dict`` could still be mutated in place
+    (``ev.args.append(...)``) and corrupt the shared parsed log a reducer folds
+    over. Tuples make :attr:`args`/:attr:`idents` immutable. ``kwargs`` stays a
+    ``dict`` for ``parse_request`` ergonomics; it is built fresh per line (never
+    shared across events) and the model is frozen, so callers must treat it as
+    read-only. (PR #200 review 3431806033.)
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     raw: str
     type: str
     tier: Tier
-    args: list[str] = Field(default_factory=list)
+    args: tuple[str, ...] = ()
     kwargs: dict[str, str] = Field(default_factory=dict)
-    idents: list[PokemonIdent] = Field(default_factory=list)
+    idents: tuple[PokemonIdent, ...] = ()
     index: int = -1  # position in the stream; assigned by parse_stream
     turn_no: int | None = None  # set for |turn|N
 
@@ -372,9 +380,9 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         raw=line,
         type=msg_type,
         tier=tier_of(msg_type),
-        args=positional,
+        args=tuple(positional),
         kwargs=kwargs,
-        idents=idents,
+        idents=tuple(idents),
         index=index,
         turn_no=turn_no,
     )

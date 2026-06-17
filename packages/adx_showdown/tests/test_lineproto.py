@@ -26,7 +26,7 @@ def test_move_is_major_with_sanitized_idents():
     ev = parse_line("|move|p1a: Garchomp|Earthquake|p2a: Skarmory")
     assert ev.type == "move"
     assert ev.tier is Tier.MAJOR
-    assert ev.args == ["p1a: Garchomp", "Earthquake", "p2a: Skarmory"]
+    assert list(ev.args) == ["p1a: Garchomp", "Earthquake", "p2a: Skarmory"]
     # idents parsed + sanitized; numeric/move args untouched
     assert [i.name for i in ev.idents] == ["Garchomp", "Skarmory"]
     assert ev.idents[0].side == "p1" and ev.idents[0].position == "a"
@@ -38,7 +38,7 @@ def test_damage_is_minor_and_hp_arg_is_verbatim():
     assert ev.type == "-damage"
     assert ev.tier is Tier.MINOR
     # HP string preserved verbatim — sanitizing it would strip the '/'
-    assert ev.args == ["p2a: Skarmory", "45/100"]
+    assert list(ev.args) == ["p2a: Skarmory", "45/100"]
     assert ev.lane == "indent-red"
 
 
@@ -59,34 +59,36 @@ def test_bare_pipe_is_meta_divider():
 def test_kwargs_from_and_of_populated():
     ev = parse_line("|-ability|p1a: Gardevoir|Torrent|[from] ability: Trace|[of] p2a: Swampert")
     assert ev.type == "-ability" and ev.tier is Tier.MINOR
-    assert ev.args == ["p1a: Gardevoir", "Torrent"]  # positionals stop at first kwarg
+    assert list(ev.args) == ["p1a: Gardevoir", "Torrent"]  # positionals stop at first kwarg
     assert ev.kwargs == {"from": "ability: Trace", "of": "p2a: Swampert"}
 
 
 def test_flag_kwarg_and_blank_positional_preserved():
     # |move|src|Protect||[still] — blank target positional + flag-only kwarg
     ev = parse_line("|move|p2a: Trevenant|Protect||[still]")
-    assert ev.args == ["p2a: Trevenant", "Protect", ""]
+    assert list(ev.args) == ["p2a: Trevenant", "Protect", ""]
     assert ev.kwargs == {"still": ""}
 
 
 def test_damage_with_from_item_kwarg():
     ev = parse_line("|-damage|p2a: Lumineon|252/279|[from] item: Life Orb")
-    assert ev.args == ["p2a: Lumineon", "252/279"]
+    assert list(ev.args) == ["p2a: Lumineon", "252/279"]
     assert ev.kwargs == {"from": "item: Life Orb"}
 
 
 def test_switch_arg_order_details_and_hp():
     ev = parse_line("|switch|p1a: Azumarill|Azumarill, L82, M|298/298")
     assert ev.type == "switch" and ev.tier is Tier.MAJOR
-    assert ev.args == ["p1a: Azumarill", "Azumarill, L82, M", "298/298"]
+    assert list(ev.args) == ["p1a: Azumarill", "Azumarill, L82, M", "298/298"]
 
 
 def test_win_and_status_and_cant_lines():
     assert parse_line("|win|Beta").type == "win"
     assert parse_line("|win|Beta").tier is Tier.MAJOR
     st = parse_line("|-status|p1a: Jirachi|par")
-    assert st.type == "-status" and st.tier is Tier.MINOR and st.args == ["p1a: Jirachi", "par"]
+    assert (
+        st.type == "-status" and st.tier is Tier.MINOR and list(st.args) == ["p1a: Jirachi", "par"]
+    )
     cant = parse_line("|cant|p1a: Jirachi|par")
     assert cant.type == "cant" and cant.tier is Tier.MAJOR  # no hyphen
 
@@ -94,7 +96,7 @@ def test_win_and_status_and_cant_lines():
 def test_split_is_meta_secret_share_marker():
     ev = parse_line("|split|p1")
     assert ev.type == "split" and ev.tier is Tier.META
-    assert ev.args == ["p1"]
+    assert list(ev.args) == ["p1"]
 
 
 def test_timestamp_is_nondeterministic_meta():
@@ -208,7 +210,7 @@ def test_request_json_payload_kept_intact_with_pipes():
 
 def test_empty_request_payload():
     ev = parse_line("|request|")
-    assert ev.type == "request" and ev.args == [""]
+    assert ev.type == "request" and list(ev.args) == [""]
 
 
 def test_kwarg_idents_are_sanitized():
@@ -231,7 +233,20 @@ def test_kwarg_idents_are_sanitized():
 def test_normal_lines_still_split_after_opaque_change():
     # the opaque carve-out must not affect ordinary pipe-delimited messages
     ev = parse_line("|move|p1a: Garchomp|Earthquake|p2a: Skarmory")
-    assert ev.args == ["p1a: Garchomp", "Earthquake", "p2a: Skarmory"]
+    assert list(ev.args) == ["p1a: Garchomp", "Earthquake", "p2a: Skarmory"]
+
+
+def test_event_sequence_fields_are_immutable_tuples():
+    """args + idents are tuples so a downstream reducer can't mutate the shared
+    parsed log in place. PR #200 review 3431806033.
+    """
+    import pytest
+
+    ev = parse_line("|-ability|p1a: X|Trace|[of] p2a: Y")
+    assert isinstance(ev.args, tuple)
+    assert isinstance(ev.idents, tuple)
+    with pytest.raises(AttributeError):
+        ev.args.append("boom")  # type: ignore[attr-defined]
 
 
 def test_event_is_frozen_and_strict():
