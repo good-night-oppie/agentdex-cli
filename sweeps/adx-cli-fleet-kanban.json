@@ -313,7 +313,13 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-cli",
+          "body": "Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 \u2014 fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay.",
+          "created_at": "2026-06-17T23:07:54Z"
+        }
+      ],
       "created_by": "adx-cli",
       "evidence": [
         "PR#200",
@@ -327,7 +333,7 @@
       "priority": "P1",
       "status": "running",
       "title": "launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)",
-      "updated_at": "2026-06-17T22:31:10Z"
+      "updated_at": "2026-06-17T23:07:54Z"
     },
     {
       "assignee": "adx-core",
@@ -366,7 +372,13 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Drafted + shipped as PR #14 (good-night-oppie/bene, branch content/blog-why-bene). Abstract-only, leak-scan clean. Source md only; render is bene's lane (BENE-DOC-01 scaffold + BENE-DOC-10 deploy).",
+          "created_at": "2026-06-17T22:37:41Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "CLAUDE.md",
@@ -377,9 +389,9 @@
       "impact": "Frames the whole site: BENE is the durable, auditable local-first multi-agent substrate that backs agentdex-cli (the arena). Gom-jabbar harness thesis.",
       "lane": "blog-content",
       "priority": "P0",
-      "status": "todo",
+      "status": "review",
       "title": "Blog post: WHY we build BENE \u2014 the harness behind the arena",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-17T22:37:41Z"
     },
     {
       "assignee": "bene-core",
@@ -516,6 +528,339 @@
       "status": "todo",
       "title": "Render + deploy all new blog/docs/case-study/design content",
       "updated_at": "2026-06-17T22:32:12Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "__main__.py:128 hardcodes _file_inbox_notifier to container /tmp; __main__.py:7 docstring promises ARENA_OWNER_WEBHOOK but no code reads it; gateway.py:622 notify_owner is the only path."
+      ],
+      "fix": "Add an env-selected notifier (ARENA_OWNER_WEBHOOK / email) in build_gateway, keep file-inbox as fallback; wire into notify_owner.",
+      "id": "ENROLL-P0-delivery-channel",
+      "impact": "Self-serve /enroll/confirm is unreachable for external users -> 0 tokens minted -> no players can onboard.",
+      "lane": "onboarding",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Wire a real confirmation-code delivery channel (env webhook/email, file fallback) into build_gateway()",
+      "updated_at": "2026-06-17T22:39:10Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "consent.py:136 mint() works; gateway.py:639-649 ConsentClaims shape; _registered append-only gateway.py:637."
+      ],
+      "fix": "One-shot script using live persistent ARENA_SIGNING_KEY_HEX; append register events so names survive restart.",
+      "id": "ENROLL-P0-batch-mint",
+      "impact": "Fastest path to real players today: hand pre-minted tokens to configured agents without the broken confirm flow.",
+      "lane": "onboarding",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Batch-mint N consent tokens via one-shot script (emit register events) + distribute, bypassing self-serve confirm",
+      "updated_at": "2026-06-17T22:39:10Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located."
+      ],
+      "fix": "Return pending code only when ARENA_ENROLL_RETURN_CODE set; keep test_mcp_surface.py A1 green when unset.",
+      "id": "ENROLL-P1-playtest-return-code",
+      "impact": "Self-service onboarding alternative to batch-mint for a curated launch; default-off preserves A1 out-of-band invariant.",
+      "lane": "onboarding",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code",
+      "updated_at": "2026-06-17T22:39:10Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "SKILL.md:185-193",
+        "bootstrap.sh:11-12",
+        "ENROLLMENT.md:23-24",
+        "arena_play.py:10 promise out-of-band delivery with no code."
+      ],
+      "fix": "Correct the docs to the real (curated/batch-mint) onboarding path; ties to ENROLL-P0-delivery-channel. Overlaps ADX-P2-001 (done).",
+      "id": "ENROLL-P1-docs-fix-false-webhook",
+      "impact": "SKILL.md/bootstrap.sh/ENROLLMENT.md dead-end users at pending_owner_confirmation with no real channel.",
+      "lane": "onboarding",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Fix docs that promise a prod webhook/email delivery channel that does not exist",
+      "updated_at": "2026-06-17T22:39:10Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "gateway.py:1818 replay_input_log(battle_id=f'{id}-dispute') never start-ed; pool.py:95-98 raises 'not owned'."
+      ],
+      "fix": "Start the dispute battle on a pool member before replay, or special-case replay/import as battle-less; add test_pool replay test.",
+      "id": "ROUTE-P1-dispute-pool",
+      "impact": "Disputes 500 the instant ADX_SIDECAR_POOL_SIZE>1 (the config 100 concurrent needs) -> broken integrity surface under scale.",
+      "lane": "routing",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Route dispute replay op through SidecarPool (start <id>-dispute or special-case replay as battle-less) + regression test",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load."
+      ],
+      "fix": "On Node death, respawn the pool member and purge its _owner/_load entries so _least_loaded stops routing to it.",
+      "id": "RECOVER-P1-sidecar-respawn",
+      "impact": "One OOM permanently degrades a fraction of 100 users: dead sidecar stays in routing map, new battles routed to the corpse.",
+      "lane": "durability",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "gateway.py:836-843 bare 503",
+        "grep retry-after=0; self.sessions keyed by battle_id only (gateway.py:572); BattleSession.claims_token_id gateway.py:388."
+      ],
+      "fix": "Add Retry-After header to the capacity 503; cap concurrent battles per claims_token_id. ADR-0012 sec7. (bounded queue deferred.)",
+      "id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "impact": "Bare 503 gives clients no backoff signal; one owner can fill the whole pool and starve the other 99 users.",
+      "lane": "admission",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Admission control: Retry-After on capacity 503 + per-owner concurrent-battle cap (anti-monopolization)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "gateway.py:1406/1418-1420 static _ARENA_HEALTH; Sidecar.rss_mb adx_showdown/sidecar.py:153; SidecarPool.rss_mb pool.py:108."
+      ],
+      "fix": "Compute readiness from app.state.sidecar rss_mb + returncode (cheap one-ps-read/sidecar); fail when unhealthy.",
+      "id": "OPS-P1-healthz-readiness",
+      "impact": "Platform never recycles a sick container -> an OOM/dead-sidecar spiral stays 'healthy' and keeps taking traffic.",
+      "lane": "observability",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Make /healthz a real readiness probe (sidecar alive + RSS) instead of static {ok:true}",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist."
+      ],
+      "fix": "Expose len(self.sessions) + rss_mb + a 503 counter via a small /metrics endpoint.",
+      "id": "OPS-P1-metrics-stats",
+      "impact": "Operator is blind between a healthy spike and an OOM spiral; the 503 path increments no counter.",
+      "lane": "observability",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Add /metrics (or /debug/stats): RSS, active battles, 503 count (queue depth when queue lands)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "events.py:195-237 recompute_ladder; called gateway.py:1355",
+        "1144",
+        "1182",
+        "mcp_surface.py:349",
+        "1996. Same _finish lines as ADX-P1-007."
+      ],
+      "fix": "Maintain a live in-memory ratings fold updated per battle-result; serve /ladder from cache; preserve Q5 anti-pay-to-rank parity.",
+      "id": "LADDER-P1-incremental-cached",
+      "impact": "recompute_ladder is 3 full O(N) passes run synchronously on the single event loop per /ladder, twice per rated finish, whoami, badge.",
+      "lane": "ladder",
+      "priority": "P1",
+      "status": "triage",
+      "title": "Incremental ladder fold + cached /ladder (full recompute = boot/repair only); coordinate with ADX-P1-007",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "self.sessions={} on boot gateway.py:572; boot replay rebuilds only names/memberships gateway.py:544-565; /choose 403 gateway.py:1663-1664."
+      ],
+      "fix": "Detect begin-without-end on boot and return 409 interrupted; full (seed,inputLog) resurrection needs a WAL schema change (backlog).",
+      "id": "RECOVER-P1-interrupted-signal",
+      "impact": "After a restart, /choose on a dropped in-flight battle returns an opaque 403, confusing players mid-game.",
+      "lane": "durability",
+      "priority": "P1",
+      "status": "triage",
+      "title": "Return a clear 409 'interrupted by restart' for begin-without-end battles after gateway restart (vs opaque 403)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "engine primitive exists (pokemon-showdown sim/state.js:79/99) but sidecar.mjs has no snapshot/restore op."
+      ],
+      "fix": "Add snapshot/restore ops to sidecar.mjs on top of the existing engine primitive + WAL replay rail.",
+      "id": "SNAPSHOT-P2-sidecar-restore",
+      "impact": "Post-launch hardening: today a sidecar crash loses in-flight battles (load test shows crash isn't the demonstrated failure mode yet).",
+      "lane": "durability",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Wire snapshot/restore ops into sidecar.mjs using engine State.serializeBattle (full in-flight crash recovery)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "eventsync.py mirrors raw arena_event_log only",
+        "no derived ratings view; ADR-0012:117-118."
+      ],
+      "fix": "Add a derived ratings view to eventsync's PG mirror for replica reads.",
+      "id": "DURABLE-P2-ratings-pg-projection",
+      "impact": "Only load-bearing once we go multi-core/horizontal; single-process today rebuilds from disk on boot.",
+      "lane": "ladder",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Add a ratings projection table to the PG mirror for multi-instance/replica reads (post-MVP)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "cli.py:821 forwards only k.startswith('ARENA_'); __main__.py:179 reads ADX_SIDECAR_POOL_SIZE; sidecar.py:76 reads OLD_SPACE_MB."
+      ],
+      "fix": "Extend cli.py env-forward allowlist to ADX_SIDECAR_* (pays off on the multi-core box).",
+      "id": "OPS-P1-forward-scale-envvars",
+      "impact": "The SidecarPool scale lever is silently dropped on deploy -> pool size can't be set on the bigger box without the --env-vars escape hatch.",
+      "lane": "ops",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "harness",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "ADR-0012:124",
+        "126 names LLM tier first; loadtest doc:61-63 defers it; arena server makes $0 LLM calls (bots.py:1) so risk is 100 client agents."
+      ],
+      "fix": "Probe /chat/completions concurrency + read /v1/usage/summary budget headroom on the shared AI_BUILDER_TOKEN proxy.",
+      "id": "LLM-P0-must-measure-3",
+      "impact": "LLM proxy is the EXPECTED #1 bottleneck and is unmeasured -> go/no-go for 100 concurrent is unknown.",
+      "lane": "infra",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "harness",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "events.py:72-97 single global fcntl lock + single fd; per-turn append hot path gateway.py:1702; loadtest covered sim only."
+      ],
+      "fix": "Microbench events.py append under concurrent turns; WAL-SQLite migration is the to-build fix if it's a ceiling.",
+      "id": "DURABLE-P2-append-throughput-measure",
+      "impact": "Diagnostic: tells whether the single global append lock is a real ceiling at 100 concurrent.",
+      "lane": "ops",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Run ADR-0012 MUST-MEASURE #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "platform-instructor",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "__main__.py:61-67 mints ephemeral key with warning-only when unset; consent.py:118-120 fail-closes only if BOTH empty."
+      ],
+      "fix": "Confirm ARENA_SIGNING_KEY_HEX is set in the live deploy env_vars (or enroll->restart->whoami probe). Overlaps ADX-P2-004.",
+      "id": "ENROLL-P0-verify-signing-key",
+      "impact": "If the key is the ephemeral fallback, every consent token is invalidated on sleep/wake -> all players logged out mid-launch.",
+      "lane": "onboarding",
+      "priority": "P0",
+      "status": "blocked",
+      "title": "Verify the live deploy has a persistent ARENA_SIGNING_KEY_HEX (else all tokens die on sleep/wake/redeploy)",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "platform-instructor",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "ADR-0012:117-118; deploy payload cli.py:844-849 has no instance-size/scale-to-zero field; quota 2/2 used."
+      ],
+      "fix": "Instructor provisions a larger always-on SKU (deploy API has no instance-size field) or confirm none exists -> external host.",
+      "id": "INSTR-P0-bigger-instance",
+      "impact": "THE hard blocker for true 100 concurrent: 256MB nano physically cannot host gateway + multi-sidecar pool.",
+      "lane": "platform",
+      "priority": "P0",
+      "status": "blocked",
+      "title": "INSTRUCTOR: provision a multi-core instance bigger than the 256MB nano, scale-to-zero DISABLED",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "platform-instructor",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "Quota 2/2 (meta-vex+agentdex)",
+        "no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT."
+      ],
+      "fix": "Instructor DELETE meta-vex (green-lit 2026-06-11), or operator stands up VPS + DNS + ~17 env vars + secrets (Dockerfile is portable).",
+      "id": "INSTR-P1-free-quota-or-vps",
+      "impact": "Contingency if no on-platform bigger SKU: need a service slot or an off-platform host for the scale instance.",
+      "lane": "platform",
+      "priority": "P1",
+      "status": "blocked",
+      "title": "INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback",
+      "updated_at": "2026-06-17T22:39:11Z"
+    },
+    {
+      "assignee": "platform-instructor",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "docs/runbooks/ holds only badge-admin.md + membership-admin.md; defaults POOL_SIZE=1",
+        "MAX_BATTLES=16",
+        "OLD_SPACE=96."
+      ],
+      "fix": "Consolidate into docs/runbooks/arena-go-live.md incl the concrete bigger-instance env set (<=20 cap; inventory ~17).",
+      "id": "OPS-P1-go-live-runbook",
+      "impact": "Dangerous defaults + boot-crash envs + keep-alive + rollback are scattered across go-nogo + loadtest + ADR-0012.",
+      "lane": "ops",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback)",
+      "updated_at": "2026-06-17T22:39:11Z"
     }
   ],
   "events": [
@@ -807,8 +1152,178 @@
       "card_id": "BENE-DOC-10",
       "created_at": "2026-06-17T22:32:12Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-02",
+      "created_at": "2026-06-17T22:37:25Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-02",
+      "created_at": "2026-06-17T22:37:41Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-delivery-channel",
+      "created_at": "2026-06-17T22:39:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-batch-mint",
+      "created_at": "2026-06-17T22:39:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P1-playtest-return-code",
+      "created_at": "2026-06-17T22:39:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P1-docs-fix-false-webhook",
+      "created_at": "2026-06-17T22:39:10Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ROUTE-P1-dispute-pool",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-sidecar-respawn",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-healthz-readiness",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-metrics-stats",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "LADDER-P1-incremental-cached",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-interrupted-signal",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "SNAPSHOT-P2-sidecar-restore",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "DURABLE-P2-ratings-pg-projection",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-forward-scale-envvars",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "LLM-P0-must-measure-3",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "DURABLE-P2-append-throughput-measure",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-verify-signing-key",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "INSTR-P0-bigger-instance",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "INSTR-P1-free-quota-or-vps",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-go-live-runbook",
+      "created_at": "2026-06-17T22:39:11Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-001",
+      "created_at": "2026-06-17T23:07:54Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-17T22:32:12Z"
+  "updated_at": "2026-06-17T23:07:54Z"
 }
