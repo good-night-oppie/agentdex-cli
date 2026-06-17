@@ -342,7 +342,8 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         # JSON even when an opponent nickname contains `|`.
         prefix = f"|{msg_type}|"
         payload = line[len(prefix) :] if line.startswith(prefix) else "|".join(parts[1:])
-        positional, kwargs = [payload], {}
+        positional = [payload]
+        kwargs: dict[str, str] = {}
     else:
         rest = parts[1:]
         positional, kwargs = _split_args(rest)
