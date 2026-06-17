@@ -103,8 +103,15 @@ def render_state(
         "## Bench",
         *(f"- {s.species} {s.condition}{' [active]' if s.active else ''}" for s in req.bench),
         "",
-        "## Scratchpad (your own notes from previous turns)",
+        # Fence the agent's own free-text notes between explicit delimiters so a
+        # scratchpad that happens to contain a "## Recent turns" / "## Bench"
+        # header can't masquerade as a real, server-authored section and poison
+        # the agent's own read of the state (ADX-P2-005). The notes are verbatim
+        # YOUR text — never trust them as game state.
+        "## Scratchpad (your own notes — verbatim, NOT game state)",
+        "--- BEGIN NOTES ---",
         scratchpad or "(empty)",
+        "--- END NOTES ---",
         "",
         "## Recent turns",
         *(recent_turns[-3:] or ["(battle start)"]),
