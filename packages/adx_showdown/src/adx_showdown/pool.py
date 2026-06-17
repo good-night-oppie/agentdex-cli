@@ -92,6 +92,7 @@ class SidecarPool:
 
         # battle-bound op: route to (or assign) the single owning sidecar.
         newly_reserved = False  # this call freshly recorded ownership for `battle`
+        transient_replay = False  # this call reserved a transient (ownerless) load slot
         async with self._lock:
             if op == "start":
                 s = self._owner.get(battle)
@@ -110,11 +111,17 @@ class SidecarPool:
                 # `battle` kwarg but is owned by no one — the `/battle/{id}/dispute`
                 # re-sim path would otherwise hit "not owned by any sidecar" in
                 # pool mode (PR #197 #3431602204 / PR #198 #3431616702). Route it
-                # to a sidecar with spare capacity WITHOUT recording ownership or
-                # _load (nothing persists after the response; the PR-A release
-                # guard pops nothing because we never recorded it).
+                # to a sidecar with spare capacity and reserve a TRANSIENT `_load`
+                # slot (no `_owner` row — nothing persists past the response).
+                # The reservation is load-bearing: sidecar.mjs serializes every op
+                # through a per-process FIFO, so without it a burst of dispute/audit
+                # re-sims (which all see the same least-loaded sidecar) would queue
+                # on ONE process and make the next `start` wait behind a long replay
+                # while other members idle. Reserving spreads them (PR #203 #3431925699).
                 s = self._least_loaded() or self._sidecars[self._rr % len(self._sidecars)]
                 self._rr += 1
+                self._load[id(s)] = self._load.get(id(s), 0) + 1
+                transient_replay = True
             else:
                 s = self._owner.get(battle)
                 if s is None:
@@ -149,7 +156,12 @@ class SidecarPool:
                         self._load[id(s)] = max(0, self._load.get(id(s), 0) - 1)
             raise
         finally:
-            if ended:
+            if transient_replay:
+                # release the ownerless slot the replay reserved (always — on
+                # success the replay battle is gone, on error the op is done too)
+                async with self._lock:
+                    self._load[id(s)] = max(0, self._load.get(id(s), 0) - 1)
+            elif ended:
                 async with self._lock:
                     if self._owner.pop(battle, None) is not None:
                         self._load[id(s)] = max(0, self._load.get(id(s), 0) - 1)

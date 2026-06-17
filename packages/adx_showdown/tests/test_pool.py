@@ -239,6 +239,62 @@ def test_replay_routes_to_unowned_sidecar():
     _run(go())
 
 
+def test_concurrent_replays_spread_across_pool():
+    """A burst of in-flight replays must reserve transient load so they spread
+    across sidecars instead of queueing on one process. PR#203 #3431925699."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+
+    async def go():
+        gate = asyncio.Event()
+
+        async def blocking_replay(op, **kw):
+            await gate.wait()
+            return {"ok": True, "state": {"end": {"winner": "p1"}}}
+
+        for s in p._sidecars:
+            s.request = blocking_replay  # type: ignore[method-assign]
+
+        # two replays launched while both are still otherwise idle
+        t1 = asyncio.create_task(p.request("replay", battle="d1", lines=[]))
+        t2 = asyncio.create_task(p.request("replay", battle="d2", lines=[]))
+        for _ in range(4):  # let both route + reserve before they block on the gate
+            await asyncio.sleep(0)
+
+        # spread: each sidecar holds exactly one transient slot, not 2-on-1
+        loads = sorted(p._load.get(id(s), 0) for s in p._sidecars)
+        assert loads == [1, 1], f"replays should spread across the pool, got {loads}"
+        assert p._owner == {}  # still ownerless
+
+        gate.set()
+        await asyncio.gather(t1, t2)
+        # all transient load released after completion
+        assert all(p._load.get(id(s), 0) == 0 for s in p._sidecars)
+        assert p._owner == {}
+
+    _run(go())
+
+
+def test_replay_transient_load_released_on_error():
+    """A replay that raises still releases its transient load slot."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        s = p._sidecars[0]
+
+        async def boom(op, **kw):
+            raise SidecarError("replay blew up")
+
+        s.request = boom  # type: ignore[method-assign]
+        with pytest.raises(SidecarError, match="blew up"):
+            await p.request("replay", battle="d1", lines=[])
+        assert p._load.get(id(s), 0) == 0  # released despite the error
+        assert "d1" not in p._owner
+
+    _run(go())
+
+
 def test_replay_with_state_end_does_not_underflow_load():
     """A real replay response carries state.end; the release guard must pop
     nothing (replay was never owned) — no negative/leaked load."""
