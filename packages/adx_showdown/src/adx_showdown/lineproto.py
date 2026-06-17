@@ -380,9 +380,9 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         raw=line,
         type=msg_type,
         tier=tier_of(msg_type),
-        args=positional,
+        args=tuple(positional),
         kwargs=kwargs,
-        idents=idents,
+        idents=tuple(idents),
         index=index,
         turn_no=turn_no,
     )
