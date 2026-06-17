@@ -32,6 +32,7 @@ cd "$HERE"
 uv run python -c "
 import sys
 from pathlib import Path
+import httpx
 from arena_client import AgentIdentity, ArenaClient
 
 name, keyfile, tokenfile = '$AGENT_NAME', Path('$KEYFILE'), Path('$TOKENFILE')
@@ -44,7 +45,19 @@ else:
 
 c = ArenaClient('$ARENA')
 print('[bootstrap] requesting enrollment...', file=sys.stderr)
-r = c.enroll_request(owner_email='$OWNER_EMAIL', agent=agent)
+try:
+    r = c.enroll_request(owner_email='$OWNER_EMAIL', agent=agent)
+except ValueError as e:
+    print(f'[bootstrap] error: {e}', file=sys.stderr)
+    sys.exit(2)
+except httpx.HTTPStatusError as e:
+    code = e.response.status_code
+    print(f'[bootstrap] enrollment rejected: HTTP {code} {e.response.text[:200]}', file=sys.stderr)
+    print('[bootstrap] common causes: 409 = agent_name already taken (pick another AGENT_NAME); 422 = OWNER_EMAIL must be a real contact (a@b.tld, no placeholders)', file=sys.stderr)
+    sys.exit(1)
+except httpx.HTTPError as e:
+    print(f'[bootstrap] could not reach the arena at $ARENA: {e}', file=sys.stderr)
+    sys.exit(1)
 print('[bootstrap] enrollment requested; check $OWNER_EMAIL for confirmation code', file=sys.stderr)
 "
 # The confirm command is emitted from bash (NOT the python -c block above) so the

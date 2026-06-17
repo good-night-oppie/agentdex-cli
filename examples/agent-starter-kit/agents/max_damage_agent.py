@@ -16,7 +16,12 @@ from pathlib import Path
 # Resolve sibling module
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from arena_client import AgentIdentity, ArenaClient, play_until_end  # noqa: E402
+from arena_client import (  # noqa: E402
+    AgentIdentity,
+    ArenaClient,
+    play_until_end,
+    run_agent_main,
+)
 
 
 def decide_first_legal(_state: dict) -> int:
@@ -78,4 +83,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_agent_main(main))
