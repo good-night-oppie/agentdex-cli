@@ -65,5 +65,16 @@ platform proxy rate/budget at 100 concurrent.
 **Now wired** (ADR-0012 PR-1/2/3): `SidecarPool` partitions battles by
 `battle_id`, gateway uses it via `ADX_SIDECAR_POOL_SIZE` (default 1 = unchanged
 single-sidecar behavior; raise on a multi-core box), and the per-sidecar heap is
-`ADX_SIDECAR_MAX_OLD_SPACE_MB`. So scaling the sim tier to ~100 is two env vars,
-not a rewrite.
+`ADX_SIDECAR_MAX_OLD_SPACE_MB`. So scaling the sim tier is a config change, not a
+rewrite.
+
+⚠️ **Three knobs, not two — mind the hard cap.** Live-battle capacity is
+`ADX_SIDECAR_POOL_SIZE × ARENA_MAX_BATTLES` (the gateway wires the pool with
+`max_battles_per_sidecar = ARENA_MAX_BATTLES`, default **16**). With the
+recommended 2–4 sidecars and the default cap you top out at **32–64** concurrent
+live battles and start returning capacity 503s *before* 100. To actually reach
+~100, raise **`ARENA_MAX_BATTLES`** too (e.g. `POOL_SIZE=4 × ARENA_MAX_BATTLES=32
+= 128` headroom), alongside `ADX_SIDECAR_MAX_OLD_SPACE_MB` for the extra heap.
+The recipe is therefore: `ADX_SIDECAR_POOL_SIZE` (event-loop headroom + fault
+isolation) × `ARENA_MAX_BATTLES` (per-sidecar live cap) + `ADX_SIDECAR_MAX_OLD_SPACE_MB`
+(heap per sidecar).
