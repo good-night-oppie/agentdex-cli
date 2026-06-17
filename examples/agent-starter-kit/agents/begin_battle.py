@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from arena_client import AgentIdentity, ArenaClient  # noqa: E402
+from arena_client import AgentIdentity, ArenaClient, run_agent_main  # noqa: E402
 
 
 def main() -> int:
@@ -74,4 +74,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_agent_main(main))

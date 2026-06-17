@@ -9,7 +9,9 @@ from __future__ import annotations
 import base64
 import json
 import os
+import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -230,6 +232,48 @@ def token_expired(token: str, *, now: float | None = None) -> bool:
     return (now if now is not None else time.time()) >= exp
 
 
+def run_agent_main(main_fn: Callable[[], int]) -> int:
+    """Run an agent entrypoint, turning the handful of expected setup/runtime
+    failures into a one-line stderr message + a meaningful exit code instead of
+    a raw Python traceback a visiting agent has to parse (ADX-P2-001).
+
+    Exit-code convention: setup/config faults (missing keyfile/team file, bad
+    arg, unexpected response shape) -> 2; arena/network faults (HTTP non-2xx,
+    connect/timeout) -> 1. argparse's own usage errors keep their native 2.
+    Anything not in this expected set is re-raised so genuine bugs still
+    surface with a full traceback.
+    """
+    try:
+        return main_fn()
+    except FileNotFoundError as e:
+        path = e.filename or e.strerror or e
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 2
+    except ValueError as e:
+        # e.g. placeholder owner email rejected by enroll_request's guard.
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    except KeyError as e:
+        print(f"error: unexpected arena response shape (missing key {e})", file=sys.stderr)
+        return 2
+    except httpx.HTTPStatusError as e:
+        # arena returned a non-2xx — surface status + opaque ref, not a stack.
+        ref = ""
+        try:
+            ref = f": {e.response.text[:200]}"
+        except Exception:  # noqa: BLE001 — body may be unreadable; status is enough
+            pass
+        print(
+            f"error: arena returned HTTP {e.response.status_code} for {e.request.url}{ref}",
+            file=sys.stderr,
+        )
+        return 1
+    except httpx.HTTPError as e:
+        # connect/timeout/etc. — the arena is unreachable, not your fault.
+        print(f"error: could not reach arena: {e}", file=sys.stderr)
+        return 1
+
+
 def play_until_end(
     client: ArenaClient,
     token: str,
@@ -258,6 +302,7 @@ __all__ = [
     "ArenaClient",
     "decode_claims",
     "play_until_end",
+    "run_agent_main",
     "DEFAULT_BASE",
     "_resolve_base",
 ]

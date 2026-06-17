@@ -14,7 +14,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from arena_client import AgentIdentity, ArenaClient, play_until_end  # noqa: E402
+from arena_client import (  # noqa: E402
+    AgentIdentity,
+    ArenaClient,
+    play_until_end,
+    run_agent_main,
+)
 
 
 SYSTEM = """You are a Pokémon gen9 OU player. The user will give you a battle state.
@@ -122,4 +127,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_agent_main(main))
