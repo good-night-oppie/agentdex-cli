@@ -36,6 +36,11 @@ import ps from 'pokemon-showdown';
 const { BattleStream, Teams, TeamValidator, Dex } = ps;
 
 const MAX_BATTLES = Number(process.env.ADX_SIDECAR_MAX_BATTLES || 4);
+// Full-fidelity omniscient protocol-log cap (P1-b/c): every |TYPE| line from the
+// `update` stream is retained in order so adx-client/adx-view fold over ONE log
+// and Phase 5 can re-sim + hash it. Bounded to keep RSS flat under long battles;
+// knob mirrors ADX_SIDECAR_MAX_BATTLES. keyLines (signatures) stays separate.
+const MAX_PROTOCOL_LINES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_LINES || 50000);
 const battles = new Map(); // battleId -> entry
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
@@ -66,6 +71,8 @@ function newEntry() {
     active_hp: { p1: 100, p2: 100 },
     turnLines: [],
     keyLines: [], // signature-relevant battle lines (phase-5 signatures.py)
+    protocolLog: [], // FULL ordered omniscient |TYPE| stream (P1-b/c) — spliced as a delta per settle
+    protocolTruncated: false,
     errors: [],
     winner: null, // null = in progress; '' = tie
     turns: 0,
@@ -82,6 +89,17 @@ function attachReader(battleId, entry) {
         const rest = nl === -1 ? '' : chunk.slice(nl + 1);
         if (type === 'update') {
           for (const line of rest.split('\n')) {
+            // Full-fidelity capture FIRST: every non-empty line, verbatim, in
+            // order (incl. |t:|, |split| + its private/public pair, the bare |
+            // divider). Downstream strips |t:| for the hash and resolves |split|
+            // per perspective — the sidecar stays faithful (P1-b/c).
+            if (line.length) {
+              if (entry.protocolLog.length < MAX_PROTOCOL_LINES) {
+                entry.protocolLog.push(line);
+              } else {
+                entry.protocolTruncated = true;
+              }
+            }
             if (KEY_LINE_RE.test(line) && entry.keyLines.length < 3000) {
               entry.keyLines.push(line);
             }
@@ -169,6 +187,11 @@ async function settledState(entry) {
   await drain();
   const errors = entry.errors.splice(0);
   const turnLines = entry.turnLines.splice(0);
+  // protocol_log is a DELTA: the new omniscient lines since the last settle.
+  // The Python driver concatenates these across steps into the full log, so the
+  // transfer stays O(new lines) not O(battle). replay writes everything then
+  // settles once, so its delta is the whole battle.
+  const protocolDelta = entry.protocolLog.splice(0);
   const state = {
     pending: {
       p1: entry.winner === null && !entry.submitted.p1 ? entry.pending.p1 : null,
@@ -177,6 +200,8 @@ async function settledState(entry) {
     active: entry.active,
     active_hp: entry.active_hp,
     log_events: turnLines,
+    protocol_log: protocolDelta,
+    protocol_truncated: entry.protocolTruncated,
     errors,
     turns: entry.turns,
     end:

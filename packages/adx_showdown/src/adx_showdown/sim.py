@@ -20,6 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from adx_showdown.lineproto import ProtocolEvent, parse_stream, strip_nondeterministic
 from adx_showdown.protocol import (
     ParsedRequest,
     active_species,
@@ -105,8 +106,31 @@ class BattleResult(BaseModel):
     turns: int
     input_log: list[str] = Field(default_factory=list)
     key_lines: list[str] = Field(default_factory=list)  # signature extraction input
+    # FULL ordered omniscient |TYPE| protocol stream (P1-b/c). The single log
+    # adx-client/adx-view fold over; Phase 5 strips |t:| and hashes it. Empty if
+    # the sidecar predates protocol-log capture (back-compat).
+    protocol_log: list[str] = Field(default_factory=list)
+    protocol_truncated: bool = False
     choice_errors: int = 0
     steps: int = 0
+
+
+def events(result: BattleResult) -> list[ProtocolEvent]:
+    """Parse a result's full protocol log into typed events (adx-client input).
+
+    The bridge from adx-sim (this module) to adx-client/adx-view: callers fold
+    these :class:`~adx_showdown.lineproto.ProtocolEvent` s into battle state or
+    render them — they never re-touch the engine.
+    """
+    return parse_stream(result.protocol_log)
+
+
+def canonical_protocol(result: BattleResult) -> list[str]:
+    """The result's protocol log with non-deterministic lines stripped.
+
+    The exact byte sequence two re-simulations must agree on (Phase 5 hash).
+    """
+    return strip_nondeterministic(result.protocol_log)
 
 
 class BattleFailed(RuntimeError):
@@ -136,7 +160,13 @@ def _fallback_choice(req: ParsedRequest | None, error: str) -> str | None:
 
 
 def _result_from_end(
-    battle_id: str, end: dict[str, Any], *, choice_errors: int, steps: int
+    battle_id: str,
+    end: dict[str, Any],
+    *,
+    choice_errors: int,
+    steps: int,
+    protocol_log: list[str] | None = None,
+    protocol_truncated: bool = False,
 ) -> BattleResult:
     if end.get("streamError"):
         raise BattleFailed(f"{battle_id}: stream error: {end['streamError']}")
@@ -146,6 +176,8 @@ def _result_from_end(
         turns=int(end.get("turns", 0)),
         input_log=list(end.get("inputLog") or []),
         key_lines=list(end.get("keyLines") or []),
+        protocol_log=list(protocol_log or []),
+        protocol_truncated=protocol_truncated,
         choice_errors=choice_errors,
         steps=steps,
     )
@@ -186,11 +218,19 @@ async def run_battle(
     last_req: dict[str, ParsedRequest] = {}
     wants_ctx = {side: _wants_context(policies[side]) for side in ("p1", "p2")}
     OTHER = {"p1": "p2", "p2": "p1"}
+    # Accumulate the per-settle protocol-log deltas into the full ordered log.
+    protocol_log: list[str] = list(state.get("protocol_log") or [])
+    protocol_truncated = bool(state.get("protocol_truncated"))
 
     for step_n in range(1, max_steps + 1):
         if state.get("end"):
             return _result_from_end(
-                battle_id, state["end"], choice_errors=choice_errors, steps=step_n - 1
+                battle_id,
+                state["end"],
+                choice_errors=choice_errors,
+                steps=step_n - 1,
+                protocol_log=protocol_log,
+                protocol_truncated=protocol_truncated,
             )
         choices: dict[str, str] = {}
         # error corrections take precedence over fresh policy calls
@@ -229,6 +269,8 @@ async def run_battle(
             )
         resp = await sidecar.request("step", battle=battle_id, choices=choices)
         state = resp["state"]
+        protocol_log.extend(state.get("protocol_log") or [])
+        protocol_truncated = protocol_truncated or bool(state.get("protocol_truncated"))
 
     raise BattleFailed(f"{battle_id}: exceeded {max_steps} steps")
 
@@ -241,13 +283,23 @@ async def replay_input_log(
 ) -> BattleResult:
     """Re-simulate a recorded input log verbatim (A2: outsider-verifiable)."""
     resp = await sidecar.request("replay", battle=battle_id, lines=list(input_log))
-    end = (resp.get("state") or {}).get("end")
+    rstate = resp.get("state") or {}
+    end = rstate.get("end")
     if not end:
         raise BattleFailed(
             f"{battle_id}: replay did not reach an end state "
             f"(turns={(resp.get('state') or {}).get('turns')})"
         )
-    return _result_from_end(battle_id, end, choice_errors=0, steps=0)
+    # replay writes every input line then settles ONCE, so the single delta is
+    # the whole battle's protocol log.
+    return _result_from_end(
+        battle_id,
+        end,
+        choice_errors=0,
+        steps=0,
+        protocol_log=list(rstate.get("protocol_log") or []),
+        protocol_truncated=bool(rstate.get("protocol_truncated")),
+    )
 
 
 async def run_concurrent_battles(

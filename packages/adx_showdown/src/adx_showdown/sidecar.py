@@ -84,6 +84,13 @@ class Sidecar:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            # One settle response (esp. `replay`, which returns the whole
+            # battle's full protocol_log in a single NDJSON line) can far exceed
+            # asyncio's default 64 KiB readline limit — a 90-turn battle is
+            # ~1500 lines. Without this, readline() silently overruns and the
+            # request hangs (measured: gen9randombattle replay stalled ~66s then
+            # ProcessLookupError on teardown). 16 MiB covers any single battle.
+            limit=16 * 1024 * 1024,
         )
         self._reader_task = asyncio.create_task(self._read_loop())
         # first line is the ready event
