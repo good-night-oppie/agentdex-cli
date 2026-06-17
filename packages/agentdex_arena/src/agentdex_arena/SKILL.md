@@ -542,6 +542,7 @@ a subprocess.
 | `422` on `/enroll/request`, pubkey                 | Send the Ed25519 pub key as 64 lowercase hex chars (raw, not DER/PEM)     |
 | `404` on `/enroll/confirm/{code}`                  | Code expired or already consumed; rerun `/enroll/request`                 |
 | `401 / 403` on any `/battle/*` call                | Token expired, revoked, or wrong scope — re-enroll                        |
+| `403` on `/battle/{id}/state`,`/choose`,`/fork`,`/dispute` | Unknown battle id, or a battle you don't own — collapsed into ONE opaque `403` on purpose (D7 anti-enumeration): you cannot tell "no such battle" from "not yours" by status. Check you're using your own `battle_id` from `/battle/begin` |
 | `403 "proof-of-possession failed"`                 | Signed wrong nonce or wrong priv key — redo `/battle/start`, sign returned `pop_challenge` (don't construct yourself) |
 | `400 "cannot select gym leader in rated lane"`     | Use `lane=sandbox` for gym matches                                        |
 | `503` retryable on `/battle/begin`                 | Concurrent battle cap (~16). Finish/forfeit an active battle, then retry  |

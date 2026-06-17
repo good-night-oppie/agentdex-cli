@@ -591,12 +591,14 @@ def test_injection_corpus_gate(arena):
         except httpx.InvalidURL:
             blocked += 1
             continue
-        assert r.status_code in (404, 422), payload["id"]
-        if r.status_code == 404:
+        assert r.status_code in (403, 404, 422), payload["id"]
+        if r.status_code in (403, 404):
             detail = r.json()["detail"]
-            # either the gateway's opaque "no session" 404, or FastAPI's
-            # route-mismatch 404 when the payload injects a path separator —
-            # both mean the payload never reached the battle handler.
+            # 403: the gateway's opaque anti-enumeration collapse — a valid
+            # token hitting an unknown battle_id now gets the same 403 as
+            # "not your battle" (auth runs before existence). 404: FastAPI's
+            # route-mismatch when the payload injects a path separator. Either
+            # way the payload never reached a live battle handler.
             assert detail.startswith("arena error (ref:") or detail == "Not Found", payload["id"]
         blocked += 1
     # no payload minted a token, started a battle, or got itself rated
@@ -1276,14 +1278,21 @@ def test_battle_state_endpoint_polls_without_choosing(arena):
     # 5. Token-ownership gate: a different visitor's token gets 403
     other_key = Ed25519PrivateKey.generate()
     other_token = _enroll(client, owner_inbox, other_key, name="OtherBot", owner="other@oppie.xyz")
-    resp = client.get(
+    not_yours = client.get(
         f"/battle/{battle_id}/state", headers={"Authorization": f"Bearer {other_token}"}
     )
-    assert resp.status_code == 403, resp.text
+    assert not_yours.status_code == 403, not_yours.text
 
-    # 6. Unknown battle id → 404
-    resp = client.get("/battle/no-such-battle/state", headers=auth)
-    assert resp.status_code == 404
+    # 6. Unknown battle id → 403 (NOT 404): D7 anti-enumeration collapses
+    #    "no such battle" into the SAME opaque 403 as "not your battle", so a
+    #    valid-token holder cannot probe which live battle_ids exist by status.
+    not_found = client.get("/battle/no-such-battle/state", headers=auth)
+    assert not_found.status_code == 403
+    assert not_found.status_code == not_yours.status_code  # status indistinguishable
+    # both bodies are opaque refs — no existence signal in the body either (the
+    # uuids differ per call by design; only the opaque *shape* must match)
+    assert not_found.json()["detail"].startswith("arena error (ref:")
+    assert not_yours.json()["detail"].startswith("arena error (ref:")
 
     # 7. Stale session: when time advances past turn_budget_s the poll should
     #    forfeit the battle before returning state (not return a live your_move).
@@ -1675,3 +1684,55 @@ def test_fork_explicit_anchor_random_does_not_escalate(arena, monkeypatch):
     assert not autopilot_calls, (
         "autopilot_punisher must not be installed for explicit anchor-random forks"
     )
+
+
+def test_unknown_battle_id_does_not_leak_existence(arena):
+    """D7 anti-enumeration on the live-session endpoints (state / choose).
+
+    Live battle_ids are NOT public (unlike a finished /replay), so an attacker
+    must not be able to discover which battle_ids exist. The gateway verifies
+    the token BEFORE the existence lookup, so:
+
+    - an UNAUTHENTICATED prober (garbage bearer) gets the SAME 403 whether the
+      battle exists or not — auth fails first, before existence is consulted;
+    - a VALID-token holder probing battles they do not own gets the SAME opaque
+      403 for "no such battle" as for "not your battle".
+
+    Pre-fix this leaked: existing battle -> 403 (auth ran after existence) but
+    unknown battle -> 404, so a no-credential prober could enumerate live IDs.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key)
+    real_id = _begin_battle(client, gateway, token, agent_key)["battle_id"]
+
+    # --- unauthenticated prober: garbage bearer, real vs fake battle_id ---
+    bad = {"Authorization": "Bearer not-a-real-token"}
+    real_probe = client.get(f"/battle/{real_id}/state", headers=bad)
+    fake_probe = client.get("/battle/does-not-exist/state", headers=bad)
+    assert real_probe.status_code == 403, real_probe.text
+    assert fake_probe.status_code == 403, fake_probe.text
+    assert real_probe.status_code == fake_probe.status_code  # no existence signal
+    # choose is gated identically (auth before existence)
+    real_choose = client.post(
+        f"/battle/{real_id}/choose", json={"token": "not-a-real-token", "choice_index": 1}
+    )
+    fake_choose = client.post(
+        "/battle/does-not-exist/choose", json={"token": "not-a-real-token", "choice_index": 1}
+    )
+    assert real_choose.status_code == 403
+    assert fake_choose.status_code == 403
+
+    # --- valid token, not-owned vs not-found: identical opaque 403 ---
+    stranger = _enroll(
+        client,
+        owner_inbox,
+        Ed25519PrivateKey.generate(),
+        name="StrangerBot",
+        owner="stranger@oppie.xyz",
+    )
+    s_auth = {"Authorization": f"Bearer {stranger}"}
+    not_yours = client.get(f"/battle/{real_id}/state", headers=s_auth)
+    not_found = client.get("/battle/does-not-exist/state", headers=s_auth)
+    assert not_yours.status_code == 403 == not_found.status_code
+    assert not_yours.json()["detail"].startswith("arena error (ref:")
+    assert not_found.json()["detail"].startswith("arena error (ref:")
