@@ -38,6 +38,26 @@ def _spec(seed_base: int = 4242) -> dict:
     )
 
 
+def test_run_battle_sanitizes_player_names_into_the_log():
+    """An unsanitized caller name must be stripped at the source so the |player|
+    meta line + |win| winner in the protocol log carry no untrusted metachars.
+    PR #201 review 3431865007."""
+
+    async def _run() -> BattleResult:
+        spec = _spec(seed_base=8675)
+        spec["p1_name"] = "Evil|/forfeit<script>"
+        async with Sidecar() as sc:
+            return await run_battle(sc, **spec)
+
+    result = asyncio.run(_run())
+    player_lines = [ln for ln in result.protocol_log if ln.startswith("|player|p1|")]
+    assert player_lines, "the |player| meta line must be captured"
+    for ch in ("|/", "<", ">"):
+        assert ch not in player_lines[0], f"unsanitized {ch!r} reached the |player| line"
+    # the sanitized name is what survives (the allowlist keeps letters)
+    assert "Evilforfeitscript" in player_lines[0]
+
+
 def test_protocol_log_is_full_and_ordered():
     async def _run() -> BattleResult:
         async with Sidecar() as sc:

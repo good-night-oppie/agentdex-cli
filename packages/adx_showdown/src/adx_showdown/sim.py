@@ -199,6 +199,14 @@ async def run_battle(
     max_steps: int = 5000,
 ) -> BattleResult:
     """Run one battle to completion via the step protocol; sanitized result."""
+    # Sanitize player names at the SOURCE (A6). The names are cosmetic (no
+    # mechanics impact) but now reach the omniscient protocol log via the
+    # |player| meta line, which events()/renderers/agent clients consume — an
+    # unsanitized caller name would otherwise be a fresh untrusted-text path that
+    # bypasses the protocol sanitizer. Cleaning here keeps the |player| line, the
+    # |win| winner, and BattleResult.winner all consistent (PR #201 review 3431865007).
+    p1_name = sanitize_name(p1_name)
+    p2_name = sanitize_name(p2_name)
     policies: dict[str, Policy] = {"p1": p1_policy, "p2": p2_policy}
     # Teams in random formats are drawn from PER-PLAYER seeds (battle.js
     # getTeam), distinct from the battle PRNG seed. Derive them from the
