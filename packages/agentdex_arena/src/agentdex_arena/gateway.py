@@ -1595,15 +1595,20 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
             raise _opaque_error(401, "Bearer token required")
         token = authorization[len("Bearer ") :]
         gw = gateway
-        session = gw.sessions.get(battle_id)
-        if session is None:
-            raise _opaque_error(404, f"no session {battle_id}")
+        # Auth BEFORE existence (D7 anti-enumeration): verify the token first so
+        # an unauthenticated prober can never tell a live battle_id (would-be
+        # 403) from an unknown one (would-be 404) — a bad token is 403 either
+        # way. Then collapse "no such session" and "not your session" into the
+        # SAME opaque 403 so a *valid*-token holder can't enumerate other
+        # visitors' live battles by status code either. Live sessions aren't
+        # public (unlike finished /replay), so this channel is real.
         try:
             claims = gw.authority.verify(token, scope="battle")
-            if claims.token_id != session.claims_token_id:
-                raise ConsentError("token does not own this battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        session = gw.sessions.get(battle_id)
+        if session is None or claims.token_id != session.claims_token_id:
+            raise _opaque_error(403, "no such battle for this token") from None
         # Mirror the choose/start path — expire stale sessions BEFORE returning
         # the state. Otherwise HTTP-only pollers see a live `your_move` payload
         # for a battle that should already be forfeited (PR #93 review P2).
@@ -1617,15 +1622,15 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     @app.post("/battle/{battle_id}/choose")
     async def battle_choose(battle_id: str, req: ChooseRequest) -> dict:
         gw = gateway
-        session = gw.sessions.get(battle_id)
-        if session is None:
-            raise _opaque_error(404, f"no session {battle_id}")
+        # Auth before existence + opaque not-found/not-yours collapse — see
+        # battle_state (D7 anti-enumeration).
         try:
             claims = gw.authority.verify(req.token, scope="battle")
-            if claims.token_id != session.claims_token_id:
-                raise ConsentError("token does not own this battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        session = gw.sessions.get(battle_id)
+        if session is None or claims.token_id != session.claims_token_id:
+            raise _opaque_error(403, "no such battle for this token") from None
         await gw._expire_if_stale(session)
         if session.ended is not None:
             return {"status": "ended", **session.ended}
@@ -1717,12 +1722,14 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         data = gateway.replays.get(battle_id)
-        if data is None:
-            raise _opaque_error(404, f"no replay {battle_id}")
+        # Collapse not-found and not-yours into one opaque 403 BEFORE any
+        # battle-specific check (D7 anti-enumeration): a caller may only learn a
+        # battle exists — or anything about it, e.g. its lane — if they own it.
+        # (Ownership is checked first so a non-owner can't even probe the lane.)
+        if data is None or data.get("tenant") != claims.token_id:
+            raise _opaque_error(403, "fork denied: no such battle for this token") from None
         if data["lane"] != "sandbox":
             raise _opaque_error(403, "fork denied: sandbox battles only")
-        if data.get("tenant") != claims.token_id:
-            raise _opaque_error(403, "fork denied: not your battle")
         turn = body.get("turn", 0)
         if not isinstance(turn, int) or not 0 <= turn <= 1000:
             raise _opaque_error(422, f"bad fork turn {turn!r}")
@@ -1744,10 +1751,11 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         data = gateway.replays.get(battle_id)
-        if data is None:
-            raise _opaque_error(404, f"no replay {battle_id}")
-        if claims.token_id != data.get("tenant"):
-            raise _opaque_error(403, "Forbidden: token does not own this battle")
+        # Collapse not-found and not-yours into one opaque 403 (D7
+        # anti-enumeration): a caller may only learn a battle exists if they
+        # own it.
+        if data is None or claims.token_id != data.get("tenant"):
+            raise _opaque_error(403, "dispute denied: no such battle for this token") from None
         gateway.events.append(
             "dispute",
             {
