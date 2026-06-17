@@ -46,7 +46,15 @@ class SidecarPool:
         return len(self._sidecars)
 
     async def start(self) -> None:
-        await asyncio.gather(*(s.start() for s in self._sidecars))
+        # Start all members concurrently, but if ANY fails after others came up,
+        # tear the started ones back down so a partial start does not leak node
+        # processes (PR #197 #3431602209). `Sidecar.stop()` is a no-op on a
+        # member that never started, so a blanket stop is safe.
+        results = await asyncio.gather(*(s.start() for s in self._sidecars), return_exceptions=True)
+        failures = [r for r in results if isinstance(r, BaseException)]
+        if failures:
+            await asyncio.gather(*(s.stop() for s in self._sidecars), return_exceptions=True)
+            raise failures[0]
         for s in self._sidecars:
             self._load[id(s)] = 0
 
@@ -83,6 +91,7 @@ class SidecarPool:
             return await s.request(op, **kwargs)
 
         # battle-bound op: route to (or assign) the single owning sidecar.
+        newly_reserved = False  # this call freshly recorded ownership for `battle`
         async with self._lock:
             if op == "start":
                 s = self._owner.get(battle)
@@ -93,6 +102,7 @@ class SidecarPool:
                         raise SidecarError("arena at capacity (sidecar pool full)")
                     self._owner[battle] = s
                     self._load[id(s)] = self._load.get(id(s), 0) + 1
+                    newly_reserved = True
             elif op == "replay":
                 # A replay is a TRANSIENT, self-cleaning battle: the sidecar
                 # creates it, re-simulates the inputLog, and deletes it all
@@ -126,6 +136,18 @@ class SidecarPool:
             resp = await s.request(op, **kwargs)
             ended = ended or bool((resp.get("state") or {}).get("end"))
             return resp
+        except BaseException:
+            # A brand-new `start` that records ownership + load and THEN fails in
+            # the sidecar must not leak the reserved slot, or that battle_id is
+            # wedged forever and capacity drips away (PR #197 #3431602213). Only
+            # roll back what THIS call reserved (not an idempotent restart that
+            # found an existing owner). `ended` is still False here, so the
+            # finally below won't double-release.
+            if newly_reserved:
+                async with self._lock:
+                    if self._owner.pop(battle, None) is not None:
+                        self._load[id(s)] = max(0, self._load.get(id(s), 0) - 1)
+            raise
         finally:
             if ended:
                 async with self._lock:

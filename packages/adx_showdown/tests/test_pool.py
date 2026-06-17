@@ -53,6 +53,70 @@ def test_start_starts_all_sidecars():
     assert all(s.started for s in FakeSidecar.instances)
 
 
+def test_start_stops_already_started_on_partial_failure():
+    """If one member fails to start, the ones already up are torn back down so
+    we don't leak node processes. PR #197 #3431602209."""
+    p = SidecarPool(size=3)
+
+    async def boom() -> None:
+        raise RuntimeError("node spawn failed")
+
+    p._sidecars[1].start = boom  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="node spawn failed"):
+        _run(p.start())
+    # every member was stopped (the two that started + the no-op on the failed one)
+    assert all(not s.started for s in p._sidecars)
+    # no load recorded since startup did not complete
+    assert p._load == {}
+
+
+def test_failed_start_rolls_back_ownership():
+    """A start that records ownership then fails in the sidecar must roll the
+    reservation back — the battle_id must not be wedged. PR #197 #3431602213."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        s = p._sidecars[0]
+
+        async def boom(op, **kw):
+            raise SidecarError("sidecar rejected start")
+
+        s.request = boom  # type: ignore[method-assign]
+        with pytest.raises(SidecarError, match="rejected start"):
+            await p.request("start", battle="b1")
+        # ownership + load rolled back to pristine
+        assert "b1" not in p._owner
+        assert p._load.get(id(s), 0) == 0
+
+    _run(go())
+
+
+def test_idempotent_restart_failure_does_not_double_rollback():
+    """A failing op on an ALREADY-owned battle must NOT decrement load (this call
+    reserved nothing). Guards the newly_reserved flag."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        await p.request("start", battle="b1")  # reserve once
+        s = p._owner["b1"]
+        assert p._load[id(s)] == 1
+
+        async def boom(op, **kw):
+            raise SidecarError("transient")
+
+        s.request = boom  # type: ignore[method-assign]
+        with pytest.raises(SidecarError):
+            await p.request("start", battle="b1")  # restart same battle, fails
+        # still owned, load intact — the failed call reserved nothing to roll back
+        assert p._owner.get("b1") is s
+        assert p._load[id(s)] == 1
+
+    _run(go())
+
+
 def test_start_spreads_battles_to_least_loaded():
     p = SidecarPool(size=2)
     _run(p.start())
