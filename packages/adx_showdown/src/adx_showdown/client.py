@@ -20,6 +20,8 @@ aware split resolution (omniscient vs spectator vs per-agent) is Phase 8.
 
 from __future__ import annotations
 
+import math
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.lineproto import ProtocolEvent, parse_stream
@@ -31,8 +33,12 @@ _SIDES = ("p1", "p2")
 def hp_pct_of(hpstatus: str) -> int:
     """Parse a protocol HP token (``cur/max [status]`` or ``0 fnt``) → percent.
 
-    The public split-line is already a percentage (``60/100`` → 60); a private
-    line (``176/298``) rounds to the same display value. ``0 fnt`` / ``0`` → 0.
+    Rounds a PARTIAL HP up (Showdown's convention: 1 HP shows as 1%, never 0%),
+    so a private line ``176/298`` → 60 matches the public ``60/100`` line — a
+    perspective stream that keeps only the private line still agrees with the
+    omniscient public value. ``round(...,6)`` first absorbs binary-float error
+    (``55/100*100`` is ``55.00000000000001``; a bare ``ceil`` would overshoot to
+    56). ``0 fnt`` / ``0`` → 0.
     """
     token = hpstatus.strip()
     if "fnt" in token:
@@ -44,11 +50,24 @@ def hp_pct_of(hpstatus: str) -> int:
             c, m = int(cur), int(mx)
         except ValueError:
             return 100
-        return round(c / m * 100) if m else 0
+        return math.ceil(round(c / m * 100, 6)) if m else 0
     try:
         return max(0, min(100, int(hp)))
     except ValueError:
         return 100
+
+
+def status_of(hpstatus: str) -> str:
+    """The status suffix carried in an HP token (``264/291 par`` → ``par``).
+
+    A statused Pokémon switching back in re-states its condition here instead of
+    re-emitting ``|-status|``, so the reducer reads it on switch / forme-change.
+    ``fnt`` is fainting, not a status condition → ``""``.
+    """
+    parts = hpstatus.strip().split(" ", 1)
+    if len(parts) > 1 and parts[1].strip() and parts[1].strip() != "fnt":
+        return sanitize_name(parts[1].strip(), max_len=8)
+    return ""
 
 
 class SideState(BaseModel):
@@ -124,7 +143,9 @@ class BattleClient:
                 pass
 
     def _on_switch(self, ev: ProtocolEvent) -> None:
-        # |switch|p1a: Nick|Species, L82, M|298/298 — a fresh mon: reset volatiles
+        # |switch|p1a: Nick|Species, L82, M|298/298 — a fresh mon: BOOSTS reset
+        # (volatile), but STATUS persists and is re-stated in the HPSTATUS suffix
+        # (Showdown emits no fresh |-status| for the switch-in). PR #208 review.
         side = self._side_of(ev)
         if side is None:
             return
@@ -132,15 +153,17 @@ class BattleClient:
         if len(ev.args) >= 2:
             side.active_species = sanitize_name(ev.args[1].split(",", 1)[0], max_len=32)
         side.hp_pct = hp_pct_of(ev.args[2]) if len(ev.args) >= 3 else 100
-        side.status = ""  # status + boosts are per-mon; a switch-in clears them
+        side.status = status_of(ev.args[2]) if len(ev.args) >= 3 else ""
         side.boosts = {}
 
     _on_drag = _on_switch  # forced switch — same shape + volatile reset
+    _on_replace = _on_switch  # illusion (Zoroark) ended → the revealed true mon
 
     def _on_formechange(self, ev: ProtocolEvent) -> None:
         # |-formechange|POKEMON|SPECIES|HPSTATUS (temporary) / |detailschange| (permanent)
-        # — the SAME active mon changes species and may carry an updated HP/status,
-        # so fold both (volatiles persist — it is not a switch-in). PR #200 review 3431806055.
+        # — the SAME active mon changes species and may carry an updated HP +
+        # status suffix, so fold all three (volatiles persist — not a switch-in).
+        # PR #200 review 3431806055 / PR #212 review.
         side = self._side_of(ev)
         if side is None:
             return
@@ -150,6 +173,7 @@ class BattleClient:
             hp_token = ev.args[2]
             if "/" in hp_token or "fnt" in hp_token:  # a real HPSTATUS, not a flag
                 side.hp_pct = hp_pct_of(hp_token)
+                side.status = status_of(hp_token)
 
     _on_detailschange = _on_formechange  # permanent forme — same species+HP update
 
@@ -217,9 +241,30 @@ class BattleClient:
         if side is not None:
             side.boosts = {}
 
+    def _on_clearallboost(self, _ev: ProtocolEvent) -> None:
+        # |-clearallboost| (Haze) clears BOTH sides' stat stages — no ident, so
+        # the per-side _side_of() does not apply. PR #208 review.
+        self.state.p1.boosts = {}
+        self.state.p2.boosts = {}
+
     def _on_weather(self, ev: ProtocolEvent) -> None:
         if ev.args:
             self.state.field["weather"] = sanitize_name(ev.args[0], max_len=16)
+
+    @staticmethod
+    def _field_key(effect: str) -> str:
+        # |-fieldstart|move: Grassy Terrain → "Grassy Terrain"
+        return sanitize_name(effect.split(":", 1)[-1].strip(), max_len=24)
+
+    def _on_fieldstart(self, ev: ProtocolEvent) -> None:
+        # terrain / pseudo-weather (Trick Room, Grassy Terrain, …). BattleState.field
+        # is documented to cover terrain, not just weather. PR #208 review.
+        if ev.args:
+            self.state.field[self._field_key(ev.args[0])] = "active"
+
+    def _on_fieldend(self, ev: ProtocolEvent) -> None:
+        if ev.args:
+            self.state.field.pop(self._field_key(ev.args[0]), None)
 
     def _on_reasoning(self, ev: ProtocolEvent) -> None:
         # |-reasoning|<side>|<text> — agentdex's added rationale minor (P1-d)

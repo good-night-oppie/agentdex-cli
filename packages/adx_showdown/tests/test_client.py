@@ -134,11 +134,56 @@ def test_empty_input_is_empty_state_not_crash():
 
 def test_hp_pct_parsing_edge_cases():
     assert hp_pct_of("298/298") == 100
-    assert hp_pct_of("176/298") == 59
-    assert hp_pct_of("60/100") == 60
+    assert hp_pct_of("176/298") == 60  # ceil(partial) → matches public 60/100
+    assert hp_pct_of("60/100") == 60  # exact % not over-rounded (float-safe ceil)
+    assert hp_pct_of("55/100") == 55  # 55.00000000000001 must not become 56
     assert hp_pct_of("0 fnt") == 0
     assert hp_pct_of("264/291 par") == 91  # status suffix ignored for HP
     assert hp_pct_of("garbage") == 100  # never crashes
+
+
+def test_status_carried_in_switch_in_hpstatus():
+    """A statused mon switching back in re-states its condition in the HPSTATUS
+    suffix (no fresh |-status|), and boosts still reset. PR #208 review."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Gren|Greninja, L78|100/100",
+            "|-status|p1a: Gren|brn",
+            "|-boost|p1a: Gren|spe|2",
+            "|switch|p1a: Other|Ferrothorn, L80|100/100",  # bench in, no status
+            "|switch|p1a: Gren|Greninja, L78|60/100 brn",  # statused mon back in
+        ]
+    )
+    assert s.p1.status == "brn"  # carried by the HPSTATUS suffix on switch-in
+    assert s.p1.boosts == {}  # boosts are volatile — reset on switch
+
+
+def test_clearallboost_clears_both_sides():
+    s = reduce_lines(
+        [
+            "|switch|p1a: A|Garchomp, L78|100/100",
+            "|switch|p2a: B|Tyranitar, L80|100/100",
+            "|-boost|p1a: A|atk|2",
+            "|-boost|p2a: B|def|1",
+            "|-clearallboost",  # Haze
+        ]
+    )
+    assert s.p1.boosts == {} and s.p2.boosts == {}
+
+
+def test_terrain_field_start_and_end():
+    s = reduce_lines(["|-fieldstart|move: Grassy Terrain"])
+    assert s.field.get("Grassy Terrain") == "active"
+    s2 = reduce_lines(["|-fieldstart|move: Grassy Terrain", "|-fieldend|move: Grassy Terrain"])
+    assert "Grassy Terrain" not in s2.field
+
+
+def test_replace_updates_active_species():
+    # Zoroark illusion ends → the revealed true mon
+    s = reduce_lines(
+        ["|switch|p1a: X|Zoroark, L78|100/100", "|replace|p1a: X|Zoroark, L78|100/100"]
+    )
+    assert s.p1.active_species == "Zoroark"
 
 
 def test_unknown_events_are_safe_noops():
