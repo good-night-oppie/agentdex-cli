@@ -343,3 +343,27 @@ def parse_stream(lines: list[str]) -> list[ProtocolEvent]:
 def is_section_break(ev: ProtocolEvent) -> bool:
     """True for the bare ``|`` divider or a ``|turn|`` — a renderer rule point."""
     return ev.type in (DIVIDER_TYPE, "turn")
+
+
+def line_type(line: str) -> str:
+    """The message type of a raw line, without fully parsing it.
+
+    Cheap pre-filter for determinism stripping — avoids building a
+    :class:`ProtocolEvent` per line just to read its type.
+    """
+    if line.startswith("|"):
+        body = line[1:]
+        bar = body.find("|")
+        return body if bar == -1 else body[:bar]
+    return line
+
+
+def strip_nondeterministic(lines: list[str]) -> list[str]:
+    """Drop lines whose type is in :data:`NONDETERMINISTIC_TYPES` (e.g. ``|t:|``).
+
+    This is the canonicalization the ``(seed, inputLog)`` verify/hash path
+    (digest §1, Phase 5) runs before comparing or hashing a protocol log: two
+    re-simulations of the same battle differ ONLY in wall-clock ``|t:|`` lines,
+    so the stripped logs MUST be byte-identical.
+    """
+    return [ln for ln in lines if line_type(ln) not in NONDETERMINISTIC_TYPES]
