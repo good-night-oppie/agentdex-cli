@@ -1,1 +1,6 @@
+# Match node_modules whether it is a real directory OR a symlink. A trailing
+# slash matches directories only, so a `node_modules` SYMLINK (e.g. one a
+# worktree points at the main checkout's deps) slipped past and got committed
+# once — keep the bare entry to cover that case.
+node_modules
 node_modules/
