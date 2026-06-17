@@ -117,6 +117,30 @@ def test_idempotent_restart_failure_does_not_double_rollback():
     _run(go())
 
 
+def test_cancelled_start_keeps_reservation():
+    """A CancelledError mid-start (client disconnect / timeout) must NOT roll the
+    reservation back — the sidecar may have already created the battle, so the
+    pool must stay consistent with it instead of routing to a now-full sidecar.
+    PR #204 review."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        s = p._sidecars[0]
+
+        async def cancel_mid_start(op, **kw):
+            raise asyncio.CancelledError()
+
+        s.request = cancel_mid_start  # type: ignore[method-assign]
+        with pytest.raises(asyncio.CancelledError):
+            await p.request("start", battle="b1")
+        # reservation preserved (matches the sidecar's likely-created battle)
+        assert p._owner.get("b1") is s
+        assert p._load[id(s)] == 1
+
+    _run(go())
+
+
 def test_start_spreads_battles_to_least_loaded():
     p = SidecarPool(size=2)
     _run(p.start())

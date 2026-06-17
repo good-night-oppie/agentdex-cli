@@ -143,13 +143,23 @@ class SidecarPool:
             resp = await s.request(op, **kwargs)
             ended = ended or bool((resp.get("state") or {}).get("end"))
             return resp
-        except BaseException:
-            # A brand-new `start` that records ownership + load and THEN fails in
-            # the sidecar must not leak the reserved slot, or that battle_id is
-            # wedged forever and capacity drips away (PR #197 #3431602213). Only
-            # roll back what THIS call reserved (not an idempotent restart that
-            # found an existing owner). `ended` is still False here, so the
-            # finally below won't double-release.
+        except Exception:
+            # A brand-new `start` REJECTED by the sidecar (a real error — no
+            # battle was created) must not leak the reserved slot, or that
+            # battle_id is wedged forever and capacity drips away (PR #197
+            # #3431602213). Only roll back what THIS call reserved (not an
+            # idempotent restart that found an existing owner). `ended` is still
+            # False here, so the finally below won't double-release.
+            #
+            # NB: catch `Exception`, NOT `BaseException` — `asyncio.CancelledError`
+            # (a BaseException) means the caller's task was cancelled, possibly
+            # AFTER the start command already reached the sidecar and the battle
+            # exists there. Rolling back then would desync the pool (load dropped)
+            # from the sidecar (battle still counted), so the pool keeps routing
+            # to a sidecar that's actually full and 503s while others idle
+            # (PR #204 review). Let cancellation propagate with the reservation
+            # intact, matching the sidecar; the turn-timer/forfeit rail reaps the
+            # orphaned battle.
             if newly_reserved:
                 async with self._lock:
                     if self._owner.pop(battle, None) is not None:
