@@ -190,7 +190,7 @@ MESSAGE_TYPES: dict[str, _Spec] = {
     "-fieldend": _spec(Tier.MINOR, "EFFECT", "indent", "field effect ended"),
     "-sidestart": _spec(Tier.MINOR, "SIDE|EFFECT", "indent", "side condition started"),
     "-sideend": _spec(Tier.MINOR, "SIDE|EFFECT", "indent", "side condition ended"),
-    "-formechange": _spec(Tier.MINOR, "POKEMON|SPECIES", "indent", "temporary forme"),
+    "-formechange": _spec(Tier.MINOR, "POKEMON|SPECIES|HPSTATUS", "indent", "temporary forme"),
     "-transform": _spec(Tier.MINOR, "POKEMON|TARGET", "indent", "Transform"),
     "-message": _spec(Tier.MINOR, "TEXT", "indent", "engine message"),
     # metas — preamble / dividers / housekeeping / secret-sharing / timestamps
@@ -277,6 +277,20 @@ class ProtocolEvent(BaseModel):
     def is_nondeterministic(self) -> bool:
         """True for lines that must be stripped before a determinism hash."""
         return self.type in NONDETERMINISTIC_TYPES
+
+    @property
+    def is_divider(self) -> bool:
+        """True only for the real bare ``|`` section divider (``raw == "|"``).
+
+        Distinguishes it from an empty ``""`` line, which parses to the same
+        empty *type* but is not a Showdown-emitted divider.
+        """
+        return self.raw == "|"
+
+    @property
+    def is_empty(self) -> bool:
+        """True for a stray empty line (``raw == ""``) — not a real protocol event."""
+        return self.raw == ""
 
     @property
     def lane(self) -> str:
@@ -399,8 +413,15 @@ def parse_stream(lines: list[str]) -> list[ProtocolEvent]:
 
 
 def is_section_break(ev: ProtocolEvent) -> bool:
-    """True for the bare ``|`` divider or a ``|turn|`` — a renderer rule point."""
-    return ev.type in (DIVIDER_TYPE, "turn")
+    """True for the bare ``|`` divider (raw is exactly ``|``) or a ``|turn|`` — a
+    renderer rule point.
+
+    An EMPTY line (``raw == ""``) is NOT a section break even though it parses to
+    the same empty divider *type*: a trailing newline in ``chunk.split("\\n")``
+    yields ``""``, and treating that as a real divider would inject phantom
+    separators into renders / replay / hash folds (PR #200 review 3431806048).
+    """
+    return ev.type == "turn" or ev.raw == "|"
 
 
 def line_type(line: str) -> str:

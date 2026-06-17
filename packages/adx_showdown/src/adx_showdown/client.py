@@ -137,6 +137,22 @@ class BattleClient:
 
     _on_drag = _on_switch  # forced switch — same shape + volatile reset
 
+    def _on_formechange(self, ev: ProtocolEvent) -> None:
+        # |-formechange|POKEMON|SPECIES|HPSTATUS (temporary) / |detailschange| (permanent)
+        # — the SAME active mon changes species and may carry an updated HP/status,
+        # so fold both (volatiles persist — it is not a switch-in). PR #200 review 3431806055.
+        side = self._side_of(ev)
+        if side is None:
+            return
+        if len(ev.args) >= 2:
+            side.active_species = sanitize_name(ev.args[1].split(",", 1)[0], max_len=32)
+        if len(ev.args) >= 3:
+            hp_token = ev.args[2]
+            if "/" in hp_token or "fnt" in hp_token:  # a real HPSTATUS, not a flag
+                side.hp_pct = hp_pct_of(hp_token)
+
+    _on_detailschange = _on_formechange  # permanent forme — same species+HP update
+
     def _on_faint(self, ev: ProtocolEvent) -> None:
         side = self._side_of(ev)
         if side is not None:

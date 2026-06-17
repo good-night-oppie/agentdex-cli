@@ -111,6 +111,21 @@ def test_reasoning_folded_by_turn():
     assert s.reasoning_by_turn[2]["p2"] == "Pivot out before the boost lands"
 
 
+def test_formechange_updates_species_and_hp_without_resetting_volatiles():
+    """A forme change is the SAME mon — species + HP update, but boosts persist
+    (unlike a switch-in). PR #200 review 3431806055."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Aegislash|Aegislash, L78|100/100",
+            "|-boost|p1a: Aegislash|atk|2",
+            "|-formechange|p1a: Aegislash|Aegislash-Blade|70/100",
+        ]
+    )
+    assert s.p1.active_species == "Aegislash-Blade"
+    assert s.p1.hp_pct == 70  # the HPSTATUS field was folded, not ignored
+    assert s.p1.boosts == {"atk": 2}  # volatiles persist (not a switch-in)
+
+
 def test_empty_input_is_empty_state_not_crash():
     s = reduce([])
     assert isinstance(s, BattleState)

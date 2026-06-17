@@ -162,7 +162,7 @@ not listed still parses, tiered by the hyphen rule.
 | `|-fieldactivate|` | minor | `EFFECT` | indent | pseudo-weather activate |
 | `|-fieldend|` | minor | `EFFECT` | indent | field effect ended |
 | `|-fieldstart|` | minor | `EFFECT` | indent | field effect started |
-| `|-formechange|` | minor | `POKEMON|SPECIES` | indent | temporary forme |
+| `|-formechange|` | minor | `POKEMON|SPECIES|HPSTATUS` | indent | temporary forme (carries HP/status) |
 | `|-heal|` | minor | `POKEMON|HPSTATUS` | indent-green | HP gain |
 | `|-hint|` | minor | `MESSAGE` | indent | rules hint |
 | `|-hitcount|` | minor | `POKEMON|NUM` | indent | multi-hit count |
