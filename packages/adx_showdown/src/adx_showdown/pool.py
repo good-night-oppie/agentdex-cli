@@ -93,6 +93,18 @@ class SidecarPool:
                         raise SidecarError("arena at capacity (sidecar pool full)")
                     self._owner[battle] = s
                     self._load[id(s)] = self._load.get(id(s), 0) + 1
+            elif op == "replay":
+                # A replay is a TRANSIENT, self-cleaning battle: the sidecar
+                # creates it, re-simulates the inputLog, and deletes it all
+                # within the one op (see sidecar.mjs `replay`). It carries a
+                # `battle` kwarg but is owned by no one — the `/battle/{id}/dispute`
+                # re-sim path would otherwise hit "not owned by any sidecar" in
+                # pool mode (PR #197 #3431602204 / PR #198 #3431616702). Route it
+                # to a sidecar with spare capacity WITHOUT recording ownership or
+                # _load (nothing persists after the response; the PR-A release
+                # guard pops nothing because we never recorded it).
+                s = self._least_loaded() or self._sidecars[self._rr % len(self._sidecars)]
+                self._rr += 1
             else:
                 s = self._owner.get(battle)
                 if s is None:
