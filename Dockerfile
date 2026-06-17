@@ -38,6 +38,9 @@ RUN cd packages/adx_showdown && npm ci --omit=dev
 # BENE landing + docs (static, served at /bene/ by the gateway when present).
 COPY site/ ./site/
 
+# agentdex landing (static, served at / for browsers by the gateway when present).
+COPY web/ ./web/
+
 # Strip dev-only tools that the bene-main → agentdex-cli site/ sync carries
 # along but that have no business reaching production users via /bene/:
 #   - build-docs.py: deterministic Markdown→HTML builder (build-time only)
