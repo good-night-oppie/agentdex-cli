@@ -80,7 +80,7 @@ Match the tier: do not write kernel code for a Level-1 ask; do not ship Level-3 
 | Kernel (2.0) | `bene/kernel/` — engrams.py, eval/, evolve/, memory/, harness/, trust.py, adapters.py |
 | MCP server | `bene/mcp/server.py` — 37 tools (`agent_*`, `mh_*`, `agent_memory_*`, `shared_log_*`, skills) |
 | Tests / lint | `uv run python -m pytest tests/ -q` · `uv run ruff format --check . && uv run ruff check .` (the full "done" gate + expected output lives ONLY in Result-certainty rule 3) |
-| Honesty source | `docs/design/CLAIMS-AUDIT.md` (implemented vs planned) · `docs/benchmarks/COMMUNITY-BENCH-REPORT.md` (measured limits vs community peers KAOS + 0.1.0 predecessor) |
+| Honesty source | `docs/benchmarks/COMMUNITY-BENCH-REPORT.md` (measured limits vs community peers KAOS + 0.1.0 predecessor) |
 
 Key kernel imports: `from bene.kernel import EngramStore, ensure_v2` · `from bene.kernel.eval import Probe, ACCEPT` · `from bene.kernel.evolve import promote, PromotionBlocked, Genome, ReflectiveEvolver` · `from bene.kernel.memory import GranuleStore, AdaptiveRetriever, ContextOS, PollutionDetector` · `from bene.kernel.harness import AutonomyPolicy` · `from bene.kernel.adapters import attach_kernel, genome_from_candidate`.
 
@@ -94,7 +94,7 @@ Every recipe ends with a verify command. A recipe without its verify run is NOT 
 
 Scenario: an agent corrupted its files mid-refactor; recover the last good state and see what changed.
 
-Prerequisite: step 1 (`bene run`) needs a configured provider (`bene.yaml` + key/endpoint — `uv run bene setup`). **No key? Use the Python line below instead of step 1** — `db.spawn()` → write → checkpoint → restore exercises every remaining step model-free. Keyless expectation for `bene run`: with no `bene.yaml` it prints `Config file not found` and spawns nothing; with `bene.yaml` present but no live key/endpoint the agent spawns, then fails fast (`Model call failed ... All connection attempts failed`, status `failed`) — provider config, not a BENE bug.
+Prerequisite: step 1 (`bene run`) needs a configured provider (`bene.yaml` + key/endpoint — `uv run bene setup`). **No key? Use the Python line below instead of step 1** — `db.spawn()` → write → checkpoint → restore exercises every remaining step model-free. Keyless expectation for `bene run`: with no `bene.yaml` it prints `Config file not found` and spawns nothing; with `bene.yaml` present but no live key/endpoint the harness spawns, then fails fast (`Model call failed ... All connection attempts failed`, status `failed`) — provider config, not a BENE bug.
 
 ```bash
 uv run bene run "Refactor auth.py for testability" --name refactor-auth   # 1. run (in: task; out: agent_id)
@@ -226,7 +226,7 @@ genome = genome_from_candidate(candidate_dict)   # components: memory_policy, re
 ```
 🔴 CHECKPOINT — mh search burns model tokens (iterations × candidates × problems). Confirm budget with the user before any non-`--dry-run` run with iterations > 5.
 **Verify:** `uv run bene mh frontier <id>` shows non-zero scores on a provider-backed run (an all-zero frontier there means evaluation is broken — diagnose before iterating). Keyless caveat: seed evaluation needs model calls, so with no provider even `--dry-run` legitimately scores 0.0 — judge keyless dry-runs by exit 0 + non-empty frontier, not by score.
-Limitation (honesty): the mh_search → kill-gate loop is NOT wired end-to-end; `genome_from_candidate` is the manual bridge (CLAIMS-AUDIT: partial).
+Limitation (honesty): the mh_search → kill-gate loop is NOT wired end-to-end; `genome_from_candidate` is the manual bridge .
 
 ### R8 — MCP server for any MCP-capable agent
 
@@ -253,7 +253,7 @@ Keyless expectation: without a provider each task still spawns its own agent but
 
 ## Working-memory protocol (scratchpad + lessons learned)
 
-1. **Task start:** search prior knowledge FIRST — `uv run bene memory search "<topic>"` and `uv run bene skills search "<topic>"`. Then write `/plan.md` into your agent's VFS with goal, numbered steps, todo markers, verify section (R2 format).
+1. **Task start:** search prior knowledge FIRST — `uv run bene memory search "<topic>"` and `uv run bene skills search "<topic>"`. Then write `/plan.md` into the harness's VFS with goal, numbered steps, todo markers, verify section (R2 format).
 2. **After every subtask:** update `/progress.md`; on a real finding, `bene memory write <agent_id> "<finding>" --type result`.
 3. **On any correction or gotcha** (wrong flag, API surprise, failed assumption): append a lesson — `bene memory write <agent_id> "<lesson>" --type insight --key lesson-<topic>`. Compounding beats one-shot.
 4. **Before risky edits:** `bene checkpoint <agent_id> --label pre-<step>`.
@@ -280,14 +280,14 @@ Exception rule: when any step fails, ANNOUNCE the failure and apply the table ro
 
 ## Implemented vs planned — never prescribe planned features as working
 
-Source of truth: `docs/design/CLAIMS-AUDIT.md`. **Implemented:** engram ladder + provenance + lineage + FTS; probes/locks/verdicts; experiments journal; trust ledger + weighted tally; genomes/mutation/Pareto/distillation/genes; kill-gated promote; granules/consolidate; adaptive retrieval + MemGAS entropy routing; ContextOS (+ runner packing); pollution detect+recover + VEA evidence re-highlighting; autonomy ladder + `kernel:` config section (context_os/loop_guard/observability/consolidation/autonomy defaults); senses; sweeper; loop guards (standalone + runner-wired); outcome-weighted retrieval ranking + skill plasticity (decay/demote/retire) + continuous-quality outcome signal; critical-step localizer; scheduled consolidation CLI; in-episode/continual harness mutation; spec-as-artifact gating; signed deterministic replay (`bene replay`, kind=consolidation); adapters; demo/UI panels.
+**Implemented:** engram ladder + provenance + lineage + FTS; probes/locks/verdicts; experiments journal; trust ledger + weighted tally; genomes/mutation/Pareto/distillation/genes; kill-gated promote; granules/consolidate; adaptive retrieval + MemGAS entropy routing; ContextOS (+ runner packing); pollution detect+recover + VEA evidence re-highlighting; autonomy ladder + `kernel:` config section (context_os/loop_guard/observability/consolidation/autonomy defaults); senses; sweeper; loop guards (standalone + runner-wired); outcome-weighted retrieval ranking + skill plasticity (decay/demote/retire) + continuous-quality outcome signal; critical-step localizer; scheduled consolidation CLI; in-episode/continual harness mutation; spec-as-artifact gating; signed deterministic replay (`bene replay`, kind=consolidation); adapters; demo/UI panels.
 **PLANNED (do NOT claim):** live-loop auto-trigger of continual mutation + pollution re-highlight (the substrate ships and is callable; the runner does not auto-invoke it yet); agent-loop / probe / evolution deterministic replay (only `kind=consolidation` replay ships signed today — same data path, follow-up); self-hosted langfuse `bene observe up/down/ensure` CLI; MemGAS as the DEFAULT retriever (default stays `AdaptiveRetriever`; the flip is gated on a probe ACCEPT).
 Measured limits (COMMUNITY-BENCH): static-BM25 retrieval parity only; mirror write overhead ~0.8ms p50 (acceptable absolute, loses the strict relative gate); `"BENE supersedes"` is a PREREG-locked technical phrase whose claimability is gated on three conjunctive conditions — see the report for the current verdict, do not assert it in prose.
 
 ## Do NOT (blacklist)
 
 - Do NOT use litellm or the openai SDK — banned by repo policy; vLLM goes through raw httpx (`bene/router/vllm_client.py`). Use `uv`, never pip/poetry.
-- Do NOT claim a planned feature works (list above) — cite CLAIMS-AUDIT status instead.
+- Do NOT claim a planned feature works (list above) — cite implementation status instead.
 - Do NOT retune a gate after REJECT or edit `probe_registry` rows — locks refuse by design; a REJECT stands.
 - Do NOT promote evolved artifacts without an ACCEPT verdict — `PromotionBlocked` is not an obstacle to route around.
 - Do NOT grant L4 with a non-`human:` granter, and never invent the human's name.

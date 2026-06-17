@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a class="cur" href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -255,80 +257,67 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h2 id="code-review-swarm">Code Review Swarm</h2>
 <p><strong>Problem.</strong> Sequential reviews context-switch between security, performance, style, and tests. Anchoring bias and fatigue let issues slip through.</p>
 <p><strong>BENE.</strong> Four parallel reviewers, each with its own VFS — zero cross-agent reads. Findings aggregate via SQL.</p>
-<p><img alt="Code Review Swarm — 4 parallel agents, findings, SQL token summary" src="demos/bene_uc01_code_review_swarm.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t03-security-swarm.html">t03 — Security Swarm</a> · Example: <code>examples/code_review_swarm.py</code></p>
 <hr />
 <h2 id="parallel-refactor-implement-test-document">Parallel Refactor: Implement + Test + Document</h2>
 <p><strong>Problem.</strong> Implementation, tests, and docs are independent but get written sequentially.</p>
 <p><strong>BENE.</strong> Three agents in parallel, each in its own VFS, with the same source as input.</p>
-<p><img alt="Parallel Refactor — Tier routing, 3 agents, real test output" src="demos/bene_uc05_parallel_refactor.gif" onerror="this.style.display='none'" /></p>
 <p>→ Example: <code>examples/parallel_refactor.py</code> · CLI: <code>bene parallel -t impl … -t tests … -t docs …</code></p>
 <hr />
 <h2 id="self-healing-agent">Self-Healing Agent</h2>
 <p><strong>Problem.</strong> A risky operation breaks something and the rollback blows up adjacent work.</p>
 <p><strong>BENE.</strong> Checkpoint before the risk. Restore one agent in milliseconds without touching the others.</p>
-<p><img alt="Self-Healing Agent — checkpoint, migration fails, auto-restore, audit log" src="demos/bene_uc02_self_healing_agent.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t02-e2e-self-healing.html">t02 — End-to-End Self-Healing</a> · Guide: <a href="checkpoints.html">Checkpoints</a></p>
 <hr />
 <h2 id="post-mortem-debugging">Post-Mortem Debugging</h2>
 <p><strong>Problem.</strong> An agent broke something. Logs say what; nothing says <em>why</em> in order.</p>
 <p><strong>BENE.</strong> Every tool call, write, and state change is a SQL row. Reconstruct the sequence in one query.</p>
-<p><img alt="Post-Mortem — bene logs, SQL failure queries, search, diff, restore" src="demos/bene_uc03_post_mortem_debug.gif" onerror="this.style.display='none'" /></p>
 <p>→ Reference: <a href="schema.html">Schema</a> · CLI: <code>bene logs &lt;agent-id&gt;</code>, <code>bene diff</code>, <code>bene search</code></p>
 <hr />
 <h2 id="2am-incident-response">2am Incident Response</h2>
 <p><strong>Problem.</strong> Production is down. You need root cause in minutes, not hours.</p>
 <p><strong>BENE.</strong> Query the event journal for error patterns and recent file writes; root cause in seconds.</p>
-<p><img alt="Incident Response — 23% 500s, event journal query, 1-line fix" src="demos/bene_uc_incident.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t05-incident-response.html">t05 — Incident Response</a></p>
 <hr />
 <h2 id="db-migration-rollback">DB Migration Rollback</h2>
 <p><strong>Problem.</strong> A 2M-row backfill hits unexpected NULLs at row 847k.</p>
 <p><strong>BENE.</strong> Surgical restore of the migration agent alone. Analytics agents on untouched data keep running.</p>
-<p><img alt="DB Migration Rollback — anomaly detected, surgical restore, analytics unaffected" src="demos/bene_uc_migration.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t04-migration-rollback.html">t04 — Migration Rollback</a></p>
 <hr />
 <h2 id="security-audit-swarm">Security Audit Swarm</h2>
 <p><strong>Problem.</strong> SQLi, secrets, auth, deser — four orthogonal threat models, one tired reviewer.</p>
 <p><strong>BENE.</strong> One agent per attack surface, full isolation, SQL aggregation across all four.</p>
-<p><img alt="Security Swarm — 4 parallel agents, SQL aggregation, CRITICAL blocks merge" src="demos/bene_uc_security.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t03-security-swarm.html">t03 — Security Swarm</a></p>
 <hr />
 <h2 id="autonomous-research-lab">Autonomous Research Lab</h2>
 <p><strong>Problem.</strong> N hypotheses, one machine, a TSV of results that loses provenance.</p>
 <p><strong>BENE.</strong> N hypothesis agents in parallel; results SQL-queryable across runs.</p>
-<p><img alt="Autonomous Research Lab — 4 hypothesis agents, SQL results comparison" src="demos/bene_uc07_autonomous_research.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t06-ml-research-lab.html">t06 — ML Research Lab</a></p>
 <hr />
 <h2 id="end-to-end-self-healing-ci-worked-example">End-to-End Self-Healing CI (worked example)</h2>
 <p><strong>Problem.</strong> A wrong fix cascades to four failures. Repo-wide reset blows up other agents.</p>
 <p><strong>BENE.</strong> Per-agent checkpoint, surgical restore, root cause from the audit trail, correct fix, all green.</p>
-<p><img alt="End-to-end Self-Healing — wrong fix, restore in 0.3s, correct fix applied" src="demos/bene_uc_e2e.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t02-e2e-self-healing.html">t02 — End-to-End Self-Healing</a></p>
 <hr />
 <h2 id="ml-research-orthogonal-hypotheses-in-one-run">ML Research: Orthogonal Hypotheses in One Run</h2>
 <p><strong>Problem.</strong> Architecture, optimizer, batch, regularization — four independent dials.</p>
 <p><strong>BENE.</strong> Four agents explore in parallel; winner checkpointed; compendium writes itself.</p>
-<p><img alt="ML Research Lab — 4 hypothesis agents, winner val_loss=1.89" src="demos/bene_uc_mllab.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t06-ml-research-lab.html">t06 — ML Research Lab</a></p>
 <hr />
 <h2 id="model-regression-guard">Model Regression Guard</h2>
 <p><strong>Problem.</strong> A model swap silently regresses one benchmark that matters.</p>
 <p><strong>BENE.</strong> CI gate runs all benchmarks, blocks deploy on threshold breach, triggers Meta-Harness repair.</p>
-<p><img alt="Regression Guard — -8.4% blocked, Meta-Harness repair" src="demos/bene_uc_regression.gif" onerror="this.style.display='none'" /></p>
 <p>→ Tutorial: <a href="tutorials/t07-regression-guard.html">t07 — Regression Guard</a> · Component: <a href="meta-harness.html">Meta-Harness</a></p>
 <hr />
 <h2 id="fraud-detection-meta-harness-on-imbalanced-classes">Fraud Detection: Meta-Harness on Imbalanced Classes</h2>
 <p><strong>Problem.</strong> Rare positive class; false negatives expensive; manual feature engineering exhausted.</p>
 <p><strong>BENE.</strong> Meta-Harness proposer learns red-flag checklists from prior attempt traces.</p>
-<p><img alt="Fraud Detection — Meta-Harness raises recall while preserving precision" src="demos/bene_uc06_fraud_detection.gif" onerror="this.style.display='none'" /></p>
-<p>→ Component: <a href="meta-harness.html#examples">Meta-Harness — Examples</a> · Script: <code>examples/meta_harness_fraud_detection.py</code> (<code>fraud_detection</code> is not a built-in <code>-b</code> value; <code>-b</code> takes <code>text_classify</code> / <code>math_rag</code> / <code>agentic_coding</code>)</p>
+<p>→ Component: <a href="meta-harness.html#sources-and-worked-examples">Meta-Harness — Examples</a> · Script: <code>examples/meta_harness_fraud_detection.py</code> (<code>fraud_detection</code> is not a built-in <code>-b</code> value; <code>-b</code> takes <code>text_classify</code> / <code>math_rag</code> / <code>agentic_coding</code>)</p>
 <hr />
 <h2 id="multi-agent-co-evolution-coral">Multi-Agent Co-Evolution (CORAL)</h2>
 <p><strong>Problem.</strong> A single search agent plateaus.</p>
 <p><strong>BENE.</strong> N agents share a Pareto frontier; stagnation triggers cross-pollination.</p>
-<p><img alt="CORAL co-evolution — N agents share frontiers and skills; 3-10× higher improvement rate (CORAL paper)" src="demos/bene_uc08_coevolution_coral.gif" onerror="this.style.display='none'" /></p>
-<p>→ Component: <a href="meta-harness.html#coral-stagnation-detection--multi-agent-co-evolution-v060">Meta-Harness — CORAL</a></p>
+<p>→ Component: <a href="meta-harness.html#coral-getting-unstuck-v020">Meta-Harness — CORAL</a></p>
 <hr />
 <h2 id="scale-847-agents-8-minutes-zero-regressions">Scale: 847 Agents, 8 Minutes, Zero Regressions</h2>
 <p><strong>Problem.</strong> A 847-file Python 2→3 migration. Sequential is impossible; shared state corrupts at scale.</p>

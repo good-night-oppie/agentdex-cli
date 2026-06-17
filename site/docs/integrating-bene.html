@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -289,8 +291,8 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </tr>
 <tr>
 <td><strong>Harden</strong> (eval gate)</td>
-<td><code>bene.kernel.eval</code> — <code>Probe(name, [gate], fn).register(store, conn, baseline=...)</code> seals the spec under sha256; <code>bene.kernel.evolve.promote(candidate, ...)</code> runs it → ACCEPT / REJECT / VOID</td>
-<td>A Python driver that defines the <code>Probe</code>, registers it, and calls <code>promote()</code> at your CI / promotion point.</td>
+<td><code>bene.kernel.eval</code> — <code>Probe(name, [gate], fn).register(store, conn, baseline=...)</code> seals the spec under sha256; <code>bene.kernel.evolve.promote(candidate, ...)</code> runs it → ACCEPT / REJECT / VOID. Wire it into CI with <code>bene probe run --json</code> (exits non-zero on REJECT/VOID) — see <a href="probe-authoring.html">probe authoring</a>.</td>
+<td>A Python driver that defines the <code>Probe</code>, registers it, and calls <code>promote()</code> (or <code>bene probe run</code>) at your CI / promotion point.</td>
 </tr>
 <tr>
 <td><strong>Skills</strong></td>
@@ -301,6 +303,11 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <td><strong>Data</strong> (data-driven evolution)</td>
 <td><code>bene.kernel.evolve</code> — <code>mh search</code>, genome / Pareto, gated promote</td>
 <td>Python-only drivers for distill / breed; the end-to-end bridge is manual today.</td>
+</tr>
+<tr>
+<td><strong>Atomic completion</strong></td>
+<td><a href="recipes/atomic-completion.html">Atomic completion recipe</a> — idempotent append + durable-record-first completion on a plain SQLite/JSONL log</td>
+<td>Copy the substrate-agnostic pattern into your own event log; no Temporal dependency.</td>
 </tr>
 </tbody>
 </table>
@@ -318,6 +325,8 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </ul>
 <h2 id="see-also">See also</h2>
 <ul>
+<li><a href="probe-authoring.html">Probe authoring</a> — write a kill gate that can actually fail (the admissibility rule) and wire it into CI with <code>bene probe run --json</code> / <code>bene probe ls --check-admissible</code>.</li>
+<li><a href="recipes/atomic-completion.html">Atomic completion recipe</a> — exactly-once, ghost-free completion on a plain SQLite/JSONL log (no Temporal); the pattern for the Fault/Data glue above.</li>
 <li><a href="cli-reference.html">CLI reference</a> — every command, with verify lines.</li>
 <li><a href="architecture.html">Architecture</a> — how the engram ladder, kill gate, and trust ledger sit in one SQLite file.</li>
 <li><a href="design/v0.3-roadmap-spec.html">v0.3 roadmap spec</a> — what is still wire-yourself and on the roadmap to chain.</li>

@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>One call to save, one to rewind, one to diff — all history in one SQLite file on your machine.</strong></p>
 </blockquote>
-<p><img alt="Checkpoints — snapshot, diff, surgical restore" src="demos/bene_02_checkpoints.gif" onerror="this.style.display='none'" /></p>
 <hr />
 <h2 id="save-a-known-good-state">Save a known-good state</h2>
 <div class="codehilite"><pre><span></span><code><span class="n">cp</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;before-migration&quot;</span><span class="p">)</span>
@@ -320,14 +321,24 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 │ REMOVED    │ /src/auth_legacy.py│
 └────────────┴────────────────────┘
 
-State changes:
-  progress:  75 → 100
-  status:    &quot;in-progress&quot; → &quot;complete&quot;
+          State Changes
+┏━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Status     ┃ Key      ┃ Value                        ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ MODIFIED   │ progress │ 75 -&gt; 100                    │
+│ MODIFIED   │ status   │ &quot;in-progress&quot; -&gt; &quot;complete&quot;  │
+└────────────┴──────────┴──────────────────────────────┘
 
-Tool calls between checkpoints: 12
+      Tool Calls Between Checkpoints
+┏━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
+┃ Tool      ┃ Status  ┃ Duration ┃ Tokens ┃
+┡━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
+│ read_file │ success │ 15ms     │ 120    │
+└───────────┴─────────┴──────────┴────────┘
 </code></pre></div>
 
-<p>With <code>--json</code>, the same diff comes back as <code>{"files": {"added": [...], "removed": [...], "modified": [...]}, "state": {"added": {...}, "removed": {...}, "modified": {...}}, "tool_calls": [...]}</code>. (When nothing changed in a section the CLI prints <code>No state changes</code> / <code>No tool calls between checkpoints</code>.)</p>
+<p>When a section is empty, the console outputs <code>No state changes</code> or <code>No tool calls between checkpoints</code>.</p>
+<p>With <code>--json</code>, the same diff comes back as <code>{"files": {"added": [...], "removed": [...], "modified": [...]}, "state": {"added": {...}, "removed": {...}, "modified": {...}}, "tool_calls": [...]}</code>.</p>
 <h3 id="compare-two-attempts">Compare two attempts</h3>
 <p>Snapshot each approach, then diff them:</p>
 <div class="codehilite"><pre><span></span><code><span class="n">cp_a</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">agent_id</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;approach-A&quot;</span><span class="p">)</span>

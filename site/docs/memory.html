@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>One agent's lesson becomes every agent's context: a single shared, full-text-searchable memory for the whole project.</strong></p>
 </blockquote>
-<p><img alt="Cross-Agent Memory — write once, search by any future agent in any session" src="demos/bene_uc_memory.gif" onerror="this.style.display='none'" /></p>
 <p>Clean-room build of an idea from <a href="https://github.com/thedotmack/claude-mem">claude-mem</a> (AGPL-3.0) — see <a href="#credits">Credits</a>.</p>
 <hr />
 <h2 id="start-here">Start Here</h2>
@@ -332,7 +333,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <span class="n">errors</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s2">&quot;JSON decode&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
 
 <span class="c1"># Filter to one agent</span>
-<span class="n">hits</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s2">&quot;ensemble&quot;</span><span class="p">,</span> <span class="n">agent_id</span><span class="o">=</span><span class="s2">&quot;proposer-iter-3&quot;</span><span class="p">)</span>
+<span class="n">hits</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s2">&quot;ensemble&quot;</span><span class="p">,</span> <span class="n">agent_id</span><span class="o">=</span><span class="n">agent_id</span><span class="p">)</span>
 </code></pre></div>
 
 <hr />

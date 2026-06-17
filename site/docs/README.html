@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -439,7 +441,7 @@ uv<span class="w"> </span>run<span class="w"> </span>bene<span class="w"> </span
 <tbody>
 <tr>
 <td><a href="schema.html">Schema</a></td>
-<td>The 10 SQLite tables — every column, every index</td>
+<td>The 11 SQLite tables — every column, every index</td>
 </tr>
 <tr>
 <td><a href="architecture.html">Architecture</a></td>
@@ -448,6 +450,30 @@ uv<span class="w"> </span>run<span class="w"> </span>bene<span class="w"> </span
 <tr>
 <td><a href="deployment.html">Deployment</a></td>
 <td>Setting up vLLM, production config, Docker</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="build-it-into-your-agent">Build it into your agent</h2>
+<table>
+<thead>
+<tr>
+<th>Guide</th>
+<th>What you get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="integrating-bene.html">Integrating BENE</a></td>
+<td>The honest map: what's turnkey vs what you wire yourself</td>
+</tr>
+<tr>
+<td><a href="probe-authoring.html">Probe authoring</a></td>
+<td>Write a kill gate that can actually fail, then wire it into CI with <code>bene probe run --json</code></td>
+</tr>
+<tr>
+<td><a href="recipes/atomic-completion.html">Atomic completion recipe</a></td>
+<td>Exactly-once, ghost-free completion on a plain SQLite/JSONL log — no Temporal dependency</td>
 </tr>
 </tbody>
 </table>

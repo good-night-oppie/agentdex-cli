@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>Because every agent write lands in an append-only journal, "what changed?" is a query — not a 90-minute investigation.</strong></p>
 </blockquote>
-<p><img alt="BENE incident response demo — SQL query finds root cause in 12 seconds, hotfix drops error rate to 0%" src="../demos/bene_uc_incident.gif" onerror="this.style.display='none'" /></p>
 <p><em>The recorded run: pager at 02:17, first query at 02:17:12, cause in hand at 02:17:24, then a hotfix that takes the error rate from 23% back to 0%.</em></p>
 <h2 id="the-2am-question">The 2am question</h2>
 <p>It's 2am and 23% of HTTP requests are coming back as 500s. Whatever you do next, you are really asking one thing: what changed?</p>

@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a class="cur" href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>Agents agree before they act — and every step of the agreement is a row you can query.</strong></p>
 </blockquote>
-<p><img alt="Shared Log — intent / vote / decide / commit across agents" src="demos/bene_uc_shared_log.gif" onerror="this.style.display='none'" /></p>
 <p>The protocol is LogAct, from a 2026 Meta paper, credited in <a href="#lineage">Lineage</a>.</p>
 <hr />
 <h2 id="run-your-first-vote">Run your first vote</h2>
@@ -273,7 +274,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <span class="n">log</span><span class="o">.</span><span class="n">vote</span><span class="p">(</span><span class="s2">&quot;agent-C&quot;</span><span class="p">,</span> <span class="n">intent_id</span><span class="p">,</span> <span class="n">approve</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Need to verify first.&quot;</span><span class="p">)</span>
 
 <span class="c1"># Stage 3: Tally and decide</span>
-<span class="n">summary</span>  <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">tally</span><span class="p">(</span><span class="n">intent_id</span><span class="p">)</span>   <span class="c1"># VoteSummary(approve=1, reject=1, passed=False)</span>
+<span class="n">summary</span>  <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">tally</span><span class="p">(</span><span class="n">intent_id</span><span class="p">)</span>   <span class="c1"># VoteSummary(intent_id=1, approve=1, reject=1, abstain=0, votes=[...]) (passed is a @property)</span>
 <span class="n">decision</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">decide</span><span class="p">(</span><span class="n">intent_id</span><span class="p">,</span> <span class="n">agent_id</span><span class="o">=</span><span class="s2">&quot;agent-A&quot;</span><span class="p">)</span>
 
 <span class="c1"># Stage 4: Commit or abort</span>
@@ -317,7 +318,7 @@ Stage 4: Commit / Abort — action taken or cancelled
         <span class="k">return</span> <span class="kc">False</span>
 </code></pre></div>
 
-<p>Runnable version: <a href="../examples/safety_voting.py">examples/safety_voting.py</a>.</p>
+<p>Runnable version: <a href="../../examples/safety_voting.py">examples/safety_voting.py</a>.</p>
 <hr />
 <h2 id="watch-the-log-from-the-terminal">Watch the log from the terminal</h2>
 <p>Tail, filter, and count entries without writing any Python:</p>
@@ -460,7 +461,7 @@ shared_log_read    — read entries from the log
 <p>Nothing leaves your machine: no service to run, no port to open. <code>cp</code> the <code>.db</code> file and you carry away the complete ordered history of every proposal, vote, and decision.</p>
 <hr />
 <h2 id="see-the-whole-flow">See the whole flow</h2>
-<p>Every stage and every entry type, end to end: <a href="../examples/shared_log_coordination.py">examples/shared_log_coordination.py</a>.</p>
+<p>Every stage and every entry type, end to end: <a href="../../examples/shared_log_coordination.py">examples/shared_log_coordination.py</a>.</p>
 <hr />
 <h2 id="lineage">Lineage</h2>
 <p>The design follows <strong>LogAct: Enabling Agentic Reliability via Shared Logs</strong> — Balakrishnan, Shi, Lu, Goel, Baral, Lyu, Dredze (Meta, 2026), <a href="https://arxiv.org/abs/2604.07988">arXiv:2604.07988</a>.</p>

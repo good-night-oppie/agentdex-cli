@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a class="cur" href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>The point in one line:</strong> a skill is a prompt template with <code>{param}</code> holes that any project agent can locate by full-text search, render with its own values, and grade after use.</p>
 </blockquote>
-<p><img alt="Cross-Agent Skill Library — parameterized procedural templates with usage tracking" src="demos/bene_uc_skills.gif" onerror="this.style.display='none'" /></p>
 <p>Everything stays on your machine. The whole library is a pair of SQLite tables (<code>agent_skills</code> plus its full-text index) inside the same database file as the rest of your project state — copy the file and the skills travel with it.</p>
 <h2 id="how-agents-use-it">How agents use it</h2>
 <p>Memory records what happened; a skill records how to do it again. Without the library, a hard-won approach to text classification, async debugging, or API response shaping evaporates when its session ends. With it, the working loop is:</p>
@@ -262,7 +263,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <li><strong>Contribute back.</strong> When an agent lands on a fresh pattern worth keeping, it stores the template with <code>skill_save</code> (or <code>bene skills save</code>).</li>
 </ol>
 <h2 id="run-it-from-the-shell">Run it from the shell</h2>
-<p>The <code>bene skills</code> subcommands cover the whole lifecycle — save, find, list, render, delete:</p>
+<p>The <code>bene skills</code> subcommands cover most of the lifecycle — save, find, list, render, delete. (Grading isn't a shell verb: record outcomes via the <code>skill_outcome</code> MCP tool or Python <code>SkillStore.record_outcome</code>. Also: <code>skills save --agent &lt;id&gt;</code> / <code>source_agent_id</code> must reference an already-spawned agent — pass an unknown id and the FK rejects it — or omit it for a library-level skill.)</p>
 <div class="codehilite"><pre><span></span><code><span class="c1"># Save a skill</span>
 bene<span class="w"> </span>skills<span class="w"> </span>save<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--name<span class="w"> </span>ensemble_classifier<span class="w"> </span><span class="se">\</span>
@@ -292,7 +293,7 @@ bene<span class="w"> </span>skills<span class="w"> </span>delete<span class="w">
 <li><code>tags</code> — the JSON array, tokenized like ordinary text</li>
 <li><code>template</code> — the prompt body itself, placeholder names included</li>
 </ul>
-<p>Hits come back ranked by BM25. Anything FTS5 accepts as a query works here:</p>
+<p>Hits come back ranked by BM25 (lexical). Add <code>--rank weighted</code> to reorder by outcome reliability — BM25 × a Wilson-lower-bound success rate × recency decay, using the outcomes recorded through <code>skill_outcome</code> — so skills that keep working rise above lexically-similar ones that keep failing. Anything FTS5 accepts as a query works here:</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;ensemble accuracy&quot;</span><span class="w">        </span><span class="c1"># stemmed phrase</span>
 bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w"> </span><span class="s1">&#39;&quot;gradient clipping&quot;&#39;</span><span class="w">      </span><span class="c1"># exact phrase</span>
 bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;classification NOT naive&quot;</span><span class="w"> </span><span class="c1"># negation</span>
@@ -374,7 +375,6 @@ bene<span class="w"> </span>skills<span class="w"> </span>search<span class="w">
 </tbody>
 </table>
 <h3 id="a-worked-session">A worked session</h3>
-<p><img alt="Skill library in action — search before starting, apply, record outcome" src="demos/bene_uc_skills_usecase.gif" onerror="this.style.display='none'" /></p>
 <div class="codehilite"><pre><span></span><code># Before starting a refactoring task:
 skill_search(&quot;refactoring async python&quot;)
 
@@ -439,16 +439,17 @@ skill_outcome(skill_id=7, success=True)
 <span class="w">    </span><span class="n">description</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
 <span class="w">    </span><span class="k">template</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">          </span><span class="c1">-- {param} placeholders</span>
 <span class="w">    </span><span class="n">tags</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;[]&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">-- JSON array</span>
-<span class="w">    </span><span class="n">source_agent_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">source_agent_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span><span class="w">  </span><span class="c1">-- FK; a real spawned agent, or omit for library-level skills</span>
 <span class="w">    </span><span class="n">use_count</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
 <span class="w">    </span><span class="n">success_count</span><span class="w">   </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
 <span class="w">    </span><span class="n">created_at</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
 <span class="w">    </span><span class="n">updated_at</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
 <span class="p">);</span>
 
-<span class="c1">-- FTS5 index over name, description, tags, template</span>
+<span class="c1">-- FTS5 external-content index over name, description, tags, template</span>
 <span class="k">CREATE</span><span class="w"> </span><span class="n">VIRTUAL</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">agent_skills_fts</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">fts5</span><span class="p">(</span>
 <span class="w">    </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">description</span><span class="p">,</span><span class="w"> </span><span class="n">tags</span><span class="p">,</span><span class="w"> </span><span class="k">template</span><span class="p">,</span>
+<span class="w">    </span><span class="n">content</span><span class="o">=</span><span class="s1">&#39;agent_skills&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">content_rowid</span><span class="o">=</span><span class="s1">&#39;skill_id&#39;</span><span class="p">,</span>
 <span class="w">    </span><span class="n">tokenize</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;porter unicode61&#39;</span>
 <span class="p">);</span>
 </code></pre></div>

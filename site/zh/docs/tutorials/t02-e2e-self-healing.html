@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -252,7 +254,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>A checkpoint before each risky edit means a failed fix costs one command, not a lost morning.</strong></p>
 </blockquote>
 <p>The loop you will follow: one red test, a plausible fix that turns it into four, a per-agent restore, a root-cause report the agent wrote about itself, and the repair that takes the suite to 47 green. Every transcript comes from the recorded run:</p>
-<p><img alt="BENE end-to-end self-healing demo — checkpoint, wrong fix, cascade, rollback, correct fix, all tests green" src="../demos/bene_uc_e2e.gif" onerror="this.style.display='none'" /></p>
 <p><em>The whole loop in one take: spawn, checkpoint, cascade to 4 failures, restore, root-cause report, correct fix, 47 green.</em></p>
 <h2 id="the-trap-a-red-test-that-invites-a-cascade">The trap: a red test that invites a cascade</h2>
 <p>A payment service has just refactored its <code>amount</code> field from <code>float</code> to <code>str</code> to keep API serialization consistent. CI reports a single failure:</p>
@@ -421,7 +422,7 @@ tests/test_payment.py::test_refund_partial_amount      PASSED
 <ul>
 <li><a href="../checkpoints.html">Component guide: Checkpoints</a> — snapshot and restore mechanics in depth</li>
 <li><a href="../schema.html#events">Audit trail SQL: events table</a> — query the journal yourself</li>
-<li><a href="../use-cases.html#end-to-end-self-healing-ci">Use case: End-to-end Self-Healing CI</a> — this pattern in the catalog</li>
+<li><a href="../use-cases.html#end-to-end-self-healing-ci-worked-example">Use case: End-to-end Self-Healing CI</a> — this pattern in the catalog</li>
 <li><a href="../use-cases.html">Use Cases</a> — more recovery and orchestration patterns</li>
 <li><a href="../README.html">README</a> — the full doc map</li>
 </ul>

@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -250,7 +252,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p>Launch, watch, rewind, and query a fleet of agents from your terminal — every command works against the same local <code>bene.db</code> file.</p>
 <blockquote>
 <p><strong>Running from a clone:</strong> <code>bene</code> isn't on your <code>PATH</code> after <code>uv sync</code> — prefix every command below with <code>uv run</code> (e.g. <code>uv run bene init</code>), or <code>source .venv/bin/activate</code> once so the bare <code>bene</code> commands shown here resolve. (bene is not on PyPI yet.)</p>
-<p><strong>Every command takes <code>--json</code>, so any output can feed <code>jq</code>, scripts, or another agent framework.</strong></p>
+<p><strong><code>--json</code> is a global flag — put it <em>before</em> the subcommand</strong> (<code>bene --json ls</code>, not <code>bene ls --json</code>, which errors <code>No such option</code>). Any output can then feed <code>jq</code>, scripts, or another agent framework. (Piped output auto-emits JSON even without the flag.)</p>
 </blockquote>
 <div class="codehilite"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>bene<span class="w"> </span>--json<span class="w"> </span>&lt;command&gt;
 </code></pre></div>
@@ -262,7 +264,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>setup
 </code></pre></div>
 
-<p>Preset choices: Claude (Sonnet/Opus), OpenAI (GPT-4o), a local vLLM (7B/70B), or a custom endpoint.</p>
+<p>Preset choices: Claude (Sonnet), OpenAI (GPT-4o), a local vLLM (7B/70B), or a custom endpoint.</p>
 <h3 id="bene-init"><code>bene init</code></h3>
 <p>Create the database — at <code>./bene.db</code> by default, or anywhere you point it.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>init
@@ -270,8 +272,9 @@ bene<span class="w"> </span>init<span class="w"> </span>--db<span class="w"> </s
 </code></pre></div>
 
 <h3 id="bene-demo"><code>bene demo</code></h3>
-<p>Zero API keys needed. Seeds <code>demo.db</code> with realistic agent data, then opens the web dashboard.</p>
-<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>demo
+<p>Zero API keys needed. Stage 1 always runs a keyless (&lt;60s) "kernel story" first — engrams, a falsifiable probe, one round of evolution, consolidation, a trust report, and a senses manifest — then Stage 2 seeds <code>demo.db</code> and opens the web dashboard (skip it with <code>--no-ui</code>).</p>
+<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>demo<span class="w">                </span><span class="c1"># kernel story, then the dashboard</span>
+bene<span class="w"> </span>demo<span class="w"> </span>--no-ui<span class="w">        </span><span class="c1"># run the keyless story and exit (CI-friendly)</span>
 bene<span class="w"> </span>demo<span class="w"> </span>--port<span class="w"> </span><span class="m">9000</span>
 bene<span class="w"> </span>demo<span class="w"> </span>--no-browser
 </code></pre></div>
@@ -287,7 +290,7 @@ bene<span class="w"> </span>run<span class="w"> </span><span class="s2">&quot;Fi
 
 <p>Flags:</p>
 <ul>
-<li><code>--name</code>, <code>-n</code> — the agent's name; auto-generated when omitted</li>
+<li><code>--name</code>, <code>-n</code> — the agent's name (required)</li>
 <li><code>--db</code> — database path (default: <code>./bene.db</code>)</li>
 </ul>
 <h3 id="bene-parallel"><code>bene parallel</code></h3>
@@ -322,7 +325,7 @@ bene<span class="w"> </span>dashboard<span class="w"> </span>--db<span class="w"
 <hr />
 <h2 id="see-what-an-agent-did">See what an agent did</h2>
 <h3 id="bene-ls"><code>bene ls</code></h3>
-<p>Every agent, with status, file count, and tool calls.</p>
+<p>Every agent, with status and creation time.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>ls
 bene<span class="w"> </span>ls<span class="w"> </span>--db<span class="w"> </span>./project.db
 bene<span class="w"> </span>--json<span class="w"> </span>ls<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | select(.status == &quot;failed&quot;)&#39;</span>
@@ -350,7 +353,7 @@ bene<span class="w"> </span><span class="nb">read</span><span class="w"> </span>
 <p>Blame the earliest decisive step in a failed run. It reads the agent's trace engrams — every <code>run_agent</code> turn lands one, plus one per tool call (<code>tool_name</code>, <code>status</code>, <code>error_message</code>) by default — builds a timeline, and points at the first error everything downstream followed from.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;
 bene<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span>--persist<span class="w">    </span><span class="c1"># record the verdict as a tier-1 episodic engram</span>
-bene<span class="w"> </span>--json<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.localized, .step&#39;</span>
+bene<span class="w"> </span>--json<span class="w"> </span>failure<span class="w"> </span>localize<span class="w"> </span>&lt;agent-id&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.localized, .index&#39;</span>
 </code></pre></div>
 
 <p>This works on a <strong>real run by default</strong> (no opt-in, no hand-seeding) because the runner emits the per-tool trace engrams <code>localize</code> keys on. If a run was executed with <code>emit_engrams=False</code> / <code>kernel.emit_engrams: false</code>, there are no trace engrams to read and it returns <code>localized: false</code>.</p>
@@ -360,7 +363,7 @@ bene<span class="w"> </span>--json<span class="w"> </span>failure<span class="w"
 <p>Full-text search over every agent's files and state.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;SQL injection&quot;</span>
 bene<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;ConnectionError&quot;</span><span class="w"> </span>--db<span class="w"> </span>./project.db
-bene<span class="w"> </span>--json<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;keyword&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.results&#39;</span>
+bene<span class="w"> </span>--json<span class="w"> </span>search<span class="w"> </span><span class="s2">&quot;keyword&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[].path&#39;</span>
 </code></pre></div>
 
 <h3 id="bene-query"><code>bene query</code></h3>
@@ -433,11 +436,11 @@ bene<span class="w"> </span>serve<span class="w"> </span>--port<span class="w"> 
 <p>Automated prompt/strategy optimization searches, from the CLI.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </span>-b<span class="w"> </span>&lt;benchmark&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;iterations&gt;<span class="w">   </span><span class="c1"># start a search</span>
 bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </span>-b<span class="w"> </span>text_classify<span class="w"> </span>-n<span class="w"> </span><span class="m">10</span><span class="w"> </span>-k<span class="w"> </span><span class="m">2</span><span class="w">      </span><span class="c1"># 10 iterations, 2 candidates each</span>
-bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </span>-b<span class="w"> </span>lawbench<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span><span class="w"> </span>--background<span class="w">   </span><span class="c1"># run detached</span>
-bene<span class="w"> </span>mh<span class="w"> </span>status<span class="w"> </span>&lt;search-id&gt;<span class="w">                       </span><span class="c1"># poll progress</span>
-bene<span class="w"> </span>mh<span class="w"> </span>frontier<span class="w"> </span>&lt;search-id&gt;<span class="w">                     </span><span class="c1"># view best harnesses</span>
+bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </span>-b<span class="w"> </span>agentic_coding<span class="w"> </span>-n<span class="w"> </span><span class="m">20</span><span class="w"> </span>--background<span class="w">   </span><span class="c1"># run detached</span>
+bene<span class="w"> </span>mh<span class="w"> </span>status<span class="w"> </span>&lt;search-agent-id&gt;<span class="w">                 </span><span class="c1"># poll progress</span>
+bene<span class="w"> </span>mh<span class="w"> </span>frontier<span class="w"> </span>&lt;search-agent-id&gt;<span class="w">               </span><span class="c1"># view best harnesses</span>
 bene<span class="w"> </span>mh<span class="w"> </span>knowledge<span class="w">                                </span><span class="c1"># view persistent knowledge base</span>
-bene<span class="w"> </span>mh<span class="w"> </span>resume<span class="w"> </span>&lt;search-id&gt;<span class="w">                       </span><span class="c1"># resume interrupted search</span>
+bene<span class="w"> </span>mh<span class="w"> </span>resume<span class="w"> </span>&lt;search-agent-id&gt;<span class="w"> </span>-b<span class="w"> </span>&lt;benchmark&gt;<span class="w">  </span><span class="c1"># resume (benchmark must match original)</span>
 </code></pre></div>
 
 <p>Details in the <a href="meta-harness.html">Meta-Harness guide</a>.</p>

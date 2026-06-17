@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a class="cur" href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -364,7 +366,7 @@ We integrated them and made them compose:</p>
 <td>Stagnation + co-evolution</td>
 <td>CORAL (arXiv:2604.01658)</td>
 <td>The proposer plateauing on one harness shape</td>
-<td><a href="meta-harness.html#coral-stagnation-detection--multi-agent-co-evolution-v060">meta-harness.md#coral-stagnation-detection--multi-agent-co-evolution-v060</a></td>
+<td><a href="meta-harness.html#coral-getting-unstuck-v020">meta-harness.md#coral-getting-unstuck-v020</a></td>
 </tr>
 <tr>
 <td>Failure diagnosis (verifier)</td>
@@ -398,7 +400,6 @@ same PR cannot stomp each other. A wrong-fix can be checkpoint-restored
 in 0.3s without disturbing the other agents on the project. Isolation is
 how you let an autonomous agent loose on production-adjacent work
 without writing a postmortem about <em>the orchestration layer</em>.</p>
-<p><img alt="Containment in action — one agent rolled back, others untouched" src="demos/bene_uc_safety.gif" onerror="this.style.display='none'" /></p>
 <h3 id="compounding-is-the-point">Compounding is the point</h3>
 <p>The first time an on-call engineer triages an <code>iss_storage_unreachable</code>
 event with BENE, they are doing investigation. The second time, BENE

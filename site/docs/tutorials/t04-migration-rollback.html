@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -251,7 +253,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>One checkpoint before the risky phase turns a 2-million-row mistake into a 0.31-second fix.</strong></p>
 </blockquote>
-<p><img alt="BENE migration rollback demo — 2M row backfill, anomaly at row 847K, 0.3s surgical rollback" src="../demos/bene_uc_migration.gif" onerror="this.style.display='none'" /></p>
 <p><em>Checkpoint after phase 1; the phase-2 backfill pauses itself on a NULL anomaly at row 847,412; restore in 0.3s; analytics agents keep running.</em></p>
 <h2 id="start-with-the-payoff-the-restore">Start with the payoff: the restore</h2>
 <p>The backfill had written 64,412 bad NULLs into <code>subscription_tier</code> before the agent paused itself. Recovery was one command against a labeled checkpoint:</p>

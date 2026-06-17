@@ -17,6 +17,7 @@ Run:
 
 Verified 2026-06-16: candidate 0.875 (train) -> 1.000 (held-out) vs incumbent 0.333 -> ACCEPT -> PROMOTED.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,14 +54,25 @@ for e in b.ls(SEARCH_AGENT, "/harnesses"):
     hid = e["name"]
     scores = json.loads(b.read(SEARCH_AGENT, f"/harnesses/{hid}/scores.json").decode())
     meta = json.loads(b.read(SEARCH_AGENT, f"/harnesses/{hid}/metadata.json").decode())
-    harnesses.append({"harness_id": hid, "scores": scores, "iteration": int(meta.get("iteration", 0))})
-def acc(m): return float(m["scores"].get("accuracy", 0.0))
+    harnesses.append(
+        {"harness_id": hid, "scores": scores, "iteration": int(meta.get("iteration", 0))}
+    )
+
+
+def acc(m):
+    return float(m["scores"].get("accuracy", 0.0))
+
+
 evolved = [m for m in harnesses if m["iteration"] >= 1]
 seeds = [m for m in harnesses if m["iteration"] == 0]
 cand_m = max(evolved or harnesses, key=acc)
 inc_m = max(seeds or harnesses, key=acc)
-print(f"candidate (evolved): {cand_m['harness_id'][:12]} acc={acc(cand_m):.3f} iter={cand_m.get('iteration')}")
-print(f"incumbent (seed):    {inc_m['harness_id'][:12]} acc={acc(inc_m):.3f} iter={inc_m.get('iteration')}")
+print(
+    f"candidate (evolved): {cand_m['harness_id'][:12]} acc={acc(cand_m):.3f} iter={cand_m.get('iteration')}"
+)
+print(
+    f"incumbent (seed):    {inc_m['harness_id'][:12]} acc={acc(inc_m):.3f} iter={inc_m.get('iteration')}"
+)
 
 cand_src = b.read(SEARCH_AGENT, f"/harnesses/{cand_m['harness_id']}/source.py").decode()
 inc_src = b.read(SEARCH_AGENT, f"/harnesses/{inc_m['harness_id']}/source.py").decode()
@@ -80,38 +92,66 @@ train_problems = bench.get_subset(search_set, 8)  # exactly what the search tune
 train_ids = {p.problem_id for p in train_problems}
 held_problems = [p for p in search_set if p.problem_id not in train_ids][:HELDOUT_N]
 print(f"held-out (unseen): {[p.problem_id for p in held_problems]}")
-print(f"training (disjoint, candidate tuned here): {sorted(train_ids)[:4]}... ({len(train_ids)} problems)")
+print(
+    f"training (disjoint, candidate tuned here): {sorted(train_ids)[:4]}... ({len(train_ids)} problems)"
+)
 
 _cache: dict[str, float] = {}
+
+
 def run_heldout(_tuples, src: str) -> float:
     if src not in _cache:
         res = asyncio.run(evaluator.evaluate(HarnessCandidate.create(src), held_problems))
         _cache[src] = float(res.scores.get("accuracy", 0.0))
     return _cache[src]
 
-held_manifest = HeldoutManifest.of([("text_classify", i, p.problem_id) for i, p in enumerate(held_problems)])
-train_manifest = HeldoutManifest.of([("text_classify", i, p.problem_id) for i, p in enumerate(train_problems)])
-print(f"disjoint(held-out, training) = {held_manifest.tuple_hashes.isdisjoint(train_manifest.tuple_hashes)}")
+
+held_manifest = HeldoutManifest.of(
+    [("text_classify", i, p.problem_id) for i, p in enumerate(held_problems)]
+)
+train_manifest = HeldoutManifest.of(
+    [("text_classify", i, p.problem_id) for i, p in enumerate(train_problems)]
+)
+print(
+    f"disjoint(held-out, training) = {held_manifest.tuple_hashes.isdisjoint(train_manifest.tuple_hashes)}"
+)
 
 # --- C2 held-out kill gate
 probe = build_heldout_probe(held_manifest, run_heldout, margin=0.01)
-cand_engram = store.append("strategic", f"evolved-candidate-{cand_m['harness_id'][:8]}", cand_src,
-                           tier=4, provenance={"system": "autogenesis-step2"})
+cand_engram = store.append(
+    "strategic",
+    f"evolved-candidate-{cand_m['harness_id'][:8]}",
+    cand_src,
+    tier=4,
+    provenance={"system": "autogenesis-step2"},
+)
 gate = HeldoutGate(store, b.conn)
 gate.register(probe, held_manifest, incumbent=inc_src)
-out = gate.score(probe, held_manifest, candidate=cand_src, incumbent=inc_src,
-                 training=train_manifest, subject_ref=cand_engram)
+out = gate.score(
+    probe,
+    held_manifest,
+    candidate=cand_src,
+    incumbent=inc_src,
+    training=train_manifest,
+    subject_ref=cand_engram,
+)
 v = out["verdict"]
-print(f"held-out scores: candidate={_cache.get(cand_src):.3f}  incumbent={_cache.get(inc_src):.3f}  margin=0.01")
+print(
+    f"held-out scores: candidate={_cache.get(cand_src):.3f}  incumbent={_cache.get(inc_src):.3f}  margin=0.01"
+)
 print(f"VERDICT: {v.status}  reason={v.reason or '(gate)'}")
 
 if v.status == ACCEPT:
     vid = promote(cand_engram, store=store, conn=b.conn)
-    print(f"PROMOTED ✓ candidate {cand_engram[:12]} gated_by verdict {vid[:12]}; stamp={out['stamp']}")
+    print(
+        f"PROMOTED ✓ candidate {cand_engram[:12]} gated_by verdict {vid[:12]}; stamp={out['stamp']}"
+    )
 else:
     try:
         promote(cand_engram, store=store, conn=b.conn)
         print("UNEXPECTED: promote succeeded without ACCEPT")
     except PromotionBlocked:
-        print(f"NOT PROMOTED — kill gate held ({v.status}); candidate cannot promote. This is the gate working.")
+        print(
+            f"NOT PROMOTED — kill gate held ({v.status}); candidate cannot promote. This is the gate working."
+        )
 b.close()

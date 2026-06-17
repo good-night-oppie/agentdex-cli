@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -248,7 +250,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="crumbs"><a href="../index.html">docs</a> / research/GAP-AUDIT.md</div>
 <h1 id="kaos-the-010-predecessorbene-010-gap-audit">KAOS &amp; the 0.1.0 predecessor/BENE-0.1.0 Gap Audit</h1>
 <blockquote>
-<p><strong>Historical snapshot</strong> — audited at commit <code>6c55fa3</code> (v0.1.0 baseline, 2026-06). BENE 0.2.0 (shipped 2026-06-11) closes most BENE-side gaps below; for current state see <code>docs/design/BENE2-DESIGN.md</code> §4 and <code>docs/design/CLAIMS-AUDIT.md</code>.</p>
+<p><strong>Historical snapshot</strong> — audited at commit <code>6c55fa3</code> (v0.1.0 baseline, 2026-06). BENE 0.2.0 (shipped 2026-06-11) closes most BENE-side gaps below; for current state see <code>docs/design/BENE2-DESIGN.md</code> §4 and <code>docs/design/</code>.</p>
 </blockquote>
 <p>Purpose: evidence base for the "subsume and surpass" claims of BENE 2.0. This audit inventories two community-peer lineages — KAOS v0.9.1 (the sibling orchestration framework at <code>/home/admin/gh/kaos</code>) and BENE 0.1.0 itself (the rebranded the 0.1.0 predecessor, this repo) — enumerates each peer's verified capability surface, and documents each peer's shortcomings with verbatim, command-level evidence. The subsumption table at the end lists every capability from both peers as a row; the "BENE 2.0 mechanism" column was a skeleton; phase 2 filled all 55 rows in <code>docs/design/BENE2-DESIGN.md</code> §4. Every claim below was verified against source (grep/find/read), not docs alone — both peers' CLAUDE.md files are stale on their own MCP tool counts.</p>
 <blockquote>

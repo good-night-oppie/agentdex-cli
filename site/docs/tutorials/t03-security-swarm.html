@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -252,7 +254,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>One scanner per attack surface, zero shared state, every finding in one table.</strong></p>
 </blockquote>
-<p><img alt="BENE security swarm demo — 4 parallel agents scanning PR-2847, SQL aggregation of findings" src="../demos/bene_uc_security.gif" onerror="this.style.display='none'" /></p>
 <p><em>PR-2847 under review: the scanners launch together, and one query collects everything they found.</em></p>
 <h2 id="launch-the-swarm">Launch the swarm</h2>
 <p>Reviewing serially costs you three ways: every switch between threat models drops the previous one on the floor, the fourth pass over the same 400 lines gets less of your attention than the first did, and the first bug you spot recruits you into hunting its lookalikes while orthogonal ones slip past.</p>

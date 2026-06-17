@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a class="cur" href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -255,7 +257,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <hr />
 <p><a id="overview"></a></p>
 <h2 id="one-file-eleven-tables">One file, eleven tables</h2>
-<p>bene keeps everything in a single SQLite database opened in WAL (Write-Ahead Logging) mode. Several tables hang off <code>agents</code> (<code>files</code>, <code>events</code>, <code>tool_calls</code>, <code>state</code>, <code>checkpoints</code>, <code>memory</code>, <code>agent_skills</code>, <code>shared_log</code>); <code>blobs</code> holds the bytes that <code>files</code> points at:</p>
+<p>bene keeps everything in a single SQLite database opened in WAL (Write-Ahead Logging) mode. Several tables hang off <code>agents</code> (<code>files</code>, <code>events</code>, <code>tool_calls</code>, <code>state</code>, <code>checkpoints</code>, <code>memory</code>, <code>agent_skills</code>); <code>blobs</code> holds the bytes that <code>files</code> points at. <code>shared_log</code> records coordination events on the A2A bus (<code>shared_log.agent_id</code> contains the base agent name but has no foreign key constraint to <code>agents</code>):</p>
 <div class="codehilite"><pre><span></span><code>agents  ----&lt;  files         (1:N - each agent has many files)
         ----&lt;  tool_calls    (1:N - each agent has many tool calls)
         ----&lt;  state         (1:N - each agent has many KV pairs)
@@ -321,7 +323,6 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <hr />
 <h2 id="events">events</h2>
 <p>bene's audit trail. Every move an agent makes — file writes, tool calls, lifecycle transitions, checkpoints — is appended here and never rewritten, so the journal you query is exactly what happened.</p>
-<p><img alt="Audit trail — every file write, tool call, and lifecycle transition queryable as SQL" src="demos/bene_05_audit_trail.gif" onerror="this.style.display='none'" /></p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">event_id</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
@@ -459,7 +460,7 @@ blobs   &lt;----  files         (1:N - many files can share one blob)
 <tr>
 <td><code>llm_call</code></td>
 <td><code>{"model": "...", "prompt_len": 1234, "input_tokens": 800, "output_tokens": 120, "cache_read_tokens": 0, "cache_creation_tokens": 0}</code></td>
-<td>Model call completed</td>
+<td>Model call completed (Temporal runtime only)</td>
 </tr>
 <tr>
 <td><code>checkpoint_create</code></td>

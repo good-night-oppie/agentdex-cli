@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -252,7 +254,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <p><strong>Four hypotheses run in parallel while you sleep; by morning, a single query shows the winner cut val_loss by 19.2%.</strong></p>
 <p>ML experimentation defaults to serial: form a hypothesis, train, stare at the curve, form the next one. The loop is the bottleneck, not the thinking — and a four-idea backlog quietly becomes a four-night wait. BENE's answer is to give every idea its own agent and let them all run side by side.</p>
 <hr />
-<p><img alt="BENE ML research lab demo — 4 agents running parallel experiments overnight, SQL results table, winner identified" src="../demos/bene_uc_mllab.gif" onerror="this.style.display='none'" /></p>
 <p><em>Spawned at 22:00; scale-explorer reports in first at 00:14, arch-explorer last at 05:47; the 06:00 SQL comparison names the winner.</em></p>
 <hr />
 <h2 id="tonights-job-beat-val_loss-234">Tonight's job: beat val_loss 2.34</h2>
@@ -474,7 +475,6 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 <p><code>checkpoint_interval=5</code> puts a checkpoint down every 5 iterations. A crash at iteration 23 costs at most 3 experiments: restore the iteration-20 checkpoint and carry on. The night survives the crash.</p>
 <h2 id="go-bigger-three-gpus-six-agents-three-model-tiers">Go bigger: three GPUs, six agents, three model tiers</h2>
 <p>When the lab outgrows one GPU, the tier router places each agent on a specific model via <code>force_model</code>: cheap hyperparameter sweeps go to the small model, creative hypothesis generation goes to the largest one.</p>
-<p><img alt="Parallel agents and the Tier router — running multiple hypothesis agents concurrently" src="../demos/bene_03_parallel_agents.gif" onerror="this.style.display='none'" /></p>
 <h3 id="the-layout">The layout</h3>
 <div class="codehilite"><pre><span></span><code>GPU 0 — Qwen2.5-Coder-7B    (port 8000) → 2 sweep agents (fast hyperparameter scans)
 GPU 1 — Qwen2.5-Coder-32B   (port 8001) → 2 architecture agents (design exploration)

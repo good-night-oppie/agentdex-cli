@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Find What Changed in 12 Seconds — BENE docs</title>
-<meta name="description" content="BENE 0.2.0 documentation — Find What Changed in 12 Seconds" />
+<title>Recipe: atomic completion (exactly-once, ghost-free) — BENE 文档</title>
+<meta name="description" content="BENE 0.2.0 文档 — Recipe: atomic completion (exactly-once, ghost-free)" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -159,15 +159,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </head>
 <body>
 <div class="top"><div class="top-in">
-  <a class="brand" href="../../index.html">BENE</a>
-  <a class="nav" href="../../index.html">Landing</a>
-  <a class="nav" href="../index.html">Docs index</a>
-  <a class="nav" href="../../SKILL.md" target="_blank" rel="noopener noreferrer" title="Hand BENE to your agent in one URL">SKILL.md ↗</a>
-  <button class="nav copy-llms" data-llms-url="../../llms.txt" data-copied-label="✓ copied" data-opened-label="↗ opened" title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context.">Copy llms.txt</button>
+  <a class="brand" href="../../../index.html">BENE</a>
+  <a class="nav" href="../../../index.html">Landing</a>
+  <a class="nav" href="../index.html">文档索引</a>
+  <a class="nav" href="../../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
+  <button class="nav copy-llms" data-llms-url="../../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer">GitHub</a>
-  <a class="nav" href="../../zh/docs/tutorials/t05-incident-response.html" title="切换到中文" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">文</a>
+  <a class="nav" href="../../../docs/recipes/atomic-completion.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
 </div></div>
-
+<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/recipes/atomic-completion.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -217,7 +217,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
 <h4>Recipes</h4>
-<a href="../recipes/atomic-completion.html">atomic-completion</a>
+<a class="cur" href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
@@ -236,7 +236,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../tutorials/t02-e2e-self-healing.html">t02-e2e-self-healing</a>
 <a href="../tutorials/t03-security-swarm.html">t03-security-swarm</a>
 <a href="../tutorials/t04-migration-rollback.html">t04-migration-rollback</a>
-<a class="cur" href="../tutorials/t05-incident-response.html">t05-incident-response</a>
+<a href="../tutorials/t05-incident-response.html">t05-incident-response</a>
 <a href="../tutorials/t06-ml-research-lab.html">t06-ml-research-lab</a>
 <a href="../tutorials/t07-regression-guard.html">t07-regression-guard</a>
 <a href="../tutorials/t08-hundred-agents-scale.html">t08-hundred-agents-scale</a>
@@ -247,139 +247,109 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Infrastructure</h4>
 <a href="../infra/DNS.html">DNS</a></aside>
 <main>
-<div class="crumbs"><a href="../index.html">docs</a> / tutorials/t05-incident-response.md</div>
-<h1 id="find-what-changed-in-12-seconds">Find What Changed in 12 Seconds</h1>
-<p>Diagnose a 2am production outage without leaving SQLite: two SELECT statements against <code>bene.db</code> take you from a 23% HTTP 500 rate to the single config line that caused it, and a third query produces the post-mortem numbers.</p>
-<blockquote>
-<p><strong>Because every agent write lands in an append-only journal, "what changed?" is a query — not a 90-minute investigation.</strong></p>
-</blockquote>
-<p><em>The recorded run: pager at 02:17, first query at 02:17:12, cause in hand at 02:17:24, then a hotfix that takes the error rate from 23% back to 0%.</em></p>
-<h2 id="the-2am-question">The 2am question</h2>
-<p>It's 2am and 23% of HTTP requests are coming back as 500s. Whatever you do next, you are really asking one thing: what changed?</p>
-<p>Without a journal, that answer is assembled by hand — grep the application logs, cross-check deploy history scattered across several systems, read recent commits, message whoever shipped last. Plan on 45 to 90 minutes. With BENE, every write any agent has ever made is already a timestamped row in one file, and the whole diagnosis below is two queries, including the <code>SELECT ... WHERE timestamp &gt; ...</code> shape.</p>
-<h2 id="start-from-the-symptoms">Start from the symptoms</h2>
-<p>Ask the journal which errors are firing, from which agent, since when:</p>
-<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">timestamp</span><span class="p">,</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">tool_name</span><span class="p">,</span><span class="w"> </span><span class="n">error</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span>
-<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;error&#39;</span>
-<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">datetime</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-1 hour&#39;</span><span class="p">)</span>
-<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="k">DESC</span>
-<span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code>elapsed               agent_id      tool_name      error
-T+48m05s              api-gateway   db_query       ConnectionPoolError: pool exhausted
-T+48m04s              api-gateway   db_query       ConnectionPoolError: pool exhausted
-T+48m02s              api-gateway   db_query       ConnectionPoolError: pool exhausted
-... (844 more rows, all ConnectionPoolError, all api-gateway)
-
-First error: T+48s  (47 minutes before pager)
-</code></pre></div>
-
-<p>The read: 847 <code>ConnectionPoolError</code> rows, every one of them from <code>api-gateway</code>, and the earliest is exactly 47 minutes old. The symptom is obvious — an exhausted pool. The start time is the lead worth chasing: something happened 47 minutes ago.</p>
-<h2 id="trace-the-change">Trace the change</h2>
-<p>Same journal, different table. Each VFS write is recorded with its timestamp, agent, path, and a content preview — so ask what was written during the 2 hours leading up to the errors:</p>
-<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">timestamp</span><span class="p">,</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">file_path</span><span class="p">,</span><span class="w"> </span><span class="n">content_preview</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">vfs_events</span>
-<span class="k">WHERE</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">datetime</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-2 hours&#39;</span><span class="p">)</span>
-<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">event_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;write&#39;</span>
-<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="k">ASC</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code>elapsed               agent_id      file_path           content_preview
-T+0                   api-gateway   config/db.yaml      ...pool_size: 2...
-T+1s                  api-gateway   config/app.yaml     ...log_level: debug...
-T+48s                 api-gateway   logs/error.log      ConnectionPoolError...
-</code></pre></div>
-
-<p>There it is: <code>config/db.yaml</code>, written under a minute ahead of the first error, with <code>pool_size: 2</code> visible in the preview.</p>
-<h2 id="prove-it-with-a-diff">Prove it with a diff</h2>
-<p>Blobs in BENE are content-addressable, so comparing the pre-deploy checkpoint against the current state is a hash comparison plus two blob reads:</p>
-<div class="codehilite"><pre><span></span><code><span class="gd">--- config/db.yaml (pre-deploy checkpoint)</span>
-<span class="gi">+++ config/db.yaml (HEAD)</span>
-<span class="gu">@@ -8,7 +8,7 @@</span>
-<span class="w"> </span>database:
-<span class="w"> </span>  host: postgres-primary.internal
-<span class="w"> </span>  port: 5432
-<span class="gd">-  pool_size: 10</span>
-<span class="gi">+  pool_size: 2</span>
-<span class="w"> </span>  pool_timeout: 30
-<span class="w"> </span>  max_overflow: 5
-</code></pre></div>
-
-<p>A single line moved: <code>pool_size</code>, from <code>10</code> down to <code>2</code>. The write landed at 01:28:53; the first error followed at 01:29:41 — 48 seconds for production traffic to drain a 2-connection pool.</p>
-<p><strong>Pager at 02:17:00. Cause confirmed at 02:17:24. Alert-to-root-cause: 12 seconds.</strong></p>
-<h2 id="fix-forward-keep-the-evidence">Fix forward, keep the evidence</h2>
-<p>Checkpoint the broken state before touching anything — the post-mortem will want it — then write the corrected config:</p>
-<div class="codehilite"><pre><span></span><code>bene checkpoint api-gateway --label broken-pool-size-2
-# (preserved for post-mortem analysis)
-
-# Apply the fix
-bene write api-gateway /config/db.yaml \
-  &quot;$(cat config/db.yaml | sed &#39;s/pool_size: 2/pool_size: 10/&#39;)&quot;
-</code></pre></div>
-
-<p>Watch the recovery minute by minute:</p>
-<div class="codehilite"><pre><span></span><code>minute   errors
-02:17    847
-02:18    412
-02:19     89
-02:20     14
-02:21      2
-02:22      0  ✓
-</code></pre></div>
-
-<p>Five minutes from hotfix to a 0% error rate, down from the 23% peak.</p>
-<h2 id="the-post-mortem-writes-itself">The post-mortem writes itself</h2>
-<p>Impact numbers come out of the same <code>tool_calls</code> table you started with:</p>
-<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span>
-<span class="w">  </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">                                              </span><span class="k">AS</span><span class="w"> </span><span class="n">affected_requests</span><span class="p">,</span>
-<span class="w">  </span><span class="k">MIN</span><span class="p">(</span><span class="k">timestamp</span><span class="p">)</span><span class="w">                                        </span><span class="k">AS</span><span class="w"> </span><span class="n">outage_start</span><span class="p">,</span>
-<span class="w">  </span><span class="k">MAX</span><span class="p">(</span><span class="k">timestamp</span><span class="p">)</span><span class="w">                                        </span><span class="k">AS</span><span class="w"> </span><span class="n">outage_end</span><span class="p">,</span>
-<span class="w">  </span><span class="n">ROUND</span><span class="p">(</span>
-<span class="w">    </span><span class="p">(</span><span class="n">JULIANDAY</span><span class="p">(</span><span class="k">MAX</span><span class="p">(</span><span class="k">timestamp</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">JULIANDAY</span><span class="p">(</span><span class="k">MIN</span><span class="p">(</span><span class="k">timestamp</span><span class="p">)))</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">24</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">60</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span>
-<span class="w">  </span><span class="p">)</span><span class="w">                                                     </span><span class="k">AS</span><span class="w"> </span><span class="n">duration_min</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span>
-<span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;error&#39;</span>
-<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;api-gateway&#39;</span>
-<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">error</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%ConnectionPoolError%&#39;</span>
-</code></pre></div>
-
-<div class="codehilite"><pre><span></span><code>affected_requests   outage_start              outage_end                duration_min
-4,847               T+48s                     T+53m10s                  52.4
-</code></pre></div>
-
-<p>4,847 failed requests over 52.4 minutes, all downstream of one config write at 01:28:53. The trigger, the first failure, every failure after it, and the recovery timestamp sit together in a single SQLite file — nothing to correlate across systems, nothing to reconstruct from memory.</p>
-<h2 id="where-the-90-minutes-went">Where the 90 minutes went</h2>
-<p>Set the two workflows side by side:</p>
-<div class="codehilite"><pre><span></span><code>Traditional                        BENE
----------------------------------  -----------------------------------------
-grep application logs (10 min)     SQL query over event journal (&lt;1s)
-check deploy system (5 min)        included in the same query
-read git commits (5 min)           every VFS write is timestamped
-ask the team (20 min)              not needed
-correlate timelines (15 min)       ORDER BY timestamp ASC
-</code></pre></div>
-
-<p>Three properties of the journal account for the gap:</p>
+<div class="crumbs"><a href="../index.html">docs</a> / recipes/atomic-completion.md</div>
+<h1 id="recipe-atomic-completion-exactly-once-ghost-free">Recipe: atomic completion (exactly-once, ghost-free)</h1>
+<p>The densest cluster of P1 bugs in a long-running agent system is <strong>non-atomic
+completion</strong>: a side effect (a receipt, a quota debit, a fork) happens, then the
+process dies before the durable record is committed — leaving a <strong>ghost</strong> (an
+external mutation no record knows about), a double-charge on retry, or an in-RAM
+counter that evaporates on restart.</p>
+<p>This is fixed with three substrate-agnostic moves on an ordinary SQLite/JSONL
+log — <strong>no Temporal, no durable-runtime dependency</strong>. The reference helpers live
+in <code>bene/recipes/idempotent_append.py</code>;
+they take a <code>sqlite3.Connection</code>, not a <code>Bene</code>, so you copy them into your own
+events layer.</p>
+<h2 id="the-three-moves">The three moves</h2>
 <ol>
-<li><strong>Writes are journaled by default.</strong> The moment <code>api-gateway</code> touched <code>config/db.yaml</code>, the event log gained a row carrying the timestamp, agent ID, and content — no instrumentation you had to remember to add.</li>
-<li><strong>The log store is a SQLite table.</strong> A timestamp-filtered SELECT comes back in milliseconds, with no aggregation service, no Elasticsearch cluster, and no parsing pipeline in the path.</li>
-<li><strong>Blobs are content-addressable.</strong> Diffing <code>pre-deploy</code> against <code>HEAD</code> means comparing hashes and fetching content — an exact one-line diff in under a second.</li>
+<li><strong>Idempotent append</strong> — <code>SELECT</code> by <code>idempotency_key</code> then <code>INSERT</code>; the
+   column is <code>UNIQUE</code>, so a replay (or a racer) is a no-op returning the prior
+   id. Exactly-once.</li>
+<li><strong>Ordering inversion</strong> — commit the durable record <em>before</em> the externally
+   visible side effect, then mark it done after the side effect returns. A crash
+   then leaves either a completed row or a recorded pending row you can retry,
+   never an orphan side effect with no record (a ghost).</li>
+<li><strong>Projection rebuild</strong> — on boot, fold the durable log to reconstruct in-RAM
+   state, so a restart doesn't lose a volatile counter/cache.</li>
 </ol>
-<p>Nothing above required grep, deploy-system archaeology, or waking a teammate. Once each agent write enters a queryable append-only log from day one, the question every incident opens with has a standing answer.</p>
-<h2 id="keep-going">Keep going</h2>
+<h2 id="1-idempotent-append">1. Idempotent append</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">append_once</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
+<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+
+<span class="n">seq</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+<span class="c1"># A replay with the same key is a no-op returning the prior id:</span>
+<span class="n">seq2</span><span class="p">,</span> <span class="n">created2</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
+<span class="k">assert</span> <span class="p">(</span><span class="n">created</span><span class="p">,</span> <span class="n">created2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">==</span> <span class="n">seq2</span>
+</code></pre></div>
+
+<p>The <code>idempotency_key</code> column is <code>UNIQUE</code>, so even a racer that skips the <code>SELECT</code>
+and inserts directly hits the database constraint instead of writing a duplicate.</p>
+<h2 id="2-ordering-inversion-no-ghost">2. Ordering inversion (no ghost)</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete_in_order</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
+<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+<span class="n">shipped</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ship_the_box</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+    <span class="n">shipped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;sku&quot;</span><span class="p">])</span>
+
+<span class="c1"># durable record commits FIRST, then the externally visible side effect</span>
+<span class="n">complete_in_order</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:ship&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;sku&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">},</span> <span class="n">side_effect</span><span class="o">=</span><span class="n">ship_the_box</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">shipped</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+<p><code>complete_in_order</code> appends + <strong>commits</strong> the record, then runs the side effect.
+A crash after the commit leaves a recorded-but-pending completion you can
+re-drive from the log; it can never leave a shipped box with no record. The
+anti-pattern it replaces — <code>complete_side_effect_first</code> — does the mutation
+before the commit, so a crash in between leaves a ghost (kept in the module only
+as a labelled contrast).</p>
+<p>If the process crashes <em>during</em> the external call, the helper will retry that
+pending row later. Pass the same idempotency key through to the external system
+or make the side effect safe to retry; a local log cannot make a non-idempotent
+remote mutation exactly-once by itself.</p>
+<h2 id="3-projection-rebuild-on-boot">3. Projection rebuild on boot</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">append_once</span><span class="p">,</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">replay_projection</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
+<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-1&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">40</span><span class="p">})</span>
+<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-2&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">})</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="n">balance</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+<span class="n">replay_projection</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">key</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">balance</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span>
+    <span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;amount&quot;</span><span class="p">]))</span>
+<span class="k">assert</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">100</span>
+<span class="c1"># `balance` is rebuilt purely from the durable log — no volatile state lost</span>
+<span class="c1"># across restart (the restart-amnesia / `/replay` 404 class).</span>
+</code></pre></div>
+
+<h2 id="durability-caveat-no-temporal-needed">Durability caveat — no Temporal needed</h2>
+<p>This recipe is <strong>substrate-agnostic and adds no runtime dependency</strong>. It gives
+you exactly-once + ghost-free completion on whatever committed log you already
+have (SQLite here; the same shape ports to a <code>flock</code>-serialized JSONL appender).</p>
+<p>It does <strong>not</strong> add cross-process durability beyond your storage. In particular,
+bene's <code>LocalRuntime</code> is explicitly <em>not</em> durable across restart, and
+<code>submit_side_effect</code>'s fenced ledger only holds on <code>TemporalRuntime</code> (a stub in
+most deployments) — so do <strong>not</strong> lean on the runtime for the durable record.
+The committed log <em>is</em> the durable record, and that is the whole point: a plain
+reorder + an idempotency key captures the large majority of the atomicity win
+without taking on Temporal.</p>
+<h2 id="see-also">See also</h2>
 <ul>
-<li><a href="../README.html">README</a> — BENE overview and full doc index</li>
-<li><a href="../use-cases.html">Use Cases</a> — more real-world patterns</li>
-<li><a href="../schema.html#events">Schema: events table</a> — the tables these queries read</li>
-<li><a href="../use-cases.html#2am-incident-response">Use case: 2am Incident Response</a> — the condensed version of this scenario</li>
-<li><a href="../cli-reference.html">CLI: bene query / bene search</a></li>
+<li><code>bene/recipes/idempotent_append.py</code> — the reference helpers.</li>
+<li><code>tests/test_atomic_completion_recipe.py</code> — proves exactly-once + ghost-free under a simulated crash.</li>
+<li><a href="../integrating-bene.html">Integrating BENE</a> — where this sits among the five stages.</li>
 </ul>
-<hr />
-<p><em>BENE is MIT-licensed and local-first: every query on this page ran against one SQLite file on your own disk, and nothing was sent anywhere else.</em></p>
-<p><em>GitHub: <a href="https://github.com/good-night-oppie/bene">github.com/good-night-oppie/bene</a></em></p>
-<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/tutorials/t05-incident-response.md" target="_blank" rel="noopener noreferrer">docs/tutorials/t05-incident-response.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
+<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/recipes/atomic-completion.md" target="_blank" rel="noopener noreferrer">docs/recipes/atomic-completion.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
 <footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>

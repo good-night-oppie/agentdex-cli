@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../meta-harness.html">meta-harness</a>
 <a href="../philosophy.html">philosophy</a>
 <a href="../primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="../probe-authoring.html">probe-authoring</a>
 <a href="../schema.html">schema</a>
 <a href="../shared-log.html">shared-log</a>
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="../design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="../design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="../design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="../design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -252,7 +254,6 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <blockquote>
 <p><strong>One CI job, 12 minutes: five benchmarks replayed against the new model, and any score that falls more than 5% blocks the deploy on its own.</strong></p>
 </blockquote>
-<p><img alt="BENE regression guard demo — 5 benchmarks, code_review regresses 8.4%, CI gate blocks deploy, Meta-Harness re-optimizes" src="../demos/bene_uc_regression.gif" onerror="this.style.display='none'" /></p>
 <p><em>One upgrade, end to end: the suite replays, <code>code_review</code> falls 8.4%, the gate holds the deploy, a five-iteration search recovers the score, and the swap ships Monday.</em></p>
 <p>You'll follow one real upgrade — <code>claude-sonnet-4-5</code> to <code>claude-sonnet-4-6</code> — from green pipeline to blocked deploy to restored baseline, with no person watching any step of it.</p>
 <h2 id="one-job-in-your-pipeline">One job in your pipeline</h2>

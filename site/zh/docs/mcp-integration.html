@@ -211,13 +211,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="meta-harness.html">meta-harness</a>
 <a href="philosophy.html">philosophy</a>
 <a href="primitive-review-cycle.html">primitive-review-cycle</a>
+<a href="probe-authoring.html">probe-authoring</a>
 <a href="schema.html">schema</a>
 <a href="shared-log.html">shared-log</a>
 <a href="skills.html">skills</a>
 <a href="use-cases.html">use-cases</a>
+<h4>Recipes</h4>
+<a href="recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="design/BENE2-DESIGN.html">BENE2-DESIGN</a>
-<a href="design/CLAIMS-AUDIT.html">CLAIMS-AUDIT</a>
 <a href="design/DESIGN-RATIONALE.html">DESIGN-RATIONALE</a>
 <a href="design/KERNEL-SPEC.html">KERNEL-SPEC</a>
 <a href="design/v0.3-roadmap-spec.html">v0.3-roadmap-spec</a>
@@ -246,14 +248,13 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="infra/DNS.html">DNS</a></aside>
 <main>
 <div class="crumbs"><a href="index.html">docs</a> / mcp-integration.md</div>
-<h1 id="bene-as-an-mcp-server">BENE as an MCP Server</h1><div class="demo-embed"><div class="frame"><div class="dots"><i></i><i></i><i></i></div><img src="../assets/demos/demo-honesty.gif" alt="Demo — what a connected agent inherits: experiments ls / show + senses --md." loading="lazy" onerror="this.closest('.demo-embed').style.display='none'"></div><p>Demo — what a connected agent inherits: experiments ls / show + senses --md.</p></div>
+<h1 id="bene-as-an-mcp-server">BENE as an MCP Server</h1><div class="demo-embed"><div class="frame"><div class="dots"><i></i><i></i><i></i></div><img src="../../assets/demos/demo-honesty.gif" alt="Demo — what a connected agent inherits: experiments ls / show + senses --md." loading="lazy" onerror="this.closest('.demo-embed').style.display='none'"></div><p>Demo — what a connected agent inherits: experiments ls / show + senses --md.</p></div>
 <p><a id="overview"></a></p>
 <p>Hook BENE up to Claude Code once, and from then on you run agents in plain English — spawn one to write tests, checkpoint it before a risky change, roll it back when the change goes wrong, and query everything it did, without leaving the conversation.</p>
 <blockquote>
 <p><strong>One entry in <code>settings.json</code> gives Claude Code 37 BENE tools — agents, files, checkpoints, SQL, meta-harness search, memory, shared log, and skills — all backed by a single local SQLite file.</strong></p>
 </blockquote>
 <p>Everything these tools touch lives in <code>bene.db</code> on your machine. The stdio transport opens no network socket, and <code>agent_query</code> is read-only by construction — write statements raise a <code>PermissionError</code>. Network access only happens if you ask for it, by starting the SSE transport on a host you choose.</p>
-<p><img alt="MCP Server Integration — 37 tools, Claude Code, agent_spawn and mh_search" src="demos/bene_04_mcp_server.gif" onerror="this.style.display='none'" /></p>
 <p>On this page:</p>
 <ul>
 <li><a href="#connect-claude-code">Connect Claude Code</a></li>
@@ -375,7 +376,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 </tbody>
 </table>
 <h3 id="no-beneyaml-still-works">No <code>bene.yaml</code>? Still works</h3>
-<p>When no <code>bene.yaml</code> is present, the server falls back to one default model endpoint, <code>http://localhost:8000/v1</code>. File management, checkpoints, and queries all keep working in that state — none of them touch a model, so no vLLM setup is required.</p>
+<p>When no <code>bene.yaml</code> is present, the server falls back to the <code>claude_code</code> provider (claude-sonnet-4-6). File management, checkpoints, and queries all keep working in that state — none of them touch a model, so no vLLM setup is required.</p>
 <hr />
 <p><a id="cli-alternative"></a></p>
 <h2 id="the-cheaper-path-the-json-cli">The cheaper path: the <code>--json</code> CLI</h2>
@@ -740,7 +741,7 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 </code></pre></div>
 
 <p><strong>Response:</strong></p>
-<div class="codehilite"><pre><span></span><code>Written 142 bytes to 01HXY...:/src/auth.py
+<div class="codehilite"><pre><span></span><code>Written 41 bytes to 01HXY...:/src/auth.py
 </code></pre></div>
 
 <h4 id="agent_ls">agent_ls</h4>
@@ -846,15 +847,15 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 </tr>
 </tbody>
 </table>
-<p><strong>Returns:</strong> a JSON array; each checkpoint carries <code>checkpoint_id</code>, <code>label</code>, <code>created_at</code>, and <code>event_id</code>.</p>
+<p><strong>Returns:</strong> a JSON array; each checkpoint carries <code>checkpoint_id</code>, <code>label</code>, <code>created_at</code>, <code>event_id</code>, and <code>metadata</code>.</p>
 <p><strong>Example:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">}</span>
 </code></pre></div>
 
 <p><strong>Response:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">[</span>
-<span class="w">  </span><span class="p">{</span><span class="nt">&quot;checkpoint_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HABC...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pre-refactor&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-31T10:00:00.000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">},</span>
-<span class="w">  </span><span class="p">{</span><span class="nt">&quot;checkpoint_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HDEF...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;post-refactor&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-31T10:15:00.000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">87</span><span class="p">}</span>
+<span class="w">  </span><span class="p">{</span><span class="nt">&quot;checkpoint_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HABC...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pre-refactor&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-31T10:00:00.000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}},</span>
+<span class="w">  </span><span class="p">{</span><span class="nt">&quot;checkpoint_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HDEF...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;post-refactor&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-31T10:15:00.000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">87</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}}</span>
 <span class="p">]</span>
 </code></pre></div>
 
@@ -1034,7 +1035,7 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 </tr>
 </tbody>
 </table>
-<p><strong>Returns:</strong> JSON carrying <code>search_agent_id</code>, <code>summary</code>, <code>frontier</code>, <code>total_harnesses</code>, and <code>duration_seconds</code>.</p>
+<p><strong>Returns:</strong> JSON carrying <code>status</code>, <code>pid</code>, <code>log_path</code>, and <code>message</code>.</p>
 <p><strong>Example:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;benchmark&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;text_classify&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_iterations&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;candidates_per_iteration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">}</span>
 </code></pre></div>
@@ -1088,7 +1089,7 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 </tr>
 </tbody>
 </table>
-<p><strong>Returns:</strong> JSON carrying <code>search_agent_id</code>, <code>summary</code>, <code>frontier</code>, <code>total_harnesses</code>, <code>resumed_from_iteration</code>, and <code>duration_seconds</code>.</p>
+<p><strong>Returns:</strong> JSON carrying <code>search_agent_id</code>, <code>status</code>, <code>pid</code>, <code>log_path</code>, and <code>message</code>.</p>
 <p><strong>Example:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">,</span>
@@ -1099,11 +1100,10 @@ bene<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </s
 <p><strong>Response:</strong></p>
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;search_agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;01HXY...&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;resumed_from_iteration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;summary&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Resumed search from iteration 4, completed 10 total iterations&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;frontier&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">],</span>
-<span class="w">  </span><span class="nt">&quot;total_harnesses&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;duration_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">512.7</span>
+<span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resuming&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;pid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">12345</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;log_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/bene-worker-12345.log&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Resume worker launched (PID 12345). Log: /path/to/bene-worker-12345.log.&quot;</span>
 <span class="p">}</span>
 </code></pre></div>
 
