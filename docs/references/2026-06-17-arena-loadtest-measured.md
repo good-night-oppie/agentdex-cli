@@ -49,8 +49,10 @@ Dedicated test arena, `ADX_SIDECAR_MAX_BATTLES=64`, node old-space cap 96 MB
    with a realistic per-turn delay to get the production ceiling.
 4. **503 onset at N=32** (zero think-time) — event-loop saturation / begin churn,
    not memory. With a pool + admission control this is shed/queued.
-5. **The 96 MB old-space cap is hardcoded** — must become an env knob to give
-   each pooled sidecar more heap on a multi-core box.
+5. **The 96 MB old-space cap** (default) is now an env knob —
+   `ADX_SIDECAR_MAX_OLD_SPACE_MB` (sidecar.py) — so each pooled sidecar
+   (ADR-0012 SidecarPool) can be given more heap on a multi-core box. Default
+   stays 96 MB to fit the 256 MB nano.
 
 ## Implication for scale-to-100
 

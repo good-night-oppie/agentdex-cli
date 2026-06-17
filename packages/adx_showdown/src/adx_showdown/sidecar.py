@@ -67,10 +67,17 @@ class Sidecar:
         }
         if self._max_battles is not None:
             env["ADX_SIDECAR_MAX_BATTLES"] = str(self._max_battles)
+        # V8 old-space cap. Default 96 MB fits the 256 MB nano (one sidecar +
+        # FastAPI gateway). On a multi-core box each pooled sidecar (ADR-0012
+        # SidecarPool) gets its own process — raise this via the env knob so a
+        # sidecar can hold more concurrent battles before GC pressure. The load
+        # test (docs/references/2026-06-17-arena-loadtest-measured.md) showed RSS
+        # pinned flat at the heap cap, so this is the per-sidecar memory lever.
+        heap_mb = int(os.environ.get("ADX_SIDECAR_MAX_OLD_SPACE_MB", "96"))
         self._proc = await asyncio.create_subprocess_exec(
             "node",
             "--expose-gc",
-            "--max-old-space-size=96",
+            f"--max-old-space-size={heap_mb}",
             str(SIDECAR_MJS),
             cwd=str(_PKG_ROOT),
             stdin=asyncio.subprocess.PIPE,
