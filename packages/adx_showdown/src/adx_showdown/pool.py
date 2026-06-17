@@ -17,6 +17,7 @@ memory, and that's a zero-think-time worst case — with realistic per-turn agen
 think-time one sidecar holds many concurrent battles, so a small K (≈2-4) plus a
 raised ``ADX_SIDECAR_MAX_OLD_SPACE_MB`` covers ~100 concurrent.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,9 +36,9 @@ class SidecarPool:
             Sidecar(max_battles=max_battles_per_sidecar) for _ in range(size)
         ]
         self._cap = max_battles_per_sidecar
-        self._owner: dict[str, Sidecar] = {}   # battle_id -> owning sidecar
-        self._load: dict[int, int] = {}        # id(sidecar) -> live battle count
-        self._rr = 0                           # round-robin cursor for battle-less ops
+        self._owner: dict[str, Sidecar] = {}  # battle_id -> owning sidecar
+        self._load: dict[int, int] = {}  # id(sidecar) -> live battle count
+        self._rr = 0  # round-robin cursor for battle-less ops
         self._lock = asyncio.Lock()
 
     @property
@@ -97,17 +98,29 @@ class SidecarPool:
                 if s is None:
                     raise SidecarError(f"battle {battle!r} is not owned by any sidecar")
 
+        # Release the battle's slot when it is over. Two completion paths:
+        #   - an explicit `stop` op, OR
+        #   - a `start`/`step` whose response carries `state.end` — the NORMAL
+        #     arena path: the gateway publishes the receipt via `_finish` and
+        #     never sends `stop`, and the Node sidecar has already deleted the
+        #     ended battle internally. Without releasing here `_load` counts
+        #     completed battles as live forever, so after size*cap battles
+        #     `_least_loaded()` returns None and the pool reports permanent
+        #     capacity exhaustion (false 503s) despite idle sidecars.
+        # (`ended` starts True for `stop` so the slot is still freed even if the
+        # stop request raises, preserving the prior finally-release behavior.)
+        ended = op == "stop"
         try:
-            return await s.request(op, **kwargs)
+            resp = await s.request(op, **kwargs)
+            ended = ended or bool((resp.get("state") or {}).get("end"))
+            return resp
         finally:
-            if op == "stop":
+            if ended:
                 async with self._lock:
                     if self._owner.pop(battle, None) is not None:
                         self._load[id(s)] = max(0, self._load.get(id(s), 0) - 1)
 
     async def rss_mb(self) -> float:
         """Total RSS across the pool (MB)."""
-        vals = await asyncio.gather(
-            *(s.rss_mb() for s in self._sidecars), return_exceptions=True
-        )
+        vals = await asyncio.gather(*(s.rss_mb() for s in self._sidecars), return_exceptions=True)
         return round(sum(v for v in vals if isinstance(v, (int, float))), 1)
