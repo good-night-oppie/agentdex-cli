@@ -2107,6 +2107,18 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
     # into the image — preserves local-dev runs that don't ship the site files.
     _bene_site = Path("site")
     if _bene_site.is_dir():
+        # Bare /bene -> /bene/ with a ROOT-RELATIVE redirect. StaticFiles' own
+        # auto slash-redirect builds an ABSOLUTE URL from the request host, which
+        # behind the AI-Builders reverse proxy is the internal Koyeb host
+        # (http://ai-builders-*.koyeb.app) — that host 404s, so the bare /bene URL
+        # was broken for users. A root-relative Location lets the browser resolve
+        # it against the public host (agentdex.ai-builders.space).
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/bene", include_in_schema=False)
+        async def _bene_trailing_slash() -> RedirectResponse:
+            return RedirectResponse(url="/bene/", status_code=308)
+
         app.mount("/bene", StaticFiles(directory=str(_bene_site), html=True), name="bene")
 
     return app
