@@ -1736,3 +1736,26 @@ def test_unknown_battle_id_does_not_leak_existence(arena):
     assert not_yours.status_code == 403 == not_found.status_code
     assert not_yours.json()["detail"].startswith("arena error (ref:")
     assert not_found.json()["detail"].startswith("arena error (ref:")
+
+
+def test_replay_surfaces_opponent_archetype(arena):
+    """ADX-P2-002 (replay legibility): GET /replay/{id} surfaces the opponent
+    archetype as a first-class field so an agent/human can diagnose a loss
+    without re-parsing input_log. Leaks nothing new — input_log already embeds
+    the opponent's full team + moves; this just persists the same string the
+    sandbox /battle/begin discloses onto the public receipt.
+    """
+    from agentdex_arena.gateway import GYM_LEADERS
+
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="ReplayScout")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+
+    replay = client.get(receipt["replay"]).json()
+    assert "opponent" in replay, "replay must surface the opponent archetype"
+    # default sandbox opponent is GYM_LEADERS[0] = "anchor-random"
+    assert replay["opponent"] == "anchor-random", replay.get("opponent")
+    assert replay["opponent"] in GYM_LEADERS
+    # still the full public receipt (winner + re-simulable log present)
+    assert replay["winner"] and replay["input_log"]

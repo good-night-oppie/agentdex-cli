@@ -1705,6 +1705,12 @@ def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar])
         res = {
             "input_log": data["input_log"],
             "winner": data["winner"],
+            # Surface the opponent archetype (e.g. "gym-stall", "anchor-max_damage")
+            # directly so an agent/human can diagnose a loss without re-parsing the
+            # input_log. This leaks nothing new — input_log already embeds the
+            # opponent's full team + every move; this is the same string the
+            # sandbox /battle/begin discloses, just persisted on the receipt.
+            "opponent": data.get("opponent"),
             "lane": data["lane"],
             "parent": data.get("parent"),
             "signatures": data.get("signatures") or [],
