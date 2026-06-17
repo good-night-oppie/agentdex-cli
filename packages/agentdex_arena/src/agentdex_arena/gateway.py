@@ -339,6 +339,12 @@ def _hp_pct(condition: str) -> int | None:
 
 
 RECENT_TURNS_MAX = 8
+# Public quarantine reason surfaced on the wire. The specific forensic signal
+# (which heuristic fired + its threshold) stays in the durable "quarantine"
+# EventLog row + the server log only — naming it on the receipt would hand a
+# colluder the exact evasion recipe (D7 anti-enumeration; mirrors the badge /
+# battle_id opaque-error posture).
+_QUARANTINE_PUBLIC_REASON = "quarantined by collusion forensics"
 
 
 def _push_recent(session: BattleSession, line: str) -> None:
@@ -1055,11 +1061,16 @@ class ArenaGateway:
         # the fail-closed fatal marker if one throws.
         session.ended = {"winner": winner, "turns": turns}
 
-        # Check collusion forensics
+        # Check collusion forensics. The DETAILED reason (which heuristic +
+        # threshold fired) is recorded in the durable "quarantine" EventLog row
+        # and the server log for operator audit, but only the OPAQUE public
+        # reason is surfaced on the wire — naming the exact signal lets a
+        # colluder evade it (D7 anti-enumeration).
         collusion_reason = self._check_collusion(session)
         if collusion_reason:
+            log.warning("collusion quarantine (battle=%s): %s", session.battle_id, collusion_reason)
             session.ended["quarantined"] = True
-            session.ended["quarantine_reason"] = collusion_reason
+            session.ended["quarantine_reason"] = _QUARANTINE_PUBLIC_REASON
 
         # Sandbox gym badge eligibility — computed here, appended in the durable
         # phase below so a badge is never written without its battle_end anchor.
@@ -1191,7 +1202,7 @@ class ArenaGateway:
         }
         if collusion_reason:
             receipt["quarantined"] = True
-            receipt["quarantine_reason"] = collusion_reason
+            receipt["quarantine_reason"] = _QUARANTINE_PUBLIC_REASON
         if badge_awarded:
             receipt["badge_awarded"] = badge_awarded
         if session.parent is not None:

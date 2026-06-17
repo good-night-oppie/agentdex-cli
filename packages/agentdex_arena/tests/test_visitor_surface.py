@@ -998,15 +998,24 @@ def test_collusion_forensics_quarantine(arena):
     receipt = resp.json()
     assert receipt["status"] == "ended"
     assert receipt.get("quarantined") is True
-    assert "early forfeit" in receipt.get("quarantine_reason", "")
+    # D7 anti-enumeration: the WIRE reason is opaque — it must NOT name the
+    # heuristic/threshold (which would hand a colluder the evasion recipe).
+    from agentdex_arena.gateway import _QUARANTINE_PUBLIC_REASON
 
-    # Ensure quarantine event is written
+    assert receipt.get("quarantine_reason") == _QUARANTINE_PUBLIC_REASON
+    assert "early forfeit" not in receipt.get("quarantine_reason", "")
+
+    # ...but the DETAILED reason IS preserved in the durable quarantine event
+    # for operator audit (server-side only, never on the agent receipt).
     events = list(gateway.events.iter_events())
-    assert any(
-        e.get("type") == "quarantine"
-        and e.get("payload", {}).get("battle_id") == state["battle_id"]
+    quarantine_evs = [
+        e
         for e in events
-    )
+        if e.get("type") == "quarantine"
+        and e.get("payload", {}).get("battle_id") == state["battle_id"]
+    ]
+    assert quarantine_evs, "quarantine event must be durably written"
+    assert "early forfeit" in quarantine_evs[0].get("payload", {}).get("reason", "")
 
 
 def test_collusion_heuristics_unit(arena):
