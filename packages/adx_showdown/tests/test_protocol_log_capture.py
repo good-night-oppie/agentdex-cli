@@ -107,6 +107,29 @@ def test_resim_is_byte_identical_after_timestamp_strip():
         assert ts_a, "the only raw difference should be |t:| lines"
 
 
+def test_protocol_log_includes_request_control_lines():
+    """sideupdate |request| (and |error|) control lines are captured into the
+    protocol log so events(result) is the single reducer input that can also
+    reconstruct the decision pane. PR #201 review 3431865001."""
+    import json
+
+    from adx_showdown.sim import events
+
+    async def _run() -> BattleResult:
+        async with Sidecar() as sc:
+            return await run_battle(sc, **_spec(seed_base=555))
+
+    result = asyncio.run(_run())
+    req_lines = [ln for ln in result.protocol_log if ln.startswith("|request|")]
+    assert req_lines, "|request| control lines must be in the protocol log"
+    # the side is recoverable from the request JSON (it stayed intact — opaque type)
+    payload = json.loads(req_lines[0][len("|request|") :])
+    assert payload.get("side", {}).get("id") in ("p1", "p2")
+    # events() types them as opaque request events with a single intact JSON arg
+    reqs = [e for e in events(result) if e.type == "request"]
+    assert reqs and len(reqs[0].args) == 1
+
+
 def test_protocol_log_not_truncated_for_a_normal_battle():
     async def _run() -> BattleResult:
         async with Sidecar() as sc:
