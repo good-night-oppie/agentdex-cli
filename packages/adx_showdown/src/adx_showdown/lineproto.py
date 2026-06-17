@@ -348,6 +348,19 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         rest = parts[1:]
         positional, kwargs = _split_args(rest)
     idents = [PokemonIdent.parse(a) for a in positional if _IDENT_RE.match(a.strip())]
+    # Kwarg values can ALSO carry an opponent-controlled ident — e.g.
+    # `|-ability|...|[of] p2a: <nickname>` on cause lines. Left verbatim, a
+    # renderer/agent prompt that shows `[of]` ownership would bypass the A6
+    # nickname boundary. Extract a sanitized PokemonIdent AND rewrite the kwarg
+    # value's nickname in place so every consumable surface is sanitized; only
+    # `raw` stays verbatim for hashing (PR #200 review 3431806028).
+    for key, val in kwargs.items():
+        if _IDENT_RE.match(val.strip()):
+            ident = PokemonIdent.parse(val)
+            idents.append(ident)
+            kwargs[key] = (
+                f"{ident.side}{ident.position}: {ident.name}" if ident.side else ident.name
+            )
     turn_no: int | None = None
     if msg_type == "turn" and positional:
         try:
