@@ -72,6 +72,7 @@ function newEntry() {
     turnLines: [],
     keyLines: [], // signature-relevant battle lines (phase-5 signatures.py)
     protocolLog: [], // FULL ordered omniscient |TYPE| stream (P1-b/c) — spliced as a delta per settle
+    protocolTotal: 0, // CUMULATIVE lines seen across the whole battle (the cap basis)
     protocolTruncated: false,
     errors: [],
     winner: null, // null = in progress; '' = tie
@@ -94,11 +95,19 @@ function attachReader(battleId, entry) {
             // divider). Downstream strips |t:| for the hash and resolves |split|
             // per perspective — the sidecar stays faithful (P1-b/c).
             if (line.length) {
-              if (entry.protocolLog.length < MAX_PROTOCOL_LINES) {
+              // Cap on the CUMULATIVE count, not protocolLog.length — settledState
+              // splices the buffer to a delta every step, so length would reset the
+              // cap per-step. A live battle accumulates deltas on the Python side,
+              // while `replay` buffers the whole battle in one settle and caps the
+              // total; gating both on protocolTotal keeps them consistent so
+              // canonical_protocol(original) == canonical_protocol(replayed) holds for
+              // the long battles this cap exists for (PR #201 review 3431864995).
+              if (entry.protocolTotal < MAX_PROTOCOL_LINES) {
                 entry.protocolLog.push(line);
               } else {
                 entry.protocolTruncated = true;
               }
+              entry.protocolTotal++;
             }
             if (KEY_LINE_RE.test(line) && entry.keyLines.length < 3000) {
               entry.keyLines.push(line);

@@ -114,3 +114,28 @@ def test_protocol_log_not_truncated_for_a_normal_battle():
 
     result = asyncio.run(_run())
     assert result.protocol_truncated is False
+
+
+def test_cumulative_truncation_is_consistent_across_resim(monkeypatch):
+    """With a tiny cap, the CUMULATIVE line count truncates both the live battle
+    and its replay at the same point, so the canonical protocols still match.
+    A per-step (buffer-length) cap would let the live battle keep its whole log
+    while replay truncated — breaking re-sim parity. PR #201 review 3431864995.
+    """
+    monkeypatch.setenv("ADX_SIDECAR_MAX_PROTOCOL_LINES", "25")
+
+    async def _run() -> tuple[BattleResult, BattleResult]:
+        async with Sidecar() as sc:
+            original = await run_battle(sc, **_spec(seed_base=31337))
+            replayed = await replay_input_log(
+                sc, battle_id="trunc-replay", input_log=original.input_log
+            )
+            return original, replayed
+
+    original, replayed = asyncio.run(_run())
+    # a full gen9 battle is >25 lines, so BOTH paths truncate at the cumulative cap
+    assert original.protocol_truncated is True
+    assert replayed.protocol_truncated is True
+    assert len(original.protocol_log) <= 25
+    # truncation is consistent → canonical (|t:|-stripped) protocols still agree
+    assert canonical_protocol(original) == canonical_protocol(replayed)
