@@ -401,7 +401,7 @@ The response is the new state — same shape as initial — until the battle end
   "recent_turns": [...],
   "badge_awarded": "<badge>",      // optional, only on gym wins
   "quarantined": true,             // optional, if collusion forensics fired
-  "quarantine_reason": "<reason>", // optional, present iff quarantined
+  "quarantine_reason": "quarantined by collusion forensics", // opaque on purpose
   "forfeit": "<reason>"            // optional, e.g. "turn budget exceeded"
 }
 ```
