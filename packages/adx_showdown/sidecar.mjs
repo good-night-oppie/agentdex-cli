@@ -81,6 +81,19 @@ function newEntry() {
   };
 }
 
+// Append one non-empty line to the omniscient protocol log under the CUMULATIVE
+// cap (protocolTotal, not buffer length — settledState splices the buffer each
+// settle). Used for both `update` battle lines and `sideupdate` control lines.
+function captureProtocol(entry, line) {
+  if (!line.length) return;
+  if (entry.protocolTotal < MAX_PROTOCOL_LINES) {
+    entry.protocolLog.push(line);
+  } else {
+    entry.protocolTruncated = true;
+  }
+  entry.protocolTotal++;
+}
+
 function attachReader(battleId, entry) {
   entry.readerDone = (async () => {
     try {
@@ -94,21 +107,7 @@ function attachReader(battleId, entry) {
             // order (incl. |t:|, |split| + its private/public pair, the bare |
             // divider). Downstream strips |t:| for the hash and resolves |split|
             // per perspective — the sidecar stays faithful (P1-b/c).
-            if (line.length) {
-              // Cap on the CUMULATIVE count, not protocolLog.length — settledState
-              // splices the buffer to a delta every step, so length would reset the
-              // cap per-step. A live battle accumulates deltas on the Python side,
-              // while `replay` buffers the whole battle in one settle and caps the
-              // total; gating both on protocolTotal keeps them consistent so
-              // canonical_protocol(original) == canonical_protocol(replayed) holds for
-              // the long battles this cap exists for (PR #201 review 3431864995).
-              if (entry.protocolTotal < MAX_PROTOCOL_LINES) {
-                entry.protocolLog.push(line);
-              } else {
-                entry.protocolTruncated = true;
-              }
-              entry.protocolTotal++;
-            }
+            captureProtocol(entry, line);
             if (KEY_LINE_RE.test(line) && entry.keyLines.length < 3000) {
               entry.keyLines.push(line);
             }
@@ -160,6 +159,17 @@ function attachReader(battleId, entry) {
           const snl = rest.indexOf('\n');
           const side = rest.slice(0, snl);
           const line = rest.slice(snl + 1);
+          // Capture control-plane sideupdate lines into the SAME protocol log so
+          // events(result) is the single reducer input for live + replay views:
+          // |request| drives the decision pane (its side is recoverable from the
+          // JSON side.id) and |error| records choice rejections. Deterministic on
+          // re-sim (the engine regenerates identical requests from the inputLog),
+          // so the canonical hash stays stable. Perspective redaction of the
+          // opponent's private request is the Phase-8 fog-of-war concern.
+          // (PR #201 review 3431865001.)
+          if (line.startsWith('|request|') || line.startsWith('|error|')) {
+            captureProtocol(entry, line);
+          }
           if (line.startsWith('|request|')) {
             const reqJson = line.slice('|request|'.length);
             if (reqJson) {
