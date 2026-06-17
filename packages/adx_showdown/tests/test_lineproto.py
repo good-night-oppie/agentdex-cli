@@ -54,6 +54,32 @@ def test_bare_pipe_is_meta_divider():
     assert ev.type == DIVIDER_TYPE == ""
     assert ev.tier is Tier.META
     assert is_section_break(ev)
+    assert ev.is_divider and not ev.is_empty
+
+
+def test_empty_line_is_not_a_section_break():
+    """An empty line ("" from a trailing newline in split('\\n')) parses to the
+    same empty TYPE as the bare-pipe divider, but must NOT be a section break or
+    it injects phantom separators into renders/replay/hash. PR #200 review 3431806048.
+    """
+    ev = parse_line("")
+    assert ev.type == ""  # same type as the divider...
+    assert not is_section_break(ev)  # ...but NOT a section break
+    assert ev.is_empty and not ev.is_divider
+    # a stream with a trailing-newline empty line yields no extra break
+    breaks = [
+        e
+        for e in parse_stream(["|turn|1", "|move|p1a: X|Tackle|p2a: Y", ""])
+        if is_section_break(e)
+    ]
+    assert len(breaks) == 1  # only the |turn|, not the trailing ""
+
+
+def test_formechange_carries_hpstatus():
+    ev = parse_line("|-formechange|p1a: Aegislash|Aegislash-Blade|55/100")
+    assert ev.type == "-formechange"
+    assert list(ev.args) == ["p1a: Aegislash", "Aegislash-Blade", "55/100"]
+    assert MESSAGE_TYPES["-formechange"].arg_order == "POKEMON|SPECIES|HPSTATUS"
 
 
 def test_kwargs_from_and_of_populated():
