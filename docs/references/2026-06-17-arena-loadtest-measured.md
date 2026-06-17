@@ -61,3 +61,9 @@ sidecars (for event-loop headroom + fault isolation + raised heap), not 8–13.
 Confirms ADR-0012's expected bottleneck order: **LLM-decision tier first**,
 sim-memory second, sim-CPU effectively never. Next probe: LLM fan-out vs the
 platform proxy rate/budget at 100 concurrent.
+
+**Now wired** (ADR-0012 PR-1/2/3): `SidecarPool` partitions battles by
+`battle_id`, gateway uses it via `ADX_SIDECAR_POOL_SIZE` (default 1 = unchanged
+single-sidecar behavior; raise on a multi-core box), and the per-sidecar heap is
+`ADX_SIDECAR_MAX_OLD_SPACE_MB`. So scaling the sim tier to ~100 is two env vars,
+not a rewrite.

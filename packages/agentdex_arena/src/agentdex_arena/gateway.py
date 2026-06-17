@@ -44,6 +44,7 @@ from adx_showdown.bots import (
     stall_bot,
     trick_room_bot,
 )
+from adx_showdown.pool import SidecarPool
 from adx_showdown.protocol import (
     ParsedRequest,
     active_species,
@@ -1366,7 +1367,7 @@ class ArenaGateway:
         }
 
 
-def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar]) -> FastAPI:
+def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar | SidecarPool]) -> FastAPI:
     @asynccontextmanager
     async def _lifespan(app_: FastAPI) -> AsyncIterator[None]:
         # the persistent sidecar is spawned lazily on first battle; stop it on

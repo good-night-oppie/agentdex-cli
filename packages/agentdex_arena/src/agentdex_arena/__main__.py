@@ -163,6 +163,7 @@ def _bootstrap_admin_token_hash() -> None:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     _bootstrap_admin_token_hash()
+    from adx_showdown.pool import SidecarPool
     from adx_showdown.sidecar import Sidecar
 
     host = os.environ.get("HOST", "127.0.0.1")
@@ -171,7 +172,18 @@ def main() -> None:
     # 4 (~+7 MB RSS each). Size the ceiling for the 256 MB nano (idle ~55 MB) and
     # let the deploy tune it via env (playtest G-03 — multi-agent capacity).
     max_battles = int(os.environ.get("ARENA_MAX_BATTLES", "16"))
-    app = create_app(build_gateway(), sidecar_factory=lambda: Sidecar(max_battles=max_battles))
+    # ADR-0012: partition battles across a SidecarPool (battle_id routing). Default
+    # pool size 1 keeps the single-sidecar behavior byte-for-byte; on a multi-core
+    # box raise ADX_SIDECAR_POOL_SIZE (and ADX_SIDECAR_MAX_OLD_SPACE_MB) to scale
+    # the sim tier toward ~100 concurrent. Per-sidecar cap stays ARENA_MAX_BATTLES.
+    pool_size = int(os.environ.get("ADX_SIDECAR_POOL_SIZE", "1"))
+    if pool_size > 1:
+        app = create_app(
+            build_gateway(),
+            sidecar_factory=lambda: SidecarPool(size=pool_size, max_battles_per_sidecar=max_battles),
+        )
+    else:
+        app = create_app(build_gateway(), sidecar_factory=lambda: Sidecar(max_battles=max_battles))
     log.info(
         "agentdex-arena serving on http://%s:%d (owner inbox: %s)",
         host,
