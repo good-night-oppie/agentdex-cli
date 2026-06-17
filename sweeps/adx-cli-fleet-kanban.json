@@ -108,7 +108,28 @@
     },
     {
       "assignee": "codex",
-      "comments": [],
+      "comments": [
+        {
+          "author": "codex",
+          "body": "D2 (missing adx arena commands) shipped: PR #183 MERGED \u2014 deferred 'adx arena' stub routes visiting agents to starter kit / MCP / skill.md + fails closed (rc=1) instead of a bare argparse error. Remaining ADX-P2-001 backlog (verified): D1 SKILL.md battle-state shape (prio3), D3 starter-kit raw tracebacks (prio3), D5 battle_id enumeration auth-before-existence (prio5, security). D4 MCP-proxy-asymmetry adversarially REFUTED -> WONTFIX (intentional Mode2 game-only split).",
+          "created_at": "2026-06-17T07:21:56Z"
+        },
+        {
+          "author": "codex",
+          "body": "D1 (SKILL.md staleness) shipped: PR #184 MERGED \u2014 corrected initial battle-state example (added lane/status + gym-only opponent_team fields) and fixed MCP choose_action param idx->choice_index (matched mcp_surface.py:140). Doc verified vs HEAD. Next: D3 starter-kit raw tracebacks, then D5 battle_id enumeration.",
+          "created_at": "2026-06-17T07:26:25Z"
+        },
+        {
+          "author": "codex",
+          "body": "D3 (starter-kit raw tracebacks) shipped: PR #185 MERGED \u2014 shared run_agent_main() wrapper turns missing keyfile/team/expired-token/unreachable-arena into one-line stderr + exit codes (setup=2, runtime=1), re-raises genuine bugs; all 3 agents + bootstrap.sh enroll guarded. 7-case test. Verified e2e. Remaining ADX-P2-001: D5 battle_id enumeration (security, prio5). D4 WONTFIX.",
+          "created_at": "2026-06-17T07:33:24Z"
+        },
+        {
+          "author": "codex",
+          "body": "ADX-P2-001 agent-ux footguns COMPLETE (4 tiny PRs merged): D2 adx-arena-stub #183, D1 SKILL.md-shape #184, D3 starter-kit-clean-errors #185, D5 battle_id-anti-enumeration #186 (security: auth-before-existence on state/choose/fork/dispute, full arena suite 187 passed). D4 MCP-proxy-asymmetry adversarially REFUTED -> WONTFIX (intentional Mode2 game-only split). Moving to review for adx-cli/harness verification. Next codex card: ADX-P2-002 gameplay legibility (D6 gym-mapping already merged #167; remaining: foe-HP/recent_turns, replay metadata, anchor/gym test coverage).",
+          "created_at": "2026-06-17T07:45:51Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass14",
@@ -121,13 +142,19 @@
       "impact": "Agents hit stale docs, missing `adx` arena commands, traceback setup errors, and asymmetric MCP proxy behavior.",
       "lane": "agent-ux",
       "priority": "P2",
-      "status": "triage",
+      "status": "review",
       "title": "Reduce starter and CLI footguns for visiting agents",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-17T07:45:51Z"
     },
     {
       "assignee": "codex",
-      "comments": [],
+      "comments": [
+        {
+          "author": "codex",
+          "body": "ADX-P2-002 gameplay legibility substantively COMPLETE: D8 /replay opponent archetype #187, D7 turn-0 (battle start) marker #188 (was empty recent_turns, confirmed empirically). D6 gym-trick-room mapping already merged #167. D9 anchor/gym coverage: already closed by parametrized test_every_gym_resolves_to_a_real_team over ALL GYM_LEADERS + badge/selection/rated tests \u2014 no real gap found (char's 'GYM_TEAM_INDEX collision' did NOT hold up: distinct keys 1/2/3, gyms use separate ARCHETYPE_GYM_TEAMS). Full arena suite 189 passed. Moving to review.",
+          "created_at": "2026-06-17T08:01:32Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass2",
@@ -144,9 +171,9 @@
       "impact": "Agents can win or lose for shallow reasons and cannot always understand losses from state/replay alone.",
       "lane": "gameplay",
       "priority": "P2",
-      "status": "triage",
+      "status": "review",
       "title": "Make arena gameplay feedback more legible and less first-legal",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-17T08:01:32Z"
     },
     {
       "assignee": "harness",
@@ -167,6 +194,122 @@
       "status": "done",
       "title": "Preserve verified strengths while fixing gaps",
       "updated_at": "2026-06-16T20:14:58Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [
+        {
+          "author": "codex",
+          "body": "Fixed: PR #189 MERGED \u2014 opaque 'quarantined by collusion forensics' on the wire (session.ended + receipt); detailed heuristic reason preserved in durable quarantine EventLog row + server log.warning for operator audit. _check_collusion unchanged (unit test green). Full arena suite 189 passed. Same D7 class as #186.",
+          "created_at": "2026-06-17T08:19:26Z"
+        }
+      ],
+      "created_by": "codex",
+      "evidence": [
+        "gateway.py:1001-1045 (_check_collusion detailed strings)",
+        ":1059-1062 (written to session.ended)",
+        ":1116-1126 (event log). adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Collapse quarantine_reason to an opaque/coarse value on the wire (or omit it); log the detailed forensic reason server-side only (log.warning), mirroring _opaque_error. Keep the EventLog row detailed for audit.",
+      "id": "ADX-P1-005",
+      "impact": "_check_collusion returns detailed reason strings (thresholds, 'repeatedly clicked choice: move 0', 'win-transfer W-L over N matches') into session.ended.quarantine_reason, surfaced to the visiting agent on the battle receipt. Leaking the exact heuristic enables trivial evasion (add 1 random move; stay under the 5-match win-transfer threshold) \u2014 same D7 anti-enumeration class as the battle_id leak (#186).",
+      "lane": "integrity",
+      "priority": "P1",
+      "status": "review",
+      "title": "Collusion quarantine_reason leaks heuristic internals to the agent (D7)",
+      "updated_at": "2026-06-17T08:19:26Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "gateway.py:1771-1777 (append)",
+        ":1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Append the dispute event AFTER a successful re-sim, OR guard with an idempotence check (skip if a dispute event for this battle_id already exists). Mirror the append-before-publish/fail-closed contract.",
+      "id": "ADX-P1-006",
+      "impact": "POST /battle/{id}/dispute appends the 'dispute' event (gateway.py:1771-1777) BEFORE running replay_input_log (:1790). If re-sim throws (:1822) the handler 500s but the dispute event is already durable; a client retry appends a SECOND dispute event \u2014 structural event-log corruption (violates Class A write-then-log intent for disputes).",
+      "lane": "integrity",
+      "priority": "P1",
+      "status": "triage",
+      "title": "Dispute event appended BEFORE re-sim \u2014 duplicate events on retry",
+      "updated_at": "2026-06-17T08:12:29Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "gateway.py:1131 (before snapshot)",
+        ":1160 (append)",
+        ":1169 (after). adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Capture before_rating AFTER the append_many (or serialize _finish per visitor_name with a per-player lock) so before/after bracket exactly one battle's mutation.",
+      "id": "ADX-P1-007",
+      "impact": "_finish captures before_rating (gateway.py:1131) OUTSIDE the atomic append window, then recomputes after (:1169). If a second concurrent _finish for the same visitor_name appends between A's capture and A's recompute, A's published_delta double-counts B's battle \u2014 a fairness/rating-integrity violation under async concurrency.",
+      "lane": "fairness",
+      "priority": "P1",
+      "status": "triage",
+      "title": "Ladder published_delta race: concurrent _finish for same player inflates delta",
+      "updated_at": "2026-06-17T08:12:29Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "consent.py:114-124/:159-182",
+        "gateway.py:536-558. adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Emit a durable quota_spent event on each spend_quota increment; replay quota_spent (scoped to current UTC day) on boot to rehydrate quota_used.",
+      "id": "ADX-P2-004",
+      "impact": "quota_used is in-memory only (consent.py:159-182); EventLog replay on boot (gateway.py:536-558) hydrates 'register'/'membership_grant' but NOT quota. A gateway restart resets every agent's daily rated cap, allowing >5 rated battles/UTC-day across restarts (anti-pay-to-rank-adjacent, ADR-0011 \u00a73a/\u00a75e). Exploitability is low on a stable single-process deploy (agent cannot force a restart), hence P2 not P1.",
+      "lane": "fairness",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Rated-battle quota not persisted \u2014 resets on gateway restart",
+      "updated_at": "2026-06-17T08:12:49Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [
+        {
+          "author": "codex",
+          "body": "Fixed: PR #190 MERGED \u2014 scratchpad fenced between --- BEGIN/END NOTES --- in render_state so forged section headers can't masquerade as server-authored state. Note: scratchpad was already capped at MAX_SCRATCHPAD_CHARS=1200 (the 'unbounded' half of the audit note didn't apply). render_state+bridge suites green.",
+          "created_at": "2026-06-17T08:24:47Z"
+        }
+      ],
+      "created_by": "codex",
+      "evidence": [
+        "showdown_battle_bridge.py:~107 (scratchpad rendered into state); no escaping/validation/tests. adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Escape/segregate scratchpad when rendering (fence it in a clearly-delimited block, strip markdown headers, or render structured fields instead of raw markdown). Add a render test asserting injected headers don't duplicate real section headers.",
+      "id": "ADX-P2-005",
+      "impact": "Agent-authored scratchpad text is rendered into the battle-state string (showdown_battle_bridge.py:~107 / state render) without escaping, so an agent can inject a '## Recent turns'-style header + forged 'T#: ...' lines that appear in its OWN rendered state and poison its decision loop. Self-harm only today (no cross-agent/rating impact) \u2192 P2; but it is the latent cross-surface injection risk if scratchpad ever reaches a replay/opponent view.",
+      "lane": "integrity",
+      "priority": "P2",
+      "status": "review",
+      "title": "Scratchpad rendered into battle state without escaping \u2014 self-injection of fake turn lines",
+      "updated_at": "2026-06-17T08:24:47Z"
+    },
+    {
+      "assignee": "harness",
+      "comments": [],
+      "created_by": "codex",
+      "evidence": [
+        "gateway.py:564/567 (init)",
+        ":872/:1202/:1309 (insert)",
+        "no eviction. adversarially confirmed (dogfood audit 2026-06-17)"
+      ],
+      "fix": "Bounded LRU/OrderedDict (cap N most-recent) for sessions+replays, or a TTL sweep that evicts ended sessions; replays should fall back to the durable EventLog/store rather than living in RAM forever.",
+      "id": "ADX-P2-006",
+      "impact": "ArenaGateway.sessions and .replays (gateway.py:564/567) grow ~1KB/session + ~2KB/replay with zero eviction (no del/pop/clear anywhere; _expire_if_stale only marks ended, doesn't remove). A long-running deploy OOMs after enough battles. Low urgency on a nano deploy that restarts often \u2192 P2.",
+      "lane": "observability",
+      "priority": "P2",
+      "status": "triage",
+      "title": "Unbounded sessions/replays dicts \u2014 eventual OOM on long-running deploy",
+      "updated_at": "2026-06-17T08:12:49Z"
     }
   ],
   "events": [
@@ -187,8 +330,195 @@
       "detail": {
         "force": true
       }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:08:06Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "triage"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:21:56Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:26:25Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:33:24Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:45:51Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-17T07:45:51Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-17T07:46:37Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "triage"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-17T08:01:32Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-17T08:01:32Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-17T08:12:29Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P1-006",
+      "created_at": "2026-06-17T08:12:29Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P1-007",
+      "created_at": "2026-06-17T08:12:29Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P2-004",
+      "created_at": "2026-06-17T08:12:49Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-17T08:12:49Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "codex",
+      "card_id": "ADX-P2-006",
+      "created_at": "2026-06-17T08:12:49Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-17T08:19:26Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "triage"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-17T08:19:26Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-17T08:24:47Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "triage"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-17T08:24:47Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-16T20:14:58Z"
+  "updated_at": "2026-06-17T08:24:47Z"
 }

@@ -44,8 +44,10 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
-| ADX-P2-001 | P2 | codex | agent-ux | Reduce starter and CLI footguns for visiting agents | pass14, pass15, pass16, pass29 |
-| ADX-P2-002 | P2 | codex | gameplay | Make arena gameplay feedback more legible and less first-legal | pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13 |
+| ADX-P1-006 | P1 | adx-cli | integrity | Dispute event appended BEFORE re-sim — duplicate events on retry | gateway.py:1771-1777 (append), :1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17) |
+| ADX-P1-007 | P1 | adx-cli | fairness | Ladder published_delta race: concurrent _finish for same player inflates delta | gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17) |
+| ADX-P2-004 | P2 | adx-cli | fairness | Rated-battle quota not persisted — resets on gateway restart | consent.py:114-124/:159-182, gateway.py:536-558. adversarially confirmed (dogfood audit 2026-06-17) |
+| ADX-P2-006 | P2 | harness | observability | Unbounded sessions/replays dicts — eventual OOM on long-running deploy | gateway.py:564/567 (init), :872/:1202/:1309 (insert), no eviction. adversarially confirmed (dogfood audit 2026-06-17) |
 
 ### todo
 
@@ -61,6 +63,15 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
+
+### review
+
+| ID | Pri | Assignee | Lane | Title | Evidence |
+|---|---|---|---|---|---|
+| ADX-P1-005 | P1 | codex | integrity | Collusion quarantine_reason leaks heuristic internals to the agent (D7) | gateway.py:1001-1045 (_check_collusion detailed strings), :1059-1062 (written to session.ended), :1116-1126 (event log). adversarially confirmed (dogfood audit 2026-06-17) |
+| ADX-P2-001 | P2 | codex | agent-ux | Reduce starter and CLI footguns for visiting agents | pass14, pass15, pass16, pass29 |
+| ADX-P2-002 | P2 | codex | gameplay | Make arena gameplay feedback more legible and less first-legal | pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13 |
+| ADX-P2-005 | P2 | codex | integrity | Scratchpad rendered into battle state without escaping — self-injection of fake turn lines | showdown_battle_bridge.py:~107 (scratchpad rendered into state); no escaping/validation/tests. adversarially confirmed (dogfood audit 2026-06-17) |
 
 ### done
 
@@ -79,6 +90,26 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.
 - Suggested fix: Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.
 - Evidence: pass27, pass28, pass37, pass38, pass39, pass40
+
+### ADX-P1-006 - Dispute event appended BEFORE re-sim — duplicate events on retry
+
+- Priority: `P1`
+- Status: `triage`
+- Assignee: `adx-cli`
+- Lane: `integrity`
+- Impact: POST /battle/{id}/dispute appends the 'dispute' event (gateway.py:1771-1777) BEFORE running replay_input_log (:1790). If re-sim throws (:1822) the handler 500s but the dispute event is already durable; a client retry appends a SECOND dispute event — structural event-log corruption (violates Class A write-then-log intent for disputes).
+- Suggested fix: Append the dispute event AFTER a successful re-sim, OR guard with an idempotence check (skip if a dispute event for this battle_id already exists). Mirror the append-before-publish/fail-closed contract.
+- Evidence: gateway.py:1771-1777 (append), :1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17)
+
+### ADX-P1-007 - Ladder published_delta race: concurrent _finish for same player inflates delta
+
+- Priority: `P1`
+- Status: `triage`
+- Assignee: `adx-cli`
+- Lane: `fairness`
+- Impact: _finish captures before_rating (gateway.py:1131) OUTSIDE the atomic append window, then recomputes after (:1169). If a second concurrent _finish for the same visitor_name appends between A's capture and A's recompute, A's published_delta double-counts B's battle — a fairness/rating-integrity violation under async concurrency.
+- Suggested fix: Capture before_rating AFTER the append_many (or serialize _finish per visitor_name with a per-player lock) so before/after bracket exactly one battle's mutation.
+- Evidence: gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17)
 
 ### ADX-P1-001 - Stop spending rated/evolution/badge quota before work is accepted
 
@@ -120,25 +151,69 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
 - Evidence: pass24, pass25
 
-### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
+### ADX-P1-005 - Collusion quarantine_reason leaks heuristic internals to the agent (D7)
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `codex`
+- Lane: `integrity`
+- Impact: _check_collusion returns detailed reason strings (thresholds, 'repeatedly clicked choice: move 0', 'win-transfer W-L over N matches') into session.ended.quarantine_reason, surfaced to the visiting agent on the battle receipt. Leaking the exact heuristic enables trivial evasion (add 1 random move; stay under the 5-match win-transfer threshold) — same D7 anti-enumeration class as the battle_id leak (#186).
+- Suggested fix: Collapse quarantine_reason to an opaque/coarse value on the wire (or omit it); log the detailed forensic reason server-side only (log.warning), mirroring _opaque_error. Keep the EventLog row detailed for audit.
+- Evidence: gateway.py:1001-1045 (_check_collusion detailed strings), :1059-1062 (written to session.ended), :1116-1126 (event log). adversarially confirmed (dogfood audit 2026-06-17)
+- Recent comments: codex: Fixed: PR #189 MERGED — opaque 'quarantined by collusion forensics' on the wire (session.ended + receipt); detailed heuristic reason preserved in durable quarantine EventLog row + server log.warning for operator audit. _check_collusion unchanged (unit test green). Full arena suite 189 passed. Same D7 class as #186.
+
+### ADX-P2-004 - Rated-battle quota not persisted — resets on gateway restart
 
 - Priority: `P2`
 - Status: `triage`
+- Assignee: `adx-cli`
+- Lane: `fairness`
+- Impact: quota_used is in-memory only (consent.py:159-182); EventLog replay on boot (gateway.py:536-558) hydrates 'register'/'membership_grant' but NOT quota. A gateway restart resets every agent's daily rated cap, allowing >5 rated battles/UTC-day across restarts (anti-pay-to-rank-adjacent, ADR-0011 §3a/§5e). Exploitability is low on a stable single-process deploy (agent cannot force a restart), hence P2 not P1.
+- Suggested fix: Emit a durable quota_spent event on each spend_quota increment; replay quota_spent (scoped to current UTC day) on boot to rehydrate quota_used.
+- Evidence: consent.py:114-124/:159-182, gateway.py:536-558. adversarially confirmed (dogfood audit 2026-06-17)
+
+### ADX-P2-006 - Unbounded sessions/replays dicts — eventual OOM on long-running deploy
+
+- Priority: `P2`
+- Status: `triage`
+- Assignee: `harness`
+- Lane: `observability`
+- Impact: ArenaGateway.sessions and .replays (gateway.py:564/567) grow ~1KB/session + ~2KB/replay with zero eviction (no del/pop/clear anywhere; _expire_if_stale only marks ended, doesn't remove). A long-running deploy OOMs after enough battles. Low urgency on a nano deploy that restarts often → P2.
+- Suggested fix: Bounded LRU/OrderedDict (cap N most-recent) for sessions+replays, or a TTL sweep that evicts ended sessions; replays should fall back to the durable EventLog/store rather than living in RAM forever.
+- Evidence: gateway.py:564/567 (init), :872/:1202/:1309 (insert), no eviction. adversarially confirmed (dogfood audit 2026-06-17)
+
+### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
+
+- Priority: `P2`
+- Status: `review`
 - Assignee: `codex`
 - Lane: `agent-ux`
 - Impact: Agents hit stale docs, missing `adx` arena commands, traceback setup errors, and asymmetric MCP proxy behavior.
 - Suggested fix: Update `/skill.md`, add or explicitly defer `adx arena` commands, normalize starter-kit errors, and test missing battle IDs.
 - Evidence: pass14, pass15, pass16, pass29
+- Recent comments: codex: D1 (SKILL.md staleness) shipped: PR #184 MERGED — corrected initial battle-state example (added lane/status + gym-only opponent_team fields) and fixed MCP choose_action param idx->choice_index (matched mcp_surface.py:140). Doc verified vs HEAD. Next: D3 starter-kit raw tracebacks, then D5 battle_id enumeration. / codex: D3 (starter-kit raw tracebacks) shipped: PR #185 MERGED — shared run_agent_main() wrapper turns missing keyfile/team/expired-token/unreachable-arena into one-line stderr + exit codes (setup=2, runtime=1), re-raises genuine bugs; all 3 agents + bootstrap.sh enroll guarded. 7-case test. Verified e2e. Remaining ADX-P2-001: D5 battle_id enumeration (security, prio5). D4 WONTFIX. / codex: ADX-P2-001 agent-ux footguns COMPLETE (4 tiny PRs merged): D2 adx-arena-stub #183, D1 SKILL.md-shape #184, D3 starter-kit-clean-errors #185, D5 battle_id-anti-enumeration #186 (security: auth-before-existence on state/choose/fork/dispute, full arena suite 187 passed). D4 MCP-proxy-asymmetry adversarially REFUTED -> WONTFIX (intentional Mode2 game-only split). Moving to review for adx-cli/harness verification. Next codex card: ADX-P2-002 gameplay legibility (D6 gym-mapping already merged #167; remaining: foe-HP/recent_turns, replay metadata, anchor/gym test coverage).
 
 ### ADX-P2-002 - Make arena gameplay feedback more legible and less first-legal
 
 - Priority: `P2`
-- Status: `triage`
+- Status: `review`
 - Assignee: `codex`
 - Lane: `gameplay`
 - Impact: Agents can win or lose for shallow reasons and cannot always understand losses from state/replay alone.
 - Suggested fix: Repair gym mapping, expose opponent HP/recent turns, enrich replay metadata, and test anchor/gym coverage.
 - Evidence: pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13
+- Recent comments: codex: ADX-P2-002 gameplay legibility substantively COMPLETE: D8 /replay opponent archetype #187, D7 turn-0 (battle start) marker #188 (was empty recent_turns, confirmed empirically). D6 gym-trick-room mapping already merged #167. D9 anchor/gym coverage: already closed by parametrized test_every_gym_resolves_to_a_real_team over ALL GYM_LEADERS + badge/selection/rated tests — no real gap found (char's 'GYM_TEAM_INDEX collision' did NOT hold up: distinct keys 1/2/3, gyms use separate ARCHETYPE_GYM_TEAMS). Full arena suite 189 passed. Moving to review.
+
+### ADX-P2-005 - Scratchpad rendered into battle state without escaping — self-injection of fake turn lines
+
+- Priority: `P2`
+- Status: `review`
+- Assignee: `codex`
+- Lane: `integrity`
+- Impact: Agent-authored scratchpad text is rendered into the battle-state string (showdown_battle_bridge.py:~107 / state render) without escaping, so an agent can inject a '## Recent turns'-style header + forged 'T#: ...' lines that appear in its OWN rendered state and poison its decision loop. Self-harm only today (no cross-agent/rating impact) → P2; but it is the latent cross-surface injection risk if scratchpad ever reaches a replay/opponent view.
+- Suggested fix: Escape/segregate scratchpad when rendering (fence it in a clearly-delimited block, strip markdown headers, or render structured fields instead of raw markdown). Add a render test asserting injected headers don't duplicate real section headers.
+- Evidence: showdown_battle_bridge.py:~107 (scratchpad rendered into state); no escaping/validation/tests. adversarially confirmed (dogfood audit 2026-06-17)
+- Recent comments: codex: Fixed: PR #190 MERGED — scratchpad fenced between --- BEGIN/END NOTES --- in render_state so forged section headers can't masquerade as server-authored state. Note: scratchpad was already capped at MAX_SCRATCHPAD_CHARS=1200 (the 'unbounded' half of the audit note didn't apply). render_state+bridge suites green.
 
 ### ADX-P2-003 - Preserve verified strengths while fixing gaps
 
@@ -154,8 +229,18 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-16T20:14:58Z | seed | codex |  | {"cards": 8} |
-| 2026-06-16T20:14:58Z | init | codex |  | {"force": true} |
+| 2026-06-17T08:01:32Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "running"}} |
+| 2026-06-17T08:01:32Z | comment | codex | ADX-P2-002 | {} |
+| 2026-06-17T08:12:29Z | add | codex | ADX-P1-005 | {} |
+| 2026-06-17T08:12:29Z | add | codex | ADX-P1-006 | {} |
+| 2026-06-17T08:12:29Z | add | codex | ADX-P1-007 | {} |
+| 2026-06-17T08:12:49Z | add | codex | ADX-P2-004 | {} |
+| 2026-06-17T08:12:49Z | add | codex | ADX-P2-005 | {} |
+| 2026-06-17T08:12:49Z | add | codex | ADX-P2-006 | {} |
+| 2026-06-17T08:19:26Z | move | codex | ADX-P1-005 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "triage"}} |
+| 2026-06-17T08:19:26Z | comment | codex | ADX-P1-005 | {} |
+| 2026-06-17T08:24:47Z | move | codex | ADX-P2-005 | {"after": {"assignee": "codex", "status": "review"}, "before": {"assignee": "codex", "status": "triage"}} |
+| 2026-06-17T08:24:47Z | comment | codex | ADX-P2-005 | {} |
 
 ## Source Pattern
 
