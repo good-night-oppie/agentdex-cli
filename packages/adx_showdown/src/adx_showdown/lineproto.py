@@ -71,6 +71,33 @@ NONDETERMINISTIC_TYPES: frozenset[str] = frozenset({TIMESTAMP_TYPE})
 REASONING_TYPE = "-reasoning"
 SAY_TYPE = "say"
 
+#: Types whose payload after ``|TYPE|`` is a SINGLE opaque field (JSON / HTML /
+#: free text) that may itself contain ``|``. Splitting it on every pipe corrupts
+#: it — e.g. a ``|request|`` whose JSON carries an opponent nickname like
+#: ``Pika|/forfeit`` (the red-team corpus) would truncate to invalid JSON and the
+#: guided action pane could not render or sanitize it via ``parse_request``. For
+#: these, the whole remainder is kept as ``args[0]`` and no kwargs are parsed.
+OPAQUE_PAYLOAD_TYPES: frozenset[str] = frozenset(
+    {
+        "request",
+        "raw",
+        "html",
+        "uhtml",
+        "uhtmlchange",
+        "error",
+        "inactive",
+        "inactiveoff",
+        "message",
+        "-message",
+        "popup",
+        "bigerror",
+        "debug",
+        "chat",
+        "c",
+        "c:",
+    }
+)
+
 
 class _Spec(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -309,8 +336,16 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
     else:
         parts = line.split("|")
     msg_type = parts[0] if parts else ""
-    rest = parts[1:]
-    positional, kwargs = _split_args(rest)
+    if msg_type in OPAQUE_PAYLOAD_TYPES and line.startswith("|"):
+        # the remainder is one opaque field (JSON/HTML/free text) that may carry
+        # pipes — keep it intact so e.g. `parse_request(ev.args[0])` sees valid
+        # JSON even when an opponent nickname contains `|`.
+        prefix = f"|{msg_type}|"
+        payload = line[len(prefix) :] if line.startswith(prefix) else "|".join(parts[1:])
+        positional, kwargs = [payload], {}
+    else:
+        rest = parts[1:]
+        positional, kwargs = _split_args(rest)
     idents = [PokemonIdent.parse(a) for a in positional if _IDENT_RE.match(a.strip())]
     turn_no: int | None = None
     if msg_type == "turn" and positional:

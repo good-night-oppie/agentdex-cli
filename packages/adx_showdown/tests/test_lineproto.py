@@ -179,6 +179,44 @@ def test_protocol_doc_covers_registry():
     assert not missing, f"protocol doc missing rows for: {missing}"
 
 
+def test_request_json_payload_kept_intact_with_pipes():
+    """A |request| payload is opaque JSON that can contain pipes inside an
+    opponent nickname/move name (red-team corpus: Pika|/forfeit). It must NOT be
+    split on every pipe, or downstream parse_request sees truncated invalid JSON.
+    PR #200 review 3431806042.
+    """
+    import json
+
+    from adx_showdown.protocol import parse_request
+
+    raw = (
+        '|request|{"active":[{"moves":[{"move":"Iron|/Tail<inject>","id":"irontail",'
+        '"pp":24,"maxpp":24}]}],"side":{"name":"Pika|/forfeit","id":"p1","pokemon":['
+        '{"ident":"p1: Pika|/forfeit","details":"Pikachu, L50, M","condition":"100/100",'
+        '"active":true}]},"rqid":3}'
+    )
+    ev = parse_line(raw)
+    assert ev.type == "request"
+    assert len(ev.args) == 1, "payload must stay a single opaque field"
+    payload = json.loads(ev.args[0])  # still valid JSON despite the inner pipes
+    assert payload["side"]["name"] == "Pika|/forfeit"
+    # and the existing request parser consumes it + sanitizes the nickname
+    req = parse_request(ev.args[0])
+    assert req.rqid == 3
+    assert "|" not in req.bench[0].name
+
+
+def test_empty_request_payload():
+    ev = parse_line("|request|")
+    assert ev.type == "request" and ev.args == [""]
+
+
+def test_normal_lines_still_split_after_opaque_change():
+    # the opaque carve-out must not affect ordinary pipe-delimited messages
+    ev = parse_line("|move|p1a: Garchomp|Earthquake|p2a: Skarmory")
+    assert ev.args == ["p1a: Garchomp", "Earthquake", "p2a: Skarmory"]
+
+
 def test_event_is_frozen_and_strict():
     ev = parse_line("|turn|1")
     assert isinstance(ev, ProtocolEvent)
