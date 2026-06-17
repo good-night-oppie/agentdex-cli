@@ -67,6 +67,11 @@ class Sidecar:
         }
         if self._max_battles is not None:
             env["ADX_SIDECAR_MAX_BATTLES"] = str(self._max_battles)
+        # pass the protocol-log cap through (else the sidecar default applies and
+        # the knob is unreachable from a deployed gateway / a test).
+        _proto_cap = os.environ.get("ADX_SIDECAR_MAX_PROTOCOL_LINES")
+        if _proto_cap:
+            env["ADX_SIDECAR_MAX_PROTOCOL_LINES"] = _proto_cap
         # V8 old-space cap. Default 96 MB fits the 256 MB nano (one sidecar +
         # FastAPI gateway). On a multi-core box each pooled sidecar (ADR-0012
         # SidecarPool) gets its own process — raise this via the env knob so a
