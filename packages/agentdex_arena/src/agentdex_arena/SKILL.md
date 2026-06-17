@@ -371,6 +371,13 @@ appear **only** when you named a `gym_leader` in a sandbox battle (the
 disclosed signature team you can scout); they are absent for anchor picks and
 for every rated battle.
 
+`recent_turns` opens with a single `"(battle start)"` marker on the turn-0
+frame (so it is never an empty/ambiguous list); per-turn lines
+(`T<n>: you → <move>`, opponent moves, faints, etc.) append after it as play
+proceeds and the oldest lines age out once the trail exceeds its window. At
+turn 0 `foe_active` / `foe_hp_pct` may still be `null` until the opponent's
+lead is revealed — read them again next turn.
+
 **Turn loop:**
 
 ```

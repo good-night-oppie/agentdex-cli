@@ -394,7 +394,13 @@ class BattleSession:
     # which the gateway already parses to drive the anchor policy — carries the
     # opponent's exact HP via its bench condition strings. Server-rendered data;
     # no sidecar change, no determinism impact.
-    recent: list[str] = field(default_factory=list)
+    # Seed a "(battle start)" marker so the turn-0 state response carries a
+    # non-empty, self-describing recent_turns instead of an ambiguous empty
+    # list (ADX-P2-002 legibility; matches the SKILL.md §3a example). Real turn
+    # lines (`T#: ...`) append after it via _push_recent; it ages out under
+    # RECENT_TURNS_MAX like any other line. Fork-reconstructed sessions start
+    # the same way — a fork is itself a fresh battle start.
+    recent: list[str] = field(default_factory=lambda: ["(battle start)"])
     foe_species: str | None = None
     foe_hp_pct: int | None = None
     # Fork support (#6): the exact inputs needed to re-create this battle from
