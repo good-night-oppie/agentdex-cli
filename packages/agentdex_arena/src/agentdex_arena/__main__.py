@@ -21,6 +21,7 @@ import hashlib
 import logging
 import os
 import re
+import tempfile
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -49,11 +50,25 @@ def _file_inbox_notifier(inbox_dir: Path) -> Callable[[str, str], None]:
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     def notify(owner: str, code: str) -> None:
-        # Atomic write so a polling owner never reads a half-written code.
+        # Atomic publish via a UNIQUE temp + os.replace. Two simultaneous enrollments
+        # for the SAME owner used to race on one shared `<owner>.code.tmp` path —
+        # overwriting or moving each other's temp, leaving the wrong code visible or
+        # failing the write (now that webhook fallback fires from a thread pool, the
+        # races are concurrent). A per-delivery mkstemp removes the collision; the
+        # replace onto `target` is still atomic so a polling owner never reads a
+        # half-written code. PR #231 review 3432522339.
         target = inbox_dir / _owner_slug(owner)
-        tmp = target.with_suffix(".code.tmp")
-        tmp.write_text(code + "\n", encoding="utf-8")
-        tmp.replace(target)
+        fd, tmp_path = tempfile.mkstemp(dir=inbox_dir, prefix=target.name + ".", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(code + "\n")
+            os.replace(tmp_path, target)
+        except Exception:
+            try:
+                os.unlink(tmp_path)  # never leave a stray temp behind on failure
+            except OSError:
+                pass
+            raise
         log.info("owner notify: wrote confirmation code for %r to %s", owner, target.name)
 
     return notify
