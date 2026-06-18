@@ -71,6 +71,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agentdex_arena.account import AccountStore
 from agentdex_arena.admin_auth import AdminAuthError, AdminAuthority
 from agentdex_arena.badge_auth import BadgeAuthError, BadgeAuthority
 from agentdex_arena.consent import (
@@ -557,6 +558,11 @@ class ArenaGateway:
         self.public_base_url = public_base_url.rstrip("/")
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
+        # ADR-0013 D3/D6: the github_id<->owner link + account->agents join,
+        # rebuilt below from account_link / account_enroll events (same
+        # write-ahead-then-replay discipline as membership_grant / quota_spend).
+        # Writers (device-flow login, /enroll/account) land in later PRs.
+        self.accounts = AccountStore()
         # ADX-P1-007: one asyncio.Lock per visitor_name serializing the rated
         # before->append->after rating window in _finish, so two concurrent
         # finishes for the same agent cannot interleave their recompute brackets
@@ -607,6 +613,28 @@ class ArenaGateway:
                     if not isinstance(key, str) or not key:
                         raise ValueError("quota_spend key missing/non-string")
                     self.authority.replay_quota_spend(key)
+                elif etype == "account_link":
+                    # ADR-0013 D3: rehydrate the github_id<->owner link so a
+                    # returning device-flow login resolves to the same verified
+                    # email across restarts. Defensive parse (a malformed event
+                    # must not crash boot); AccountStore.link re-validates owner.
+                    github_id = payload.get("github_id")
+                    owner_raw = payload.get("owner")
+                    if not isinstance(github_id, str) or not github_id:
+                        raise ValueError("account_link github_id missing/non-string")
+                    if not isinstance(owner_raw, str) or not owner_raw:
+                        raise ValueError("account_link owner missing/non-string")
+                    self.accounts.link(github_id, owner_raw)
+                elif etype == "account_enroll":
+                    # ADR-0013 D6: rehydrate the account->agents join that
+                    # `adx status` reads. Same defensive shape as above.
+                    owner_raw = payload.get("owner")
+                    agent_name = payload.get("agent_name")
+                    if not isinstance(owner_raw, str) or not owner_raw:
+                        raise ValueError("account_enroll owner missing/non-string")
+                    if not isinstance(agent_name, str) or not agent_name:
+                        raise ValueError("account_enroll agent_name missing/non-string")
+                    self.accounts.add_agent(owner_raw, agent_name)
             except Exception:
                 log.warning(
                     "skipping malformed event during replay: type=%r seq=%r",
