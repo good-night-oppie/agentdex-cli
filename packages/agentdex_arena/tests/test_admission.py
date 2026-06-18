@@ -281,3 +281,30 @@ def test_failed_post_publish_fork_is_removed_from_cap(gw):
     # And the owner can immediately admit a fresh battle (count is back to zero).
     gw._reserve_owner_slot(owner_norm)  # would raise 429 if the dead fork still counted
     gw._release_owner_slot(owner_norm)
+
+
+def test_failed_session_dropped_even_when_stop_is_cancelled(gw):
+    """If the post-publish stop() await is itself cancelled, the dead session must
+    STILL be removed from the cap — the pop lives in a finally (PR #261 review)."""
+
+    class _StopCancelsSidecar:
+        returncode = None
+
+        async def request(self, op: str, **kwargs):
+            if op == "stop":
+                raise asyncio.CancelledError()  # cleanup cancelled mid-teardown
+            return {"state": {}}  # empty → _advance stalls AFTER publish
+
+    raised: BaseException | None = None
+    try:
+        asyncio.run(
+            gw.battle_fork(
+                "sandbox-src", _fork_src(), turn=0, sidecar=_StopCancelsSidecar(), owner=_OWNER
+            )
+        )
+    except BaseException as exc:  # noqa: BLE001 — capture whatever propagates
+        raised = exc
+    assert raised is not None
+    # The finally popped the dead fork despite the cancelled stop.
+    assert not [bid for bid in gw.sessions if "fork" in bid]
+    assert gw._owner_inflight == {}
