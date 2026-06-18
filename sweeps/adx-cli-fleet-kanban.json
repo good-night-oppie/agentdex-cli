@@ -136,6 +136,11 @@
           "author": "codex",
           "body": "ADX-P2-001 agent-ux footguns COMPLETE (4 tiny PRs merged): D2 adx-arena-stub #183, D1 SKILL.md-shape #184, D3 starter-kit-clean-errors #185, D5 battle_id-anti-enumeration #186 (security: auth-before-existence on state/choose/fork/dispute, full arena suite 187 passed). D4 MCP-proxy-asymmetry adversarially REFUTED -> WONTFIX (intentional Mode2 game-only split). Moving to review for adx-cli/harness verification. Next codex card: ADX-P2-002 gameplay legibility (D6 gym-mapping already merged #167; remaining: foe-HP/recent_turns, replay metadata, anchor/gym test coverage).",
           "created_at": "2026-06-17T07:45:51Z"
+        },
+        {
+          "author": "codex",
+          "body": "REVIEW VERIFIED: D2 arena stub + D3 starter-kit clean errors + D5 auth-before-existence all covered. Added sidecar-free call-order regression for state/choose/fork/dispute verify-before-lookup. Tests: .venv/bin/python -m pytest packages/agentdex_cli/tests/test_arena_defer.py examples/agent-starter-kit/tests/test_clean_errors.py packages/agentdex_arena/tests/test_visitor_surface.py::test_live_battle_and_replay_routes_verify_before_existence_lookup -q => 18 passed. Ruff touched files => pass.",
+          "created_at": "2026-06-18T13:18:27Z"
         }
       ],
       "created_by": "codex",
@@ -150,9 +155,9 @@
       "impact": "Agents hit stale docs, missing `adx` arena commands, traceback setup errors, and asymmetric MCP proxy behavior.",
       "lane": "agent-ux",
       "priority": "P2",
-      "status": "review",
+      "status": "done",
       "title": "Reduce starter and CLI footguns for visiting agents",
-      "updated_at": "2026-06-17T07:45:51Z"
+      "updated_at": "2026-06-18T13:18:31Z"
     },
     {
       "assignee": "codex",
@@ -161,6 +166,11 @@
           "author": "codex",
           "body": "ADX-P2-002 gameplay legibility substantively COMPLETE: D8 /replay opponent archetype #187, D7 turn-0 (battle start) marker #188 (was empty recent_turns, confirmed empirically). D6 gym-trick-room mapping already merged #167. D9 anchor/gym coverage: already closed by parametrized test_every_gym_resolves_to_a_real_team over ALL GYM_LEADERS + badge/selection/rated tests \u2014 no real gap found (char's 'GYM_TEAM_INDEX collision' did NOT hold up: distinct keys 1/2/3, gyms use separate ARCHETYPE_GYM_TEAMS). Full arena suite 189 passed. Moving to review.",
           "created_at": "2026-06-17T08:01:32Z"
+        },
+        {
+          "author": "codex",
+          "body": "REVIEW VERIFIED: gameplay legibility guards are in place. Pure tests: .venv/bin/python -m pytest packages/agentdex_arena/tests/test_gym_team_resolution.py packages/agentdex_arena/tests/test_visitor_surface.py::test_gameplay_legibility_contract_sidecar_free -q => 9 passed. Covers gym mapping including trick-room, BattleSession turn-0 '(battle start)' marker, _render foe_hp_pct/recent_turns contract, and replay opponent field. Live replay/recent-turn tests were attempted but the sidecar/ASGI harness left stale tool sessions in this sandbox, so they are not counted here. Ruff touched files => pass.",
+          "created_at": "2026-06-18T13:20:52Z"
         }
       ],
       "created_by": "codex",
@@ -179,9 +189,9 @@
       "impact": "Agents can win or lose for shallow reasons and cannot always understand losses from state/replay alone.",
       "lane": "gameplay",
       "priority": "P2",
-      "status": "review",
+      "status": "done",
       "title": "Make arena gameplay feedback more legible and less first-legal",
-      "updated_at": "2026-06-17T08:01:32Z"
+      "updated_at": "2026-06-18T13:20:58Z"
     },
     {
       "assignee": "harness",
@@ -223,9 +233,9 @@
       "impact": "_check_collusion returns detailed reason strings (thresholds, 'repeatedly clicked choice: move 0', 'win-transfer W-L over N matches') into session.ended.quarantine_reason, surfaced to the visiting agent on the battle receipt. Leaking the exact heuristic enables trivial evasion (add 1 random move; stay under the 5-match win-transfer threshold) \u2014 same D7 anti-enumeration class as the battle_id leak (#186).",
       "lane": "integrity",
       "priority": "P1",
-      "status": "running",
+      "status": "done",
       "title": "Collusion quarantine_reason leaks heuristic internals to the agent (D7)",
-      "updated_at": "2026-06-18T09:31:01Z"
+      "updated_at": "2026-06-18T12:10:49Z"
     },
     {
       "assignee": "adx-cli",
@@ -292,6 +302,11 @@
           "author": "codex",
           "body": "Fixed: PR #190 MERGED \u2014 scratchpad fenced between --- BEGIN/END NOTES --- in render_state so forged section headers can't masquerade as server-authored state. Note: scratchpad was already capped at MAX_SCRATCHPAD_CHARS=1200 (the 'unbounded' half of the audit note didn't apply). render_state+bridge suites green.",
           "created_at": "2026-06-17T08:24:47Z"
+        },
+        {
+          "author": "codex",
+          "body": "REVIEW VERIFIED: render_state fences scratchpad between --- BEGIN/END NOTES ---; forged '## Recent turns' text stays inside notes and real Recent turns renders after fence. Tests: uv run pytest tests/test_fleet_kanban.py packages/adx_bridges/tests/test_render_state_active.py::test_scratchpad_is_fenced_against_section_injection packages/adx_bridges/tests/test_showdown_battle_bridge.py::test_render_state_hard_cap -q => 3 passed; ruff check touched files => pass. Limitation: MCP sidecar/TestClient e2e hung in this sandbox and was stopped; not counted as pass.",
+          "created_at": "2026-06-18T12:16:43Z"
         }
       ],
       "created_by": "codex",
@@ -303,9 +318,9 @@
       "impact": "Agent-authored scratchpad text is rendered into the battle-state string (showdown_battle_bridge.py:~107 / state render) without escaping, so an agent can inject a '## Recent turns'-style header + forged 'T#: ...' lines that appear in its OWN rendered state and poison its decision loop. Self-harm only today (no cross-agent/rating impact) \u2192 P2; but it is the latent cross-surface injection risk if scratchpad ever reaches a replay/opponent view.",
       "lane": "integrity",
       "priority": "P2",
-      "status": "review",
+      "status": "done",
       "title": "Scratchpad rendered into battle state without escaping \u2014 self-injection of fake turn lines",
-      "updated_at": "2026-06-17T08:24:47Z"
+      "updated_at": "2026-06-18T12:16:47Z"
     },
     {
       "assignee": "harness",
@@ -352,7 +367,13 @@
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "codex",
+          "body": "DEPLOY RELAY (harness-11 #401 was redirected into codex's pane, but it names adx-core as owner). codex VERIFIED the deploy is needed + declines to run it (wrong actor): live /bene/ last-modified=06:36:33 GMT (stale pre-reboot build, etag 18bfcaf6...); origin/main=6d4c0444 IS current (site/blog/ why+what+how-we-build-bene+index present, sweeps #48-#53 + review fixes thru #286). adx-core: you are the named owner + hold the on-disk Spaces key + are alive \u2014 please execute note-36 (push deploy-target +origin/main:main + POST Spaces) then verify live last-modified advances past 06:36:33 + headless 0.2.1 #root render. codex is NOT running the prod force-push/Spaces POST: prod credential is assigned to you (secrets discipline), there is active deploy contention (#342 bene-11 POSTed, #402 stale dup reaped), and it is hard-to-reverse + outside codex's lane. Flagging to Eddie per harness-11's escape clause.",
+          "created_at": "2026-06-18T11:36:33Z"
+        }
+      ],
       "created_by": "adx-cli",
       "evidence": [
         "wf:agentdex-100-user-readiness(54/71)",
@@ -366,7 +387,7 @@
       "priority": "P0",
       "status": "running",
       "title": "launch gate: agentdex 100-user readiness assessment + go/no-go",
-      "updated_at": "2026-06-17T22:31:10Z"
+      "updated_at": "2026-06-18T11:36:33Z"
     },
     {
       "assignee": "bene",
@@ -1350,6 +1371,72 @@
       "status": "todo",
       "title": "Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN",
       "updated_at": "2026-06-18T06:21:18Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-cli-7",
+      "evidence": [
+        "PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7)"
+      ],
+      "fix": "Implement the D2/D3/D7 endpoints against the frozen request/response shapes in ADR-0013 so adx-cli integrates for real. Register the GitHub OAuth app (client id/secret stays on the backend, never reaches the CLI). Per-agent consent-token model + quota keying are UNCHANGED; /enroll/account is purely a new way to obtain today's token. Coordinate with AWS-PUBLIC-DNS-TLS (agentdex.builders must be live + TLS) so device-flow is real.",
+      "id": "ENROLL-P1-device-flow-backend",
+      "impact": "ADR-0013 landed (PR #295). The adx-cli onboarding journey (adx login GitHub device-flow -> adx onboard wizard -> account-authed enroll -> adx status) is blocked on the backend half of the FROZEN wire contract: POST /auth/device/start + /auth/device/poll (GitHub OAuth app, operator-held secret), POST /enroll/account (session-authed token mint), the github_id<->owner account datastore, and the account->agents join that feeds /status. Until these ship, adx-cli P1-P3 can only build against stubs.",
+      "lane": "onboarding",
+      "priority": "P1",
+      "status": "todo",
+      "title": "adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract)",
+      "updated_at": "2026-06-18T16:45:58Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "adx-cli-7",
+      "evidence": [
+        "ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate)"
+      ],
+      "fix": "Drive the bene adapter / MCP play loop against the LIVE arena (ADX_ARENA_URL=https://agentdex.ai-builders.space today, agentdex.builders once DNS/TLS lands) with MULTIPLE bene agents playing concurrently. Run the full journey several times: enroll -> play N battles -> check /status + /ladder -> /replay. File EACH issue (UX, protocol, durability, fairness) as its own kanban card tagged to the owning lane (adx-cli or adx-core) so we fix in real time. This is the real-cloud dogfood signal the launch gate (ADX-ONLINE-002) needs.",
+      "id": "PLAY-P1-bene-e2e-live",
+      "impact": "We have no continuous real-user signal from the LIVE cloud arena. adx-cli is shipping the watchable Human-vs-AI battle UX (ADX-ONLINE-001) plus the ADR-0013 onboarding journey (#295), but protocol/UX/durability/fairness bugs only surface when a real agent plays end-to-end against the DEPLOYED arena: enroll -> begin -> state/choose -> finish -> replay -> status. Side-by-side concurrent play also exercises the 100-concurrent path.",
+      "lane": "e2e-play",
+      "priority": "P1",
+      "status": "todo",
+      "title": "bene-core: e2e side-by-side LIVE play on the cloud arena \u2014 surface real issues for immediate fix",
+      "updated_at": "2026-06-18T16:46:17Z"
+    },
+    {
+      "assignee": "og",
+      "comments": [],
+      "created_by": "adx-cli-7",
+      "evidence": [
+        "PR #295",
+        "PR #178"
+      ],
+      "fix": "Review both PRs: gh pr view 295 / 178 + gh pr diff. For #295 check ADR coherence with the adx-cli<->adx-core wire contract + doc-lint reachability + release-last sequencing. For #178 verify the acceptance gate actually fails on absent traces (no false-green). Post findings as PR comments and a kanban comment here; move to review-clear or file follow-ups.",
+      "id": "RVW-P1-og-adx-cli-prs",
+      "impact": "adx-cli has 2 open PRs needing independent review before merge: #295 (ADR-0013 first-time-user onboarding design \u2014 architecture/doc + wire-contract coherence) and #178 (ADX-P1-003 observability acceptance gate \u2014 must fail when traces are absent).",
+      "lane": "review",
+      "priority": "P1",
+      "status": "todo",
+      "title": "og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)",
+      "updated_at": "2026-06-18T16:46:17Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [],
+      "created_by": "adx-cli-7",
+      "evidence": [
+        "PR #295",
+        "PR #178"
+      ],
+      "fix": "Adversarially review both PRs (gh pr view/diff 295 + 178). For #295 stress the wire-contract + anti-pay-to-rank + secrets-discipline invariants (OAuth secret never reaches CLI). For #178 confirm the gate cannot false-green when traces are absent + that it does not flake on the live-bridge/Langfuse gating. Cascade genuine follow-ups per the usual /tmp/pr_comment_followup_*.md pattern; post a kanban comment with the verdict.",
+      "id": "RVW-P1-codex-adx-cli-prs",
+      "impact": "adx-cli has 2 open PRs needing independent adversarial review before merge: #295 (ADR-0013 onboarding design) and #178 (ADX-P1-003 observability acceptance gate). codex is the integrity/audit reviewer on this board.",
+      "lane": "review",
+      "priority": "P1",
+      "status": "todo",
+      "title": "codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)",
+      "updated_at": "2026-06-18T16:46:17Z"
     }
   ],
   "events": [
@@ -3037,13 +3124,13 @@
       "card_id": "ADX-P0-001",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "ready"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "ready"
         }
       }
     },
@@ -3053,13 +3140,13 @@
       "card_id": "ADX-P1-001",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "todo"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
         }
       }
     },
@@ -3069,13 +3156,13 @@
       "card_id": "ADX-P1-002",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "todo"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
         }
       }
     },
@@ -3085,13 +3172,13 @@
       "card_id": "ADX-P1-004",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "todo"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
         }
       }
     },
@@ -3101,13 +3188,13 @@
       "card_id": "ADX-P1-006",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "triage"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
         }
       }
     },
@@ -3117,13 +3204,13 @@
       "card_id": "ADX-P1-007",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "triage"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
         }
       }
     },
@@ -3133,13 +3220,13 @@
       "card_id": "ADX-P2-004",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {
-        "before": {
-          "assignee": "adx-cli",
-          "status": "triage"
-        },
         "after": {
           "assignee": "adx-cli",
           "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
         }
       }
     },
@@ -3149,8 +3236,176 @@
       "card_id": "ADX-ONLINE-001",
       "created_at": "2026-06-18T11:14:19Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-ONLINE-002",
+      "created_at": "2026-06-18T11:36:33Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-18T12:10:49Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-18T12:11:20Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-18T12:16:43Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-005",
+      "created_at": "2026-06-18T12:16:47Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-18T13:11:22Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-18T13:18:27Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-001",
+      "created_at": "2026-06-18T13:18:31Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-18T13:18:37Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-18T13:20:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P2-002",
+      "created_at": "2026-06-18T13:20:58Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli-7",
+      "card_id": "ENROLL-P1-device-flow-backend",
+      "created_at": "2026-06-18T16:45:58Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli-7",
+      "card_id": "PLAY-P1-bene-e2e-live",
+      "created_at": "2026-06-18T16:46:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli-7",
+      "card_id": "RVW-P1-og-adx-cli-prs",
+      "created_at": "2026-06-18T16:46:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli-7",
+      "card_id": "RVW-P1-codex-adx-cli-prs",
+      "created_at": "2026-06-18T16:46:17Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-18T11:14:19Z"
+  "updated_at": "2026-06-18T16:46:17Z"
 }
