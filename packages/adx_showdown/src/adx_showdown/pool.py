@@ -180,3 +180,14 @@ class SidecarPool:
         """Total RSS across the pool (MB)."""
         vals = await asyncio.gather(*(s.rss_mb() for s in self._sidecars), return_exceptions=True)
         return round(sum(v for v in vals if isinstance(v, int | float)), 1)
+
+    def any_dead(self) -> bool:
+        """True if any pool member's node process has exited (a crashed sidecar).
+
+        Synchronous + IPC-free — reads each member's cached ``returncode`` (``None``
+        while running), so it is safe to call from the ``/healthz`` readiness probe
+        without risking a hang on a wedged sidecar. A never-started member reports
+        ``returncode is None`` (not dead). Auto-respawn is a separate concern
+        (RECOVER-P1-sidecar-respawn); this only *reports* liveness.
+        """
+        return any(s.returncode is not None for s in self._sidecars)
