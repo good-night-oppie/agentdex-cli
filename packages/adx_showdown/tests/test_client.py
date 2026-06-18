@@ -204,6 +204,46 @@ def test_revival_blessing_decrements_fainted_count_not_active_hp():
     assert s.p1.hp_pct == 80  # active Garchomp HP NOT clobbered by the bench 50%
 
 
+def test_revival_blessing_split_duplicate_decrements_once():
+    """The omniscient log emits each |split| HP event TWICE (private exact-HP then
+    public percent-HP line, adjacent). Revival Blessing is a |-heal|, so without
+    dedup a single revival would decrement fainted_count twice. It must decrement
+    exactly once. PR #219 review 3432259027."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Sneasler|Sneasler, L78|100/100",
+            "|faint|p1a: Sneasler",  # fainted_count = 1
+            "|switch|p1a: Garchomp|Garchomp, L78|100/100",
+            "|faint|p1a: Garchomp",  # fainted_count = 2
+            "|switch|p1a: Rotom|Rotom, L78|100/100",  # active = Rotom
+            "|split|p1",
+            "|-heal|p1: Sneasler|123/256|[from] move: Revival Blessing",  # private
+            "|-heal|p1: Sneasler|48/100|[from] move: Revival Blessing",  # public twin
+        ]
+    )
+    assert s.p1.fainted_count == 1  # ONE revival → 2-1, NOT 2-2=0
+    assert s.p1.hp_pct == 100  # active Rotom untouched by the bench revive
+
+
+def test_two_separate_revivals_each_decrement():
+    """A re-faint then a second Revival Blessing of the same mon is a DISTINCT
+    revival (separated by other events) and must decrement again — the dedup only
+    suppresses the adjacent split twin, not a later genuine revival."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Sneasler|Sneasler, L78|100/100",
+            "|faint|p1a: Sneasler",  # fainted_count = 1
+            "|switch|p1a: Rotom|Rotom, L78|100/100",
+            "|-heal|p1: Sneasler|48/100|[from] move: Revival Blessing",  # revive #1 → 0
+            "|switch|p1a: Sneasler|Sneasler, L78|48/100",
+            "|faint|p1a: Sneasler",  # faints again → 1
+            "|switch|p1a: Rotom|Rotom, L78|100/100",
+            "|-heal|p1: Sneasler|48/100|[from] move: Revival Blessing",  # revive #2 → 0
+        ]
+    )
+    assert s.p1.fainted_count == 0
+
+
 def test_ordinary_heal_still_folds_active_hp():
     """A normal |-heal| (Leftovers, drain, etc.) targets the active mon and must
     still update hp_pct — the Revival Blessing carve-out must not regress it."""
