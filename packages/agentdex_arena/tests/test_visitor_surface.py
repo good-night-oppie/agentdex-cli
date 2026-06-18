@@ -1820,3 +1820,35 @@ def test_dispute_and_quarantine_events_are_idempotent(arena):
         assert r.status_code == 200 and r.json()["disputed"] is True
     assert _count("dispute") == 1, "dispute row stays single even after a successful dispute"
     assert _count("quarantine") == 1, "quarantine event must be idempotent across retries"
+
+
+def test_failed_dispute_audit_does_not_log_dispute(arena):
+    """ADX-P1-006 residual: a failed audit is not a durable dispute outcome.
+
+    The handler used to append the ``dispute`` row up front, before it had even
+    loaded the input log or run the re-simulation. When the audit then failed
+    (input log missing -> 404, or resim raising -> 500), the durable log still
+    carried a ``dispute`` row for an audit that never completed — and a later
+    retry, seeing that row as already-logged, would never re-audit. Now the row
+    is written ONLY after a successful re-simulation, so a failed audit leaves
+    no trace and stays fully retryable.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="FailedDisputeBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+    battle_id = receipt["battle_id"]
+
+    # Make the input log unrecoverable from both sources the handler consults so
+    # the audit fails (404) before it can reach the re-simulation.
+    gateway.replays[battle_id]["input_log"] = []
+    (gateway.artifacts_dir / f"{battle_id}.inputlog.json").unlink(missing_ok=True)
+
+    for _ in range(2):
+        r = client.post(f"/battle/{battle_id}/dispute", json={"token": token})
+        assert r.status_code == 404
+
+    assert not any(
+        e.get("type") == "dispute" and e.get("payload", {}).get("battle_id") == battle_id
+        for e in gateway.events.iter_events()
+    ), "a failed (404) audit must not leave a durable 'dispute' row"

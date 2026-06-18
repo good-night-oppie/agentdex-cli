@@ -2182,6 +2182,14 @@ def create_app(
         # retry appended another row, structurally duplicating the durable event
         # log. Disputes are rare so the O(events) scan is fine; resim itself is
         # deterministic and safe to repeat.
+        #
+        # Order matters (ADX-P1-006 residual): do NOT append the "dispute" row up
+        # front. A failed audit — input log missing (404 below) or the resim
+        # raising (500) — is not a durable dispute *outcome*; recording it before
+        # the audit completes leaves a "dispute" row for work that never happened,
+        # which a later retry then treats as already-logged and never re-audits.
+        # The dispute (and any quarantine) are recorded ONLY after a successful
+        # re-simulation, as one atomic group append.
         def _already_logged(event_type: str) -> bool:
             return any(
                 ev.get("type") == event_type
@@ -2189,14 +2197,6 @@ def create_app(
                 for ev in gateway.events.iter_events()
             )
 
-        if not _already_logged("dispute"):
-            gateway.events.append(
-                "dispute",
-                {
-                    "battle_id": battle_id,
-                    "timestamp": gateway.now(),
-                },
-            )
         input_log = data.get("input_log")
         if not input_log:
             log_file = gateway.artifacts_dir / f"{battle_id}.inputlog.json"
@@ -2217,9 +2217,24 @@ def create_app(
             resim_winner = sanitize_name(res.winner)
             reported_winner = sanitize_name(data["winner"])
             match = resim_winner == reported_winner
-            if not match:
-                if not _already_logged("quarantine"):
-                    gateway.events.append(
+            # Audit succeeded — now record the durable outcome. Build the group
+            # under idempotence guards (a retry that already landed these rows
+            # adds nothing) and land it as one atomic append so a dispute can
+            # never be durably visible without its quarantine, or vice versa.
+            event_items: list[tuple[str, dict[str, Any]]] = []
+            if not _already_logged("dispute"):
+                event_items.append(
+                    (
+                        "dispute",
+                        {
+                            "battle_id": battle_id,
+                            "timestamp": gateway.now(),
+                        },
+                    )
+                )
+            if not match and not _already_logged("quarantine"):
+                event_items.append(
+                    (
                         "quarantine",
                         {
                             "battle_id": battle_id,
@@ -2227,6 +2242,10 @@ def create_app(
                             "timestamp": gateway.now(),
                         },
                     )
+                )
+            if event_items:
+                gateway.events.append_many(event_items)
+            if not match:
                 return {
                     "disputed": True,
                     "match": False,
