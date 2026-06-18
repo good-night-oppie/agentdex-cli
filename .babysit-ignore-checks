@@ -1,0 +1,3 @@
+# Checks the PR babysitter ignores for merge/escalation decisions (one per line).
+# pre-commit lints vendor/aaop/** and is permanently red; doc-lint is the real gate.
+pre-commit
