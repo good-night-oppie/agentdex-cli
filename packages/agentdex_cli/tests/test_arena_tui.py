@@ -319,3 +319,22 @@ def test_legacy_default_agent_names_includes_original_bare_default(monkeypatch) 
     names = arena_tui._legacy_default_agent_names()
     assert "terminal-player" in names
     assert any(n.startswith("terminal-player-") for n in names)  # plus the suffixed forms
+
+
+def test_default_arena_base_is_a_live_https_host(monkeypatch) -> None:
+    """`adx arena play` with no --url must reach a LIVE arena. agentdex.builders
+    is not wired yet (parked DNS, no TLS -> the default would time out), so the
+    default is the live, skill.md-canonical host agentdex.ai-builders.space.
+    Override precedence: explicit arg > ADX_ARENA_URL > ARENA_BASE > default."""
+    from agentdex_cli.arena_client import DEFAULT_BASE, resolve_base
+
+    monkeypatch.delenv("ADX_ARENA_URL", raising=False)
+    monkeypatch.delenv("ARENA_BASE", raising=False)
+    assert DEFAULT_BASE == "https://agentdex.ai-builders.space"
+    assert resolve_base() == DEFAULT_BASE
+
+    monkeypatch.setenv("ARENA_BASE", "https://env-arena-base")
+    assert resolve_base() == "https://env-arena-base"
+    monkeypatch.setenv("ADX_ARENA_URL", "https://adx-arena-url")
+    assert resolve_base() == "https://adx-arena-url"  # ADX_ARENA_URL wins over ARENA_BASE
+    assert resolve_base("https://explicit") == "https://explicit"  # explicit arg wins over all
