@@ -15,6 +15,7 @@ test_visitor_surface.py behind the node gate.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import unittest.mock as mock
 from pathlib import Path
@@ -523,6 +524,10 @@ def test_advance_shields_finish_so_a_cancelled_choose_still_publishes(tmp_path: 
         with pytest.raises(asyncio.CancelledError):
             await second  # the request is cancelled...
         assert second_session.ended is None  # ...and hasn't published yet (still blocked)
+        # A STRONG reference to the backgrounded finish survives the cancel, so
+        # the loop's weak task ref can't GC it mid-wait (PR #289 review 3435535482).
+        assert second_session.finish_task is not None
+        assert not second_session.finish_task.done()
 
         release_first.set()
         await first
@@ -534,6 +539,45 @@ def test_advance_shields_finish_so_a_cancelled_choose_still_publishes(tmp_path: 
         assert second_session.ended is not None, "shielded finish must complete despite the cancel"
         assert second_session.ended["winner"] == visitor
         assert "rated-second" in gateway.replays
+        # The done-callback releases the strong ref once the finish completes.
+        assert second_session.finish_task is None
+
+
+def test_expire_if_stale_skips_while_finish_outstanding(tmp_path: Path) -> None:
+    """PR #289 review 3435535478: while a shielded finish is in-flight
+    (session.finish_task set, session.ended still None), _expire_if_stale must NOT
+    forfeit — otherwise it queues a second _finish that double-appends battle_end
+    and overwrites the real result with a bogus timeout forfeit."""
+    gateway = _gateway(tmp_path)
+    session = BattleSession(
+        battle_id="rated-inflight",
+        claims_token_id="tenant-x",
+        visitor_name="InFlightBot",
+        lane="rated",
+        opponent="anchor-max_damage",
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type]
+        opponent_policy=None,
+    )
+    session.last_touch = 0.0  # ancient — would normally trip the turn-budget forfeit
+
+    async def run() -> None:
+        # An outstanding shielded finish, modelled by a pending task.
+        dummy = asyncio.ensure_future(asyncio.sleep(60))
+        session.finish_task = dummy
+        try:
+            await gateway._expire_if_stale(session)
+            assert session.ended is None, "must not forfeit while a finish is outstanding"
+            assert not any(e["type"] == "battle_end" for e in gateway.events.iter_events()), (
+                "no second battle_end may be appended"
+            )
+        finally:
+            dummy.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await dummy
+            session.finish_task = None
+
+    asyncio.run(run())
 
     asyncio.run(run())
 
