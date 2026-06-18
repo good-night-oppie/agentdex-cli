@@ -370,3 +370,51 @@ def test_webhook_notifier_backpressures_to_fallback_when_saturated(monkeypatch):
     notify("b@example.com", "code2")  # saturated -> inline file-inbox fallback
     assert fallback_calls == [("b@example.com", "code2")]
     release.set()  # let the first delivery finish cleanly
+
+
+def test_deliver_webhook_does_not_log_url_secret(monkeypatch, caplog):
+    """The failure log must NOT leak the webhook URL — operators may embed a delivery
+    secret in its query string, and httpx exception strings carry the request URL.
+    Only the exception type + HTTP status are logged. PR #231 review 3432522335."""
+    import logging
+
+    import agentdex_arena.__main__ as m
+    import httpx
+
+    secret_url = "https://relay.example/send?token=SUPER_SECRET_TOKEN"
+    req = httpx.Request("POST", secret_url)
+
+    class _FakeResp:
+        status_code = 401
+
+        def raise_for_status(self) -> None:
+            raise httpx.HTTPStatusError(
+                f"Client error '401 Unauthorized' for url '{secret_url}'",
+                request=req,
+                response=httpx.Response(401, request=req),
+            )
+
+    class _FakeClient:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> bool:
+            return False
+
+        def post(self, url, json):
+            return _FakeResp()
+
+    monkeypatch.setattr(httpx, "Client", _FakeClient)
+
+    with caplog.at_level(logging.WARNING):
+        m._deliver_webhook(
+            secret_url, "owner@example.com", "code", timeout=1.0, fallback=lambda o, c: None
+        )
+
+    msgs = " ".join(r.getMessage() for r in caplog.records)
+    assert "SUPER_SECRET_TOKEN" not in msgs  # the secret never reaches the log
+    assert secret_url not in msgs
+    assert "HTTPStatusError" in msgs and "401" in msgs  # still a useful redacted reason
