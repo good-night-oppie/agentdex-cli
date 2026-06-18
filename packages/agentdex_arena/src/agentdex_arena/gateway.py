@@ -1421,16 +1421,47 @@ class ArenaGateway:
         if rating_block is not None:
             receipt["rating"] = rating_block
         session.ended = receipt
+        # Durably persist the replay record (ADX-P0-001 residual). self.replays is
+        # in-memory only — reset to {} on boot — so without this an honest
+        # receipt's /replay/<id> (and /fork, /dispute) 404s for EVERY battle from a
+        # prior process after a restart. Writing the full record alongside the
+        # input log lets load_replay() rehydrate it on demand. Best-effort like the
+        # input log: a write failure is logged, never fatal (the canonical EventLog
+        # already committed above).
         try:
             self.artifacts_dir.mkdir(parents=True, exist_ok=True)
             (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
                 json.dumps(input_log, indent=1) + "\n"
             )
-        except Exception:
-            log.warning(
-                "failed to write input log artifact for %s", session.battle_id, exc_info=True
+            (self.artifacts_dir / f"{session.battle_id}.replay.json").write_text(
+                json.dumps(self.replays[session.battle_id], indent=1) + "\n"
             )
+        except Exception:
+            log.warning("failed to write replay artifact for %s", session.battle_id, exc_info=True)
         return receipt
+
+    def load_replay(self, battle_id: str) -> dict[str, Any] | None:
+        """Return a battle's replay record, rehydrating from the durable artifact
+        when it is absent in-memory (ADX-P0-001 residual: self.replays is reset to
+        {} on boot, so /replay /fork /dispute would otherwise 404 every battle from
+        a prior process despite its receipt promising a replay). The rehydrated
+        record is cached so subsequent hits stay in-memory. The public /replay view
+        still filters to non-private fields, so this leaks nothing new."""
+        data = self.replays.get(battle_id)
+        if data is not None:
+            return data
+        # Path-traversal guard: battle_id is a URL path segment; only ever read a
+        # `<id>.replay.json` basename inside artifacts_dir.
+        if "/" in battle_id or "\\" in battle_id or ".." in battle_id:
+            return None
+        try:
+            loaded = json.loads((self.artifacts_dir / f"{battle_id}.replay.json").read_text())
+        except (OSError, ValueError):
+            return None
+        if not isinstance(loaded, dict):
+            return None
+        self.replays[battle_id] = loaded
+        return loaded
 
     # ---------- fork (#6 remix-the-loss, sandbox-only) ----------
 
@@ -2072,7 +2103,7 @@ def create_app(
 
     @app.get("/replay/{battle_id}")
     async def replay(battle_id: str) -> dict:
-        data = gateway.replays.get(battle_id)
+        data = gateway.load_replay(battle_id)
         if data is None:
             raise _opaque_error(404, f"no replay {battle_id}")
         # Public view: omits the separate seed/teams/choices/tenant keys, but note
@@ -2106,7 +2137,7 @@ def create_app(
             claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
-        data = gateway.replays.get(battle_id)
+        data = gateway.load_replay(battle_id)
         # Collapse not-found and not-yours into one opaque 403 BEFORE any
         # battle-specific check (D7 anti-enumeration): a caller may only learn a
         # battle exists — or anything about it, e.g. its lane — if they own it.
@@ -2137,7 +2168,7 @@ def create_app(
             claims = gateway.authority.verify(str(body.get("token", "")), scope="battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
-        data = gateway.replays.get(battle_id)
+        data = gateway.load_replay(battle_id)
         # Collapse not-found and not-yours into one opaque 403 (D7
         # anti-enumeration): a caller may only learn a battle exists if they
         # own it.
