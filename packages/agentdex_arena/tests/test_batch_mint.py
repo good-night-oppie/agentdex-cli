@@ -178,6 +178,34 @@ def test_main_overwrites_existing_loose_file_to_0600(tmp_path, monkeypatch):
     assert len(json.loads(out_path.read_text(encoding="utf-8"))) == 1
 
 
+def test_main_preflights_unwritable_out_before_registering(tmp_path, monkeypatch, capsys):
+    """A bad --out path must abort BEFORE any durable register event is appended.
+
+    Otherwise the names are reserved but the tokens are never delivered, and a
+    corrected rerun rejects the roster as duplicates (PR #232 review). Point
+    --out under a path that is a file (so its parent dir can't be created) and
+    assert the run fails closed with zero durable side effects.
+    """
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _key_hex())
+    roster_path = tmp_path / "roster.json"
+    roster_path.write_text(json.dumps(_roster(2)), encoding="utf-8")
+    runtime_dir = tmp_path / "rt"
+
+    blocker = tmp_path / "blocker"  # a FILE, so blocker/tokens.json's dir can't exist
+    blocker.write_text("i am a file", encoding="utf-8")
+    bad_out = blocker / "tokens.json"
+
+    rc = bm.main(
+        ["--roster", str(roster_path), "--out", str(bad_out), "--runtime-dir", str(runtime_dir)]
+    )
+    assert rc == 2
+    assert "not writable" in capsys.readouterr().err
+    # Zero durable side effects: no register events were appended for any entry.
+    events_file = runtime_dir / "events.jsonl"
+    if events_file.exists():
+        assert bm.load_registered(EventLog(events_file)) == set()
+
+
 def test_main_fail_closed_without_signing_key(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("ARENA_SIGNING_KEY_HEX", raising=False)
     roster_path = tmp_path / "roster.json"
