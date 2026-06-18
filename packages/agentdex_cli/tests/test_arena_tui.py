@@ -220,10 +220,9 @@ def test_play_packs_exported_team_before_begin(monkeypatch, tmp_path) -> None:
 
 
 def test_default_agent_name_survives_server_name_cap(monkeypatch) -> None:
-    """PR #279 review: the default agent name must fit the arena's 24-char
-    server cap (MAX_NAME_LEN) so the CLI-side and server-side names match, and
-    it must hash the FULL hostname so hosts sharing an 8-char prefix don't
-    collide at enrollment."""
+    """PR #279/#285 review: the default agent name must fit the arena's 24-char
+    server cap (MAX_NAME_LEN) so the CLI-side and server-side names match, and it
+    must hash the FULL hostname so hosts sharing a prefix don't collide."""
     from adx_showdown.protocol import MAX_NAME_LEN, sanitize_name
 
     monkeypatch.setattr("socket.gethostname", lambda: "my-very-long-shared-prefix-host-1")
@@ -232,7 +231,7 @@ def test_default_agent_name_survives_server_name_cap(monkeypatch) -> None:
     # Fits the cap -> the server stores exactly what the CLI saved (no truncation).
     assert len(name) <= MAX_NAME_LEN
     assert sanitize_name(name) == name
-    assert name.startswith("terminal-player-")
+    assert name.startswith("tp-")
 
     # Stable across runs for the same host.
     assert arena_tui._default_agent_name() == name
@@ -243,3 +242,50 @@ def test_default_agent_name_survives_server_name_cap(monkeypatch) -> None:
     other = arena_tui._default_agent_name()
     assert other != name
     assert len(other) <= MAX_NAME_LEN
+
+
+def test_default_agent_name_wide_hash_avoids_known_collision(monkeypatch) -> None:
+    """PR #285 review 3435385951: the earlier 32-bit hex suffix collided (the
+    reviewer's example: host-155141 and host-168010 both hashed to 59aee908).
+    The widened 60-bit hash must keep those two distinct."""
+    monkeypatch.setattr("socket.gethostname", lambda: "host-155141")
+    a = arena_tui._default_agent_name()
+    monkeypatch.setattr("socket.gethostname", lambda: "host-168010")
+    b = arena_tui._default_agent_name()
+    assert a != b
+
+
+def test_effective_agent_name_falls_back_to_legacy_creds(monkeypatch, tmp_path) -> None:
+    """PR #285 review 3435385944: an upgrade must not orphan a returning user's
+    still-valid credentials. When on the DEFAULT agent with no creds under the
+    current name but creds under a prior default name, reuse the prior name.
+    An explicit --agent is always honored verbatim."""
+    import types
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("socket.gethostname", lambda: "some-host")
+    cfg = tmp_path / ".agentdex"
+    cfg.mkdir()
+
+    new_default = arena_tui._default_agent_name()
+    legacy = arena_tui._legacy_default_agent_names()[0]
+    assert legacy != new_default
+    args = types.SimpleNamespace(agent=new_default)
+
+    # No creds anywhere -> stay on the current default.
+    assert arena_tui._effective_agent_name(args) == new_default
+
+    # Legacy token+key present, current-default creds absent -> fall back.
+    (cfg / f"{legacy}.token").write_text("legacy-token")
+    (cfg / f"{legacy}.key").write_text("legacy-key")
+    assert arena_tui._effective_agent_name(args) == legacy
+
+    # An explicit (non-default) --agent is never overridden.
+    assert (
+        arena_tui._effective_agent_name(types.SimpleNamespace(agent="MyExplicitBot"))
+        == "MyExplicitBot"
+    )
+
+    # Once the current default also has creds, prefer it over the legacy name.
+    (cfg / f"{new_default}.token").write_text("new-token")
+    assert arena_tui._effective_agent_name(args) == new_default
