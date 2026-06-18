@@ -226,3 +226,37 @@ def test_failed_lazy_start_stops_partial_sidecar(tmp_path: Path):
     assert stopped == [1]  # the partially-started child was torn down
     assert app.state.sidecar is None
     assert app.state.sidecar_start_failed is True
+
+
+def test_partial_start_cleanup_completes_even_when_cancelled(tmp_path: Path):
+    """If the lazy-start cleanup is itself cancelled (client disconnect / shutdown
+    during ready-timeout teardown), the partially-spawned child must STILL be fully
+    stopped — the stop() is shielded from the cancellation (PR #258 review)."""
+    gateway = _make_gateway(tmp_path)
+    stopped: list[int] = []
+    stop_started = asyncio.Event()
+
+    class _PartialStartSlowStop:
+        returncode = None
+
+        async def start(self) -> None:
+            raise SidecarError("ready-event timeout after spawn")
+
+        async def stop(self) -> None:
+            stop_started.set()
+            await asyncio.sleep(0.02)  # teardown takes time
+            stopped.append(1)
+
+    app = create_app(gateway, sidecar_factory=_PartialStartSlowStop)
+
+    async def _run() -> None:
+        t = asyncio.create_task(app.state.ensure_sidecar())
+        await stop_started.wait()  # we're now inside the shielded stop()
+        t.cancel()  # cancel the request mid-cleanup
+        with pytest.raises((asyncio.CancelledError, SidecarError)):
+            await t
+        await asyncio.sleep(0.05)  # let the shielded stop() finish
+        assert stopped == [1]  # teardown completed despite the cancel
+        assert app.state.sidecar_start_failed is True
+
+    asyncio.run(_run())

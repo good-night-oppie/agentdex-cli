@@ -1610,16 +1610,18 @@ def create_app(
                 try:
                     await sc.start()
                 except BaseException:
-                    # If start() spawned a child before raising (e.g. it timed out
-                    # waiting for the ready event), stop it so we don't leak a Node
-                    # process; best-effort (PR #248 review).
-                    with contextlib.suppress(Exception):
-                        await sc.stop()
                     # A failed lazy start must surface as unhealthy. Don't leave a
                     # non-None, unstarted instance (returncode=None reads as "alive"
-                    # to /healthz while every sim request fails "sidecar not started");
-                    # flag it and re-raise so the next request retries a fresh start.
+                    # to /healthz while every sim request fails "sidecar not started").
+                    # Set the flag FIRST so a cancel mid-cleanup still marks unhealthy.
                     app.state.sidecar_start_failed = True
+                    # If start() spawned a child before raising (ready-event timeout),
+                    # stop it so we don't leak a Node process. shield() keeps the
+                    # teardown running to completion even if THIS cleanup is itself
+                    # cancelled (client disconnect / shutdown mid-cleanup); suppress
+                    # swallows stop()'s own errors (PR #248 + #258 review).
+                    with contextlib.suppress(Exception):
+                        await asyncio.shield(sc.stop())
                     raise
                 app.state.sidecar = sc
                 app.state.sidecar_start_failed = False
