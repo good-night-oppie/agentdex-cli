@@ -251,6 +251,26 @@ def test_main_preflights_unwritable_out_before_registering(tmp_path, monkeypatch
         assert bm.load_registered(EventLog(events_file)) == set()
 
 
+def test_main_rejects_directory_out_target(tmp_path, monkeypatch, capsys):
+    """An existing-directory --out passes the parent-writable probe but would fail
+    the os.replace AFTER the durable registers. Reject it up front (PR #245 review)."""
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _key_hex())
+    roster_path = tmp_path / "roster.json"
+    roster_path.write_text(json.dumps(_roster(2)), encoding="utf-8")
+    runtime_dir = tmp_path / "rt"
+    out_dir = tmp_path / "tokens_is_a_dir"
+    out_dir.mkdir()
+
+    rc = bm.main(
+        ["--roster", str(roster_path), "--out", str(out_dir), "--runtime-dir", str(runtime_dir)]
+    )
+    assert rc == 2
+    assert "not writable" in capsys.readouterr().err
+    events_file = runtime_dir / "events.jsonl"
+    if events_file.exists():
+        assert bm.load_registered(EventLog(events_file)) == set()
+
+
 def test_main_fail_closed_without_signing_key(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("ARENA_SIGNING_KEY_HEX", raising=False)
     roster_path = tmp_path / "roster.json"

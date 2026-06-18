@@ -250,6 +250,11 @@ def _preflight_output(out_path: Path) -> None:
     atomic ``_write_tokens`` covers a crash mid-write; this covers the bad
     destination, which is the common operator mistake.)
     """
+    # A directory target passes the parent-writable probe but later fails the
+    # os.replace in _write_tokens — AFTER the durable registers. Reject it here
+    # so the run aborts with zero durable side effects (PR #245 review).
+    if out_path.is_dir():
+        raise IsADirectoryError(f"--out {out_path} is a directory, not a file path")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fd, probe = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.probe.")
     os.close(fd)
