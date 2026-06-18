@@ -381,7 +381,7 @@ def test_deliver_webhook_does_not_log_url_secret(monkeypatch, caplog):
     import agentdex_arena.__main__ as m
     import httpx
 
-    secret_url = "https://relay.example/send?token=SUPER_SECRET_TOKEN"
+    secret_url = "https://relay.example/send?token=SUPER_SECRET_TOKEN"  # pragma: allowlist secret
     req = httpx.Request("POST", secret_url)
 
     class _FakeResp:
