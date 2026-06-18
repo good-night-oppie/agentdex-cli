@@ -104,6 +104,84 @@ def test_per_owner_cap_429_with_retry_after(gw):
     assert ei.value.headers["Retry-After"] == "5"
 
 
+def test_ended_battles_do_not_count_toward_cap(gw):
+    """Finished battles linger in self.sessions for the receipt — they must NOT
+    count as live, else an owner who finished cap-many battles is 429'd forever
+    until restart (PR #243 review)."""
+    agent_key = Ed25519PrivateKey.generate()
+    token = _token(gw, agent_key)
+    owner_norm = _normalize_owner(_OWNER)
+    for i in range(3):  # 3 FINISHED battles (default cap 3)
+        s = _dummy(owner_norm, i)
+        s.ended = {"winner": "x"}
+        gw.sessions[f"done-{i}"] = s
+
+    req = _begin_req(gw, token, agent_key)
+    # No LIVE battles → must get PAST the cap (reaching the sentinel sidecar).
+    with pytest.raises(SidecarError):
+        asyncio.run(_call_begin(gw, req))
+
+
+def test_429_leaves_nonce_usable_for_retry(gw):
+    """A transient 429 must not consume the battle nonce, so a Retry-After replay
+    of the same /battle/begin works instead of 403 unknown nonce (PR #243 review)."""
+    agent_key = Ed25519PrivateKey.generate()
+    token = _token(gw, agent_key)
+    owner_norm = _normalize_owner(_OWNER)
+    for i in range(3):
+        gw.sessions[f"live-{i}"] = _dummy(owner_norm, i)
+
+    req = _begin_req(gw, token, agent_key)
+    nonce = req.battle_nonce
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(_call_begin(gw, req))
+    assert ei.value.status_code == 429
+    # The nonce survived — a replay of the SAME POST is still admissible.
+    assert gw.battle_nonces.get(nonce) is not None
+
+
+class _BlockingSidecar:
+    """A sidecar whose request() suspends until released — lets a begin hold its
+    reservation while a second concurrent begin runs its synchronous cap check."""
+
+    returncode = None
+
+    def __init__(self) -> None:
+        self.gate = asyncio.Event()
+
+    async def request(self, op: str, **kwargs):
+        await self.gate.wait()
+        raise SidecarError("blocking sentinel released")
+
+
+def test_concurrent_begins_cannot_burst_past_cap(gw):
+    """Two simultaneous begins from one owner with 2 live battles (cap 3): the
+    second must 429 because the first holds an in-flight RESERVATION (2 live + 1
+    reserved = 3). Without the atomic reservation both would pass the count check
+    before either published a session and burst past the cap (PR #243 review)."""
+    agent_key = Ed25519PrivateKey.generate()
+    token = _token(gw, agent_key)
+    owner_norm = _normalize_owner(_OWNER)
+    for i in range(2):  # 2 live, cap 3 → exactly one more slot
+        gw.sessions[f"live-{i}"] = _dummy(owner_norm, i)
+
+    sc = _BlockingSidecar()
+    req1 = _begin_req(gw, token, agent_key)
+    req2 = _begin_req(gw, token, agent_key)
+
+    async def _run() -> None:
+        t1 = asyncio.create_task(gw.battle_begin(req1, sidecar=sc))
+        await asyncio.sleep(0.02)  # t1 reserves its slot then suspends in pack_team
+        with pytest.raises(HTTPException) as ei:
+            await gw.battle_begin(req2, sidecar=sc)  # 2 live + 1 reserved = 3 → 429
+        assert ei.value.status_code == 429
+        sc.gate.set()  # release t1 → it unwinds (SidecarError), freeing its slot
+        with pytest.raises(SidecarError):
+            await t1
+
+    asyncio.run(_run())
+
+
 def test_cap_keys_on_owner_not_token_id(gw):
     """5 live battles under a DIFFERENT owner do NOT count → this owner gets past
     the cap (and then hits the sentinel sidecar, proving it passed the check)."""

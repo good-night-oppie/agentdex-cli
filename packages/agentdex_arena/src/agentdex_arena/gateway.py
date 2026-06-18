@@ -589,6 +589,11 @@ class ArenaGateway:
         self._rated_seed_secret = rated_seed_secret or secrets.token_hex(16)
         self.now = now
         self.sessions: dict[str, BattleSession] = {}
+        # In-flight /battle/begin (or /fork) starts that have passed the per-owner
+        # admission check but not yet published their session into self.sessions —
+        # an atomic reservation so concurrent starts from one owner can't burst past
+        # the cap (ADR-0012 §7; PR #243 review). owner_norm -> reserved count.
+        self._owner_inflight: dict[str, int] = {}
         self.cap_503_total = 0  # capacity-shed counter (sidecar pool full) — surfaced on /metrics
         self.pending_enrollments: dict[str, EnrollRequest] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
@@ -743,6 +748,36 @@ class ArenaGateway:
                     pass
             raise _opaque_error(500, f"event log write failed: {e!r}") from None
 
+    def _reserve_owner_slot(self, owner_norm: str) -> None:
+        """Atomically admit one more concurrent LIVE battle for ``owner_norm`` or
+        raise 429 (anti-monopolization, ADR-0012 §7).
+
+        Counts live sessions (``ended is None`` — finished battles linger in
+        ``self.sessions`` so /battle/{id}/state can serve the receipt) PLUS already
+        reserved in-flight starts, so simultaneous /battle/begin (or /fork) calls
+        from one owner can't each pass the check before any session is published and
+        burst past ``ARENA_MAX_BATTLES_PER_OWNER``. MUST be called synchronously (no
+        await) between the check and the first await; pair every reservation with
+        ``_release_owner_slot`` in a finally (PR #243 review).
+        """
+        max_per_owner = int(os.environ.get("ARENA_MAX_BATTLES_PER_OWNER", "3"))
+        live = sum(1 for s in self.sessions.values() if s.owner == owner_norm and s.ended is None)
+        if live + self._owner_inflight.get(owner_norm, 0) >= max_per_owner:
+            raise HTTPException(
+                status_code=429,
+                detail="too many concurrent battles for this owner — finish or forfeit one, then retry",
+                headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+            )
+        self._owner_inflight[owner_norm] = self._owner_inflight.get(owner_norm, 0) + 1
+
+    def _release_owner_slot(self, owner_norm: str) -> None:
+        """Release a reservation taken by ``_reserve_owner_slot`` (call in a finally)."""
+        remaining = self._owner_inflight.get(owner_norm, 0) - 1
+        if remaining > 0:
+            self._owner_inflight[owner_norm] = remaining
+        else:
+            self._owner_inflight.pop(owner_norm, None)
+
     async def battle_begin(self, req: BeginRequest, *, sidecar: Sidecar) -> dict[str, Any]:
         try:
             claims = self.authority.verify(req.token, scope="battle")
@@ -777,17 +812,29 @@ class ArenaGateway:
         # not fill the shared sidecar pool and starve the other ~99 users. Keyed on the
         # NORMALIZED owner (not token_id) so /enroll/reissue with a fresh token cannot
         # reset the cap — the same rotation-as-reset closure the battle quota uses.
-        # Checked BEFORE any sidecar/team work so a capped owner burns nothing. 429
-        # (the caller has too many live battles) is distinct from the pool-full 503.
+        # Reserved synchronously BEFORE any sidecar/team work (so a capped owner burns
+        # nothing AND concurrent starts can't burst past the cap) and released in the
+        # finally below. 429 (too many live battles) is distinct from the pool-full 503.
         owner_norm = _normalize_owner(claims.owner)
-        max_per_owner = int(os.environ.get("ARENA_MAX_BATTLES_PER_OWNER", "3"))
-        if sum(1 for s in self.sessions.values() if s.owner == owner_norm) >= max_per_owner:
-            raise HTTPException(
-                status_code=429,
-                detail="too many concurrent battles for this owner — finish or forfeit one, then retry",
-                headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
-            )
+        try:
+            self._reserve_owner_slot(owner_norm)
+        except HTTPException:
+            # Transient admission failure: restore the nonce we popped above so a
+            # client honoring Retry-After by replaying the SAME /battle/begin works
+            # instead of hitting 403 unknown nonce (PR #243 review).
+            self.battle_nonces[req.battle_nonce] = claims.token_id
+            raise
+        try:
+            return await self._run_battle_begin(req, claims, owner_norm, sidecar=sidecar)
+        finally:
+            self._release_owner_slot(owner_norm)
 
+    async def _run_battle_begin(
+        self, req: BeginRequest, claims: ConsentClaims, owner_norm: str, *, sidecar: Sidecar
+    ) -> dict[str, Any]:
+        """battle_begin's team-pack → sidecar-start → durable-append → publish body,
+        run while the owner-slot reservation is held (PR #243). Split out so the
+        reservation's try/finally wraps every await + the self.sessions publish."""
         if req.lane == "rated":
             if req.gym_leader is not None:
                 raise _opaque_error(400, "cannot select gym leader in rated lane")
