@@ -126,50 +126,64 @@ def _webhook_notifier(
     *,
     fallback: Callable[[str, str], None] | None,
     timeout: float,
-    max_workers: int = 4,
-    max_inflight: int = 64,
+    max_workers: int = 8,
 ) -> Callable[[str, str], None]:
     """A `notify_owner` that POSTs the code to ``url`` off the event loop.
 
     ``enroll_request`` runs ON the asyncio event loop (the `/enroll/request`
     route is ``async def`` and calls it directly), so a blocking webhook POST
     would stall every in-flight battle turn under load. Deliveries therefore run
-    off-loop in a **bounded** thread pool (``max_workers``) gated by a
-    ``max_inflight`` semaphore, preserving the synchronous
+    off-loop in a **bounded** pool of ``max_workers``, preserving the synchronous
     ``Callable[[str, str], None]`` contract with zero gateway changes.
 
-    The bound is load-bearing: the previous one-daemon-thread-per-request design
-    let a webhook outage + enrollment burst spawn an unbounded number of live
-    threads (each blocked up to ``timeout`` seconds), exhausting memory/CPU on the
-    256 MB Koyeb nano and taking unrelated battle traffic down (PR #231 review
-    3432522331). When the backlog is saturated the code is NEVER dropped — we apply
-    backpressure by delivering through the file-inbox ``fallback`` inline (a fast
-    local write) and logging it, rather than queueing/spawning without limit.
+    There is deliberately **no queue**: a semaphore sized to ``max_workers`` admits
+    exactly as many deliveries as there are workers, so when the webhook is slow/down
+    and every worker is busy, the next request does NOT wait behind them — it
+    delivers via the file-inbox ``fallback`` immediately. This:
+
+    - bounds memory to ≤ ``max_workers`` live deliveries (the previous
+      one-thread-per-request design spawned unbounded threads under a webhook
+      outage, OOMing the 256 MB Koyeb nano — PR #231 review 3432522331);
+    - keeps owner latency bounded: a burst during an outage reaches the local
+      fallback at once instead of queueing behind earlier deliveries that each
+      spend ``timeout`` seconds (PR #233 review 3432562439);
+    - bounds the graceful-shutdown drain to ONE ``timeout`` window — the workers
+      run concurrently, so a SIGTERM/redeploy waits ≤ ``timeout``, not
+      ``ceil(queue/workers) * timeout`` (PR #233 review 3432562435).
+
+    The code is NEVER dropped and a fallback failure NEVER escapes into the request:
+    every fallback (the saturated inline path AND ``_deliver_webhook``'s own) is
+    guarded (PR #233 review 3432562438).
     """
     from concurrent.futures import ThreadPoolExecutor
 
     executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="arena-owner-webhook")
-    inflight = threading.BoundedSemaphore(max_inflight)
+    # Sized to the worker count → admits no more than the pool can run at once, so a
+    # full pool means "all workers busy" (fall back now), never "work queued behind a
+    # failing webhook".
+    free = threading.BoundedSemaphore(max_workers)
+
+    def _fallback_inline(owner: str, code: str, why: str) -> None:
+        log.warning("owner notify: %s for %r; using file inbox", why, owner)
+        if fallback is None:
+            return
+        try:
+            fallback(owner, code)
+        except Exception:  # noqa: BLE001 — a bad inbox must NOT raise into /enroll/request; the code is pending-stored
+            log.exception("owner notify: file-inbox fallback ALSO failed for %r", owner)
 
     def notify(owner: str, code: str) -> None:
-        if not inflight.acquire(blocking=False):
-            # backlog saturated — backpressure to the fast file inbox inline rather
-            # than grow the queue/threads without bound. The code still reaches the
-            # operator.
-            log.warning(
-                "owner notify: webhook backlog full (>= %d in flight) for %r; using file inbox",
-                max_inflight,
-                owner,
-            )
-            if fallback is not None:
-                fallback(owner, code)
+        if not free.acquire(blocking=False):
+            # every worker is busy (slow/down webhook) — don't queue behind them; the
+            # operator gets the code from the file inbox right away.
+            _fallback_inline(owner, code, "all webhook workers busy")
             return
 
         def _task() -> None:
             try:
                 _deliver_webhook(url, owner, code, timeout=timeout, fallback=fallback)
             finally:
-                inflight.release()
+                free.release()
 
         executor.submit(_task)
 
