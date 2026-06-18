@@ -1017,11 +1017,14 @@ class ArenaGateway:
         except BaseException:
             # Published but failed before returning — stop the live sidecar battle
             # (a pooled sidecar releases the slot's capacity only on an explicit
-            # stop, PR #259 review) BEFORE dropping our only handle, then remove it
-            # from self.sessions so a dead battle isn't counted (PR #254 review).
-            with contextlib.suppress(Exception):
-                await sidecar.request("stop", battle=battle_id)
-            self.sessions.pop(battle_id, None)
+            # stop, PR #259 review) BEFORE dropping our only handle. The pop sits in
+            # a finally so even a CANCELLED stop await (CancelledError isn't
+            # suppressed) still removes the dead battle from the cap (PR #261 review).
+            try:
+                with contextlib.suppress(Exception):
+                    await sidecar.request("stop", battle=battle_id)
+            finally:
+                self.sessions.pop(battle_id, None)
             raise
 
     async def _expire_if_stale(self, session: BattleSession) -> None:
@@ -1532,11 +1535,14 @@ class ArenaGateway:
         except BaseException:
             # Published but failed mid-replay — stop the live sidecar battle (a pooled
             # sidecar frees the slot's capacity only on an explicit stop, PR #259
-            # review) BEFORE dropping our only handle, then remove the dead fork
-            # session so it isn't counted against the owner cap (PR #254 review).
-            with contextlib.suppress(Exception):
-                await sidecar.request("stop", battle=battle_id)
-            self.sessions.pop(battle_id, None)
+            # review) BEFORE dropping our only handle. The pop sits in a finally so
+            # even a CANCELLED stop await still removes the dead fork from the cap
+            # (PR #261 review).
+            try:
+                with contextlib.suppress(Exception):
+                    await sidecar.request("stop", battle=battle_id)
+            finally:
+                self.sessions.pop(battle_id, None)
             raise
 
     # ---------- public, read-only (L0) ----------
