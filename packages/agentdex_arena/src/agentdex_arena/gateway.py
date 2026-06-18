@@ -822,6 +822,20 @@ class ArenaGateway:
             anchor_team_name = RATED_ANCHOR_TEAMS[anchor_team_idx]
             opp_team = await pack_team(sidecar, starter_pack()[anchor_team_name])
         session.p1_team, session.p2_team = team, opp_team
+        # Rated quota PREFLIGHT (read-only fast-fail): if the daily rated cap is
+        # already hit, return 403 BEFORE sidecar.start + the durable battle_begin
+        # append, so an over-quota agent (who can mint fresh nonces via
+        # /battle/start without a quota check) cannot repeatedly write orphan
+        # rated-begin rows into the EventLog / Postgres mirror. check_quota does NOT
+        # debit — the authoritative spend_quota still follows AFTER success below, so
+        # Class A (append-before-publish) and Class B (spend-after-success) both hold
+        # for battles that actually run. Mirrors the evolve guard (evolution_request
+        # / PR #173). PR #181 review 3424588956.
+        if req.lane == "rated":
+            try:
+                self.authority.check_quota(claims, scope="battle")
+            except ConsentError as e:
+                raise _opaque_error(403, e) from None
         try:
             resp = await sidecar.request(
                 "start",

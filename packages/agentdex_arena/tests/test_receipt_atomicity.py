@@ -198,12 +198,17 @@ def test_finish_artifact_write_failure_keeps_public_receipt_shape(tmp_path: Path
     assert [event["type"] for event in gateway.events.iter_events()] == ["battle_end"]
 
 
-def test_rated_quota_debited_after_durable_append(tmp_path: Path) -> None:
-    """Class-B ordering: spend_quota fires AFTER _append_or_fail_closed for rated begins.
+def test_exhausted_rated_quota_rejected_before_orphan_append(tmp_path: Path) -> None:
+    """Rated quota PREFLIGHT (PR #181): an ALREADY-exhausted caller is rejected by
+    the read-only check_quota guard BEFORE sidecar.start + the durable battle_begin
+    append, so a flood of fresh-nonce retries cannot fill the EventLog with orphan
+    rated begins. (The authoritative spend_quota debit still follows AFTER a
+    successful append — Class A append-before-publish + Class B spend-after-success
+    are preserved for battles that actually run; see test_quota_spend_after_success.)
 
-    When quota is already exhausted after the append succeeds:
-    - battle_begin IS in the durable log (append completed before quota check)
-    - sidecar "stop" was called (no orphan live battle)
+    With quota already exhausted at preflight:
+    - NO battle_begin row in the durable log (append never reached)
+    - sidecar was NOT touched (no start, hence no stop / orphan live battle)
     - 403 raised (not 500)
     - battle_id NOT in gateway.sessions (session never published)
     """
@@ -248,12 +253,11 @@ def test_rated_quota_debited_after_durable_append(tmp_path: Path) -> None:
         lane="rated",
     )
 
-    stop_calls: list[str] = []
+    sidecar_calls: list[str] = []
 
     class _FakeSidecar:
         async def request(self, cmd: str, **kwargs):
-            if cmd == "stop":
-                stop_calls.append(kwargs.get("battle", ""))
+            sidecar_calls.append(cmd)
             return {"state": {}}
 
     async def _fake_pack_team(sidecar, team_spec):
@@ -264,9 +268,9 @@ def test_rated_quota_debited_after_durable_append(tmp_path: Path) -> None:
             asyncio.run(gateway.battle_begin(req, sidecar=_FakeSidecar()))
 
     assert exc.value.status_code == 403
-    # append happened BEFORE quota check — battle_begin IS in the durable log
-    assert [e["type"] for e in gateway.events.iter_events()] == ["battle_begin"]
-    # sidecar battle was stopped (no orphan live battle)
-    assert len(stop_calls) == 1
+    # preflight fired BEFORE the durable append — NO orphan battle_begin row
+    assert [e["type"] for e in gateway.events.iter_events()] == []
+    # the sidecar was never touched (no start, so nothing to stop)
+    assert sidecar_calls == []
     # session was never published
     assert all("rated" not in bid for bid in gateway.sessions)
