@@ -190,10 +190,10 @@ def test_poll_authorized_resolves_primary_verified_email():
 def test_poll_authorized_includes_client_secret_when_set():
     flow, t = _flow(
         _authorized_scripts([{"email": "e@x.com", "primary": True, "verified": True}]),
-        client_secret="sekret",
+        client_secret="sekret",  # pragma: allowlist secret  # fake test value
     )
     flow.poll("dev-123")
-    assert t.calls[0][3]["client_secret"] == "sekret"
+    assert t.calls[0][3]["client_secret"] == "sekret"  # pragma: allowlist secret  # fake test value
 
 
 def test_poll_omits_client_secret_when_unset():

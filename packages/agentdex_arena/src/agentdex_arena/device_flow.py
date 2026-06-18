@@ -38,7 +38,9 @@ GITHUB_USER_URL = "https://api.github.com/user"
 GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
 
 OAUTH_CLIENT_ID_ENV = "GITHUB_OAUTH_CLIENT_ID"
-OAUTH_CLIENT_SECRET_ENV = "GITHUB_OAUTH_CLIENT_SECRET"
+OAUTH_CLIENT_SECRET_ENV = (
+    "GITHUB_OAUTH_CLIENT_SECRET"  # pragma: allowlist secret  # env var NAME, not a value
+)
 
 DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 # read:user gets the numeric id; user:email is required for /user/emails so we
