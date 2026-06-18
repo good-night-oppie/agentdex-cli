@@ -1341,7 +1341,7 @@ class ArenaGateway:
     # ---------- fork (#6 remix-the-loss, sandbox-only) ----------
 
     async def battle_fork(
-        self, src_battle_id: str, src: dict[str, Any], *, turn: int, sidecar: Sidecar
+        self, src_battle_id: str, src: dict[str, Any], *, turn: int, sidecar: Sidecar, owner: str
     ) -> dict[str, Any]:
         """Branch a finished SANDBOX battle at `turn`: same seed, same teams, same
         fresh-seeded opponent policy; the visitor's recorded choices replay through
@@ -1362,14 +1362,38 @@ class ArenaGateway:
             `_is_autopilot` reading the fork session's own visitor_choices
             list (populated below as choices replay).
         """
+        # Forking starts a NEW live sidecar battle, so it must obey the same
+        # per-owner concurrency cap as /battle/begin — otherwise an owner can
+        # repeatedly fork a finished sandbox battle to create uncapped live
+        # sessions and monopolize the shared sidecar pool (PR #243 review). Reserve
+        # against the FORKING caller's owner (threaded from the route's verified
+        # claims) so the fork session is counted and capped.
+        owner_norm = _normalize_owner(owner)
+        self._reserve_owner_slot(owner_norm)
+        try:
+            return await self._run_battle_fork(
+                src_battle_id, src, turn=turn, sidecar=sidecar, owner_norm=owner_norm
+            )
+        finally:
+            self._release_owner_slot(owner_norm)
+
+    async def _run_battle_fork(
+        self,
+        src_battle_id: str,
+        src: dict[str, Any],
+        *,
+        turn: int,
+        sidecar: Sidecar,
+        owner_norm: str,
+    ) -> dict[str, Any]:
+        """battle_fork's sidecar-start → append → publish → choice-replay body, run
+        while the owner-slot reservation is held (PR #243)."""
         battle_id = f"sandbox-fork-{uuid.uuid4().hex[:8]}"
         opponent = str(src["opponent"])
         session = BattleSession(
             battle_id=battle_id,
             claims_token_id=str(src["tenant"]),
-            owner=str(
-                src.get("owner", "")
-            ),  # fork: source owner not threaded → uncapped (sandbox-derived)
+            owner=owner_norm,  # fork is capped to the forking caller's owner (PR #243 review)
             visitor_name=str(src["visitor"]),
             lane="sandbox",
             opponent=opponent,
@@ -1938,7 +1962,9 @@ def create_app(
         if not isinstance(turn, int) or not 0 <= turn <= 1000:
             raise _opaque_error(422, f"bad fork turn {turn!r}")
         try:
-            return await gateway.battle_fork(battle_id, data, turn=turn, sidecar=await _sidecar())
+            return await gateway.battle_fork(
+                battle_id, data, turn=turn, sidecar=await _sidecar(), owner=claims.owner
+            )
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001
