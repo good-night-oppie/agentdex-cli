@@ -64,20 +64,21 @@ def _verify_token_opaque(
     gateway: ArenaGateway,
     token: str,
     scope: Literal["enroll", "battle", "evolve"],
-    spend_quota_scope: Literal["enroll", "battle", "evolve"] | None = None,
 ) -> Any:
     """Verify bearer consent token, returning claims.
 
     Converts malformed, expired, revoked, or wrong-scope ConsentErrors into
     a generic opaque error to prevent leak of inner details (P2 PR #50 comment follow-up).
+
+    Auth ONLY — this NEVER spends quota. Quota debits are Class B
+    (spend-after-success): a tool runs its fallible work first and debits +
+    durably records the slot only on success, mirroring HTTP
+    /evolution/request. Spending here (before the work) durably over-counts a
+    request that later fails — exhausting the caller's cap after a restart for
+    work that produced nothing (PR #284 review 3435334329).
     """
     try:
-        claims = gateway.authority.verify(token, scope=scope)
-        if spend_quota_scope:
-            _, spent_key = gateway.authority.spend_quota(claims, scope=spend_quota_scope)
-            # Durable so the daily cap survives a restart (ADX-P2-004).
-            gateway._record_quota_spend(spent_key)
-        return claims
+        return gateway.authority.verify(token, scope=scope)
     except ConsentError as e:
         err_id = uuid.uuid4().hex[:12]
         logger.warning("mcp auth error (ref=%s): %s", err_id, e)
@@ -310,18 +311,36 @@ async def write_scratchpad(token: str, battle_id: str, text: str) -> dict[str, A
 async def request_evolution(token: str, team: str, reasoning: str) -> dict[str, Any]:
     """Request evolution seeds for a team. Required scope: 'evolve'."""
     gw = _get_gateway()
-    _verify_token_opaque(gw, token, scope="evolve", spend_quota_scope="evolve")
+    claims = _verify_token_opaque(gw, token, scope="evolve")
+    # Fast-fail BEFORE the expensive sidecar work if the daily evolve cap is
+    # already hit (read-only). The authoritative debit + durable quota_spend
+    # record happen only AFTER offer_seeds succeeds, mirroring HTTP
+    # /evolution/request — so a failed seed generation can neither burn nor (post
+    # ADX-P2-004) durably record a slot (Class B spend-after-success). PR #284
+    # review 3435334329.
+    try:
+        gw.authority.check_quota(claims, scope="evolve")
+    except ConsentError as e:
+        raise _opaque_mcp_error("evolve quota", e) from None
 
     sc_fn = _get_sidecar_fn()
     try:
         sidecar = await sc_fn()
-        return await offer_seeds(
+        result = await offer_seeds(
             sidecar,
             current_team=team or None,
             reasoning=sanitize_name(reasoning, max_len=200),
         )
     except Exception as e:
         raise ValueError(f"Evolution request error: {e}") from None
+
+    try:
+        _, spent_key = gw.authority.spend_quota(claims, scope="evolve")
+    except ConsentError as e:
+        raise _opaque_mcp_error("evolve quota", e) from None
+    # Durable so the daily evolve cap survives a restart (ADX-P2-004).
+    gw._record_quota_spend(spent_key)
+    return result
 
 
 @mcp.tool()
