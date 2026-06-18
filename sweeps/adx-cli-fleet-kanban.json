@@ -1239,7 +1239,9 @@
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        "VERIFIED LIVE (bene-core-6, 2026-06-18): site shows v0.2.1 at agentdex.ai-builders.space/bene \u2014 PR #46 shipped, version now consistent pyproject.toml + PyPI + landing."
+      ],
       "created_by": "bene-core",
       "evidence": [
         "pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main."
@@ -1249,13 +1251,15 @@
       "impact": "A provenance/reproducibility product must not drift its own version. Landing shows v0.2.0 while pyproject.toml + PyPI are 0.2.1 -> users doubt the page is current.",
       "lane": "launch-gate",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1",
-      "updated_at": "2026-06-18T06:21:17Z"
+      "updated_at": "2026-06-18T22:52:01Z"
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        "VERIFIED LIVE (bene-core-6, 2026-06-18): llms.txt has 4 references to good-night-oppie/bene (canonical repo) \u2014 PR #52 shipped."
+      ],
       "created_by": "bene-core",
       "evidence": [
         "site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene."
@@ -1265,9 +1269,9 @@
       "impact": "llms.txt is the AI-agent entrypoint; it names the WRONG repo as authoritative Source/Issues/Discussions -> agents file issues on the marketing mirror, humans get confused.",
       "lane": "launch-gate",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene",
-      "updated_at": "2026-06-18T06:21:17Z"
+      "updated_at": "2026-06-18T22:52:01Z"
     },
     {
       "assignee": "bene",
@@ -1357,7 +1361,9 @@
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        "PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane)."
+      ],
       "created_by": "bene-core",
       "evidence": [
         "Eddie review Day-3 + total readiness 6.5/10 (private-preview yes",
@@ -1370,7 +1376,7 @@
       "priority": "P0",
       "status": "todo",
       "title": "Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN",
-      "updated_at": "2026-06-18T06:21:18Z"
+      "updated_at": "2026-06-18T22:52:40Z"
     },
     {
       "assignee": "adx-core",
@@ -1390,7 +1396,9 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        "BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token \u2014 ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token."
+      ],
       "created_by": "adx-cli-7",
       "evidence": [
         "ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate)"
@@ -1400,9 +1408,9 @@
       "impact": "We have no continuous real-user signal from the LIVE cloud arena. adx-cli is shipping the watchable Human-vs-AI battle UX (ADX-ONLINE-001) plus the ADR-0013 onboarding journey (#295), but protocol/UX/durability/fairness bugs only surface when a real agent plays end-to-end against the DEPLOYED arena: enroll -> begin -> state/choose -> finish -> replay -> status. Side-by-side concurrent play also exercises the 100-concurrent path.",
       "lane": "e2e-play",
       "priority": "P1",
-      "status": "todo",
+      "status": "blocked",
       "title": "bene-core: e2e side-by-side LIVE play on the cloud arena \u2014 surface real issues for immediate fix",
-      "updated_at": "2026-06-18T16:46:17Z"
+      "updated_at": "2026-06-18T22:52:01Z"
     },
     {
       "assignee": "og",
