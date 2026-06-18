@@ -21,6 +21,8 @@ import hashlib
 import logging
 import os
 import re
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import uvicorn
@@ -43,7 +45,7 @@ def _owner_slug(owner: str) -> str:
     return f"{base}.{digest}.code"
 
 
-def _file_inbox_notifier(inbox_dir: Path):
+def _file_inbox_notifier(inbox_dir: Path) -> Callable[[str, str], None]:
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     def notify(owner: str, code: str) -> None:
@@ -53,6 +55,73 @@ def _file_inbox_notifier(inbox_dir: Path):
         tmp.write_text(code + "\n", encoding="utf-8")
         tmp.replace(target)
         log.info("owner notify: wrote confirmation code for %r to %s", owner, target.name)
+
+    return notify
+
+
+def _deliver_webhook(
+    url: str,
+    owner: str,
+    code: str,
+    *,
+    timeout: float,
+    fallback: Callable[[str, str], None] | None,
+) -> bool:
+    """POST the confirmation code to the owner webhook; fall back on any failure.
+
+    Synchronous + directly testable (the threaded wrapper below calls it). Returns
+    True iff the webhook accepted the code (2xx). On ANY failure — network error,
+    non-2xx, or a raising fallback — a code is never silently dropped: we invoke
+    ``fallback`` (the file inbox) so an operator can still recover the code, and
+    return False. An email channel is served by pointing the webhook at an
+    email-relay endpoint; we deliberately keep ONE delivery mechanism here.
+    """
+    import httpx  # local import — keeps server cold-start lean (mirrors local_log.py)
+
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(url, json={"owner": owner, "code": code})
+        resp.raise_for_status()
+        log.info("owner notify: POSTed confirmation code for %r to webhook", owner)
+        return True
+    except Exception as exc:  # noqa: BLE001 — any delivery failure must fall back, never drop the code
+        log.warning(
+            "owner notify: webhook delivery failed for %r (%s); falling back to file inbox",
+            owner,
+            exc,
+        )
+        if fallback is not None:
+            try:
+                fallback(owner, code)
+            except Exception:  # noqa: BLE001 — fallback failure is logged, not raised into the request
+                log.exception("owner notify: file-inbox fallback ALSO failed for %r", owner)
+        return False
+
+
+def _webhook_notifier(
+    url: str,
+    *,
+    fallback: Callable[[str, str], None] | None,
+    timeout: float,
+) -> Callable[[str, str], None]:
+    """A `notify_owner` that POSTs the code to ``url`` off the event loop.
+
+    ``enroll_request`` runs ON the asyncio event loop (the `/enroll/request`
+    route is ``async def`` and calls it directly), so a blocking webhook POST
+    would stall every in-flight battle turn under load. We therefore fire the
+    delivery in a daemon thread and return immediately, preserving the synchronous
+    ``Callable[[str, str], None]`` contract with zero gateway changes. Delivery
+    (and the file-inbox fallback on failure) happens in the thread.
+    """
+
+    def notify(owner: str, code: str) -> None:
+        threading.Thread(
+            target=_deliver_webhook,
+            args=(url, owner, code),
+            kwargs={"timeout": timeout, "fallback": fallback},
+            name="arena-owner-webhook",
+            daemon=True,
+        ).start()
 
     return notify
 
@@ -69,6 +138,20 @@ def build_gateway() -> ArenaGateway:
     runtime = Path(os.environ.get("ARENA_RUNTIME_DIR", "/tmp/arena-runtime"))
     inbox = Path(os.environ.get("ARENA_OWNER_INBOX_DIR", "/tmp/arena-owner-inbox"))
     authority = ConsentAuthority(signing_key_hex=key_hex)
+
+    # Out-of-band owner channel (A1): the confirmation code must reach the OWNER,
+    # never the agent-visible response. Production sets ARENA_OWNER_WEBHOOK and the
+    # code is POSTed there (off the event loop); the file inbox is always built as
+    # the fallback so a delivery failure never drops a code. Unset → file inbox only
+    # (the local/playtest path). This makes the module docstring's webhook promise real.
+    file_notifier = _file_inbox_notifier(inbox)
+    webhook = os.environ.get("ARENA_OWNER_WEBHOOK", "").strip()
+    if webhook:
+        webhook_timeout = float(os.environ.get("ARENA_OWNER_WEBHOOK_TIMEOUT", "5"))
+        notify_owner = _webhook_notifier(webhook, fallback=file_notifier, timeout=webhook_timeout)
+        log.info("owner notify: webhook channel enabled (file inbox is the fallback)")
+    else:
+        notify_owner = file_notifier
 
     # Write-behind Postgres mirror (BENE-Supabase design): dev = local Postgres,
     # prod = the Supabase transaction-mode pooler DSN (port 6543). Unset = no
@@ -125,7 +208,7 @@ def build_gateway() -> ArenaGateway:
         authority=authority,
         events_path=runtime / "events.jsonl",
         artifacts_dir=runtime / "artifacts",
-        notify_owner=_file_inbox_notifier(inbox),
+        notify_owner=notify_owner,
         rated_seed_secret=os.environ.get("ARENA_RATED_SEED_SECRET", ""),
         event_sync=event_sync,
         admin_authority=admin,
@@ -180,7 +263,9 @@ def main() -> None:
     if pool_size > 1:
         app = create_app(
             build_gateway(),
-            sidecar_factory=lambda: SidecarPool(size=pool_size, max_battles_per_sidecar=max_battles),
+            sidecar_factory=lambda: SidecarPool(
+                size=pool_size, max_battles_per_sidecar=max_battles
+            ),
         )
     else:
         app = create_app(build_gateway(), sidecar_factory=lambda: Sidecar(max_battles=max_battles))
