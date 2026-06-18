@@ -459,3 +459,35 @@ def test_finish_cancelled_while_waiting_lock_leaves_no_partial_receipt(tmp_path:
         return second_session
 
     asyncio.run(run())
+
+
+def test_replay_rehydrates_from_artifact_after_restart(tmp_path: Path) -> None:
+    """ADX-P0-001 residual: self.replays is in-memory only (reset on boot), so a
+    restart would 404 /replay for every prior-process battle despite its receipt
+    promising one. _finish persists a durable <id>.replay.json; load_replay
+    rehydrates from it when the in-memory map misses (post-restart)."""
+    g1 = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+    asyncio.run(
+        g1._finish(
+            session,
+            {"winner": "anchor-random", "turns": 4, "inputLog": ["l1", "l2"], "keyLines": []},
+        )
+    )
+    bid = session.battle_id
+    assert bid in g1.replays
+    assert (g1.artifacts_dir / f"{bid}.replay.json").exists()
+
+    # Simulate a restart: a fresh gateway over the SAME events_path + artifacts_dir.
+    g2 = _gateway(tmp_path)
+    assert bid not in g2.replays  # the in-memory replay map starts empty on boot
+    rec = g2.load_replay(bid)
+    assert rec is not None
+    assert rec["input_log"] == ["l1", "l2"]
+    assert rec["winner"] == "anchor-random"
+    assert g2.replays[bid] is rec  # cached for subsequent hits
+
+    # Misses + path-traversal safety return None, never raise / read outside the dir.
+    assert g2.load_replay("no-such-battle") is None
+    assert g2.load_replay("../../etc/passwd") is None
