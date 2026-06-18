@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import time
 import unittest.mock as mock
 from pathlib import Path
@@ -614,3 +615,62 @@ def test_replay_rehydrates_from_artifact_after_restart(tmp_path: Path) -> None:
     # Misses + path-traversal safety return None, never raise / read outside the dir.
     assert g2.load_replay("no-such-battle") is None
     assert g2.load_replay("../../etc/passwd") is None
+
+
+def test_backgrounded_finish_failure_is_logged(tmp_path: Path, caplog) -> None:
+    """PR #291 review 3435604694: when a /choose is cancelled and the shielded
+    _finish later fails, the done-callback retrieves the exception (to avoid
+    asyncio's bare "Task exception was never retrieved" warning) — but must LOG
+    it, because on the cancellation path no one else does, so a failed
+    terminal-receipt commit would otherwise be invisible server-side."""
+    gateway = _gateway(tmp_path)
+    visitor, opponent = "LogFailBot", "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+    session = BattleSession(
+        battle_id="rated-logfail",
+        claims_token_id="tenant-x",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type]
+        opponent_policy=None,
+        visitor_choices=["move 1", "move 2"],
+    )
+    end = {"winner": visitor, "turns": 12, "inputLog": ["a", "b"]}
+
+    gate, release = asyncio.Event(), asyncio.Event()
+
+    async def failing_append(items, *, sidecar=None, battle_id=None, session=None):
+        gate.set()
+        await release.wait()
+        raise OSError("disk full committing the receipt")
+
+    gateway._append_many_or_fail_closed = failing_append  # type: ignore[method-assign]
+
+    async def run() -> None:
+        task = asyncio.create_task(
+            gateway._advance(session, {"end": dict(end)}, visitor_choice=None)
+        )
+        await gate.wait()  # the shielded finish is inside the (about-to-fail) append
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task  # the /choose request is cancelled — nobody will retrieve the failure
+        with caplog.at_level(logging.ERROR):
+            release.set()
+            for _ in range(200):  # let the background finish fail + the callback log
+                if session.finish_task is None:
+                    break
+                await asyncio.sleep(0.01)
+        assert session.finish_task is None
+        assert any("rated-logfail" in r.getMessage() for r in caplog.records), (
+            "a backgrounded finish failure on the cancelled path must be logged"
+        )
+
+    asyncio.run(run())
