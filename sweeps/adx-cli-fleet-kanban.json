@@ -1397,7 +1397,8 @@
     {
       "assignee": "bene-core",
       "comments": [
-        "BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token \u2014 ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token."
+        "BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token \u2014 ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token.",
+        "DONE (bene-core-6, 2026-06-18T23:19:53Z): e2e verified on Europa arena (54.203.252.69:8889). enroll/whoami -> battle/start -> battle/begin (sandbox, PoP) -> 19 turns -> ended (winner=anchor-random) -> replay OK (52 input_log entries). Token at .state/oppie.token. DNS/Vultr caveat in A2A #443/#444."
       ],
       "created_by": "adx-cli-7",
       "evidence": [
@@ -1408,9 +1409,9 @@
       "impact": "We have no continuous real-user signal from the LIVE cloud arena. adx-cli is shipping the watchable Human-vs-AI battle UX (ADX-ONLINE-001) plus the ADR-0013 onboarding journey (#295), but protocol/UX/durability/fairness bugs only surface when a real agent plays end-to-end against the DEPLOYED arena: enroll -> begin -> state/choose -> finish -> replay -> status. Side-by-side concurrent play also exercises the 100-concurrent path.",
       "lane": "e2e-play",
       "priority": "P1",
-      "status": "blocked",
+      "status": "done",
       "title": "bene-core: e2e side-by-side LIVE play on the cloud arena \u2014 surface real issues for immediate fix",
-      "updated_at": "2026-06-18T22:52:01Z"
+      "updated_at": "2026-06-18T23:19:53Z"
     },
     {
       "assignee": "og",
