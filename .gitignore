@@ -27,6 +27,11 @@ site/test-harness.html
 # KAOS docs/demos/blog culled from vendored subtree (per A8)
 demo_*/
 blog/
+# ...but the bene-site blog (BENE-DOC-10) is first-class deploy content, not KAOS
+# cull: the bare `blog/` above also matched `site/blog/` and silently excluded it
+# from the arena Docker build. Re-include it explicitly.
+!site/blog/
+!site/blog/**
 
 # supergoal harness artifacts (skill state, not source)
 .supergoal/
