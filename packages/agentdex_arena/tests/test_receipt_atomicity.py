@@ -461,6 +461,83 @@ def test_finish_cancelled_while_waiting_lock_leaves_no_partial_receipt(tmp_path:
     asyncio.run(run())
 
 
+def test_advance_shields_finish_so_a_cancelled_choose_still_publishes(tmp_path: Path) -> None:
+    """PR #276 review 3434024561: a finish reached via _advance (the /choose path)
+    must run to completion even if the request is CANCELLED while suspended on the
+    per-visitor rating lock. Otherwise a battle that already ended is stranded as
+    pending=None + ended=None and /state 409s until stale-expiry forfeits it,
+    losing the real result. _advance shields _finish, so the cancel propagates to
+    the caller while the durable receipt + session.ended still land."""
+    gateway = _gateway(tmp_path)
+    visitor = "ShieldBot"
+    opponent = "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+
+    def _session(label: str) -> BattleSession:
+        return BattleSession(
+            battle_id=f"rated-{label}",
+            claims_token_id="tenant-shield",
+            visitor_name=visitor,
+            lane="rated",
+            opponent=opponent,
+            seed=[1, 2, 3, 4],
+            sidecar=None,  # type: ignore[arg-type]
+            opponent_policy=None,
+            p1_team="vt",
+            p2_team="ot",
+            visitor_choices=["move 1", "move 2", "move 3", "move 4"],
+        )
+
+    end = {"winner": visitor, "turns": 12, "inputLog": ["a", "b"]}
+
+    # Hold the first finish inside its critical section so it owns the lock while
+    # the second (driven through _advance) contends and is then cancelled.
+    original = gateway._append_many_or_fail_closed
+    first_in_section = asyncio.Event()
+    release_first = asyncio.Event()
+
+    async def gated(items, *, sidecar=None, battle_id=None, session=None):
+        if battle_id == "rated-first":
+            first_in_section.set()
+            await release_first.wait()
+        return await original(items, sidecar=sidecar, battle_id=battle_id, session=session)
+
+    gateway._append_many_or_fail_closed = gated  # type: ignore[method-assign]
+
+    async def run() -> None:
+        first = asyncio.create_task(gateway._finish(_session("first"), dict(end)))
+        await first_in_section.wait()  # first holds the per-visitor lock
+        second_session = _session("second")
+        # Drive via _advance with an already-terminal state so the shield applies.
+        second = asyncio.create_task(
+            gateway._advance(second_session, {"end": dict(end)}, visitor_choice=None)
+        )
+        await asyncio.sleep(0.05)  # second reaches the shielded finish's lock wait
+        second.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await second  # the request is cancelled...
+        assert second_session.ended is None  # ...and hasn't published yet (still blocked)
+
+        release_first.set()
+        await first
+        # ...but the shielded finish keeps going and lands the real receipt.
+        for _ in range(200):
+            if second_session.ended is not None:
+                break
+            await asyncio.sleep(0.01)
+        assert second_session.ended is not None, "shielded finish must complete despite the cancel"
+        assert second_session.ended["winner"] == visitor
+        assert "rated-second" in gateway.replays
+
+    asyncio.run(run())
+
+
 def test_replay_rehydrates_from_artifact_after_restart(tmp_path: Path) -> None:
     """ADX-P0-001 residual: self.replays is in-memory only (reset on boot), so a
     restart would 404 /replay for every prior-process battle despite its receipt
