@@ -111,11 +111,26 @@ class BattleClient:
 
     def __init__(self) -> None:
         self.state = BattleState()
+        # The omniscient log emits each |split| HP event TWICE (private exact-HP
+        # then public percent-HP line, adjacent). Idempotent folds (hp_pct =) don't
+        # care, but a non-idempotent one (fainted_count -=) must tell the public
+        # duplicate from a fresh event. We stash a value-independent signature of
+        # the previous event for that. PR #219 review 3432259027.
+        self._prev_sig: tuple[str, str, str] | None = None
+
+    @staticmethod
+    def _sig_of(ev: ProtocolEvent) -> tuple[str, str, str]:
+        # Identity of an event independent of its HP VALUE — so a |split| private
+        # line and its public twin (same type + ident + cause, different HP) share
+        # one signature and can be de-duplicated.
+        ident = ev.idents[0].raw if ev.idents else ""
+        return (ev.type, ident, ev.kwargs.get("from", ""))
 
     def apply(self, ev: ProtocolEvent) -> None:
         handler = getattr(self, f"_on_{_handler_name(ev.type)}", None)
         if handler is not None:
             handler(ev)
+        self._prev_sig = self._sig_of(ev)
 
     # --- side helpers -------------------------------------------------------
     def _side_of(self, ev: ProtocolEvent) -> SideState | None:
@@ -222,9 +237,14 @@ class BattleClient:
         # so remaining_pips recovers, and (b) NOT clobber the active mon's hp_pct with
         # the revived bench mon's HP. PR #208 review 3432027338.
         if "Revival Blessing" in ev.kwargs.get("from", ""):
-            side = self._side_of(ev)
-            if side is not None and side.fainted_count > 0:
-                side.fainted_count -= 1
+            # Decrement ONCE per revival: skip when this line is the |split| public
+            # twin of the immediately-preceding private revival line (same signature).
+            # A later re-faint+revival of the same mon is separated by other events,
+            # so its key differs from _prev_sig and decrements again. PR #219 review.
+            if self._sig_of(ev) != self._prev_sig:
+                side = self._side_of(ev)
+                if side is not None and side.fainted_count > 0:
+                    side.fainted_count -= 1
             return
         self._on_damage(ev)
 
