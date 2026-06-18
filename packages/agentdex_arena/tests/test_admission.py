@@ -260,20 +260,24 @@ def test_failed_post_publish_fork_is_removed_from_cap(gw):
     class _StallSidecar:
         returncode = None
 
+        def __init__(self) -> None:
+            self.ops: list[str] = []
+
         async def request(self, op: str, **kwargs):
+            self.ops.append(op)
             return {"state": {}}  # empty → _advance stalls AFTER publish
 
     from fastapi import HTTPException as _HTTPException
 
+    sc = _StallSidecar()
     with pytest.raises(_HTTPException):
-        asyncio.run(
-            gw.battle_fork(
-                "sandbox-src", _fork_src(), turn=0, sidecar=_StallSidecar(), owner=_OWNER
-            )
-        )
+        asyncio.run(gw.battle_fork("sandbox-src", _fork_src(), turn=0, sidecar=sc, owner=_OWNER))
     # Published-then-failed fork removed; reservation released → cap fully clean.
     assert gw._owner_inflight == {}
     assert not [bid for bid in gw.sessions if "fork" in bid]
+    # The live sidecar battle was stopped before the handle was dropped (pool frees
+    # capacity only on explicit stop) — PR #259 review.
+    assert "stop" in sc.ops
     # And the owner can immediately admit a fresh battle (count is back to zero).
     gw._reserve_owner_slot(owner_norm)  # would raise 429 if the dead fork still counted
     gw._release_owner_slot(owner_norm)
