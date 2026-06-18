@@ -82,8 +82,16 @@ existing per-agent consent-token model, plus a real PyPI distribution.
   dependency *inside* `agentdex-observe` with a no-op fallback when it is
   absent), and likewise put the camoufox bridge behind its own extra — so the
   base wheel is lean and only `agentdex-cli[observe]` / `[bene]` pull the heavy
-  deps. The observe panel must degrade gracefully (no-op tracing) when the extra
-  is not installed.
+  deps. **The split has to follow the full dependency graph, not just the direct
+  edge:** `agentdex-cli` also core-depends on `adx-bridges`
+  (`packages/agentdex_cli/pyproject.toml`), and `adx-bridges` in turn requires
+  `agentdex-observe` (`packages/adx_bridges/pyproject.toml`), so moving observe
+  out of `agentdex-cli` alone still pulls `langfuse` transitively through the
+  bridges. The same treatment is therefore required for `adx-bridges` — drop its
+  hard `agentdex-observe` dependency to an optional / no-op-fallback edge (or
+  gate it behind the bridge's own extra) so `pip install agentdex-cli` is lean
+  along *every* path. The observe panel must degrade gracefully (no-op tracing)
+  when the extra is not installed.
 - A release pipeline (`adx release` already exists in spirit) tags + builds +
   publishes the workspace members in dependency order.
 - **Release gate + creds:** the operator holds the PyPI token (owner, 2026-06-18);
