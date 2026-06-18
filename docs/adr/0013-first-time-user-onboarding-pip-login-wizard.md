@@ -103,11 +103,19 @@ account; `adx logout` deletes the file; `adx whoami` shows the logged-in owner.
 
 ### D3 — Account ↔ consent-token bridge (the load-bearing seam)
 
-The human account becomes the canonical **owner** (a stable account id /
-verified email — `_normalize_owner` already keys memberships + battle quota by
-normalized owner, so this slots in without changing the quota/membership model).
-A logged-in human mints per-agent consent tokens **without the email-OOB code**
-— the session *is* the human proof:
+The human account becomes the canonical **owner**, and that owner is the
+account's **verified email** — *not* the GitHub numeric id. This choice is
+load-bearing: memberships and battle quota are keyed by
+`_normalize_owner(claims.owner)`, and every existing (email-OOB) enrollment
+already supplies the owner email, so a GitHub-id owner would split the *same
+human's* paid membership and quota continuity across two keys. `/enroll/account`
+therefore mints tokens with the verified email as `ConsentClaims.owner` (the
+GitHub identity is used only to *prove* that email), which slots in without
+changing the quota/membership model. If adx-core ever keys the account store by
+a GitHub/account id instead, it must carry an explicit account-id ↔ email
+lookup so every store stays single-keyed per human. A logged-in human mints
+per-agent consent tokens **without the email-OOB code** — the session *is* the
+human proof:
 
 ```
 adx enroll <agent_name>        (authenticated by the session)
