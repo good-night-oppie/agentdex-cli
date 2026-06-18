@@ -173,10 +173,54 @@ class ConsentAuthority:
         their key here, so the live counter and the replayed-at-boot counter are
         byte-identical (ADX-P2-004 quota persistence).
         """
+        return self.quota_key_for(claims.owner, claims.agent_name, scope=scope)
+
+    def quota_key_for(self, owner: str, agent_name: str, *, scope: Scope) -> str:
+        """The same day-stamped counter key as ``quota_key`` but from raw
+        ``(owner, agent_name)`` rather than a full ``ConsentClaims`` — so the
+        read-only account quota surface (ADR-0013 D6) reports against the EXACT
+        bytes ``spend_quota`` debits, with no second copy of the key formula to
+        drift. ``quota_key`` delegates here, keeping one source of truth."""
         day = time.strftime("%Y%m%d", time.gmtime(self._now()))
         if scope == "battle":
-            return f"{_normalize_owner(claims.owner)}:{scope}:{day}"
-        return f"{claims.agent_name}:{scope}:{day}"
+            return f"{_normalize_owner(owner)}:{scope}:{day}"
+        return f"{agent_name}:{scope}:{day}"
+
+    def current_utc_day(self) -> str:
+        """The UTC day-stamp the quota keys are bucketed under right now (the
+        authority's own clock), so a caller's day label can't skew from its
+        keys across the UTC-midnight boundary."""
+        return time.strftime("%Y%m%d", time.gmtime(self._now()))
+
+    def account_quota_report(self, owner: str, agent_names: list[str]) -> dict:
+        """The ADR-0013 D6 ``GET /account/quota`` body for one account.
+
+        ``battle`` is owner-pooled (one counter per account, keyed on normalized
+        owner); ``evolve`` / ``badge_mint`` are per-agent, nested under each
+        ``agent_name`` from the account->agents join. Caps are the canonical
+        ``ConsentClaims.quotas`` defaults (every token mints with these today),
+        ``remaining = max(0, cap - used)`` for TODAY's key. Read-only — it never
+        debits and is never an input to ladder recompute, so the anti-pay-to-rank
+        invariant is unaffected."""
+        caps = ConsentClaims.model_fields["quotas"].get_default(call_default_factory=True)
+
+        def block(key: str, cap: int) -> dict:
+            return {"remaining": max(0, cap - self.quota_used.get(key, 0)), "cap": cap}
+
+        battle_key = self.quota_key_for(owner, "", scope="battle")
+        agents: dict[str, dict] = {}
+        for name in agent_names:
+            agents[name] = {
+                "evolve": block(self.quota_key_for(owner, name, scope="evolve"), caps["evolve"]),
+                "badge_mint": block(
+                    self.quota_key_for(owner, name, scope="badge_mint"), caps["badge_mint"]
+                ),
+            }
+        return {
+            "utc_day": self.current_utc_day(),
+            "battle": block(battle_key, caps["battle"]),
+            "agents": agents,
+        }
 
     def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> tuple[int, str]:
         """Atomically count a use against the per-day quota. Fail-closed.

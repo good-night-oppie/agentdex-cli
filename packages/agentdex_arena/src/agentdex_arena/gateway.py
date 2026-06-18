@@ -815,6 +815,14 @@ class ArenaGateway:
             claims.owner, clean_name, agent_pubkey_hex, f"account:{claims.session_id}"
         )
 
+    def account_quota(self, claims: SessionClaims) -> dict[str, Any]:
+        """The ADR-0013 D6 read-only quota dashboard for `adx status`: owner-pooled
+        battle + per-agent evolve/badge_mint for today, over the account's agents
+        (the account->agents join). Delegates the key/cap/remaining math to the
+        ConsentAuthority so it reports against the exact keys spend_quota debits."""
+        names = self.accounts.agents_for(claims.owner)
+        return self.authority.account_quota_report(claims.owner, names)
+
     # ---------- battle flow ----------
 
     def battle_start(self, token: str) -> dict[str, Any]:
@@ -2197,6 +2205,23 @@ def create_app(
             raise
         except Exception as e:  # noqa: BLE001 — opaque boundary
             raise _opaque_error(400, e) from None
+
+    @app.get("/account/quota")
+    async def account_quota(authorization: str | None = Header(default=None)) -> dict:
+        """Session-authed, read-only quota dashboard for `adx status` (ADR-0013
+        D6): owner-pooled battle + per-agent evolve/badge_mint for today. 503 when
+        session auth is unconfigured; 401/403 on a missing/bad session. Never
+        debits, never feeds ladder recompute (anti-pay-to-rank unaffected)."""
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer session token required")
+        token = authorization[len("Bearer ") :]
+        try:
+            claims = gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+        return gateway.account_quota(claims)
 
     @app.post("/team/draft")
     async def team_draft(body: dict) -> dict:
