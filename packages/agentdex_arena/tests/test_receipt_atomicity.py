@@ -531,16 +531,20 @@ def test_advance_shields_finish_so_a_cancelled_choose_still_publishes(tmp_path: 
 
         release_first.set()
         await first
-        # ...but the shielded finish keeps going and lands the real receipt.
+        # ...but the shielded finish keeps going and lands the real receipt. Poll
+        # for BOTH the receipt AND the cleared ref — the done-callback that nulls
+        # finish_task runs a tick AFTER _finish sets session.ended (call_soon).
         for _ in range(200):
-            if second_session.ended is not None:
+            if second_session.ended is not None and second_session.finish_task is None:
                 break
             await asyncio.sleep(0.01)
         assert second_session.ended is not None, "shielded finish must complete despite the cancel"
         assert second_session.ended["winner"] == visitor
         assert "rated-second" in gateway.replays
-        # The done-callback releases the strong ref once the finish completes.
+        # The done-callback released the strong ref once the finish completed.
         assert second_session.finish_task is None
+
+    asyncio.run(run())
 
 
 def test_expire_if_stale_skips_while_finish_outstanding(tmp_path: Path) -> None:
@@ -576,8 +580,6 @@ def test_expire_if_stale_skips_while_finish_outstanding(tmp_path: Path) -> None:
             with contextlib.suppress(asyncio.CancelledError):
                 await dummy
             session.finish_task = None
-
-    asyncio.run(run())
 
     asyncio.run(run())
 
