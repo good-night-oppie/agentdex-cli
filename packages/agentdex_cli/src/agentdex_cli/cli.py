@@ -984,6 +984,13 @@ def main(argv: list[str] | None = None) -> int:
     # subcommand. The `arena` subparser is kept so `adx --help` still lists it.
     # PR #183 review 3426341132.
     if raw and raw[0] == "arena":
+        # `adx arena play ...` IS implemented (the human terminal client); every
+        # other arena verb still defers to the starter kit / MCP. Lazy import so
+        # the defer path (and `adx --help`) never pulls in httpx / rich / crypto.
+        if len(raw) >= 2 and raw[1] == "play":
+            from agentdex_cli.arena_tui import cmd_arena_play
+
+            return cmd_arena_play(raw[2:])
         return cmd_arena_defer(argparse.Namespace(arena_args=raw[1:]))
     parser = build_parser()
     args = parser.parse_args(argv)
