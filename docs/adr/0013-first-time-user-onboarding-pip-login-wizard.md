@@ -211,6 +211,29 @@ budgets per agent — surfacing battle as per-agent would misrepresent a pooled
 counter. This is a read-only reporting surface, never an input to ladder
 recompute, so the anti-pay-to-rank invariant is unaffected.
 
+The frozen shape (concrete method/path/auth + response JSON, so `adx status` can
+stub and test against it before adx-core ships it):
+
+```
+GET {ARENA}/account/quota            Authorization: Bearer <session_token>
+← {
+    "utc_day": "20260618",                       # UTC day these counts apply to
+    "battle": { "remaining": 7, "cap": 10 },     # owner-pooled: one per account
+    "agents": {                                  # per-agent, keyed by agent_name
+      "<agent_name>": {
+        "evolve":     { "remaining": 3, "cap": 5 },
+        "badge_mint": { "remaining": 1, "cap": 2 }
+      }
+    }
+  }
+```
+
+Session-authed (the human, same bearer scheme as `/enroll/account`) and
+read-only. The `battle` block is a single owner-pooled counter; `evolve` /
+`badge_mint` are nested per `agent_name`. The agent set is the same
+account→agents join that `/status` uses (D7). Caps come from the token's
+`ConsentClaims.quotas`; `remaining = cap - used` for today's `quota_key`.
+
 ### D7 — adx-cli ↔ adx-core wire contract (who builds what)
 
 | Lane | Builds |
