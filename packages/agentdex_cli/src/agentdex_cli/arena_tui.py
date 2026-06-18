@@ -103,7 +103,7 @@ def _render_receipt(console, receipt: dict[str, Any], base: str) -> None:
     rating = receipt.get("rating")
     if isinstance(rating, dict):
         delta = rating.get("published_delta")
-        d = f"{delta:+}" if isinstance(delta, (int, float)) else str(delta)
+        d = f"{delta:+}" if isinstance(delta, int | float) else str(delta)
         lines.append(f"rating: {rating.get('rating', '?')} (rd {rating.get('rd', '?')})   Δ {d}")
     if receipt.get("badge_awarded"):
         lines.append(f"[yellow]🏅 badge: {receipt['badge_awarded']}[/yellow]")
