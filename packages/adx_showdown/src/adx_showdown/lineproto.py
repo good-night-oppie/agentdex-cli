@@ -72,32 +72,33 @@ NONDETERMINISTIC_TYPES: frozenset[str] = frozenset({TIMESTAMP_TYPE})
 REASONING_TYPE = "-reasoning"
 SAY_TYPE = "say"
 
-#: Types whose payload after ``|TYPE|`` is a SINGLE opaque field (JSON / HTML /
-#: free text) that may itself contain ``|``. Splitting it on every pipe corrupts
-#: it — e.g. a ``|request|`` whose JSON carries an opponent nickname like
-#: ``Pika|/forfeit`` (the red-team corpus) would truncate to invalid JSON and the
-#: guided action pane could not render or sanitize it via ``parse_request``. For
-#: these, the whole remainder is kept as ``args[0]`` and no kwargs are parsed.
-OPAQUE_PAYLOAD_TYPES: frozenset[str] = frozenset(
-    {
-        "request",
-        "raw",
-        "html",
-        "uhtml",
-        "uhtmlchange",
-        "error",
-        "inactive",
-        "inactiveoff",
-        "message",
-        "-message",
-        "popup",
-        "bigerror",
-        "debug",
-        "chat",
-        "c",
-        "c:",
-    }
-)
+#: Types whose payload ends in a single OPAQUE field (JSON / HTML / free text)
+#: that may itself contain ``|`` — splitting it on every pipe corrupts it (e.g. a
+#: ``|request|`` JSON carrying an opponent nickname ``Pika|/forfeit`` truncates to
+#: invalid JSON, and the guided action pane could not ``parse_request`` it). The
+#: value is the count of LEADING structured ``|``-delimited fields BEFORE the
+#: opaque tail: 0 = the whole remainder is opaque (``|request|JSON``); 1 =
+#: ``|uhtml|NAME|HTML`` / ``|c|USER|MESSAGE`` (keep NAME/USER, opaque rest); 2 =
+#: ``|c:|TIMESTAMP|USER|MESSAGE``. Only the final field stays opaque, so a reducer
+#: can still attribute chat/uhtml by speaker (PR #209 review).
+OPAQUE_PAYLOAD_TYPES: dict[str, int] = {
+    "request": 0,
+    "raw": 0,
+    "html": 0,
+    "error": 0,
+    "inactive": 0,
+    "inactiveoff": 0,
+    "message": 0,
+    "-message": 0,
+    "popup": 0,
+    "bigerror": 0,
+    "debug": 0,
+    "uhtml": 1,  # |uhtml|NAME|HTML
+    "uhtmlchange": 1,  # |uhtmlchange|NAME|HTML
+    "chat": 1,  # |chat|USER|MESSAGE
+    "c": 1,  # |c|USER|MESSAGE
+    "c:": 2,  # |c:|TIMESTAMP|USER|MESSAGE
+}
 
 
 class _Spec(BaseModel):
@@ -360,12 +361,14 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         parts = line.split("|")
     msg_type = parts[0] if parts else ""
     if msg_type in OPAQUE_PAYLOAD_TYPES and line.startswith("|"):
-        # the remainder is one opaque field (JSON/HTML/free text) that may carry
-        # pipes — keep it intact so e.g. `parse_request(ev.args[0])` sees valid
-        # JSON even when an opponent nickname contains `|`.
+        # Keep `lead` structured fields, then ONE opaque tail that may carry pipes
+        # (JSON/HTML/free text) — so `parse_request(ev.args[-1])` sees valid JSON
+        # even when an opponent nickname contains `|`, while `|uhtml|NAME|HTML` /
+        # `|c:|TIME|USER|MSG` keep their NAME/USER prefixes for attribution.
+        lead = OPAQUE_PAYLOAD_TYPES[msg_type]
         prefix = f"|{msg_type}|"
-        payload = line[len(prefix) :] if line.startswith(prefix) else "|".join(parts[1:])
-        positional = [payload]
+        body = line[len(prefix) :] if line.startswith(prefix) else "|".join(parts[1:])
+        positional = body.split("|", lead) if lead else [body]
         kwargs: dict[str, str] = {}
     else:
         rest = parts[1:]
