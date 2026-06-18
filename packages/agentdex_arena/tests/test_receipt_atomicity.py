@@ -254,6 +254,7 @@ def test_exhausted_rated_quota_rejected_before_orphan_append(tmp_path: Path) -> 
     )
 
     sidecar_calls: list[str] = []
+    pack_team_calls: list = []
 
     class _FakeSidecar:
         async def request(self, cmd: str, **kwargs):
@@ -261,6 +262,7 @@ def test_exhausted_rated_quota_rejected_before_orphan_append(tmp_path: Path) -> 
             return {"state": {}}
 
     async def _fake_pack_team(sidecar, team_spec):
+        pack_team_calls.append(team_spec)
         return "fakepacked"
 
     with mock.patch("agentdex_arena.gateway.pack_team", _fake_pack_team):
@@ -268,9 +270,9 @@ def test_exhausted_rated_quota_rejected_before_orphan_append(tmp_path: Path) -> 
             asyncio.run(gateway.battle_begin(req, sidecar=_FakeSidecar()))
 
     assert exc.value.status_code == 403
-    # preflight fired BEFORE the durable append — NO orphan battle_begin row
-    assert [e["type"] for e in gateway.events.iter_events()] == []
-    # the sidecar was never touched (no start, so nothing to stop)
-    assert sidecar_calls == []
+    # preflight fired at the TOP — before any team/sidecar work AND before the append
+    assert pack_team_calls == []  # no team resolution work burned (PR #230 review)
+    assert sidecar_calls == []  # the sidecar was never touched
+    assert [e["type"] for e in gateway.events.iter_events()] == []  # NO orphan begin row
     # session was never published
     assert all("rated" not in bid for bid in gateway.sessions)
