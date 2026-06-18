@@ -122,6 +122,21 @@ unchanged** — the only new thing is *how the token is obtained*. The legacy
 email-OOB path (`/enroll/request` + `/enroll/confirm`) stays for users without
 an account (anti-lockout), exactly as today.
 
+**Global agent-name uniqueness is load-bearing — `/enroll/account` must enforce
+it identically to the email-OOB path.** The consent *token* is keyed by
+`(owner, agent_name)`, but the arena's *public* identity is keyed by
+`agent_name` **alone**: `ArenaGateway.enroll_request` rejects any duplicate
+sanitized name globally (`409 agent name already registered` against the global
+`_registered` set, plus the reserved-name guard) and the ladder indexes entrants
+by name (`agentdex_engine/.../modules/arena/ladder.py`). So `/enroll/account`
+must run the **same** reserved-name checks, the **same** global `_registered`
+rejection, and append the **same** `register` event as the email-OOB path —
+account-enroll changes only *how* a name is claimed, never *whether* it is
+globally unique. If it allowed the same name under two different accounts, two
+owners' tokens would collapse onto one public ladder/badge identity (a D7
+anti-impersonation break). adx-core implementing this contract must therefore
+share the one enrollment validator, not fork a per-account one.
+
 ### D4 — Onboarding wizard (`adx onboard`)
 
 First-run guided flow (idempotent, resumable):
