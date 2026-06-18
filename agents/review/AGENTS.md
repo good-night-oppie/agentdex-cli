@@ -31,10 +31,14 @@ third-party / sibling-synced files you did not touch (e.g. the
 hook-excluded `vendor/aaop/**`) is NOT a blocker; fix such shared red as
 its own tiny PR instead of gating yours on it.
 
-- Your change's CI checks green — `uv run --no-sync pytest` over the
-  package(s) your diff touches exits 0 (scope to the **changed surface**, not a
-  full `packages/` sweep; a pre-existing failure in a package you did not touch
-  is a separate tiny PR, per the CI-POLICY note above)
+- Your change's CI checks green — `uv run --no-sync pytest` over the **changed
+  surface** exits 0: the package(s) your diff touches **plus any downstream
+  workspace packages that declare them as a dependency** (e.g. editing
+  `agentdex_engine` also runs `agentdex_arena`, `agentdex_cli`, `agentdex_plugin`,
+  `adx_showdown`). An API/behavior break in a shared package must not pass the gate
+  by leaving a dependent's tests unrun. Still not a full blind `packages/` sweep:
+  a pre-existing failure in a package neither touched nor downstream of your diff
+  is a separate tiny PR, per the CI-POLICY note above.
 - No HIGH-severity `agentlint scan` findings (per `agentlint.yaml`)
 - `.pre-commit-config.yaml` hooks pass clean **on your diff** — ruff (lint+format),
   mypy (strict on `packages/agentdex_engine/src/agentdex_engine/cards/`),
