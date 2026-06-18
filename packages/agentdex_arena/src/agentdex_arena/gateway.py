@@ -552,6 +552,13 @@ class ArenaGateway:
         self.public_base_url = public_base_url.rstrip("/")
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
+        # ADX-P1-007: one asyncio.Lock per visitor_name serializing the rated
+        # before->append->after rating window in _finish, so two concurrent
+        # finishes for the same agent cannot interleave their recompute brackets
+        # and inflate a published_delta. Defensive: a single agent may hold up to
+        # ARENA_MAX_BATTLES_PER_OWNER concurrent rated battles, so same-visitor
+        # finishes can race. Keyed on the rating subject (visitor_name).
+        self._finish_locks: dict[str, asyncio.Lock] = {}
         # Battles begun but never ended in a PRIOR process — sessions are in-memory
         # only (reset to {} on boot), so after a restart a client touching such a
         # battle should get a clear 409 'interrupted', not an opaque 403 'no such
@@ -1303,54 +1310,67 @@ class ArenaGateway:
         rating_block: dict[str, Any] | None = None
         before_rating: Rating | None = None
         new_registered: list[str] = []
+        # ADX-P1-007: hold a per-visitor lock across the whole before->append->after
+        # window so a concurrent same-visitor finish cannot land its rating period
+        # between this one's `before` snapshot and `after` read (which would make
+        # this receipt's published_delta absorb the other battle's movement). Only
+        # rated finishes take the lock; sandbox finishes are unaffected.
+        rating_lock: asyncio.Lock | None = None
         if session.lane == "rated" and len(input_log) > 0:
-            before_rating = recompute_ladder(self.events.path).entrants.get(
-                session.visitor_name, Rating()
-            )
-            for name in (session.visitor_name, session.opponent):
-                if name not in self._registered:
-                    event_items.append(
-                        (
-                            "register",
-                            {"name": name, "frozen": name.startswith("anchor-")},
-                        )
-                    )
-                    new_registered.append(name)
-            event_items.append(
-                (
-                    "period",
-                    {
-                        "events": [
-                            RatingEvent(
-                                battle_id=session.battle_id,
-                                p1=session.visitor_name,
-                                p2=session.opponent,
-                                winner=winner,
-                                input_log_blake2b16=log_digest,
-                            ).model_dump()
-                        ]
-                    },
+            rating_lock = self._finish_locks.setdefault(session.visitor_name, asyncio.Lock())
+            await rating_lock.acquire()
+        try:
+            if session.lane == "rated" and len(input_log) > 0:
+                before_rating = recompute_ladder(self.events.path).entrants.get(
+                    session.visitor_name, Rating()
                 )
-            )
+                for name in (session.visitor_name, session.opponent):
+                    if name not in self._registered:
+                        event_items.append(
+                            (
+                                "register",
+                                {"name": name, "frozen": name.startswith("anchor-")},
+                            )
+                        )
+                        new_registered.append(name)
+                event_items.append(
+                    (
+                        "period",
+                        {
+                            "events": [
+                                RatingEvent(
+                                    battle_id=session.battle_id,
+                                    p1=session.visitor_name,
+                                    p2=session.opponent,
+                                    winner=winner,
+                                    input_log_blake2b16=log_digest,
+                                ).model_dump()
+                            ]
+                        },
+                    )
+                )
 
-        await self._append_many_or_fail_closed(
-            event_items,
-            sidecar=session.sidecar,
-            battle_id=session.battle_id,
-            session=session,
-        )
-        for name in new_registered:
-            self._registered.add(name)
-        if before_rating is not None:
-            after = recompute_ladder(self.events.path).rating(session.visitor_name)
-            delta = Ladder.published_delta(before_rating, after)
-            rating_block = {
-                "rating": round(after.rating, 1),
-                "rd": round(after.rd, 1),
-                "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
-                "seed_disclosure": session.seed,  # revealed post-result (A3)
-                "opponent_team_disclosure": session.p2_team,  # i.i.d. team revealed post-result (#8)
-            }
+            await self._append_many_or_fail_closed(
+                event_items,
+                sidecar=session.sidecar,
+                battle_id=session.battle_id,
+                session=session,
+            )
+            for name in new_registered:
+                self._registered.add(name)
+            if before_rating is not None:
+                after = recompute_ladder(self.events.path).rating(session.visitor_name)
+                delta = Ladder.published_delta(before_rating, after)
+                rating_block = {
+                    "rating": round(after.rating, 1),
+                    "rd": round(after.rd, 1),
+                    "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
+                    "seed_disclosure": session.seed,  # revealed post-result (A3)
+                    "opponent_team_disclosure": session.p2_team,  # i.i.d. team post-result (#8)
+                }
+        finally:
+            if rating_lock is not None:
+                rating_lock.release()
 
         # ---- publish phase: reached only once every append above succeeded ----
         receipt: dict[str, Any] = {

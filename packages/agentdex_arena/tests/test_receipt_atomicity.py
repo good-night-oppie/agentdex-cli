@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims
 from agentdex_arena.gateway import ArenaGateway, BattleSession, BeginRequest
+from agentdex_engine.modules.arena import EventLog, RatingEvent, recompute_ladder
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 
@@ -276,3 +277,117 @@ def test_exhausted_rated_quota_rejected_before_orphan_append(tmp_path: Path) -> 
     assert [e["type"] for e in gateway.events.iter_events()] == []  # NO orphan begin row
     # session was never published
     assert all("rated" not in bid for bid in gateway.sessions)
+
+
+def test_rated_finish_delta_brackets_only_its_own_append(tmp_path: Path, monkeypatch) -> None:
+    """ADX-P1-007: concurrent same-visitor rated finishes must not let one receipt's
+    published_delta absorb the other battle's rating movement.
+
+    The bug: _finish reads `before = recompute_ladder()`, awaits the durable append,
+    then reads `after`. Without serialization, a second same-visitor finish can commit
+    its rating period BETWEEN this finish's before/after snapshots, so the first
+    receipt reports BOTH battles' movement (r2-r0) instead of only its own (r1-r0).
+    The per-visitor lock (gateway._finish_locks) brackets the whole window.
+
+    This test forces the interleave by gating the first finish's append until the
+    second finish has been launched. The assertion is implementation-independent:
+    the first receipt's delta must equal the standalone single-battle movement, and
+    the two receipts' deltas must TELESCOPE to the total two-battle movement (each
+    battle counted exactly once, no double-count).
+    """
+    gateway = _gateway(tmp_path)
+    visitor = "RaceBot"
+    opponent = "anchor-max_damage"
+    register_items = [
+        ("register", {"name": visitor, "frozen": False}),
+        ("register", {"name": opponent, "frozen": True}),
+    ]
+    gateway.events.append_many(register_items)
+    gateway._registered.update({visitor, opponent})
+
+    # Expose raw rating movement so the bracket is verified directly, independent of
+    # the public 2*RD inconclusive rail.
+    monkeypatch.setattr(
+        "agentdex_arena.gateway.Ladder.published_delta",
+        staticmethod(lambda before, after: after.rating - before.rating),
+    )
+
+    def end_payload(label: str) -> dict[str, object]:
+        return {"winner": visitor, "turns": 12, "inputLog": [f"{label}-1", f"{label}-2"]}
+
+    def session(label: str) -> BattleSession:
+        return BattleSession(
+            battle_id=f"rated-{label}",
+            claims_token_id="tenant-race",
+            visitor_name=visitor,
+            lane="rated",
+            opponent=opponent,
+            seed=[1, 2, 3, 4],
+            sidecar=None,  # type: ignore[arg-type]
+            opponent_policy=None,
+            p1_team="visitor-team",
+            p2_team="opponent-team",
+            visitor_choices=["move 1", "move 2", "move 3", "move 4"],
+        )
+
+    # Independently compute the standalone first-battle movement (r1-r0) and the
+    # cumulative two-battle movement (r2-r0) on a parallel ladder. Glicko depends
+    # only on win/loss + opponent, not the input_log digest, so fixed digests are fine.
+    def _period(bid: str) -> tuple[str, dict]:
+        return (
+            "period",
+            {
+                "events": [
+                    RatingEvent(
+                        battle_id=bid,
+                        p1=visitor,
+                        p2=opponent,
+                        winner=visitor,
+                        input_log_blake2b16="a" * 32,
+                    ).model_dump()
+                ]
+            },
+        )
+
+    expected_log = EventLog(tmp_path / "expected.jsonl")
+    expected_log.append_many(register_items)
+    r0 = recompute_ladder(expected_log.path).rating(visitor)
+    expected_log.append_many([_period("exp-1")])
+    r1 = recompute_ladder(expected_log.path).rating(visitor)
+    expected_log.append_many([_period("exp-2")])
+    r2 = recompute_ladder(expected_log.path).rating(visitor)
+    expected_first_delta = round(r1.rating - r0.rating, 1)
+    expected_total_delta = round(r2.rating - r0.rating, 1)
+
+    # Gate the first finish's durable append open until the second finish is launched,
+    # so without the lock the second would commit inside the first's before/after window.
+    original_helper = gateway._append_many_or_fail_closed
+    first_reached_append = asyncio.Event()
+    allow_first_append = asyncio.Event()
+
+    async def gated_append_many(items, *, sidecar=None, battle_id=None, session=None):
+        if battle_id == "rated-original":
+            first_reached_append.set()
+            await allow_first_append.wait()
+        return await original_helper(items, sidecar=sidecar, battle_id=battle_id, session=session)
+
+    gateway._append_many_or_fail_closed = gated_append_many  # type: ignore[method-assign]
+
+    async def run_race():
+        first_task = asyncio.create_task(gateway._finish(session("original"), end_payload("a")))
+        # With the lock, the second finish blocks on the per-visitor lock the first
+        # holds; without it, the second would race straight into its own recompute.
+        await first_reached_append.wait()
+        second_task = asyncio.create_task(gateway._finish(session("concurrent"), end_payload("b")))
+        await asyncio.sleep(0)
+        allow_first_append.set()
+        return await first_task, await second_task
+
+    first_receipt, second_receipt = asyncio.run(run_race())
+
+    first_delta = first_receipt["rating"]["published_delta"]
+    second_delta = second_receipt["rating"]["published_delta"]
+    # First receipt reflects ONLY its own battle (the bug would make it == total).
+    assert first_delta == expected_first_delta
+    # The two deltas telescope to the total movement — neither double-counts.
+    assert round(first_delta + second_delta, 1) == expected_total_delta
