@@ -147,8 +147,14 @@ class Sidecar:
             except json.JSONDecodeError:
                 log.warning("sidecar non-json line: %r", raw[:200])
                 continue
-            if "id" in msg and msg["id"] in self._pending:
-                self._pending.pop(msg["id"]).set_result(msg)
+            if "id" in msg:
+                # A response. If its request was cancelled/timed-out the future is
+                # gone from _pending (or already resolved) — drop the late reply
+                # instead of set_result-ing a done/cancelled future, which would
+                # raise here and kill the reader, wedging the whole sidecar.
+                fut = self._pending.pop(msg["id"], None)
+                if fut is not None and not fut.done():
+                    fut.set_result(msg)
             else:
                 await self.events.put(msg)
 
@@ -162,7 +168,16 @@ class Sidecar:
         line = json.dumps({"id": rid, "op": op, **kwargs}) + "\n"
         self._proc.stdin.write(line.encode())
         await self._proc.stdin.drain()
-        resp = await asyncio.wait_for(fut, timeout=60)
+        try:
+            resp = await asyncio.wait_for(fut, timeout=60)
+        except BaseException:
+            # Cancellation (an outer wait_for — e.g. /metrics' 2s RSS budget —
+            # timing us out) or our own 60s timeout must NOT leave the future in
+            # _pending: _read_loop would later set_result the orphan when the slow
+            # response arrives, raise on the cancelled future, and stop processing
+            # every subsequent response. Drop it so a timeout can't wedge the sidecar.
+            self._pending.pop(rid, None)
+            raise
         if not resp.get("ok"):
             raise SidecarError(resp.get("error", "unknown sidecar error"))
         return resp
