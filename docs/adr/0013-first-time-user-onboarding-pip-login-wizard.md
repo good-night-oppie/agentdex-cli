@@ -70,8 +70,20 @@ existing per-agent consent-token model, plus a real PyPI distribution.
   ["bene>=0.2.1"]` (bene is published at 0.2.1), so `pip install
   agentdex-cli[bene]` pulls the BENE harness — letting an agent drive arena play
   through BENE (planner/executor, eval gates) rather than hand-rolled glue.
-- Keep heavy/optional surfaces (camoufox bridge, langfuse stack) behind their
-  own extras so the base install stays lean.
+- Keep heavy/optional surfaces behind their own extras so the base install stays
+  lean. This needs a concrete dependency split, not just intent: today
+  `agentdex-cli` **core-depends** on `agentdex-observe`
+  (`packages/agentdex_cli/pyproject.toml`), and `agentdex-observe`
+  **hard-depends** on `langfuse>=4.7,<5.0`
+  (`packages/agentdex_observe/pyproject.toml`), so a plain
+  `pip install agentdex-cli` would still pull the full Langfuse stack. The
+  packaging phase therefore has to move `agentdex-observe` **out of the core
+  dependency list into an `[observe]` extra** (or make `langfuse` an optional
+  dependency *inside* `agentdex-observe` with a no-op fallback when it is
+  absent), and likewise put the camoufox bridge behind its own extra — so the
+  base wheel is lean and only `agentdex-cli[observe]` / `[bene]` pull the heavy
+  deps. The observe panel must degrade gracefully (no-op tracing) when the extra
+  is not installed.
 - A release pipeline (`adx release` already exists in spirit) tags + builds +
   publishes the workspace members in dependency order.
 - **Release gate + creds:** the operator holds the PyPI token (owner, 2026-06-18);
