@@ -391,3 +391,71 @@ def test_rated_finish_delta_brackets_only_its_own_append(tmp_path: Path, monkeyp
     assert first_delta == expected_first_delta
     # The two deltas telescope to the total movement — neither double-counts.
     assert round(first_delta + second_delta, 1) == expected_total_delta
+
+
+def test_finish_cancelled_while_waiting_lock_leaves_no_partial_receipt(tmp_path: Path) -> None:
+    """ADX-P1-007 follow-up (PR #269 review 3433532481): a second same-visitor rated
+    finish that is CANCELLED while suspended on the per-visitor lock must leave
+    session.ended is None — no unbacked partial receipt that /state /choose would
+    surface. Guards the append-before-publish invariant against the lock wait the
+    rating-serialization added (session.ended is now set only at the publish phase,
+    after the durable append, never as an early marker)."""
+    gateway = _gateway(tmp_path)
+    visitor = "WaitBot"
+    opponent = "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+
+    def _session(label: str) -> BattleSession:
+        return BattleSession(
+            battle_id=f"rated-{label}",
+            claims_token_id="tenant-wait",
+            visitor_name=visitor,
+            lane="rated",
+            opponent=opponent,
+            seed=[1, 2, 3, 4],
+            sidecar=None,  # type: ignore[arg-type]
+            opponent_policy=None,
+            p1_team="vt",
+            p2_team="ot",
+            visitor_choices=["move 1", "move 2", "move 3", "move 4"],
+        )
+
+    end = {"winner": visitor, "turns": 12, "inputLog": ["a", "b"]}
+
+    # Gate the FIRST finish open inside its critical section so it holds the lock
+    # while the second contends.
+    original = gateway._append_many_or_fail_closed
+    first_in_section = asyncio.Event()
+    release_first = asyncio.Event()
+
+    async def gated(items, *, sidecar=None, battle_id=None, session=None):
+        if battle_id == "rated-first":
+            first_in_section.set()
+            await release_first.wait()
+        return await original(items, sidecar=sidecar, battle_id=battle_id, session=session)
+
+    gateway._append_many_or_fail_closed = gated  # type: ignore[method-assign]
+
+    async def run() -> BattleSession:
+        first = asyncio.create_task(gateway._finish(_session("first"), dict(end)))
+        await first_in_section.wait()  # first holds the lock
+        second_session = _session("second")
+        second = asyncio.create_task(gateway._finish(second_session, dict(end)))
+        await asyncio.sleep(0.05)  # let second reach `await rating_lock.acquire()` and block
+        second.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await second
+        # the cancelled-mid-wait finish published NOTHING
+        assert second_session.ended is None
+        assert "rated-second" not in gateway.replays
+        release_first.set()
+        await first
+        return second_session
+
+    asyncio.run(run())
