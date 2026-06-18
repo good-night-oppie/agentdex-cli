@@ -239,6 +239,23 @@ def test_empty_request_payload():
     assert ev.type == "request" and list(ev.args) == [""]
 
 
+def test_multifield_opaque_keeps_structured_prefix():
+    """Multi-field opaque types (|uhtml|NAME|HTML, |c:|TIME|USER|MSG) keep their
+    leading structured fields — only the FINAL field is opaque, so reducers can
+    still attribute by speaker. PR #209 review."""
+    # |uhtml|NAME|HTML — keep NAME, opaque HTML may contain pipes
+    ev = parse_line("|uhtml|tooltip|<div>a|b|c</div>")
+    assert list(ev.args) == ["tooltip", "<div>a|b|c</div>"]
+    # |c|USER|MESSAGE — 1 leading field
+    ev2 = parse_line("|c| Bob|lol|gg")
+    assert list(ev2.args) == [" Bob", "lol|gg"]
+    # |c:|TIMESTAMP|USER|MESSAGE — 2 leading fields, opaque message tail
+    ev3 = parse_line("|c:|1699999999| Alice|hi|there|friend")
+    assert list(ev3.args) == ["1699999999", " Alice", "hi|there|friend"]
+    # |request| stays fully opaque (lead 0)
+    assert len(parse_line('|request|{"a":"x|y"}').args) == 1
+
+
 def test_kwarg_idents_are_sanitized():
     """An opponent ident inside a kwarg ([of] p2a: <nick>) must be sanitized in
     both ev.idents AND the kwarg value — no A6 bypass. PR #200 review 3431806028.
