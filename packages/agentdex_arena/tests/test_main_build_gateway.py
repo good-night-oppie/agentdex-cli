@@ -394,15 +394,46 @@ def test_webhook_notifier_backpressures_to_fallback_when_saturated(monkeypatch):
         "https://hook.example/owner",
         fallback=lambda o, c: fallback_calls.append((o, c)),
         timeout=1.0,
-        max_workers=1,
-        max_inflight=1,
+        max_workers=1,  # single worker → the next request finds the pool busy
     )
 
-    notify("a@example.com", "code1")  # takes the only slot, blocks in delivery
+    notify("a@example.com", "code1")  # takes the only worker, blocks in delivery
     assert started.wait(timeout=5), "first delivery did not start"
-    notify("b@example.com", "code2")  # saturated -> inline file-inbox fallback
+    notify("b@example.com", "code2")  # all workers busy -> inline file-inbox fallback (no queue)
     assert fallback_calls == [("b@example.com", "code2")]
     release.set()  # let the first delivery finish cleanly
+
+
+def test_webhook_notifier_saturated_fallback_failure_does_not_raise(monkeypatch):
+    """When the pool is saturated, the inline fallback is the only delivery path —
+    an unwritable inbox must NOT raise into notify_owner (/enroll/request already
+    stored the pending code). PR #233 review 3432562438."""
+    import threading
+
+    import agentdex_arena.__main__ as m
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking_deliver(url, owner, code, *, timeout, fallback):
+        started.set()
+        release.wait(timeout=5)
+        return True
+
+    monkeypatch.setattr(m, "_deliver_webhook", blocking_deliver)
+
+    def boom_fallback(_o, _c):
+        raise OSError("inbox unwritable")
+
+    notify = m._webhook_notifier(
+        "https://hook.example/owner", fallback=boom_fallback, timeout=1.0, max_workers=1
+    )
+    notify("a@example.com", "code1")  # holds the worker
+    assert started.wait(timeout=5)
+    notify(
+        "b@example.com", "code2"
+    )  # saturated -> guarded fallback raises internally, must NOT escape
+    release.set()
 
 
 def test_deliver_webhook_does_not_log_url_secret(monkeypatch, caplog):
