@@ -1518,7 +1518,10 @@ def create_app(
             except Exception:  # noqa: BLE001 — RSS is diagnostic; never fail the probe
                 rss_mb = None
         return {
-            "active_battles": len(gateway.sessions),
+            # Only unfinished battles — finished sessions stay in gateway.sessions
+            # so /battle/{id}/state can return the ended receipt, so len(sessions)
+            # would grow monotonically and over-report live load (PR #240 review).
+            "active_battles": sum(1 for s in gateway.sessions.values() if s.ended is None),
             "registered_agents": len(gateway._registered),
             "cap_503_total": gateway.cap_503_total,
             "sidecar_spawned": sc is not None,
