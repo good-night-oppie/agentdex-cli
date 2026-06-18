@@ -218,11 +218,11 @@ stub and test against it before adx-core ships it):
 GET {ARENA}/account/quota            Authorization: Bearer <session_token>
 ← {
     "utc_day": "20260618",                       # UTC day these counts apply to
-    "battle": { "remaining": 7, "cap": 10 },     # owner-pooled: one per account
+    "battle": { "remaining": 3, "cap": 5 },      # owner-pooled: one per account
     "agents": {                                  # per-agent, keyed by agent_name
       "<agent_name>": {
-        "evolve":     { "remaining": 3, "cap": 5 },
-        "badge_mint": { "remaining": 1, "cap": 2 }
+        "evolve":     { "remaining": 1, "cap": 2 },
+        "badge_mint": { "remaining": 4, "cap": 5 }
       }
     }
   }
@@ -232,7 +232,9 @@ Session-authed (the human, same bearer scheme as `/enroll/account`) and
 read-only. The `battle` block is a single owner-pooled counter; `evolve` /
 `badge_mint` are nested per `agent_name`. The agent set is the same
 account→agents join that `/status` uses (D7). Caps come from the token's
-`ConsentClaims.quotas`; `remaining = cap - used` for today's `quota_key`.
+`ConsentClaims.quotas` (defaults today: `battle` 5, `evolve` 2, `badge_mint` 5 —
+the example above uses these so stubs/contract tests encode real headroom, not
+invented numbers); `remaining = cap - used` for today's `quota_key`.
 
 ### D7 — adx-cli ↔ adx-core wire contract (who builds what)
 
