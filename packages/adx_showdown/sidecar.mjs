@@ -44,9 +44,13 @@ const MAX_PROTOCOL_LINES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_LINES || 
 // Companion BYTE cap. `replay` returns the whole protocol_log in ONE NDJSON line,
 // and the Python reader (sidecar.py) is hard-limited to 16 MiB — a long battle can
 // stay under MAX_PROTOCOL_LINES yet blow that budget because each captured
-// `|request|` carries the side's full roster JSON. Default 12 MiB leaves headroom
-// for JSON-string escaping/framing under the 16 MiB readline limit. PR #214 review.
-const MAX_PROTOCOL_BYTES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_BYTES || 12 * 1024 * 1024);
+// `|request|` carries the side's full roster JSON. The cap is measured on the
+// SERIALIZED size (JSON.stringify per line — quotes + `\"` escaping of the JSON
+// payloads inflate the raw bytes), and the 10 MiB default leaves explicit headroom
+// under 16 MiB for the OTHER fields the same stdout line carries (log_events,
+// end.inputLog, end.keyLines — the last capped at 3000 lines) plus array framing.
+// PR #214 + #221 review.
+const MAX_PROTOCOL_BYTES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_BYTES || 10 * 1024 * 1024);
 const battles = new Map(); // battleId -> entry
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
@@ -97,7 +101,11 @@ function newEntry() {
 // both `update` battle lines and `sideupdate` control lines.
 function captureProtocol(entry, line) {
   if (!line.length) return;
-  const bytes = Buffer.byteLength(line, 'utf8') + 1; // +1 ≈ per-line NDJSON/JSON framing
+  // Count the SERIALIZED size the line adds to the replay response (JSON.stringify
+  // adds the surrounding quotes and `\"`/`\\`/control escapes that inflate raw
+  // bytes — material for the JSON-heavy |request| lines), plus 1 for the array
+  // comma. This is the budget that actually faces the 16 MiB readline limit.
+  const bytes = Buffer.byteLength(JSON.stringify(line), 'utf8') + 1;
   if (entry.protocolTotal < MAX_PROTOCOL_LINES && entry.protocolBytes + bytes <= MAX_PROTOCOL_BYTES) {
     entry.protocolLog.push(line);
   } else {
