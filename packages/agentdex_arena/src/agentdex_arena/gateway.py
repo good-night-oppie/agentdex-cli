@@ -20,6 +20,7 @@ the opponent on next touch (SLEEPING-tolerant — no background task needed).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -570,6 +571,7 @@ class ArenaGateway:
         self._rated_seed_secret = rated_seed_secret or secrets.token_hex(16)
         self.now = now
         self.sessions: dict[str, BattleSession] = {}
+        self.cap_503_total = 0  # capacity-shed counter (sidecar pool full) — surfaced on /metrics
         self.pending_enrollments: dict[str, EnrollRequest] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
         self.replays: dict[str, dict[str, Any]] = {}
@@ -847,6 +849,7 @@ class ArenaGateway:
             # RETRYABLE 503 (not an opaque 400 a client reads as its own fault) so a
             # visiting agent knows to finish/forfeit a battle and retry (playtest G-03).
             if "capacity" in str(e).lower():
+                self.cap_503_total += 1  # operator-visible shed counter (/metrics)
                 raise HTTPException(
                     status_code=503,
                     detail="arena at capacity — finish or forfeit an active battle, then retry",
@@ -1446,6 +1449,28 @@ def create_app(
             response.status_code = 503
             return {"ok": False, "service": "agentdex-arena", "detail": "sidecar unavailable"}
         return _ARENA_HEALTH
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics() -> dict:
+        # Operator visibility for the launch (no metrics existed — the gap between a
+        # healthy spike and an OOM spiral was invisible). Cheap counters read inline;
+        # sidecar RSS is best-effort (IPC) and bounded by a short timeout so a wedged
+        # sidecar can't hang the endpoint — null on timeout/None/crash, never a hang.
+        sc = app.state.sidecar
+        rss_mb: float | None = None
+        if sc is not None and not _sidecar_dead(sc):
+            try:
+                rss_mb = await asyncio.wait_for(sc.rss_mb(), timeout=2.0)
+            except Exception:  # noqa: BLE001 — RSS is diagnostic; never fail the probe
+                rss_mb = None
+        return {
+            "active_battles": len(gateway.sessions),
+            "registered_agents": len(gateway._registered),
+            "cap_503_total": gateway.cap_503_total,
+            "sidecar_spawned": sc is not None,
+            "sidecar_pool_size": getattr(sc, "size", 1) if sc is not None else 0,
+            "sidecar_rss_mb": rss_mb,
+        }
 
     @app.get("/ladder")
     async def ladder() -> dict:
