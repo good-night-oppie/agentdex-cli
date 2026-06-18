@@ -310,3 +310,44 @@ def test_mcp_choose_advance_failure_after_step_fails_closed(arena):
     # and (2) audit-fail (audit row missing) cases.
     types = [e["type"] for e in gateway.events.iter_events()]
     assert types.count("battle") == 1
+
+
+def test_mcp_evolve_failure_does_not_spend_or_record(arena, monkeypatch):
+    """PR #284 review 3435334329: an MCP request_evolution whose offer_seeds
+    fails must NOT spend the evolve quota nor write a durable quota_spend row
+    (Class B spend-after-success), so a restart cannot replay a failed request
+    as a used slot and exhaust the caller's cap for work that produced nothing.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="EvoFailBot")
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("seed generation blew up")
+
+    monkeypatch.setattr("agentdex_arena.mcp_surface.offer_seeds", _boom)
+
+    with pytest.raises(ValueError):
+        _call_tool(client, "request_evolution", token=token, team="", reasoning="x")
+
+    assert gateway.authority.quota_used == {}, "a failed evolve must not debit quota"
+    assert not any(e.get("type") == "quota_spend" for e in gateway.events.iter_events()), (
+        "a failed evolve must not durably record a quota_spend"
+    )
+
+
+def test_mcp_evolve_success_spends_and_records(arena):
+    """The success path debits exactly one evolve slot AND durably records it,
+    so the daily cap survives a restart (ADX-P2-004) — but only after seeds were
+    actually produced."""
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="EvoOkBot")
+
+    evo = _call_tool(client, "request_evolution", token=token, team="", reasoning="x")
+    assert "team_candidates" in evo
+
+    evolve_keys = [k for k in gateway.authority.quota_used if ":evolve:" in k]
+    assert len(evolve_keys) == 1
+    assert gateway.authority.quota_used[evolve_keys[0]] == 1
+    quota_events = [e for e in gateway.events.iter_events() if e.get("type") == "quota_spend"]
+    assert len(quota_events) == 1
+    assert quota_events[0]["payload"]["key"] == evolve_keys[0]
