@@ -80,6 +80,8 @@ from agentdex_arena.consent import (
     ConsentError,
     _normalize_owner,
 )
+from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
+from agentdex_arena.session import SessionAuthority
 
 log = logging.getLogger(__name__)
 
@@ -462,6 +464,15 @@ class EnrollRequest(BaseModel):
         return v
 
 
+class DevicePollRequest(BaseModel):
+    """Body of POST /auth/device/poll (ADR-0013 D2). The CLI echoes the
+    device_code it received from /auth/device/start on every poll; the arena
+    stays stateless between the two (GitHub tracks the grant)."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    device_code: str = Field(min_length=1, max_length=512)
+
+
 class BeginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=False)
     token: str
@@ -535,6 +546,8 @@ class ArenaGateway:
         event_sync: Callable[[dict], None] | None = None,
         admin_authority: AdminAuthority | None = None,
         badge_authority: BadgeAuthority | None = None,
+        session_authority: SessionAuthority | None = None,
+        device_flow: GitHubDeviceFlow | None = None,
         public_base_url: str = "",
     ) -> None:
         self.authority = authority
@@ -548,6 +561,14 @@ class ArenaGateway:
         # production __main__ tolerates a missing ARENA_BADGE_SIGNING_KEY_HEX
         # and lets the other routes come up — PR #135 review #3410920013).
         self.badge_auth = badge_authority
+        # ADR-0013 D2/D3 onboarding. session_auth mints the human login session;
+        # device_flow brokers GitHub device-flow. Both None means the
+        # /auth/device/* + account routes respond 503 'session auth not
+        # configured' (same optional-at-boot posture as badge_auth) — the
+        # production __main__ tolerates missing ARENA_SESSION_SIGNING_KEY_HEX /
+        # GITHUB_OAUTH_CLIENT_ID and brings every existing route up regardless.
+        self.session_auth = session_authority
+        self.device_flow = device_flow
         # Absolute base URL used to construct README-embeddable badge URLs
         # in the /badge/mint response (PR #130 review #3410920009). Empty
         # string keeps the legacy relative-URL shape for test fixtures; the
@@ -2041,6 +2062,55 @@ def create_app(
     @app.post("/enroll/confirm/{code}")
     async def enroll_confirm(code: str) -> dict:
         return gateway.enroll_confirm(code)
+
+    # ---------- account onboarding: GitHub device-flow (ADR-0013 D2) ----------
+    #
+    # `adx login` calls /auth/device/start, prints the user_code, then polls
+    # /auth/device/poll until the human authorizes at github.com. On success the
+    # arena mints a SESSION token (the human login, keyed by verified email) and
+    # records the github_id<->owner link. Both endpoints 503 when session auth /
+    # the GitHub OAuth app are unconfigured (optional-at-boot, like /badge/mint).
+    # The broker is synchronous (network I/O) so it runs in a worker thread to
+    # avoid blocking the event loop, mirroring the judge SDK off-loop pattern.
+
+    @app.post("/auth/device/start")
+    async def auth_device_start() -> dict:
+        if gateway.device_flow is None:
+            raise _opaque_error(503, "session auth not configured")
+        try:
+            start = await asyncio.to_thread(gateway.device_flow.start)
+        except DeviceFlowError as e:
+            raise _opaque_error(502, e) from None
+        return start.to_public()
+
+    @app.post("/auth/device/poll")
+    async def auth_device_poll(req: DevicePollRequest) -> dict:
+        if gateway.device_flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        try:
+            result = await asyncio.to_thread(gateway.device_flow.poll, req.device_code)
+        except DeviceFlowError as e:
+            raise _opaque_error(502, e) from None
+        if result.status == "authorized":
+            # result.owner / result.github_id are non-None on the authorized
+            # branch (the broker only returns authorized with both resolved).
+            owner = result.owner or ""
+            github_id = result.github_id or ""
+            # Durable link BEFORE handing out the session, so a returning login
+            # resolves to the same verified email across restarts (Class-A
+            # write-then-publish: append, then mutate, then return).
+            gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
+            gateway.accounts.link(github_id, owner)
+            token = gateway.session_auth.mint_session(owner, github_id)
+            claims = gateway.session_auth.verify_session(token)
+            return {
+                "session_token": token,
+                "owner": claims.owner,
+                "expires_at": claims.expires_at,
+            }
+        # pending / denied / expired — all 200 so the CLI switches on the field,
+        # never on a status code (keeps the frozen pending→success shape intact).
+        return {"status": result.status}
 
     @app.post("/team/draft")
     async def team_draft(body: dict) -> dict:
