@@ -758,6 +758,30 @@ class ArenaGateway:
                     pass
             raise _opaque_error(500, f"event log write failed: {e!r}") from None
 
+    async def _stop_battle_robustly(self, sidecar: Sidecar, battle_id: str) -> None:
+        """Best-effort stop of a live sidecar battle that survives cancellation.
+
+        On the production ``SidecarPool`` path a plain ``await sidecar.request("stop")``
+        can be cancelled BEFORE it routes the stop to the owning sidecar, leaving the
+        battle live and the pool slot's capacity leaked even though the gateway then
+        drops the session (PR #264 review). Dispatch the stop as its own task and
+        shield-await it; if the caller is cancelled mid-flight, drain the task to
+        completion before propagating so the stop always reaches the sidecar. stop's
+        own errors are swallowed (best-effort).
+        """
+
+        async def _quiet_stop() -> None:
+            with contextlib.suppress(Exception):
+                await sidecar.request("stop", battle=battle_id)
+
+        stop_task = asyncio.ensure_future(_quiet_stop())
+        try:
+            await asyncio.shield(stop_task)
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await stop_task
+            raise
+
     def _reserve_owner_slot(self, owner_norm: str) -> None:
         """Atomically admit one more concurrent LIVE battle for ``owner_norm`` or
         raise 429 (anti-monopolization, ADR-0012 §7).
@@ -1017,12 +1041,11 @@ class ArenaGateway:
         except BaseException:
             # Published but failed before returning — stop the live sidecar battle
             # (a pooled sidecar releases the slot's capacity only on an explicit
-            # stop, PR #259 review) BEFORE dropping our only handle. The pop sits in
-            # a finally so even a CANCELLED stop await (CancelledError isn't
-            # suppressed) still removes the dead battle from the cap (PR #261 review).
+            # stop, PR #259/#264 review) BEFORE dropping our only handle. The stop is
+            # dispatched cancellation-robustly; the pop sits in a finally so even a
+            # cancelled cleanup still removes the dead battle from the cap (PR #261).
             try:
-                with contextlib.suppress(Exception):
-                    await sidecar.request("stop", battle=battle_id)
+                await self._stop_battle_robustly(sidecar, battle_id)
             finally:
                 self.sessions.pop(battle_id, None)
             raise
@@ -1534,13 +1557,12 @@ class ArenaGateway:
             }
         except BaseException:
             # Published but failed mid-replay — stop the live sidecar battle (a pooled
-            # sidecar frees the slot's capacity only on an explicit stop, PR #259
-            # review) BEFORE dropping our only handle. The pop sits in a finally so
-            # even a CANCELLED stop await still removes the dead fork from the cap
-            # (PR #261 review).
+            # sidecar frees the slot's capacity only on an explicit stop, PR #259/#264
+            # review) BEFORE dropping our only handle, cancellation-robustly. The pop
+            # sits in a finally so even a cancelled cleanup removes the dead fork from
+            # the cap (PR #261 review).
             try:
-                with contextlib.suppress(Exception):
-                    await sidecar.request("stop", battle=battle_id)
+                await self._stop_battle_robustly(sidecar, battle_id)
             finally:
                 self.sessions.pop(battle_id, None)
             raise
