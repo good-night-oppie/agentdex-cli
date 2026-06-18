@@ -14,8 +14,8 @@ Wire: see ``agentdex_cli.arena_client.ArenaClient`` (enroll + Ed25519 PoP + loop
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
-import re
 import socket
 import sys
 from typing import Any
@@ -191,12 +191,21 @@ def _resolve_token(
 
 
 def _default_agent_name() -> str:
-    """A machine-stable, globally-distinct default agent name. Arena names are
-    unique across ALL users, so a bare ``terminal-player`` would let only the first
-    enroller ever claim it; suffix the hostname so a fresh box gets its own name
-    while staying stable across runs (so the saved key/token keep matching)."""
-    host = re.sub(r"[^a-zA-Z0-9_-]", "", socket.gethostname()) or "host"
-    return f"terminal-player-{host}"[:64]
+    """A machine-stable, globally-distinct default agent name that survives the
+    arena's server-side name cap.
+
+    Arena names are unique across ALL users AND capped at ``MAX_NAME_LEN`` (24)
+    by ``sanitize_name``, so a bare ``terminal-player-<hostname>`` is truncated
+    to ``terminal-player-<first 8 chars>`` server-side. Hosts that share an
+    8-char prefix then collide at enrollment (409) even though the CLI saved its
+    key/token under the full, untruncated name. Suffix a short hash of the FULL
+    hostname instead: distinct hosts stay distinct, the whole name is exactly 24
+    chars (== the cap, so the CLI-side and server-side names match — no silent
+    truncation), and it stays stable across runs so the saved key/token keep
+    matching."""
+    host = socket.gethostname() or "host"
+    digest = hashlib.blake2s(host.encode("utf-8"), digest_size=4).hexdigest()  # 8 hex chars
+    return f"terminal-player-{digest}"  # 16 + 8 == 24 == MAX_NAME_LEN
 
 
 def cmd_arena_play(argv: list[str]) -> int:
