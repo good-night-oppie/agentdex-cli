@@ -205,3 +205,47 @@ def test_env_tightens_cap(gw, monkeypatch):
     with pytest.raises(HTTPException) as ei:
         asyncio.run(_call_begin(gw, req))
     assert ei.value.status_code == 429
+
+
+def _fork_src() -> dict:
+    """Minimal replay record shape battle_fork reads (the cap reservation fires
+    before any sidecar work, so this only needs to satisfy session construction)."""
+    return {
+        "opponent": "anchor-random",
+        "tenant": "tok",
+        "visitor": "PartnerBot",
+        "seed": [1, 2, 3, 4],
+        "teams": ("p1team", "p2team"),
+        "explicit_opponent": False,
+    }
+
+
+def test_fork_obeys_owner_cap(gw):
+    """Forking starts a NEW live sidecar battle, so it must hit the same per-owner
+    cap — otherwise an owner forks finished battles into uncapped live sessions that
+    are invisible to the cap (PR #243 review)."""
+    owner_norm = _normalize_owner(_OWNER)
+    for i in range(3):  # caller already at the default cap (3 live)
+        gw.sessions[f"live-{i}"] = _dummy(owner_norm, i)
+
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            gw.battle_fork(
+                "sandbox-src", _fork_src(), turn=0, sidecar=_SentinelSidecar(), owner=_OWNER
+            )
+        )
+    assert ei.value.status_code == 429
+
+
+def test_fork_caps_on_forking_owner_not_source(gw):
+    """The fork is capped against the FORKING caller's owner, so a caller under the
+    cap gets PAST the reservation (then hits the sentinel sidecar)."""
+    for i in range(3):  # 3 live under a DIFFERENT owner must not block this fork
+        gw.sessions[f"other-{i}"] = _dummy(_normalize_owner("other@example.com"), i)
+
+    with pytest.raises(SidecarError):  # past the cap → reached the sentinel sidecar
+        asyncio.run(
+            gw.battle_fork(
+                "sandbox-src", _fork_src(), turn=0, sidecar=_SentinelSidecar(), owner=_OWNER
+            )
+        )
