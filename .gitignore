@@ -29,9 +29,28 @@ demo_*/
 blog/
 # ...but the bene-site blog (BENE-DOC-10) is first-class deploy content, not KAOS
 # cull: the bare `blog/` above also matched `site/blog/` and silently excluded it
-# from the arena Docker build. Re-include it explicitly.
+# from the arena Docker build. Re-include it explicitly — EN and the localized
+# `site/zh/blog/` (BENE-DOC-01 ships EN+zh), which the bare `blog/` also caught.
 !site/blog/
 !site/blog/**
+!site/zh/blog/
+!site/zh/blog/**
+# ...but keep the repo-wide secret/cache/db excludes ACTIVE under the re-included
+# blog dirs — a blog build must never commit .pyc caches, sqlite files, or .env
+# secrets just because the dir itself is tracked (the `!...**` above would otherwise
+# re-include them, last-match-wins). PR #235 review.
+site/blog/**/*.pyc
+site/blog/**/*.db
+site/blog/**/*.db-shm
+site/blog/**/*.db-wal
+site/blog/**/.env
+site/blog/**/.env.*
+site/zh/blog/**/*.pyc
+site/zh/blog/**/*.db
+site/zh/blog/**/*.db-shm
+site/zh/blog/**/*.db-wal
+site/zh/blog/**/.env
+site/zh/blog/**/.env.*
 
 # supergoal harness artifacts (skill state, not source)
 .supergoal/
