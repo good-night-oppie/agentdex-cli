@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import subprocess
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterator
@@ -28,7 +29,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from agentdex_engine.cards import EvolutionCard, Seed
 from agentdex_engine.modules.arena import (
@@ -45,6 +46,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.sidecar import Sidecar
 from adx_showdown.sim import BattleResult, Policy, run_battle
+
+log = logging.getLogger(__name__)
 
 STORE_FILES = ("prompt.md", "subagents.json", "skills.json", "memory.json", "teams.json")
 GenerationVerdict = Literal["EFFECTIVE", "NEUTRAL", "HARMFUL", "INCONCLUSIVE"]
@@ -237,6 +240,7 @@ class GenerationReport(BaseModel):
     power_verdict: str
     rolled_back: bool = False
     manifest_summary: str = ""
+    pr_url: str | None = None  # set when a pr_publisher opened a GitHub PR for this gen
 
 
 Distiller = Callable[[list[Signature], BattleResult], str]
@@ -247,6 +251,15 @@ Refiner = Callable[[HarnessWorkspace, str, int], "ChangeManifest | None"]
 Writes stores in the workspace; MUST return the manifest for its edits."""
 
 BattleRunner = Callable[[Sidecar, str, str, int], Awaitable[BattleResult]]
+
+PrPublisher = Callable[[HarnessWorkspace, "GenerationReport", EvolutionCard], "str | None"]
+"""(workspace, report, card) -> PR url (or None if skipped/not configured).
+
+Closes the meta-harness loop through git: a generation's measured outcome is
+committed + opened as a GitHub PR for review. Injected like ``refiner`` so CI /
+tests stay fully offline (default None = no publish); only production passes a
+real publisher (e.g. ``gh_pr_publisher``). A publish fault must never abort the
+falsification loop — the caller catches + logs."""
 
 
 def default_distiller(signatures: list[Signature], result: BattleResult) -> str:
@@ -277,6 +290,7 @@ class EvolutionLoop:
     events_path: Path
     distiller: Distiller = default_distiller
     refiner: Refiner | None = None
+    pr_publisher: PrPublisher | None = None
     k_battles: int = 5
     format_id: str = "gen9ou"
     opponent_team: str | None = None
@@ -484,6 +498,20 @@ class EvolutionLoop:
             manifest_summary=manifest.summary if manifest else "",
         )
         self.reports.append(report_obj)
+
+        # Closed-loop GitHub publish: open/refresh a PR carrying this generation's
+        # EvolutionCard + evolved team + verdict. Cadence gate — only on a MEASURED
+        # move (verdict != NEUTRAL) or a rollback; NEUTRAL gens have no measured
+        # edit and would be PR noise. A publish fault is a side-channel failure:
+        # log and continue so the falsification loop + run state are never aborted
+        # by a flaky network / gh / remote.
+        if self.pr_publisher is not None and (verdict != "NEUTRAL" or rolled_back):
+            try:
+                card = self.evolution_card(report_obj, parent_lineage_root=None)
+                report_obj.pr_url = self.pr_publisher(self.workspace, report_obj, card)
+            except Exception:
+                log.warning("evolution PR publish failed for gen %s", gen, exc_info=True)
+
         return report_obj
 
     def _team_at_tag(self, tag: str) -> str:
@@ -520,3 +548,84 @@ class EvolutionLoop:
             mutation_seeds={"harness": [seed]},
             boundary_annotations=[f"power={report.power_verdict}", f"verdict={report.verdict}"],
         )
+
+
+# --------------------------------------------------------------------------- #
+# Closed-loop GitHub publisher (the operator-facing PrPublisher implementation)
+# --------------------------------------------------------------------------- #
+
+
+def _pr_body(report: GenerationReport, card: EvolutionCard) -> str:
+    """Human-reviewable PR body: the measured outcome + the EvolutionCard."""
+    return "\n".join(
+        [
+            f"## Evolution generation {report.generation} — **{report.verdict}**",
+            "",
+            f"- rating: {report.rating:.0f} ± {report.rd:.0f}",
+            f"- glicko_delta: {report.glicko_delta}",
+            f"- McNemar p_value: {report.p_value} (paired_pairs={report.paired_pairs})",
+            f"- power_verdict: {report.power_verdict}",
+            f"- rolled_back: {report.rolled_back}",
+            f"- edit: {report.manifest_summary or '(none)'}",
+            "",
+            "EvolutionCard (`evolution_card.json`) + evolved `teams.json` are in this branch.",
+            "",
+            "🤖 closed evolution meta-harness loop (agentdex)",
+        ]
+    )
+
+
+def gh_pr_publisher(
+    repo: str,
+    *,
+    base: str = "main",
+    remote: str = "origin",
+    remote_url: str | None = None,
+    runner: Callable[..., Any] = subprocess.run,
+) -> PrPublisher:
+    """Build a :data:`PrPublisher` that commits the EvolutionCard into the
+    workspace, pushes the generation as a branch to ``repo``, and opens a GitHub
+    PR via the ambient ``gh`` CLI (fleet auth / ``GITHUB_TOKEN``).
+
+    ``repo`` = ``owner/name``. ``remote_url`` defaults to the repo's https URL.
+    ``runner`` is injectable for tests. The target repo should be seeded once from
+    a ``gen-0`` push so each generation's PR diff is just that generation's change.
+    Network / push / gh failures raise; :meth:`EvolutionLoop.run_generation`
+    catches + logs (publish is a side-channel, never a loop abort).
+    """
+    url = remote_url or f"https://github.com/{repo}.git"
+
+    def publish(ws: HarnessWorkspace, report: GenerationReport, card: EvolutionCard) -> str | None:
+        branch = f"evolution/gen-{report.generation}-{report.verdict.lower()}"
+        # Card artifact alongside the evolved stores, captured by commit_edits.
+        (ws.root / "evolution_card.json").write_text(card.model_dump_json(indent=1) + "\n")
+        ws.commit_edits(f"evolution gen {report.generation}: {report.verdict}")
+        _git(ws.root, "branch", "-f", branch)
+        try:
+            _git(ws.root, "remote", "add", remote, url)
+        except subprocess.CalledProcessError:
+            _git(ws.root, "remote", "set-url", remote, url)
+        _git(ws.root, "push", "-f", remote, branch)
+        result = runner(
+            [
+                "gh",
+                "pr",
+                "create",
+                "--repo",
+                repo,
+                "--head",
+                branch,
+                "--base",
+                base,
+                "--title",
+                f"evolution gen {report.generation}: {report.verdict}",
+                "--body",
+                _pr_body(report, card),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return (getattr(result, "stdout", "") or "").strip() or None
+
+    return publish
