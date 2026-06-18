@@ -231,27 +231,47 @@ def _legacy_default_agent_names() -> list[str]:
         # pre-#279: terminal-player-<sanitized hostname>, capped at 64 (the CLI
         # saved under the untruncated name even though the server truncated to 24).
         f"terminal-player-{sanitized}"[:64],
+        # the original CLI default, the literal `terminal-player` (before any
+        # hostname/hash suffix) — credentials at ~/.agentdex/terminal-player.*
+        # (PR #287 review 3435479234).
+        "terminal-player",
     ]
 
 
 def _effective_agent_name(args: argparse.Namespace) -> str:
     """The agent name to actually use for credential paths + identity.
 
-    An explicit ``--agent`` is honored verbatim. For the DEFAULT agent, if this
-    machine has no credentials under the current default name but DOES have them
-    under a PRIOR default name, keep using that prior name so an upgrade (the
-    default-name format has changed across #271/#285/this PR) does not orphan a
-    still-valid token/key or force a needless re-enrollment."""
+    An explicit ``--agent`` is honored verbatim. For the DEFAULT agent, reuse a
+    PRIOR default name's credentials on upgrade so the format change does not
+    orphan a still-valid enrollment — but ONLY for the implicit saved-token path,
+    and ONLY when the prior credentials are usable (PR #287 review 3435479226):
+
+    - An explicit ``--token`` / ``ADX_ARENA_TOKEN`` defines the identity for the
+      CURRENT default name; never redirect it to a legacy key it was not signed
+      with.
+    - A legacy candidate is taken only when it has BOTH a key and a NON-EXPIRED
+      saved token. An expired legacy token would otherwise be selected here and
+      then dropped by _resolve_token, forcing a re-enroll of the permanently
+      registered old name — worse than enrolling the new identity fresh.
+    """
     if args.agent != _default_agent_name():
         return args.agent  # user chose it explicitly
+    if getattr(args, "token", None) or os.environ.get("ADX_ARENA_TOKEN"):
+        return args.agent  # an explicit token defines the current-name identity
     base = os.path.expanduser("~/.agentdex")
     if os.path.exists(os.path.join(base, f"{args.agent}.token")):
         return args.agent  # already enrolled under the current default
     for legacy in _legacy_default_agent_names():
-        if os.path.exists(os.path.join(base, f"{legacy}.token")) and os.path.exists(
-            os.path.join(base, f"{legacy}.key")
-        ):
-            return legacy
+        tok_path = os.path.join(base, f"{legacy}.token")
+        key_path = os.path.join(base, f"{legacy}.key")
+        if not (os.path.exists(tok_path) and os.path.exists(key_path)):
+            continue
+        try:
+            saved = open(tok_path).read().strip()
+        except OSError:
+            continue
+        if saved and not token_expired(saved):
+            return legacy  # reuse only a still-usable prior enrollment
     return args.agent
 
 

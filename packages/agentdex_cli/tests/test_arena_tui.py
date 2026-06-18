@@ -256,36 +256,66 @@ def test_default_agent_name_wide_hash_avoids_known_collision(monkeypatch) -> Non
 
 
 def test_effective_agent_name_falls_back_to_legacy_creds(monkeypatch, tmp_path) -> None:
-    """PR #285 review 3435385944: an upgrade must not orphan a returning user's
-    still-valid credentials. When on the DEFAULT agent with no creds under the
-    current name but creds under a prior default name, reuse the prior name.
-    An explicit --agent is always honored verbatim."""
+    """PR #285/#287 review: on the DEFAULT agent with no current-name creds,
+    reuse a prior default name's creds — but ONLY for the implicit saved-token
+    path and ONLY when the prior token is non-expired. An explicit --agent /
+    --token / ADX_ARENA_TOKEN is never overridden (3435385944 + 3435479226)."""
     import types
 
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("ADX_ARENA_TOKEN", raising=False)
     monkeypatch.setattr("socket.gethostname", lambda: "some-host")
+    # Deterministic expiry; non-expired by default, flipped per case.
+    monkeypatch.setattr(arena_tui, "token_expired", lambda tok, **k: False)
     cfg = tmp_path / ".agentdex"
     cfg.mkdir()
 
     new_default = arena_tui._default_agent_name()
     legacy = arena_tui._legacy_default_agent_names()[0]
     assert legacy != new_default
-    args = types.SimpleNamespace(agent=new_default)
+    args = types.SimpleNamespace(agent=new_default, token=None)
 
     # No creds anywhere -> stay on the current default.
     assert arena_tui._effective_agent_name(args) == new_default
 
-    # Legacy token+key present, current-default creds absent -> fall back.
+    # Legacy token+key present AND non-expired -> fall back.
     (cfg / f"{legacy}.token").write_text("legacy-token")
     (cfg / f"{legacy}.key").write_text("legacy-key")
     assert arena_tui._effective_agent_name(args) == legacy
 
+    # An explicit --token defines the current-name identity -> NO fallback (else
+    # it would be paired with the legacy key it was not signed with).
+    assert (
+        arena_tui._effective_agent_name(types.SimpleNamespace(agent=new_default, token="tok"))
+        == new_default
+    )
+    # Same for ADX_ARENA_TOKEN in the environment.
+    monkeypatch.setenv("ADX_ARENA_TOKEN", "env-tok")
+    assert arena_tui._effective_agent_name(args) == new_default
+    monkeypatch.delenv("ADX_ARENA_TOKEN", raising=False)
+
+    # An EXPIRED legacy token is unusable -> NO fallback (enroll fresh instead of
+    # re-enrolling the permanently registered old name).
+    monkeypatch.setattr(arena_tui, "token_expired", lambda tok, **k: True)
+    assert arena_tui._effective_agent_name(args) == new_default
+    monkeypatch.setattr(arena_tui, "token_expired", lambda tok, **k: False)
+
     # An explicit (non-default) --agent is never overridden.
     assert (
-        arena_tui._effective_agent_name(types.SimpleNamespace(agent="MyExplicitBot"))
+        arena_tui._effective_agent_name(types.SimpleNamespace(agent="MyExplicitBot", token=None))
         == "MyExplicitBot"
     )
 
     # Once the current default also has creds, prefer it over the legacy name.
     (cfg / f"{new_default}.token").write_text("new-token")
     assert arena_tui._effective_agent_name(args) == new_default
+
+
+def test_legacy_default_agent_names_includes_original_bare_default(monkeypatch) -> None:
+    """PR #287 review 3435479234: the very first CLI default was the literal
+    `terminal-player` (no hostname/hash suffix); it must be a fallback candidate
+    so users who enrolled in that release keep their credentials."""
+    monkeypatch.setattr("socket.gethostname", lambda: "some-host")
+    names = arena_tui._legacy_default_agent_names()
+    assert "terminal-player" in names
+    assert any(n.startswith("terminal-player-") for n in names)  # plus the suffixed forms
