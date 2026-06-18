@@ -1037,8 +1037,7 @@ def test_collusion_heuristics_unit(arena):
         visitor_side="p1",
     )
     session.visitor_choices = ["move 1", "move 1", "move 1", "move 1", "move 1"]
-    session.ended = {"turns": 5}
-    reason1 = gateway._check_collusion(session)
+    reason1 = gateway._check_collusion(session, 5)
     assert reason1 is not None
     assert "low-entropy" in reason1
 
@@ -1077,8 +1076,7 @@ def test_collusion_heuristics_unit(arena):
         p2_team=None,
         visitor_side="p1",
     )
-    session2.ended = {"turns": 4}
-    reason2 = gateway._check_collusion(session2)
+    reason2 = gateway._check_collusion(session2, 4)
     assert reason2 is not None
     assert "win-transfer" in reason2
 
