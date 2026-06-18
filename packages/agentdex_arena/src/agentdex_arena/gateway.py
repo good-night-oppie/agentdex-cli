@@ -21,6 +21,7 @@ the opponent on next touch (SLEEPING-tolerant — no background task needed).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -1513,6 +1514,10 @@ def create_app(
     # missing). The instance is never stored on failure, so /healthz can't read it
     # off a returncode — this marker is how a failed start surfaces as unhealthy.
     app.state.sidecar_start_failed = False
+    # Serialize the lazy start: two concurrent first sim requests must not each spawn
+    # a Node sidecar (PR #248 review). The lock is created in this sync context and
+    # binds to the running loop on first acquire.
+    app.state.sidecar_lock = asyncio.Lock()
 
     from agentdex_arena.mcp_surface import current_gateway, current_sidecar_fn
 
@@ -1527,20 +1532,33 @@ def create_app(
             current_sidecar_fn.reset(t2)
 
     async def _sidecar() -> Sidecar:
-        if app.state.sidecar is None:
-            sc = sidecar_factory()
-            try:
-                await sc.start()
-            except BaseException:
-                # A failed lazy start must surface as unhealthy. Don't leave a
-                # non-None, unstarted instance (returncode=None reads as "alive"
-                # to /healthz while every sim request fails "sidecar not started");
-                # flag it and re-raise so the next request retries a fresh start.
-                app.state.sidecar_start_failed = True
-                raise
-            app.state.sidecar = sc
-            app.state.sidecar_start_failed = False
+        if app.state.sidecar is not None:
+            return app.state.sidecar
+        async with app.state.sidecar_lock:
+            # Re-check under the lock — a concurrent first request may have started
+            # it while we waited, so we don't spawn a second Node sidecar.
+            if app.state.sidecar is None:
+                sc = sidecar_factory()
+                try:
+                    await sc.start()
+                except BaseException:
+                    # If start() spawned a child before raising (e.g. it timed out
+                    # waiting for the ready event), stop it so we don't leak a Node
+                    # process; best-effort (PR #248 review).
+                    with contextlib.suppress(Exception):
+                        await sc.stop()
+                    # A failed lazy start must surface as unhealthy. Don't leave a
+                    # non-None, unstarted instance (returncode=None reads as "alive"
+                    # to /healthz while every sim request fails "sidecar not started");
+                    # flag it and re-raise so the next request retries a fresh start.
+                    app.state.sidecar_start_failed = True
+                    raise
+                app.state.sidecar = sc
+                app.state.sidecar_start_failed = False
         return app.state.sidecar
+
+    # Exposed for tests + non-request callers to drive the lazy start deterministically.
+    app.state.ensure_sidecar = _sidecar
 
     _ARENA_HEALTH = {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
 
