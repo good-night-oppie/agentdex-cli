@@ -25,6 +25,7 @@ Usage:
   uv run python scripts/arena_loadtest.py --base http://127.0.0.1:8890 \
     --inbox /tmp/arena-loadtest-inbox --levels 1,2,4,8,16,32 --sidecar-pid auto
 """
+
 from __future__ import annotations
 
 import argparse
@@ -148,7 +149,9 @@ def run_level(base: str, n: int, window_s: float, turns: int, pid: int | None) -
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--base", default="http://127.0.0.1:8889")
-    ap.add_argument("--inbox", default=None, help="ARENA_OWNER_INBOX_DIR the target arena writes to")
+    ap.add_argument(
+        "--inbox", default=None, help="ARENA_OWNER_INBOX_DIR the target arena writes to"
+    )
     ap.add_argument("--levels", default="1,2,4,8", help="comma-sep concurrency ramp")
     ap.add_argument("--window", type=float, default=20.0, help="seconds to sustain each level")
     ap.add_argument("--turns", type=int, default=12, help="max choices per battle")
@@ -162,15 +165,19 @@ def main() -> int:
     levels = [int(x) for x in args.levels.split(",")]
 
     print(f"# arena load-test  base={args.base}  sidecar_pid={pid}  window={args.window}s")
-    print(f"{'N':>4} {'rss_peak':>9} {'rss_mean':>9} {'p50_ms':>8} {'p95_ms':>8} "
-          f"{'battles':>8} {'choices':>8} {'503':>5} {'err':>5}")
+    print(
+        f"{'N':>4} {'rss_peak':>9} {'rss_mean':>9} {'p50_ms':>8} {'p95_ms':>8} "
+        f"{'battles':>8} {'choices':>8} {'503':>5} {'err':>5}"
+    )
     results = []
     for n in levels:
         r = run_level(args.base, n, args.window, args.turns, pid)
         results.append(r)
-        print(f"{r['concurrency']:>4} {str(r['rss_mb_peak']):>9} {str(r['rss_mb_mean']):>9} "
-              f"{str(r['choose_p50_ms']):>8} {str(r['choose_p95_ms']):>8} "
-              f"{r['battles']:>8} {r['choices']:>8} {r['cap_503']:>5} {r['errors']:>5}")
+        print(
+            f"{r['concurrency']:>4} {str(r['rss_mb_peak']):>9} {str(r['rss_mb_mean']):>9} "
+            f"{str(r['choose_p50_ms']):>8} {str(r['choose_p95_ms']):>8} "
+            f"{r['battles']:>8} {r['choices']:>8} {r['cap_503']:>5} {r['errors']:>5}"
+        )
     print("DONE_JSON " + json.dumps({"base": args.base, "sidecar_pid": pid, "levels": results}))
     return 0
 

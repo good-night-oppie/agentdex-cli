@@ -28,6 +28,8 @@ def _scrub_env(monkeypatch) -> None:
         "ARENA_OWNER_INBOX_DIR",
         "ARENA_PG_DSN",
         "ARENA_PUBLIC_BASE_URL",
+        "ARENA_OWNER_WEBHOOK",
+        "ARENA_OWNER_WEBHOOK_TIMEOUT",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -141,3 +143,196 @@ def test_build_gateway_still_fails_closed_on_admin_env_missing(monkeypatch, tmp_
 
     with pytest.raises(AdminAuthError):
         build_gateway()
+
+
+# ---------- owner confirmation-code delivery channel (ENROLL-P0-delivery-channel) ----------
+
+
+def _min_env(monkeypatch, tmp_path: Path) -> None:
+    """The minimal valid env for a build_gateway() boot (no badge needed)."""
+    _scrub_env(monkeypatch)
+    monkeypatch.setenv("ARENA_ADMIN_TOKEN_HASH", "0" * 64)
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _HEX64_B)
+    monkeypatch.setenv("ARENA_RUNTIME_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("ARENA_OWNER_INBOX_DIR", str(tmp_path / "inbox"))
+
+
+def test_build_gateway_selects_webhook_when_env_set(monkeypatch, tmp_path: Path):
+    """ARENA_OWNER_WEBHOOK set → notify_owner is the webhook notifier (file inbox
+    becomes the fallback), parsing ARENA_OWNER_WEBHOOK_TIMEOUT."""
+    import agentdex_arena.__main__ as m
+
+    _min_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("ARENA_OWNER_WEBHOOK", "https://hook.example/owner")
+    monkeypatch.setenv("ARENA_OWNER_WEBHOOK_TIMEOUT", "2.5")
+
+    captured: dict = {}
+
+    def fake_webhook_notifier(url, *, fallback, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        captured["has_fallback"] = fallback is not None
+        return lambda owner, code: None
+
+    monkeypatch.setattr(m, "_webhook_notifier", fake_webhook_notifier)
+
+    gw = m.build_gateway()
+    assert gw.notify_owner is not None
+    assert captured["url"] == "https://hook.example/owner"
+    assert captured["timeout"] == 2.5
+    assert captured["has_fallback"] is True  # file inbox is always the fallback
+
+
+def test_build_gateway_uses_file_inbox_when_webhook_unset(monkeypatch, tmp_path: Path):
+    """No ARENA_OWNER_WEBHOOK → notify_owner writes the code to the file inbox
+    (the local/playtest path), preserving prior behavior."""
+    import agentdex_arena.__main__ as m
+
+    _min_env(monkeypatch, tmp_path)
+    gw = m.build_gateway()
+
+    gw.notify_owner("owner@example.com", "code-xyz")
+    files = list((tmp_path / "inbox").glob("*.code"))
+    assert len(files) == 1
+    assert files[0].read_text(encoding="utf-8").strip() == "code-xyz"
+
+
+def test_deliver_webhook_posts_payload(monkeypatch):
+    """_deliver_webhook POSTs {owner, code} and returns True on 2xx; no fallback."""
+    import agentdex_arena.__main__ as m
+
+    sent: dict = {}
+
+    class _FakeResp:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class _FakeClient:
+        def __init__(self, *a, **k) -> None:
+            sent["timeout"] = k.get("timeout")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> bool:
+            return False
+
+        def post(self, url, json):
+            sent["url"] = url
+            sent["json"] = json
+            return _FakeResp()
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "Client", _FakeClient)
+
+    fallback_calls: list = []
+    ok = m._deliver_webhook(
+        "https://hook.example/owner",
+        "owner@example.com",
+        "the-code",
+        timeout=3.0,
+        fallback=lambda o, c: fallback_calls.append((o, c)),
+    )
+    assert ok is True
+    assert sent["url"] == "https://hook.example/owner"
+    assert sent["json"] == {"owner": "owner@example.com", "code": "the-code"}
+    assert sent["timeout"] == 3.0
+    assert fallback_calls == []  # success → fallback never fires
+
+
+def test_deliver_webhook_falls_back_on_network_error(monkeypatch):
+    """A POST that raises → _deliver_webhook returns False and invokes the fallback
+    (a code is never dropped)."""
+    import agentdex_arena.__main__ as m
+
+    class _BoomClient:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> bool:
+            return False
+
+        def post(self, url, json):
+            raise RuntimeError("connection refused")
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "Client", _BoomClient)
+
+    fallback_calls: list = []
+    ok = m._deliver_webhook(
+        "https://hook.example/owner",
+        "owner@example.com",
+        "the-code",
+        timeout=3.0,
+        fallback=lambda o, c: fallback_calls.append((o, c)),
+    )
+    assert ok is False
+    assert fallback_calls == [("owner@example.com", "the-code")]
+
+
+def test_deliver_webhook_falls_back_on_non_2xx(monkeypatch):
+    """A non-2xx response → raise_for_status raises → fallback fires, returns False."""
+    import agentdex_arena.__main__ as m
+    import httpx
+
+    class _FakeResp:
+        status_code = 500
+
+        def raise_for_status(self) -> None:
+            raise httpx.HTTPStatusError("500", request=None, response=None)  # type: ignore[arg-type]
+
+    class _FakeClient:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> bool:
+            return False
+
+        def post(self, url, json):
+            return _FakeResp()
+
+    monkeypatch.setattr(httpx, "Client", _FakeClient)
+
+    fallback_calls: list = []
+    ok = m._deliver_webhook(
+        "https://hook.example/owner",
+        "owner@example.com",
+        "the-code",
+        timeout=3.0,
+        fallback=lambda o, c: fallback_calls.append((o, c)),
+    )
+    assert ok is False
+    assert fallback_calls == [("owner@example.com", "the-code")]
+
+
+def test_webhook_notifier_delivers_off_thread(monkeypatch):
+    """The notifier returned by _webhook_notifier fires delivery in a thread and
+    returns immediately; the code is delivered (joined for determinism)."""
+    import threading
+
+    import agentdex_arena.__main__ as m
+
+    delivered: list = []
+    done = threading.Event()
+
+    def fake_deliver(url, owner, code, *, timeout, fallback):
+        delivered.append((url, owner, code, timeout))
+        done.set()
+        return True
+
+    monkeypatch.setattr(m, "_deliver_webhook", fake_deliver)
+
+    notify = m._webhook_notifier("https://hook.example/owner", fallback=None, timeout=4.0)
+    notify("owner@example.com", "abc")
+    assert done.wait(timeout=5), "webhook delivery thread did not run"
+    assert delivered == [("https://hook.example/owner", "owner@example.com", "abc", 4.0)]

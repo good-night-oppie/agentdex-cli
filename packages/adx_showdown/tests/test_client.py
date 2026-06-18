@@ -284,5 +284,7 @@ def test_battlestate_is_strict():
     # extra fields forbidden — the state is a closed, audited shape
     import pytest
 
-    with pytest.raises(Exception):
+    # pydantic raises ValidationError (a ValueError subclass) on an extra field;
+    # assert the specific type, not a blind Exception (ruff B017).
+    with pytest.raises(ValueError):
         BattleState(turn_no=1, bogus="x")  # type: ignore[call-arg]

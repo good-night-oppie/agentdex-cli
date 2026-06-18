@@ -179,4 +179,4 @@ class SidecarPool:
     async def rss_mb(self) -> float:
         """Total RSS across the pool (MB)."""
         vals = await asyncio.gather(*(s.rss_mb() for s in self._sidecars), return_exceptions=True)
-        return round(sum(v for v in vals if isinstance(v, (int, float))), 1)
+        return round(sum(v for v in vals if isinstance(v, int | float)), 1)
