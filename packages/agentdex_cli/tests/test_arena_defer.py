@@ -8,8 +8,10 @@ instead of a bare argparse "invalid choice" error (ADX-P2-001 agent-ux footgun).
 Tests:
 1. `adx arena` parses to cmd_arena_defer (the subcommand exists at all).
 2. Running it fails closed (rc=1) and prints starter-kit + MCP routing to stderr.
-3. Arbitrary trailing args (`adx arena play --foo`) are swallowed by REMAINDER
+3. Arbitrary trailing args (`adx arena evolve --foo`) are swallowed by REMAINDER
    and still route cleanly — no argparse error on unknown sub-subcommands.
+4. `adx arena play ...` is the ONE wired verb — it routes to the terminal client
+   (cmd_arena_play), NOT the defer stub.
 """
 
 from __future__ import annotations
@@ -38,17 +40,33 @@ def test_arena_defer_fails_closed_with_routing(capsys):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["arena", "play"],
         ["arena", "enroll", "--owner", "x@y.com"],
         ["arena", "battle", "--gym-leader", "gym-balance"],
+        ["arena", "evolve", "--foo"],
     ],
 )
 def test_arena_swallows_trailing_args(argv, capsys):
     # REMAINDER must absorb any sub-args so the visiting agent never hits a
-    # bare argparse "invalid choice" / "unrecognized arguments" error.
+    # bare argparse "invalid choice" / "unrecognized arguments" error. (`play`
+    # is excluded — it is the one implemented verb; see test below.)
     rc = main(argv)
     assert rc == 1
     assert "agent-starter-kit" in capsys.readouterr().err
+
+
+def test_arena_play_routes_to_play_not_defer(monkeypatch, capsys):
+    # `adx arena play ...` is wired to the terminal client, NOT the defer stub.
+    called: dict[str, list[str]] = {}
+
+    def fake_play(argv: list[str]) -> int:
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr("agentdex_cli.arena_tui.cmd_arena_play", fake_play)
+    rc = main(["arena", "play", "--token", "tok", "--lane", "rated"])
+    assert rc == 0
+    assert called["argv"] == ["--token", "tok", "--lane", "rated"]
+    assert "agent-starter-kit" not in capsys.readouterr().err  # did NOT defer
 
 
 @pytest.mark.parametrize(
