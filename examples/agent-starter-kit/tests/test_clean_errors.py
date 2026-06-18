@@ -22,7 +22,12 @@ import pytest
 # The agents resolve arena_client via this same sys.path hack.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from arena_client import run_agent_main  # noqa: E402
+from arena_client import (  # noqa: E402
+    DeciderError,
+    TokenExpired,
+    play_until_end,
+    run_agent_main,
+)
 
 
 def test_passthrough_returns_main_rc():
@@ -89,3 +94,36 @@ def test_unexpected_exception_is_reraised():
     # Not in the expected set -> surfaces with a full traceback (not swallowed).
     with pytest.raises(RuntimeError, match="genuine bug"):
         run_agent_main(boom)
+
+
+def test_expired_token_is_setup_error(capsys):
+    def boom() -> int:
+        raise TokenExpired(str(TokenExpired.__doc__))
+
+    rc = run_agent_main(boom)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "re-enroll" in err.lower()  # the recovery guidance, not a traceback
+    assert "traceback" not in err.lower()
+
+
+def test_decider_bug_propagates_not_swallowed():
+    """A ValueError/KeyError raised from inside the agent's own decide() is a
+    genuine bug — it must surface (as DeciderError, with the original chained),
+    NOT be swallowed as a clean exit-2 setup fault. PR #185 review 3426393542."""
+
+    def bad_decide(_state: dict) -> int:
+        raise ValueError("could not parse LLM decision: bad format")
+
+    def main() -> int:
+        play_until_end(
+            client=None,  # never reached — decide() raises first
+            token="t",
+            battle_id="b",
+            decide=bad_decide,
+            initial_state={"status": "your_move", "n_choices": 4},
+        )
+        return 0
+
+    with pytest.raises(DeciderError, match="could not parse LLM decision"):
+        run_agent_main(main)

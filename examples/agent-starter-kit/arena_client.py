@@ -218,6 +218,13 @@ class TokenExpired(RuntimeError):
     section and ENROLLMENT.md."""
 
 
+class DeciderError(RuntimeError):
+    """A bug raised from inside your own ``decide(state)`` callback (bad parse,
+    missing state key, etc.). It is wrapped and re-raised so it surfaces with a
+    full traceback instead of being mistaken for a setup/arena-response fault and
+    swallowed as a clean exit-2 by :func:`run_agent_main`."""
+
+
 def token_expired(token: str, *, now: float | None = None) -> bool:
     """True if the token's OWN locally-readable expiry is in the past.
 
@@ -245,6 +252,13 @@ def run_agent_main(main_fn: Callable[[], int]) -> int:
     """
     try:
         return main_fn()
+    except TokenExpired as e:
+        # the token's own locally-readable expiry is in the past — print the
+        # re-enroll recovery guidance (the message IS the guidance) instead of
+        # letting a RuntimeError traceback escape. The README probes whoami() for
+        # exactly this recovery path, so it must land here, not as a stack dump.
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     except FileNotFoundError as e:
         path = e.filename or e.strerror or e
         print(f"error: file not found: {path}", file=sys.stderr)
@@ -291,7 +305,14 @@ def play_until_end(
         if state is None or state.get("status") != "ended":
             if state is None:
                 raise RuntimeError("no initial state; call battle_begin first")
-            idx = decide(state)
+            try:
+                idx = decide(state)
+            except Exception as e:
+                # A fault INSIDE your decide() is genuine agent logic, not a
+                # setup/arena-response error — wrap it so run_agent_main re-raises
+                # with a full traceback rather than swallowing a stray ValueError/
+                # KeyError as a clean exit-2 setup fault. PR #185 review 3426393542.
+                raise DeciderError(f"decide() raised {type(e).__name__}: {e}") from e
             state = client.battle_choose(token, battle_id, idx)
         if state.get("status") == "ended":
             return state
@@ -300,6 +321,8 @@ def play_until_end(
 __all__ = [
     "AgentIdentity",
     "ArenaClient",
+    "DeciderError",
+    "TokenExpired",
     "decode_claims",
     "play_until_end",
     "run_agent_main",
