@@ -251,12 +251,14 @@ def test_partial_start_cleanup_completes_even_when_cancelled(tmp_path: Path):
 
     async def _run() -> None:
         t = asyncio.create_task(app.state.ensure_sidecar())
-        await stop_started.wait()  # we're now inside the shielded stop()
+        await stop_started.wait()  # we're now inside the stop()
         t.cancel()  # cancel the request mid-cleanup
         with pytest.raises((asyncio.CancelledError, SidecarError)):
             await t
-        await asyncio.sleep(0.05)  # let the shielded stop() finish
-        assert stopped == [1]  # teardown completed despite the cancel
+        # The cleanup AWAITS the teardown to completion before propagating the cancel,
+        # so the child is already reaped by the time the cancel surfaces — no trailing
+        # sleep needed (shield-without-drain would leave stopped == [] here).
+        assert stopped == [1]
         assert app.state.sidecar_start_failed is True
 
     asyncio.run(_run())

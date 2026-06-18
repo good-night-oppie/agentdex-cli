@@ -1622,12 +1622,22 @@ def create_app(
                     # Set the flag FIRST so a cancel mid-cleanup still marks unhealthy.
                     app.state.sidecar_start_failed = True
                     # If start() spawned a child before raising (ready-event timeout),
-                    # stop it so we don't leak a Node process. shield() keeps the
-                    # teardown running to completion even if THIS cleanup is itself
-                    # cancelled (client disconnect / shutdown mid-cleanup); suppress
-                    # swallows stop()'s own errors (PR #248 + #258 review).
-                    with contextlib.suppress(Exception):
-                        await asyncio.shield(sc.stop())
+                    # stop it so we don't leak a Node process. Run stop() as its own
+                    # task and shield-await it; if THIS cleanup is cancelled
+                    # (disconnect / shutdown mid-cleanup), still AWAIT the task to
+                    # completion before propagating — shield alone would let the cancel
+                    # return immediately and the loop could close before the child is
+                    # reaped (PR #248/#258/#262 review). stop()'s own errors are
+                    # best-effort.
+                    stop_task = asyncio.ensure_future(sc.stop())
+                    try:
+                        await asyncio.shield(stop_task)
+                    except asyncio.CancelledError:
+                        with contextlib.suppress(Exception):
+                            await stop_task
+                        raise
+                    except Exception:
+                        pass
                     raise
                 app.state.sidecar = sc
                 app.state.sidecar_start_failed = False
