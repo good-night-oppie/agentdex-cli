@@ -1785,3 +1785,38 @@ def test_initial_state_recent_turns_has_battle_start_marker(arena):
     rt = nxt.get("recent_turns") or []
     assert rt[0] == "(battle start)", rt
     assert len(rt) > 1, "a real turn line should append after the start marker"
+
+
+def test_dispute_and_quarantine_events_are_idempotent(arena):
+    """ADX-P1-006: disputing the same battle repeatedly (e.g. a client retry
+    after a transient 500, or a user disputing twice) records the 'dispute' —
+    and any resulting 'quarantine' — row exactly ONCE per battle, never
+    duplicating the durable event log.
+    """
+    client, gateway, owner_inbox, agent_key = arena
+    token = _enroll(client, owner_inbox, agent_key, name="RetryDisputeBot")
+    state = _begin_battle(client, gateway, token, agent_key, lane="sandbox")
+    receipt, _ = _play_to_end(client, token, state)
+    battle_id = receipt["battle_id"]
+
+    def _count(event_type: str) -> int:
+        return sum(
+            1
+            for e in gateway.events.iter_events()
+            if e.get("type") == event_type and e.get("payload", {}).get("battle_id") == battle_id
+        )
+
+    # repeated MATCHING disputes -> exactly one 'dispute' row, no quarantine
+    for _ in range(3):
+        r = client.post(f"/battle/{battle_id}/dispute", json={"token": token})
+        assert r.status_code == 200 and r.json()["disputed"] is False
+    assert _count("dispute") == 1, "dispute event must be idempotent across retries"
+    assert _count("quarantine") == 0
+
+    # now force a MISMATCH and dispute repeatedly -> exactly one 'quarantine'
+    gateway.replays[battle_id]["winner"] = "FalsifiedWinner"
+    for _ in range(3):
+        r = client.post(f"/battle/{battle_id}/dispute", json={"token": token})
+        assert r.status_code == 200 and r.json()["disputed"] is True
+    assert _count("dispute") == 1, "dispute row stays single even after a successful dispute"
+    assert _count("quarantine") == 1, "quarantine event must be idempotent across retries"
