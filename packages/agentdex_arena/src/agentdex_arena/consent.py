@@ -156,10 +156,9 @@ class ConsentAuthority:
             raise ConsentError(f"scope {scope!r} not granted")
         return claims
 
-    def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> int:
-        """Atomically count a use against the per-day quota. Fail-closed.
+    def quota_key(self, claims: ConsentClaims, *, scope: Scope) -> str:
+        """The per-day quota counter key. Scope-conditional per ADR-0011 §3b §5e:
 
-        Scope-conditional keying per ADR-0011 §3b §5e:
         - `battle` keys on `_normalize_owner(claims.owner)` so /enroll/reissue
           cannot reset the daily rated-battle cap by minting a fresh token_id
           (closes the §3a rotation-as-reset bypass).
@@ -168,18 +167,37 @@ class ConsentAuthority:
           agent_name, new token_id) AND unique per agent (no cross-agent
           pooling). A multi-agent owner's two agents keep independent
           non-battle budgets, and reissue cannot reset them.
+
+        UTC day-stamped (gmtime) so the cap resets at the UTC boundary.
+        spend_quota, check_quota AND the durable `quota_spend` event all derive
+        their key here, so the live counter and the replayed-at-boot counter are
+        byte-identical (ADX-P2-004 quota persistence).
         """
         day = time.strftime("%Y%m%d", time.gmtime(self._now()))
         if scope == "battle":
-            key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"
-        else:
-            key = f"{claims.agent_name}:{scope}:{day}"
+            return f"{_normalize_owner(claims.owner)}:{scope}:{day}"
+        return f"{claims.agent_name}:{scope}:{day}"
+
+    def spend_quota(self, claims: ConsentClaims, *, scope: Scope) -> tuple[int, str]:
+        """Atomically count a use against the per-day quota. Fail-closed.
+
+        Returns ``(remaining, key)`` — the remaining budget after this debit and
+        the exact day-stamped counter key that was debited. The gateway appends
+        the returned key into a durable ``quota_spend`` event so the in-memory
+        counter survives a restart (ADX-P2-004); returning the key actually
+        debited — rather than letting the caller recompute it — closes the
+        UTC-midnight day-skew window where a recomputed key could land in a
+        different day bucket than the spend.
+
+        Scope-conditional keying per ADR-0011 §3b §5e: see quota_key.
+        """
+        key = self.quota_key(claims, scope=scope)
         used = self.quota_used.get(key, 0)
         cap = claims.quotas.get(scope, 0)
         if used >= cap:
             raise ConsentError(f"{scope} quota exhausted ({used}/{cap} today)")
         self.quota_used[key] = used + 1
-        return cap - used - 1
+        return cap - used - 1, key
 
     def check_quota(self, claims: ConsentClaims, *, scope: Scope) -> None:
         """Read-only quota probe — raises ConsentError if the cap is already hit.
@@ -189,15 +207,24 @@ class ConsentAuthority:
         fast-fail guard before expensive work so already-exhausted agents
         receive a 403 without burning sidecar resources.
         """
-        day = time.strftime("%Y%m%d", time.gmtime(self._now()))
-        if scope == "battle":
-            key = f"{_normalize_owner(claims.owner)}:{scope}:{day}"
-        else:
-            key = f"{claims.agent_name}:{scope}:{day}"
+        key = self.quota_key(claims, scope=scope)
         used = self.quota_used.get(key, 0)
         cap = claims.quotas.get(scope, 0)
         if used >= cap:
             raise ConsentError(f"{scope} quota exhausted ({used}/{cap} today)")
+
+    def replay_quota_spend(self, key: str) -> None:
+        """Re-fold a durable ``quota_spend`` event into the in-memory counter at
+        boot (ADX-P2-004), mirroring how ``membership_grant`` events rehydrate
+        ``memberships``. Only TODAY's keys matter — the cap is per-UTC-day — so a
+        prior-day key self-drops. Uses the authority's OWN clock (the same one
+        that stamped the key) so a test/prod clock injectable cannot skew the day
+        window and mis-drop today's keys. A dropped key only ever under-counts
+        (fresh quota), never wrongly locks a user out.
+        """
+        day = time.strftime("%Y%m%d", time.gmtime(self._now()))
+        if isinstance(key, str) and key.endswith(f":{day}"):
+            self.quota_used[key] = self.quota_used.get(key, 0) + 1
 
     def revoke(self, token_id: str) -> None:
         self.revoked.add(token_id)

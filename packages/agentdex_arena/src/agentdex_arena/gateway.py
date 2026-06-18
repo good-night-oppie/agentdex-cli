@@ -593,6 +593,15 @@ class ArenaGateway:
                     if not math.isfinite(valid_until) or valid_until < 0:
                         raise ValueError(f"non-finite/negative valid_until: {valid_until!r}")
                     self.authority.grant_membership(owner_raw, valid_until)
+                elif etype == "quota_spend":
+                    # ADX-P2-004: rehydrate the per-UTC-day quota counter so a
+                    # restart no longer resets every agent's daily cap. Same
+                    # write-ahead-then-replay shape as membership_grant; the
+                    # authority's replay drops stale prior-day keys itself.
+                    key = payload.get("key")
+                    if not isinstance(key, str) or not key:
+                        raise ValueError("quota_spend key missing/non-string")
+                    self.authority.replay_quota_spend(key)
             except Exception:
                 log.warning(
                     "skipping malformed event during replay: type=%r seq=%r",
@@ -764,6 +773,24 @@ class ArenaGateway:
                 except Exception:  # noqa: BLE001 — best-effort teardown
                     pass
             raise _opaque_error(500, f"event log write failed: {e!r}") from None
+
+    def _record_quota_spend(self, key: str) -> None:
+        """Durably record a successful quota spend (ADX-P2-004) so the per-UTC-day
+        counter survives a gateway restart — boot replay re-folds ``quota_spend``
+        events into ``authority.quota_used``. ``key`` is the exact day-stamped
+        counter key ``spend_quota`` just debited.
+
+        Best-effort, NOT fail-closed (Class B): the in-memory debit has already
+        committed and — for a rated battle — the live sidecar battle is already
+        running, so re-raising a 500 after a successful debit would be a worse
+        regression than the bug. Worst case is one slot under-counted across a
+        crash in the sub-millisecond append gap, which fails toward leniency
+        (an extra slot), vastly better than today's full reset-on-restart.
+        """
+        try:
+            self.events.append("quota_spend", {"key": key, "spent_at": self.now()})
+        except Exception:  # noqa: BLE001 — best-effort; the in-memory debit stands
+            log.warning("quota_spend append failed (in-memory debit stands)", exc_info=True)
 
     async def _stop_battle_robustly(self, sidecar: Sidecar, battle_id: str) -> None:
         """Best-effort stop of a live sidecar battle that survives cancellation.
@@ -1027,13 +1054,15 @@ class ArenaGateway:
         # don't have a "battle" quota, so this stays behind the `rated` guard.
         if req.lane == "rated":
             try:
-                self.authority.spend_quota(claims, scope="battle")
+                _, spent_key = self.authority.spend_quota(claims, scope="battle")
             except ConsentError as e:
                 try:
                     await sidecar.request("stop", battle=battle_id)
                 except Exception:  # noqa: BLE001 — best-effort teardown
                     pass
                 raise _opaque_error(403, e) from None
+            # Durable so the daily cap survives a restart (ADX-P2-004).
+            self._record_quota_spend(spent_key)
         self.sessions[battle_id] = session
         on_published()  # cap count handed off to the live session; drop the reservation
         try:
@@ -2370,9 +2399,11 @@ def create_app(
         except BadgeAuthError as e:
             raise _opaque_error(503, e) from None
         try:
-            gateway.authority.spend_quota(claims, scope="badge_mint")
+            _, spent_key = gateway.authority.spend_quota(claims, scope="badge_mint")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        # Durable so the daily mint cap survives a restart (ADX-P2-004).
+        gateway._record_quota_spend(spent_key)
         # URL-encode the agent_name in the path so unicode / spaces /
         # gateway-reserved chars survive the README-paste-and-render
         # round-trip (PR #130 review #3410920009). `safe=''` URL-encodes
@@ -2521,9 +2552,11 @@ def create_app(
         # offer_seeds returns. A sidecar / infra failure inside offer_seeds
         # raised above and exited via the 400 path — no slot was burned.
         try:
-            gateway.authority.spend_quota(claims, scope="evolve")
+            _, spent_key = gateway.authority.spend_quota(claims, scope="evolve")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
+        # Durable so the daily evolve cap survives a restart (ADX-P2-004).
+        gateway._record_quota_spend(spent_key)
         return result
 
     from agentdex_arena.mcp_surface import init_mcp, mcp

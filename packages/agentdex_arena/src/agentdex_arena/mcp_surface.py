@@ -74,7 +74,9 @@ def _verify_token_opaque(
     try:
         claims = gateway.authority.verify(token, scope=scope)
         if spend_quota_scope:
-            gateway.authority.spend_quota(claims, scope=spend_quota_scope)
+            _, spent_key = gateway.authority.spend_quota(claims, scope=spend_quota_scope)
+            # Durable so the daily cap survives a restart (ADX-P2-004).
+            gateway._record_quota_spend(spent_key)
         return claims
     except ConsentError as e:
         err_id = uuid.uuid4().hex[:12]
