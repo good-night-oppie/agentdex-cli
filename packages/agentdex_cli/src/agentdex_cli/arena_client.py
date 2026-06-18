@@ -132,6 +132,10 @@ class ArenaClient:
         gym_leader: str | None = None,
     ) -> dict[str, Any]:
         """Two-leg: /battle/start -> sign PoP -> /battle/begin. Returns initial state."""
+        # Validate BEFORE the PoP handshake so an invalid request never burns a
+        # battle_nonce / a /battle/start round-trip.
+        if gym_leader is not None and lane == "rated":
+            raise ValueError("gym_leader is sandbox-only")
         start = self.battle_start(token)
         challenge = start["pop_challenge"].encode()
         body: dict[str, Any] = {
@@ -143,10 +147,17 @@ class ArenaClient:
         if team_packed is not None:
             body["team"] = team_packed
         if gym_leader is not None:
-            if lane == "rated":
-                raise ValueError("gym_leader is sandbox-only")
             body["gym_leader"] = gym_leader
         return self._http.post("/battle/begin", json=body).raise_for_status().json()
+
+    def team_draft(self, token: str, export: str) -> dict[str, Any]:
+        """Validate + pack a Showdown export against the pinned banlist.
+        Returns {packed, valid, errors}."""
+        return (
+            self._http.post("/team/draft", json={"token": token, "export": export})
+            .raise_for_status()
+            .json()
+        )
 
     def battle_state(self, token: str, battle_id: str) -> dict[str, Any]:
         """Poll without choosing. Token in the Authorization header (never the query)."""
