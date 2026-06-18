@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用 — BENE 文档</title>
-<meta name="description" content="BENE 0.2.0 文档 — 菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用" />
+<title>另忆（Other Memory）：基于 trace 的 RAG，让下一个 agent 永不冷启动 — BENE 文档</title>
+<meta name="description" content="BENE 0.2.0 文档 — 另忆（Other Memory）：基于 trace 的 RAG，让下一个 agent 永不冷启动" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -165,9 +165,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <a class="nav" href="../../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
   <button class="nav copy-llms" data-llms-url="../../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="vertical-align:text-bottom"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
-  <a class="nav" href="../../../docs/recipes/atomic-completion.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
+  <a class="nav" href="../../../docs/case-studies/cs04-trace-rag-other-memory.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
 </div></div>
-<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/recipes/atomic-completion.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
+<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/case-studies/cs04-trace-rag-other-memory.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -217,7 +217,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
 <h4>Recipes</h4>
-<a class="cur" href="../recipes/atomic-completion.html">atomic-completion</a>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/architecture-diagrams.html">architecture-diagrams</a>
 <h4>Benchmarks and gates</h4>
@@ -238,81 +238,51 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <h4>Case studies</h4>
 <a href="../case-studies/cs02-ci-self-healing-refactor-swarm.html">cs02-ci-self-healing-refactor-swarm</a>
 <a href="../case-studies/cs03-multi-agent-arena.html">cs03-multi-agent-arena</a>
-<a href="../case-studies/cs04-trace-rag-other-memory.html">cs04-trace-rag-other-memory</a>
+<a class="cur" href="../case-studies/cs04-trace-rag-other-memory.html">cs04-trace-rag-other-memory</a>
 <a href="../case-studies/cs05-meta-harness-evolution.html">cs05-meta-harness-evolution</a></aside>
 <main>
-<div class="crumbs"><a href="../index.html">docs</a> / recipes/atomic-completion.md</div>
-<h1 id="atomic-completion">菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用</h1>
-<p>在一个长时间运行的 Agent 系统里，最致命的 P1 级连环 Bug 通常源自<strong>非原子化的完成操作 (non-atomic completion)</strong>：副作用（比如生成一张收据、扣减一次配额、或者派生一个分支）已经发生，结果进程却在把这条持久化记录提交落盘前暴毙了 —— 这会留下一个<strong>幽灵 (ghost)</strong>（外部状态变了，但没有任何记录察觉），或是在重试时触发双重扣费，又或是让那些存在内存里的计数器随着一次重启直接灰飞烟灭。</p>
-<p>解决这个问题，不需要请出 Temporal 或任何持久化运行时依赖。我们只需在一个普普通通的 SQLite 或 JSONL 日志上耍三招底层的<strong>无依赖通杀技 (substrate-agnostic moves)</strong>。相关的参考代码在 <code>bene/recipes/idempotent_append.py</code> 里；它们吃的是 <code>sqlite3.Connection</code> 而不是 <code>Bene</code> 实例，所以你大可以把它们整碗端进你自己的事件层里。</p>
-<h2 id="_1">三板斧</h2>
-<ol>
-<li><strong>幂等追加 (Idempotent append)</strong> — 先按 <code>idempotency_key</code> 执行 <code>SELECT</code>，没有再 <code>INSERT</code>；因为该列被设为 <code>UNIQUE</code>，所以任何重播（或者并发的竞争者）都会变成一次安全空转，并乖乖返回之前生成好的 ID。这就是<strong>精确一次 (Exactly-once)</strong> 的保证。</li>
-<li><strong>顺序倒置 (Ordering inversion)</strong> — <strong>先</strong>把持久化记录提交落盘，<strong>再</strong>把副作用释放到外部去，等副作用回调后再把记录标记为已完成。这样一来，即使发生崩溃，留下来的要么是一条干干净净的已完成记录，要么就是一条等着你重试的挂起记录——绝不会凭空冒出一个毫无案底的幽灵副作用。</li>
-<li><strong>拉起时的投影重建 (Projection rebuild)</strong> — 每次开机时，把那卷持久化日志从头到尾盘一遍，借此把内存状态（比如缓存或计数器）重塑出来，这样重启操作就再也别想偷走任何易失性数据了。</li>
-</ol>
-<h2 id="1">1. 幂等追加</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">append_once</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-
-<span class="n">seq</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-<span class="c1"># 如果用同一个 key 再重播一次，它只会是一次返回之前 ID 的空转：</span>
-<span class="n">seq2</span><span class="p">,</span> <span class="n">created2</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="k">assert</span> <span class="p">(</span><span class="n">created</span><span class="p">,</span> <span class="n">created2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">==</span> <span class="n">seq2</span>
-</code></pre></div>
-
-<p><code>idempotency_key</code> 这个字段被上了 <code>UNIQUE</code> 锁，所以哪怕是个直接绕过 <code>SELECT</code> 强行塞数据的并发疯子，也会被数据库的约束机制无情拍飞，绝对写不进重复的账条。</p>
-<h2 id="2">2. 顺序倒置 (告别幽灵副作用)</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete_in_order</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">shipped</span> <span class="o">=</span> <span class="p">[]</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">ship_the_box</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
-    <span class="n">shipped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;sku&quot;</span><span class="p">])</span>
-
-<span class="c1"># 先让持久化记录落盘 COMMIT，然后才触发对外可见的副作用</span>
-<span class="n">complete_in_order</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:ship&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;sku&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">},</span> <span class="n">side_effect</span><span class="o">=</span><span class="n">ship_the_box</span><span class="p">)</span>
-<span class="k">assert</span> <span class="n">shipped</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">]</span>
-</code></pre></div>
-
-<p><code>complete_in_order</code> 的逻辑是追加记录 + <strong>马上 COMMIT</strong>，然后再去触发那个副作用。如果 COMMIT 刚完进程就死了，你至少能从日志里捞出那条“已记录但未完结”的账，然后从头再驱动一次；这总比丢出一个没有任何案底的箱子要强得多。而被它干掉的反模式 —— <code>complete_side_effect_first</code> —— 则是先干脏活再 COMMIT，这两步之间的任何一次断电都会催生出一个幽灵（这个反面教材还留在模块里，专作反面教材之用）。</p>
-<p>如果进程死在外部调用的<strong>途中</strong>，那么这个帮手函式稍后会把这行挂起的记录拿出来重试。因此，请务必把你的幂等键 (idempotency key) 一并传给那个外部系统，或者确保这个副作用本身经得起反复碾压；毕竟，光靠一个本地日志，是没法把一个不具备幂等特性的远程突变魔法般地变成“精确一次”的。</p>
-<h2 id="3">3. 开机时的投影重建</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">append_once</span><span class="p">,</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">replay_projection</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-1&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">40</span><span class="p">})</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-2&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-
-<span class="n">balance</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
-<span class="n">replay_projection</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">key</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">balance</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span>
-    <span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;amount&quot;</span><span class="p">]))</span>
-<span class="k">assert</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">100</span>
-<span class="c1"># `balance` 纯粹是靠着持久化的日志一笔一笔重塑出来的 —— 跨越重启，无一分易失状态丢失。</span>
-<span class="c1"># (这就是专门用来治那类所谓的“重启失忆症 / `/replay` 报 404” 顽疾的配方)。</span>
-</code></pre></div>
-
-<h2 id="temporal">耐久性警语 —— 不需要 Temporal</h2>
-<p>这个菜谱是<strong>与底层无关的，且不会引入任何运行时依赖</strong>。只要你手头上有一个支持提交特性的日志系统（在这里是 SQLite；同样的打法你完全能无缝搬到一个用 <code>flock</code> 上锁的 JSONL 追加器上），它就能赋予你“精确一次”外加“无幽灵”的完成保障。</p>
-<p>但请记住，它<strong>不能</strong>提供超越你存储介质本身的跨进程耐久度。尤其是，BENE 的 <code>LocalRuntime</code> 已经挑明了<strong>不具备</strong>跨重启的耐久性，而 <code>submit_side_effect</code> 那本带护栏的账本也只有在用上了 <code>TemporalRuntime</code>（目前在大多数部署里都只是个占位符）时才作数 —— 所以，<strong>千万别</strong>指望运行时能帮你兜底持久化记录。这本提交过的日志<strong>本身</strong>才是那条持久化生命线，而这正是整套拳法的精髓所在：只消做个简单的时序倒置，外加一把幂等锁，你就能在不碰 Temporal 这尊大佛的前提下，把绝大把的原子化收益稳稳装进口袋。</p>
-<h2 id="_2">延伸阅读</h2>
+<div class="crumbs"><a href="../index.html">docs</a> / case-studies/cs04-trace-rag-other-memory.md</div>
+<h1 id="other-memory-trace-rag-agent">另忆（Other Memory）：基于 trace 的 RAG，让下一个 agent 永不冷启动</h1>
+<p><em>Engineering · 2026-06</em></p>
+<hr />
+<h2 id="context">背景 (Context)</h2>
+<p>一个 agent 干的最烧钱的事，就是把上一个 agent 早就摸清的东西重新趟一遍。新会话一开，上下文窗口是空的；上一班人学到的所有教训——哪个测试时灵时不灵、哪次重构搞砸了、哪个闸门以什么理由毙了哪个候选——全都没了，除非有人把它写成下一个 agent 真能检索到的形态。</p>
+<p>把整段历史一股脑塞回上下文不是答案：贵、撑爆窗口，还会把唯一有用的那条事实埋进成千上万条无关信息里。这篇 case study 讲的是 BENE 默认就给你上的另一条路——<strong>基于 trace 的检索（trace-based retrieval）</strong>，也就是 Bene Gesserit 那套 <em>另忆（Other Memory）</em> 背后的工程实现：把每一位圣母的祖传记忆，做成可查询的。</p>
+<h2 id="problem-framing">问题拆解 (Problem framing)</h2>
+<p>你想让下一个 agent 继承的是 <em>已经走过的那条路</em>，不是整张地图。这就要求底座必须提供三样东西：</p>
 <ul>
-<li><code>bene/recipes/idempotent_append.py</code> — 包含参考用法的帮手函式。</li>
-<li><code>tests/test_atomic_completion_recipe.py</code> — 通过模拟崩溃，证实了精确一次 + 无幽灵机制的靠谱程度。</li>
-<li><a href="../integrating-bene.html">集成 BENE (Integrating BENE)</a> — 看看这套招式在那五个落地阶段里到底能排老几。</li>
+<li><strong>零仪式感地捕获。</strong> 如果"记下来"得专门走一步显式写入，agent 一定会偷懒跳过。记忆必须是运行本身的副产品。</li>
+<li><strong>只检索相关的那一片。</strong> 给一个问题，返回那寥寥几条真正相关的 trace——而不是一整份逐字记录。</li>
+<li><strong>规模上去了也得便宜。</strong> 几千次运行，不能意味着一次线性扫库，也不能意味着把上下文窗口整个倒出来。</li>
 </ul>
-<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/recipes/atomic-completion.md" target="_blank" rel="noopener noreferrer">docs/recipes/atomic-completion.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
+<h2 id="design">设计 (Design)</h2>
+<h3 id="_1">捕获是默认行为，不是额外一步</h3>
+<p>每次运行都会自动落一条 tier-0 的 trace 记忆轨迹（engram）。agent 不需要"决定要不要记住"；harness 边走边把这条路记下来。最小单位是一颗 <em>granule（粒子）</em>——一条紧凑的记录，对应一个 turn、一次工具调用、一个结果。</p>
+<h3 id="_2">一架压缩阶梯，而非一个扁平库</h3>
+<p>记忆轨迹（engram）活在一架分层的阶梯上（0–4 级）：底层是原始 trace，越往上是逐级压缩的摘要。便宜的高层先查；命中之后，只有当它对得起这份成本时，才往下钻到详细的那一层。当你想精确查询阶梯里的某一片时，可以这样写：</p>
+<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>retrieve<span class="w"> </span><span class="s2">&quot;why did the regression gate reject candidate 7&quot;</span><span class="w"> </span>--tiers<span class="w"> </span><span class="m">0</span>,2,3<span class="w"> </span>--k<span class="w"> </span><span class="m">5</span>
+</code></pre></div>
+
+<h3 id="_3">会做路由的检索，不只是做匹配</h3>
+<p>检索会挑一个路由器：开启时走一个带熵感知的 <strong>MemGAS</strong> 路由器，否则退回一个自适应兜底方案。关键在于返回那些 <em>有信息量</em> 的 trace——真正能降低下一个 agent 不确定性的那几条——而不是字面上最接近的那几条。</p>
+<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>retrieve<span class="w"> </span><span class="s2">&quot;common failure modes on auth refactors&quot;</span><span class="w"> </span>--memgas
+bene<span class="w"> </span>retrieve<span class="w"> </span><span class="s2">&quot;common failure modes on auth refactors&quot;</span><span class="w"> </span>--adaptive<span class="w">   </span><span class="c1"># 强制走兜底</span>
+</code></pre></div>
+
+<h3 id="agent">按 agent 划界，可追责到具体提问者</h3>
+<p>一次查询可以归属到发起提问的那个 agent，于是检索遵守的是和 VFS 一样的隔离——记忆在整个系统里持续滚雪球，却不会让某个 agent 的私有工作区泄漏进别人的答案里：</p>
+<div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>retrieve<span class="w"> </span><span class="s2">&quot;what broke last time we touched the parser&quot;</span><span class="w"> </span>--agent<span class="w"> </span>refactor-bot
+</code></pre></div>
+
+<h2 id="insights">心得 (Insights)</h2>
+<ul>
+<li><strong>记忆必须免费，才会有人用。</strong> 把捕获做成运行的副产品——而不是 agent 必须时刻记着的自律——这才是让整个语料库完整到值得检索的前提。</li>
+<li><strong>要压缩，不要堆积。</strong> 把每个 turn 平铺成一条流水日志，规模一大就根本搜不动；一架带下钻能力的摘要阶梯，能让检索在语料库膨胀时依旧便宜。</li>
+<li><strong>继承胜过重新推导。</strong> 真正可量化的收益不是"agent 拿到了更多上下文"——而是"agent 直接跳过了上一个人早已标记好的死胡同"。走过的那条路，本身就是资产。</li>
+</ul>
+<h2 id="what-to-take-from-this">一句话带走 (What to take from this)</h2>
+<p>如果你的 agent 每次开会话都从零起步，那你就是在为每一次运行缴"重新发现税"。把 trace 捕获做成底座的默认行为，在检索底下垫一架压缩阶梯，让下一个 agent 直接查这条路，而不是把它重走一遍。这就是另忆（Other Memory）——一个 <code>bene retrieve</code> 就到手了。</p>
+<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/case-studies/cs04-trace-rag-other-memory.md" target="_blank" rel="noopener noreferrer">docs/case-studies/cs04-trace-rag-other-memory.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
 <footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>
