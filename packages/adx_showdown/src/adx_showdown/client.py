@@ -157,7 +157,24 @@ class BattleClient:
         side.boosts = {}
 
     _on_drag = _on_switch  # forced switch — same shape + volatile reset
-    _on_replace = _on_switch  # illusion (Zoroark) ended → the revealed true mon
+
+    def _on_replace(self, ev: ProtocolEvent) -> None:
+        # |replace|p1a: Zoroark|Zoroark, L84, M|100/100 — an Illusion (Zoroark/Zorua)
+        # ended: the SAME active mon is revealed in place; it did NOT switch out, so
+        # fold the revealed nickname/species/HP/status but PRESERVE volatile boosts
+        # gained while disguised (a Nasty Plot before the reveal must survive). Routing
+        # this through _on_switch wiped side.boosts. PR #216 review 3432167183.
+        side = self._side_of(ev)
+        if side is None:
+            return
+        side.active_nickname = ev.idents[0].name
+        if len(ev.args) >= 2:
+            side.active_species = sanitize_name(ev.args[1].split(",", 1)[0], max_len=32)
+        if len(ev.args) >= 3:
+            hp_token = ev.args[2]
+            if "/" in hp_token or "fnt" in hp_token:  # a real HPSTATUS, not a flag
+                side.hp_pct = hp_pct_of(hp_token)
+                side.status = status_of(hp_token)
 
     def _on_formechange(self, ev: ProtocolEvent) -> None:
         # |-formechange|POKEMON|SPECIES|HPSTATUS (temporary) / |detailschange| (permanent)
