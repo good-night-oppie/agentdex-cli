@@ -200,6 +200,25 @@ def _write_tokens(out_path: Path, results: list[dict[str, Any]]) -> None:
         raise
 
 
+def _preflight_output(out_path: Path) -> None:
+    """Fail BEFORE any durable register if the token file can't be written.
+
+    ``batch_mint`` appends a durable ``register`` event per entry; if the later
+    ``_write_tokens`` then fails (bad path, unwritable dir, read-only fs), the
+    names are reserved but the bearer tokens are lost — and a corrected rerun
+    rejects them as duplicates, forcing manual event-log surgery (PR #232
+    review). Probe the destination up front — create the parent dir and a
+    throwaway temp file in it — so those failures abort the run with ZERO
+    durable side effects, leaving the roster safe to rerun verbatim. (The
+    atomic ``_write_tokens`` covers a crash mid-write; this covers the bad
+    destination, which is the common operator mistake.)
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, probe = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.probe.")
+    os.close(fd)
+    os.unlink(probe)
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     ap = argparse.ArgumentParser(description=__doc__)
@@ -240,6 +259,18 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: roster must be a JSON list", file=sys.stderr)
         return 2
 
+    # Probe the output destination BEFORE batch_mint appends any durable register
+    # events — a bad --out must not leave reserved names with no delivered tokens.
+    out_path = Path(args.out)
+    try:
+        _preflight_output(out_path)
+    except OSError as exc:
+        print(
+            f"ERROR: --out {args.out} is not writable ({exc}) — refusing before minting.",
+            file=sys.stderr,
+        )
+        return 2
+
     authority = ConsentAuthority(signing_key_hex=key_hex)
     events = EventLog(Path(args.runtime_dir) / "events.jsonl")
     results, errors = batch_mint(
@@ -249,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
         confirmed_via=args.confirmed_via,
         skip_errors=args.skip_errors,
     )
-    _write_tokens(Path(args.out), results)
+    _write_tokens(out_path, results)
 
     # Summary only — NEVER echo token values (secrets discipline).
     print(f"batch-mint: {len(results)} token(s) written to {args.out} (0600)")
