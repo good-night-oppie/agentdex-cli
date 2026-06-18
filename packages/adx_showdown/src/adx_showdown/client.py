@@ -214,7 +214,20 @@ class BattleClient:
         if side is not None and len(ev.args) >= 2:
             side.hp_pct = hp_pct_of(ev.args[1])
 
-    _on_heal = _on_damage
+    def _on_heal(self, ev: ProtocolEvent) -> None:
+        # Most |-heal| target the ACTIVE mon → fold HP like |-damage|. The ONE
+        # exception is Revival Blessing, the only heal Showdown aims at a non-active
+        # (fainted bench) slot — it emits `|-heal|pX: Mon|HP|[from] move: Revival
+        # Blessing` (pinned sim/battle.ts:2738). That must (a) decrement fainted_count
+        # so remaining_pips recovers, and (b) NOT clobber the active mon's hp_pct with
+        # the revived bench mon's HP. PR #208 review 3432027338.
+        if "Revival Blessing" in ev.kwargs.get("from", ""):
+            side = self._side_of(ev)
+            if side is not None and side.fainted_count > 0:
+                side.fainted_count -= 1
+            return
+        self._on_damage(ev)
+
     _on_sethp = _on_damage
 
     def _on_status(self, ev: ProtocolEvent) -> None:

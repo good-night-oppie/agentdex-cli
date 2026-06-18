@@ -186,6 +186,36 @@ def test_replace_updates_active_species():
     assert s.p1.active_species == "Zoroark"
 
 
+def test_revival_blessing_decrements_fainted_count_not_active_hp():
+    """Revival Blessing is the ONLY heal Showdown aims at a fainted BENCH mon:
+    `|-heal|pX: Mon|HP|[from] move: Revival Blessing` (pinned sim/battle.ts:2738).
+    It must decrement fainted_count (so remaining_pips recovers) and must NOT
+    overwrite the active mon's hp_pct with the revived bench mon's HP. The old
+    `_on_heal = _on_damage` alias did the opposite. PR #208 review 3432027338."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Sneasler|Sneasler, L78|100/100",
+            "|faint|p1a: Sneasler",  # active faints → fainted_count=1
+            "|switch|p1a: Garchomp|Garchomp, L78|80/100",  # new active at 80%
+            "|-heal|p1: Sneasler|50/100|[from] move: Revival Blessing",  # revive bench
+        ]
+    )
+    assert s.p1.fainted_count == 0  # revival recovered the pip
+    assert s.p1.hp_pct == 80  # active Garchomp HP NOT clobbered by the bench 50%
+
+
+def test_ordinary_heal_still_folds_active_hp():
+    """A normal |-heal| (Leftovers, drain, etc.) targets the active mon and must
+    still update hp_pct — the Revival Blessing carve-out must not regress it."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Toxapex|Toxapex, L80|50/100",
+            "|-heal|p1a: Toxapex|56/100|[from] item: Leftovers",
+        ]
+    )
+    assert s.p1.hp_pct == 56
+
+
 def test_replace_preserves_boosts_on_illusion_reveal():
     """An Illusion reveal (|replace|) is the SAME active mon unmasked — it did NOT
     switch out, so boosts gained while disguised (e.g. Nasty Plot) must survive the
