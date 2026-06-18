@@ -41,6 +41,12 @@ const MAX_BATTLES = Number(process.env.ADX_SIDECAR_MAX_BATTLES || 4);
 // and Phase 5 can re-sim + hash it. Bounded to keep RSS flat under long battles;
 // knob mirrors ADX_SIDECAR_MAX_BATTLES. keyLines (signatures) stays separate.
 const MAX_PROTOCOL_LINES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_LINES || 50000);
+// Companion BYTE cap. `replay` returns the whole protocol_log in ONE NDJSON line,
+// and the Python reader (sidecar.py) is hard-limited to 16 MiB — a long battle can
+// stay under MAX_PROTOCOL_LINES yet blow that budget because each captured
+// `|request|` carries the side's full roster JSON. Default 12 MiB leaves headroom
+// for JSON-string escaping/framing under the 16 MiB readline limit. PR #214 review.
+const MAX_PROTOCOL_BYTES = Number(process.env.ADX_SIDECAR_MAX_PROTOCOL_BYTES || 12 * 1024 * 1024);
 const battles = new Map(); // battleId -> entry
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
@@ -73,6 +79,7 @@ function newEntry() {
     keyLines: [], // signature-relevant battle lines (phase-5 signatures.py)
     protocolLog: [], // FULL ordered omniscient |TYPE| stream (P1-b/c) — spliced as a delta per settle
     protocolTotal: 0, // CUMULATIVE lines seen across the whole battle (the cap basis)
+    protocolBytes: 0, // CUMULATIVE bytes seen — the byte-cap basis (mirrors protocolTotal)
     protocolTruncated: false,
     errors: [],
     winner: null, // null = in progress; '' = tie
@@ -81,17 +88,23 @@ function newEntry() {
   };
 }
 
-// Append one non-empty line to the omniscient protocol log under the CUMULATIVE
-// cap (protocolTotal, not buffer length — settledState splices the buffer each
-// settle). Used for both `update` battle lines and `sideupdate` control lines.
+// Append one non-empty line to the omniscient protocol log under BOTH cumulative
+// caps (protocolTotal lines AND protocolBytes — not buffer length, since
+// settledState splices the buffer each settle). The byte counters always advance
+// (even on a truncated line, like protocolTotal) so the byte cap is sticky: once
+// the budget is crossed every later line truncates too, keeping the log a
+// contiguous prefix and the truncation point deterministic on re-sim. Used for
+// both `update` battle lines and `sideupdate` control lines.
 function captureProtocol(entry, line) {
   if (!line.length) return;
-  if (entry.protocolTotal < MAX_PROTOCOL_LINES) {
+  const bytes = Buffer.byteLength(line, 'utf8') + 1; // +1 ≈ per-line NDJSON/JSON framing
+  if (entry.protocolTotal < MAX_PROTOCOL_LINES && entry.protocolBytes + bytes <= MAX_PROTOCOL_BYTES) {
     entry.protocolLog.push(line);
   } else {
     entry.protocolTruncated = true;
   }
   entry.protocolTotal++;
+  entry.protocolBytes += bytes;
 }
 
 function attachReader(battleId, entry) {
