@@ -81,7 +81,7 @@ from agentdex_arena.consent import (
     _normalize_owner,
 )
 from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
-from agentdex_arena.session import SessionAuthority
+from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
 
@@ -473,6 +473,17 @@ class DevicePollRequest(BaseModel):
     device_code: str = Field(min_length=1, max_length=512)
 
 
+class EnrollAccountRequest(BaseModel):
+    """Body of POST /enroll/account (ADR-0013 D3). No `owner` field — the owner
+    is the session token's verified email, never client-supplied (that is the
+    whole point of account-authed enroll). The pubkey pattern is validated here
+    so a bad key 422s before any name is reserved."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    agent_name: str = Field(min_length=1, max_length=64)
+    agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class BeginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=False)
     token: str
@@ -700,11 +711,20 @@ class ArenaGateway:
         self._publication_allowed_override = val
 
     # ---------- enrollment (A1: human-in-the-loop) ----------
+    #
+    # ONE enrollment validator, shared by the email-OOB path (enroll_request +
+    # enroll_confirm) and the account path (enroll_account, ADR-0013 D3). Global
+    # agent-name uniqueness is load-bearing — the arena's public identity is
+    # keyed by agent_name ALONE (ladder, badges) — so account-enroll must claim
+    # a name through the SAME reserved-name guard, the SAME global _registered
+    # rejection, and the SAME durable register event, never a per-account fork
+    # (D3: two owners claiming one name would collapse onto one ladder identity).
 
-    def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
-        code = secrets.token_urlsafe(16)
-        agent_name = sanitize_name(req.agent_name) or "visitor"
-        # Reject reserved names case-insensitively (anchor- prefix, visitor, foe, _house, _ladder) (P2 PR #56 comment follow-up)
+    def _guard_reserved_name(self, raw_name: str) -> str:
+        """Sanitize a requested name + reject the reserved set (case-insensitive:
+        anchor- prefix, visitor, foe, _house, _ladder). Returns the clean name;
+        raises opaque 400 on a reserved name. Does NOT touch _registered."""
+        agent_name = sanitize_name(raw_name) or "visitor"
         name_lower = agent_name.lower()
         if name_lower.startswith("anchor-") or name_lower in (
             "visitor",
@@ -713,7 +733,40 @@ class ArenaGateway:
             "_ladder",
         ):
             raise _opaque_error(400, "reserved agent name")
-        # Reject duplicate names
+        return agent_name
+
+    def _register_agent(self, agent_name: str) -> None:
+        """Claim a (sanitized) name globally: reject a duplicate (opaque 409),
+        then append the durable register event BEFORE mutating _registered
+        (append-before-publish, P2 PR #56). The single global-uniqueness gate."""
+        if agent_name in self._registered:
+            raise _opaque_error(409, "agent name already registered")
+        self.events.append("register", {"name": agent_name, "frozen": False})
+        self._registered.add(agent_name)
+
+    def _mint_consent(
+        self, owner: str, agent_name: str, agent_pubkey_hex: str, confirmed_via: str
+    ) -> dict[str, Any]:
+        """Mint a 7-day consent token with the standard scopes. Shared by every
+        enrollment path so the token shape never diverges by how it was obtained
+        (D3: account-enroll changes only HOW the token is obtained)."""
+        claims = ConsentClaims(
+            token_id=uuid.uuid4().hex[:16],
+            owner=owner,
+            agent_name=agent_name,
+            agent_pubkey_hex=agent_pubkey_hex,
+            scopes=["enroll", "battle", "evolve", "badge_mint"],
+            issued_at=self.now(),
+            expires_at=self.now() + 7 * 86_400,
+            confirmed_via=confirmed_via,
+        )
+        return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
+
+    def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
+        code = secrets.token_urlsafe(16)
+        agent_name = self._guard_reserved_name(req.agent_name)
+        # Request-time fail-fast on a taken name (the authoritative register is at
+        # confirm); keep it so the OOB code is never sent for a doomed name.
         if agent_name in self._registered:
             raise _opaque_error(409, "agent name already registered")
 
@@ -734,24 +787,33 @@ class ArenaGateway:
         req = self.pending_enrollments.pop(code, None)
         if req is None:
             raise _opaque_error(404, "unknown/expired enrollment code")
-        if req.agent_name in self._registered:
-            raise _opaque_error(409, "agent name already registered")
-
-        # Record confirmed names before issuing tokens (P2 PR #56 comment follow-up)
-        self.events.append("register", {"name": req.agent_name, "frozen": False})
-        self._registered.add(req.agent_name)
-
-        claims = ConsentClaims(
-            token_id=uuid.uuid4().hex[:16],
-            owner=req.owner,
-            agent_name=req.agent_name,
-            agent_pubkey_hex=req.agent_pubkey_hex,
-            scopes=["enroll", "battle", "evolve", "badge_mint"],
-            issued_at=self.now(),
-            expires_at=self.now() + 7 * 86_400,
-            confirmed_via=f"web-confirm:{code[:6]}…",
+        # req.agent_name was already sanitized + guarded at request time.
+        self._register_agent(req.agent_name)
+        return self._mint_consent(
+            req.owner, req.agent_name, req.agent_pubkey_hex, f"web-confirm:{code[:6]}…"
         )
-        return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
+
+    def enroll_account(
+        self, claims: SessionClaims, agent_name: str, agent_pubkey_hex: str
+    ) -> dict[str, Any]:
+        """Account-authed enroll (ADR-0013 D3): a logged-in human mints a per-agent
+        consent token WITHOUT the email-OOB code — the session IS the human proof.
+
+        Runs the SAME validator as the email-OOB path (reserved-name guard +
+        global _registered claim + durable register), mints the consent token
+        with the session's VERIFIED EMAIL as owner (so membership + quota stay
+        single-keyed per human), and records the account->agents join (durable
+        account_enroll before returning, so `adx status` survives a restart).
+        The pubkey is validated by the request model before this runs, so the
+        name is never reserved for a token that then fails to mint."""
+        clean_name = self._guard_reserved_name(agent_name)
+        self._register_agent(clean_name)
+        # account->agents join (D6) — durable BEFORE returning the token.
+        self.events.append("account_enroll", {"owner": claims.owner, "agent_name": clean_name})
+        self.accounts.add_agent(claims.owner, clean_name)
+        return self._mint_consent(
+            claims.owner, clean_name, agent_pubkey_hex, f"account:{claims.session_id}"
+        )
 
     # ---------- battle flow ----------
 
@@ -2111,6 +2173,30 @@ def create_app(
         # pending / denied / expired — all 200 so the CLI switches on the field,
         # never on a status code (keeps the frozen pending→success shape intact).
         return {"status": result.status}
+
+    @app.post("/enroll/account")
+    async def enroll_account(
+        req: EnrollAccountRequest, authorization: str | None = Header(default=None)
+    ) -> dict:
+        """Account-authed enroll (ADR-0013 D3): a logged-in human mints a
+        per-agent consent token using the session token as proof (no email-OOB
+        code). 503 when session auth is unconfigured; 401/403 on a missing/bad
+        session; otherwise the same consent token the email-OOB path returns."""
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer session token required")
+        token = authorization[len("Bearer ") :]
+        try:
+            claims = gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+        try:
+            return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(400, e) from None
 
     @app.post("/team/draft")
     async def team_draft(body: dict) -> dict:
