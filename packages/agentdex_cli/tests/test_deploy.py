@@ -204,3 +204,40 @@ def test_cmd_deploy_credentials_stripping_and_detached_head(
     assert called_payload["branch"] == "main"
     # port should not be in the payload
     assert "port" not in called_payload
+
+
+@patch("httpx.post")
+@patch("subprocess.check_output")
+def test_cmd_deploy_forwards_sidecar_scale_envvars(mock_check_output, mock_post, monkeypatch):
+    """OPS-P1-forward-scale-envvars: `adx deploy` must forward the ADX_SIDECAR_*
+    sidecar scale knobs (pool size, heap cap, protocol caps) the server reads at
+    boot — not just ARENA_*. Without them a scaled deploy silently runs at the
+    single-sidecar 96MB defaults. Unrelated env vars must NOT be forwarded.
+    """
+    mock_check_output.side_effect = lambda cmd, **kwargs: {
+        ("git", "config", "--get", "remote.origin.url"): "https://github.com/origin/repo.git\n",
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"): "main\n",
+    }[tuple(cmd)]
+
+    mock_post_resp = MagicMock()
+    mock_post_resp.status_code = 202
+    mock_post_resp.json.return_value = {"status": "queued", "message": "Deployment queued"}
+    mock_post.return_value = mock_post_resp
+
+    monkeypatch.setenv("AI_BUILDER_TOKEN", "fake-token")
+    monkeypatch.setenv("ADX_SIDECAR_POOL_SIZE", "4")
+    monkeypatch.setenv("ADX_SIDECAR_MAX_OLD_SPACE_MB", "512")
+    monkeypatch.setenv("ARENA_MAX_BATTLES", "64")
+    # An unrelated var that must NOT be forwarded to the deployed container.
+    monkeypatch.setenv("HOME_SECRET_NOT_FORWARDED", "leak")
+
+    parser = build_parser()
+    args = parser.parse_args(["deploy", "--no-poll"])
+    exit_code = cmd_deploy(args)
+
+    assert exit_code == 0
+    env_vars = mock_post.call_args[1]["json"]["env_vars"]
+    assert env_vars.get("ADX_SIDECAR_POOL_SIZE") == "4"
+    assert env_vars.get("ADX_SIDECAR_MAX_OLD_SPACE_MB") == "512"
+    assert env_vars.get("ARENA_MAX_BATTLES") == "64"
+    assert "HOME_SECRET_NOT_FORWARDED" not in env_vars

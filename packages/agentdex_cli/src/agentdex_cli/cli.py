@@ -816,9 +816,16 @@ def cmd_deploy(args: argparse.Namespace) -> int:
 
     # Env vars
     env_vars = {}
-    # 1. Load any env vars starting with ARENA_ from current environment
+    # 1. Forward operator-facing config from the current environment. ARENA_*
+    #    carries gateway config (signing/badge keys, max battles, owner webhook);
+    #    ADX_SIDECAR_* carries the showdown sidecar scale knobs the server reads
+    #    at boot — ADX_SIDECAR_POOL_SIZE (__main__.py), ADX_SIDECAR_MAX_OLD_SPACE_MB
+    #    + ADX_SIDECAR_MAX_PROTOCOL_LINES/BYTES (sidecar.py). Without the second
+    #    prefix a scaled deploy silently runs at the single-sidecar 96MB defaults
+    #    (OPS-P1-forward-scale-envvars).
+    _forward_prefixes = ("ARENA_", "ADX_SIDECAR_")
     for k, v in os.environ.items():
-        if k.startswith("ARENA_"):
+        if k.startswith(_forward_prefixes):
             env_vars[k] = v
 
     # 2. Add custom env vars from --env-vars
