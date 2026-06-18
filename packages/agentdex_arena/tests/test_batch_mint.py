@@ -178,6 +178,51 @@ def test_main_overwrites_existing_loose_file_to_0600(tmp_path, monkeypatch):
     assert len(json.loads(out_path.read_text(encoding="utf-8"))) == 1
 
 
+def test_batch_mint_validates_pubkey_before_reserving_name(tmp_path: Path):
+    """A malformed pubkey must be caught BEFORE the durable register.
+
+    Otherwise build_claims raised only AFTER the register event, orphaning the
+    reserved name so a corrected rerun could not mint it (PR #232 review).
+    """
+    authority = _authority()
+    events = EventLog(tmp_path / "events.jsonl")
+    roster = [{"owner": "o@e.com", "agent_name": "agent-x", "agent_pubkey_hex": "not-64-hex"}]
+
+    with pytest.raises(bm.BatchMintError):
+        bm.batch_mint(roster, authority=authority, events=events, confirmed_via="x")
+
+    # The name was NOT durably reserved — the corrected roster can still mint it.
+    assert bm.load_registered(EventLog(tmp_path / "events.jsonl")) == set()
+
+
+def test_batch_mint_uppercase_pubkey_rejected_before_register(tmp_path: Path):
+    """ConsentClaims requires lowercase hex; an uppercase pubkey must be rejected
+    up front (not after the register append)."""
+    authority = _authority()
+    events = EventLog(tmp_path / "events.jsonl")
+    roster = [
+        {"owner": "o@e.com", "agent_name": "agent-u", "agent_pubkey_hex": _pubkey_hex().upper()}
+    ]
+    with pytest.raises(bm.BatchMintError):
+        bm.batch_mint(roster, authority=authority, events=events, confirmed_via="x")
+    assert bm.load_registered(EventLog(tmp_path / "events.jsonl")) == set()
+
+
+@pytest.mark.parametrize(
+    "bad_owner",
+    ["{OWNER}", "no-at-sign", "has space@e.com", "a@b", "xy"],
+)
+def test_batch_mint_rejects_owner_like_enrollment(tmp_path: Path, bad_owner: str):
+    """Owners the self-serve EnrollRequest rejects (placeholder, whitespace,
+    non-address, too short/long) must be rejected here too, before any register."""
+    authority = _authority()
+    events = EventLog(tmp_path / "events.jsonl")
+    roster = [{"owner": bad_owner, "agent_name": "agent-o", "agent_pubkey_hex": _pubkey_hex()}]
+    with pytest.raises(bm.BatchMintError):
+        bm.batch_mint(roster, authority=authority, events=events, confirmed_via="x")
+    assert bm.load_registered(EventLog(tmp_path / "events.jsonl")) == set()
+
+
 def test_main_preflights_unwritable_out_before_registering(tmp_path, monkeypatch, capsys):
     """A bad --out path must abort BEFORE any durable register event is appended.
 
