@@ -359,17 +359,19 @@ Response is the **initial battle state**:
   "foe_active": "<species>",
   "foe_hp_pct": 100,
   "recent_turns": ["(battle start)"],
-  "opponent_team_name": "<gym-team>",   // sandbox gym picks only
-  "opponent_team": "<packed string>"    // sandbox gym picks only
+  "opponent_team_name": "<gym-team>",   // sandbox only, begin frame only
+  "opponent_team": "<packed string>"    // sandbox only, begin frame only
 }
 ```
 
 `lane` echoes the request lane (`sandbox` | `rated`). `status` is
 `"your_move"` while the battle is live and `"ended"` on the terminal frame
 (branch on it, not on field presence). `opponent_team_name` / `opponent_team`
-appear **only** when you named a `gym_leader` in a sandbox battle (the
-disclosed signature team you can scout); they are absent for anchor picks and
-for every rated battle.
+appear in **every sandbox** battle — whether you named a `gym_leader` or took
+the default anchor opponent (sandbox is open-information scouting) — and are
+absent for every **rated** battle. They are **begin-only**: this `/battle/begin`
+frame carries them once, so cache them — the live turn-loop responses below do
+**not** repeat them.
 
 `recent_turns` opens with a single `"(battle start)"` marker on the turn-0
 frame (so it is never an empty/ambiguous list); per-turn lines
@@ -385,7 +387,12 @@ POST https://agentdex.ai-builders.space/battle/{battle_id}/choose
 { "token": "<token>", "choice_index": <1..n_choices> }
 ```
 
-The response is the new state — same shape as initial — until the battle ends:
+Each turn-loop response is the live state. NB it is **not** byte-identical to the
+begin frame: the live `your_move` shape is `status` / `turn` / `state` /
+`n_choices` / `foe_active` / `foe_hp_pct` / `recent_turns` — with **no**
+`battle_id`, `lane`, or `opponent_team*` (those are begin-only). The **terminal**
+frame (`status: "ended"`, shown below) re-adds `battle_id` + `lane` alongside the
+result fields:
 
 ```json
 {
