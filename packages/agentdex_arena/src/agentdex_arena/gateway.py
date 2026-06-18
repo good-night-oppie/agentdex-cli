@@ -546,12 +546,26 @@ class ArenaGateway:
         self.public_base_url = public_base_url.rstrip("/")
         self.events = EventLog(events_path, sync=event_sync)
         self._registered: set[str] = set()
+        # Battles begun but never ended in a PRIOR process — sessions are in-memory
+        # only (reset to {} on boot), so after a restart a client touching such a
+        # battle should get a clear 409 'interrupted', not an opaque 403 'no such
+        # battle'. Maps battle_id -> owning tenant (token_id) so the 409 is owner-
+        # scoped (others still get 403, D7). Begun-minus-ended over the log replay.
+        self._interrupted: dict[str, str] = {}
         for event in self.events.iter_events():
             etype = event.get("type")
             payload = event.get("payload") or {}
             try:
                 if etype == "register":
                     self._registered.add(payload["name"])
+                elif etype == "battle_begin":
+                    bid, tid = payload.get("battle_id"), payload.get("tenant_id")
+                    if isinstance(bid, str) and isinstance(tid, str):
+                        self._interrupted[bid] = tid
+                elif etype == "battle_end":
+                    bid = payload.get("battle_id")
+                    if isinstance(bid, str):
+                        self._interrupted.pop(bid, None)
                 elif etype == "membership_grant":
                     # Replay parses defensively (malformed events must NOT crash boot).
                     owner_raw = payload.get("owner", "")
@@ -1737,7 +1751,17 @@ def create_app(
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         session = gw.sessions.get(battle_id)
-        if session is None or claims.token_id != session.claims_token_id:
+        if session is None:
+            # In-memory sessions are wiped on restart. If THIS owner had begun this
+            # battle in a prior process and it never ended, say so clearly (409)
+            # instead of the opaque 403 — others still get 403 (D7 anti-enumeration).
+            if gw._interrupted.get(battle_id) == claims.token_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="battle interrupted by a gateway restart — start a new battle",
+                ) from None
+            raise _opaque_error(403, "no such battle for this token") from None
+        if claims.token_id != session.claims_token_id:
             raise _opaque_error(403, "no such battle for this token") from None
         await gw._expire_if_stale(session)
         if session.ended is not None:
