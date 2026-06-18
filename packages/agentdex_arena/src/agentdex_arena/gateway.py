@@ -431,6 +431,11 @@ class BattleSession:
     parent: tuple[str, int] | None = None
     scratchpad: str = ""
     last_state: dict[str, Any] | None = None
+    # In-flight shielded finish (PR #289 review): a strong reference so the event
+    # loop's weak task ref cannot GC a backgrounded _finish mid-wait, AND a
+    # "finishing" marker so _expire_if_stale won't queue a second forfeit finish
+    # while one is outstanding. Set in _advance, cleared by its done-callback.
+    finish_task: Any = None
     # Normalized owner — keys the per-owner concurrency cap (ADR-0012 §7). Defaulted
     # so existing constructions (tests, fork) need no change; battle_begin sets it.
     owner: str = ""
@@ -1087,7 +1092,16 @@ class ArenaGateway:
             raise
 
     async def _expire_if_stale(self, session: BattleSession) -> None:
-        if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
+        # Skip while a shielded finish is outstanding (session.finish_task set):
+        # the battle already reached a terminal state and is being recorded in the
+        # background, so forfeiting it here would queue a second _finish that
+        # appends a duplicate battle_end and overwrites the real result with a
+        # bogus timeout forfeit (PR #289 review 3435535478).
+        if (
+            session.ended is None
+            and session.finish_task is None
+            and self.now() - session.last_touch > self.turn_budget_s
+        ):
             input_log = []
             if session.sidecar is not None:
                 try:
@@ -1151,12 +1165,33 @@ class ArenaGateway:
                 # durable append succeeds, so a bare cancel mid-lock-wait would
                 # strand a battle that already ended as pending=None + ended=None —
                 # /state then 409s until stale-expiry records a bogus timeout
-                # forfeit for a battle whose real result was lost. Shield the
-                # finish so the cancel propagates to the caller while the durable
-                # battle_end/period/replay + session.ended still land in the
-                # background (PR #276 review 3434024561). No double-finish: a retry
-                # sees pending=None and 409s rather than re-entering _finish.
-                return await asyncio.shield(self._finish(session, state["end"]))
+                # forfeit for a battle whose real result was lost. Run the finish
+                # as a TRACKED task and shield the await: the cancel reaches the
+                # caller while the durable battle_end/period/replay + session.ended
+                # land in the background (PR #276 review 3434024561).
+                #
+                # session.finish_task holds a STRONG reference so the loop's weak
+                # task ref can't GC the background finish mid-wait (PR #289 review
+                # 3435535482), and doubles as a "finishing" marker so
+                # _expire_if_stale won't queue a SECOND forfeit finish while this
+                # one is outstanding under long lock contention (PR #289 review
+                # 3435535478). No double-finish either way: a retry sees
+                # pending=None and 409s rather than re-entering _finish.
+                finish_task: asyncio.Task[dict[str, Any]] = asyncio.ensure_future(
+                    self._finish(session, state["end"])
+                )
+                session.finish_task = finish_task
+
+                def _clear_finish(task: asyncio.Future, sess: BattleSession = session) -> None:
+                    sess.finish_task = None
+                    # Retrieve any background failure so it isn't logged as a
+                    # "Task exception was never retrieved" when the caller was
+                    # cancelled (the non-cancelled caller already gets it re-raised).
+                    if not task.cancelled():
+                        task.exception()
+
+                finish_task.add_done_callback(_clear_finish)
+                return await asyncio.shield(finish_task)
 
             choices: dict[str, str] = {}
             if visitor_choice is not None:
