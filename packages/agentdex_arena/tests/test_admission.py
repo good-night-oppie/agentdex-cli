@@ -249,3 +249,31 @@ def test_fork_caps_on_forking_owner_not_source(gw):
                 "sandbox-src", _fork_src(), turn=0, sidecar=_SentinelSidecar(), owner=_OWNER
             )
         )
+
+
+def test_failed_post_publish_fork_is_removed_from_cap(gw):
+    """A failure AFTER the fork session is published (here _advance hits a protocol
+    stall) must pop the session and release the reservation, so a dead battle never
+    counts against the owner cap (PR #254 review)."""
+    owner_norm = _normalize_owner(_OWNER)
+
+    class _StallSidecar:
+        returncode = None
+
+        async def request(self, op: str, **kwargs):
+            return {"state": {}}  # empty → _advance stalls AFTER publish
+
+    from fastapi import HTTPException as _HTTPException
+
+    with pytest.raises(_HTTPException):
+        asyncio.run(
+            gw.battle_fork(
+                "sandbox-src", _fork_src(), turn=0, sidecar=_StallSidecar(), owner=_OWNER
+            )
+        )
+    # Published-then-failed fork removed; reservation released → cap fully clean.
+    assert gw._owner_inflight == {}
+    assert not [bid for bid in gw.sessions if "fork" in bid]
+    # And the owner can immediately admit a fresh battle (count is back to zero).
+    gw._reserve_owner_slot(owner_norm)  # would raise 429 if the dead fork still counted
+    gw._release_owner_slot(owner_norm)

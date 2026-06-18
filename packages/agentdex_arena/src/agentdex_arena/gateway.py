@@ -825,13 +825,33 @@ class ArenaGateway:
             # instead of hitting 403 unknown nonce (PR #243 review).
             self.battle_nonces[req.battle_nonce] = claims.token_id
             raise
+        released = False
+
+        def _hand_off() -> None:
+            # Once the session is published the LIVE count covers this owner, so drop
+            # the in-flight reservation (release-once) — else the post-publish work
+            # would double-count and could spuriously 429 the owner's next battle. If
+            # _run raises before publishing, the finally still releases (PR #254).
+            nonlocal released
+            if not released:
+                released = True
+                self._release_owner_slot(owner_norm)
+
         try:
-            return await self._run_battle_begin(req, claims, owner_norm, sidecar=sidecar)
+            return await self._run_battle_begin(
+                req, claims, owner_norm, sidecar=sidecar, on_published=_hand_off
+            )
         finally:
-            self._release_owner_slot(owner_norm)
+            _hand_off()
 
     async def _run_battle_begin(
-        self, req: BeginRequest, claims: ConsentClaims, owner_norm: str, *, sidecar: Sidecar
+        self,
+        req: BeginRequest,
+        claims: ConsentClaims,
+        owner_norm: str,
+        *,
+        sidecar: Sidecar,
+        on_published: Callable[[], None],
     ) -> dict[str, Any]:
         """battle_begin's team-pack → sidecar-start → durable-append → publish body,
         run while the owner-slot reservation is held (PR #243). Split out so the
@@ -975,14 +995,21 @@ class ArenaGateway:
                     pass
                 raise _opaque_error(403, e) from None
         self.sessions[battle_id] = session
-        state = await self._advance(session, resp["state"], visitor_choice=None)
-        out = {"battle_id": battle_id, "lane": req.lane, **state}
-        if gym_team_name is not None:
-            # Disclosed signature team (#3): scouting it and drafting a counter IS
-            # the sandbox game; this is what makes team_mutation a real lever.
-            out["opponent_team_name"] = gym_team_name
-            out["opponent_team"] = opp_team
-        return out
+        on_published()  # cap count handed off to the live session; drop the reservation
+        try:
+            state = await self._advance(session, resp["state"], visitor_choice=None)
+            out = {"battle_id": battle_id, "lane": req.lane, **state}
+            if gym_team_name is not None:
+                # Disclosed signature team (#3): scouting it and drafting a counter IS
+                # the sandbox game; this is what makes team_mutation a real lever.
+                out["opponent_team_name"] = gym_team_name
+                out["opponent_team"] = opp_team
+            return out
+        except BaseException:
+            # Published but failed before returning — don't leave a dead battle in
+            # self.sessions counted against the owner cap (PR #254 review).
+            self.sessions.pop(battle_id, None)
+            raise
 
     async def _expire_if_stale(self, session: BattleSession) -> None:
         if session.ended is None and self.now() - session.last_touch > self.turn_budget_s:
@@ -1371,12 +1398,28 @@ class ArenaGateway:
         # claims) so the fork session is counted and capped.
         owner_norm = _normalize_owner(owner)
         self._reserve_owner_slot(owner_norm)
+        released = False
+
+        def _hand_off() -> None:
+            # Release-once at publish: the live session count takes over, so the
+            # (potentially long) choice-replay below can't double-count and 429 the
+            # owner's next battle; a pre-publish failure still releases (PR #254).
+            nonlocal released
+            if not released:
+                released = True
+                self._release_owner_slot(owner_norm)
+
         try:
             return await self._run_battle_fork(
-                src_battle_id, src, turn=turn, sidecar=sidecar, owner_norm=owner_norm
+                src_battle_id,
+                src,
+                turn=turn,
+                sidecar=sidecar,
+                owner_norm=owner_norm,
+                on_published=_hand_off,
             )
         finally:
-            self._release_owner_slot(owner_norm)
+            _hand_off()
 
     async def _run_battle_fork(
         self,
@@ -1386,6 +1429,7 @@ class ArenaGateway:
         turn: int,
         sidecar: Sidecar,
         owner_norm: str,
+        on_published: Callable[[], None],
     ) -> dict[str, Any]:
         """battle_fork's sidecar-start → append → publish → choice-replay body, run
         while the owner-slot reservation is held (PR #243)."""
@@ -1444,32 +1488,39 @@ class ArenaGateway:
             battle_id=battle_id,
         )
         self.sessions[battle_id] = session
-        state = await self._advance(session, resp["state"], visitor_choice=None)
-        for ch in src.get("visitor_choices", []):
-            if session.ended is not None or session.turns >= turn:
-                break
-            if session.pending is None:
-                break
-            session.pending = None
-            # Mirror what /battle/{id}/choose does for live choices: record the
-            # replayed choice on the fork session so _is_autopilot sees the
-            # same low-entropy sequence the original opponent saw. Without this
-            # the autopilot_punisher (re-wired above for default sandbox forks)
-            # would never escalate on the replayed prefix even though the
-            # original battle had already escalated — same-choice suffix would
-            # then diverge.
-            session.visitor_choices.append(ch)
-            step = await sidecar.request(
-                "step", battle=battle_id, choices={session.visitor_side: ch}
-            )
-            state = await self._advance(session, step["state"], visitor_choice=None)
-        return {
-            "battle_id": battle_id,
-            "lane": "sandbox",
-            "parent_battle_id": src_battle_id,
-            "fork_turn": turn,
-            **state,
-        }
+        on_published()  # cap count handed off to the live session; drop the reservation
+        try:
+            state = await self._advance(session, resp["state"], visitor_choice=None)
+            for ch in src.get("visitor_choices", []):
+                if session.ended is not None or session.turns >= turn:
+                    break
+                if session.pending is None:
+                    break
+                session.pending = None
+                # Mirror what /battle/{id}/choose does for live choices: record the
+                # replayed choice on the fork session so _is_autopilot sees the
+                # same low-entropy sequence the original opponent saw. Without this
+                # the autopilot_punisher (re-wired above for default sandbox forks)
+                # would never escalate on the replayed prefix even though the
+                # original battle had already escalated — same-choice suffix would
+                # then diverge.
+                session.visitor_choices.append(ch)
+                step = await sidecar.request(
+                    "step", battle=battle_id, choices={session.visitor_side: ch}
+                )
+                state = await self._advance(session, step["state"], visitor_choice=None)
+            return {
+                "battle_id": battle_id,
+                "lane": "sandbox",
+                "parent_battle_id": src_battle_id,
+                "fork_turn": turn,
+                **state,
+            }
+        except BaseException:
+            # Published but failed mid-replay — don't leave a dead fork session in
+            # self.sessions counted against the owner cap (PR #254 review).
+            self.sessions.pop(battle_id, None)
+            raise
 
     # ---------- public, read-only (L0) ----------
 
