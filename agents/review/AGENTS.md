@@ -1,3 +1,15 @@
+---
+title: agents/review — agentdex-cli
+status: active
+owner: etang
+created: 2026-06-08
+updated: 2026-06-18
+type: reference
+scope: monorepo
+layer: cross-cutting
+cross_cutting: true
+---
+
 # agents/review — agentdex-cli
 
 ## Merge philosophy (G2 ep5+7 — async, not sync-block)
@@ -12,9 +24,16 @@ gate must be AUTONOMOUS (default SUPERVISED — every PR human-gated
 until the 14-day flip gates pass). Until threshold flips, auto-merge
 is DISABLED regardless of these criteria.
 
-- All required CI checks green (`uv run --no-sync pytest packages/` exits 0)
+Scoped by the root [CI-POLICY](../../AGENTS.md#ci-policy): "CI green" /
+"hooks pass clean" below mean **your change's own** lint+test job and
+**your diff** — a full-tree `pre-commit run --all-files` red on
+third-party / sibling-synced files you did not touch (e.g. the
+hook-excluded `vendor/aaop/**`) is NOT a blocker; fix such shared red as
+its own tiny PR instead of gating yours on it.
+
+- Your change's CI checks green (`uv run --no-sync pytest packages/` exits 0)
 - No HIGH-severity `agentlint scan` findings (per `agentlint.yaml`)
-- `.pre-commit-config.yaml` hooks pass clean — ruff (lint+format),
+- `.pre-commit-config.yaml` hooks pass clean **on your diff** — ruff (lint+format),
   mypy (strict on `packages/agentdex_engine/src/agentdex_engine/cards/`),
   detect-secrets vs `.secrets.baseline`
 - Coverage delta ≥ 0 (`coverage run -m pytest` vs main baseline)

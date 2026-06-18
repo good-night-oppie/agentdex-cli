@@ -20,10 +20,10 @@ cross_cutting: true
 
 Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green CI.
 
-- WHY: `vendor/aaop/**` pre-commit is permanently red + repo has no required checks → 0-red is waste (PRs #251/#253/#199 — do not repeat).
-- DO: merge UNSTABLE on the REAL gates only (your change's checks + your tests); accept vendor/pre-commit red. `gh pr merge --squash` (no `--admin`).
+- WHY: repo has no required-status-check branch protection, and full-tree `pre-commit run --all-files` can transiently red on third-party / sibling-synced content the repo doesn't own — chasing 0-red on that noise is waste (PRs #251/#253/#199 — do not repeat). (`vendor/aaop/**` is globally hook-excluded in [.pre-commit-config.yaml](.pre-commit-config.yaml) so it never reds; the bene blog HTML that *did* red full-tree was durably hook-excluded in #253.)
+- DO: merge on the REAL gates only (your change's own lint+test checks + your tests); accept a full-tree pre-commit red caused by third-party / synced files you did not touch. `gh pr merge --squash` (no `--admin`).
 - STILL: fix a regression YOUR diff causes (green→red); keep fix-all tiny-PR cadence; add no make-CI-green PRs.
-- See [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy.
+- See [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy (its full-green auto-merge criteria are scoped by THIS policy: the gate is your change's own checks, not full-tree green; they are also gated OFF until `AUTONOMY_THRESHOLD.md` flips AUTONOMOUS).
 
 ## Tools
 
