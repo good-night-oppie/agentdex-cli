@@ -1381,7 +1381,9 @@ class ArenaGateway:
         }
 
 
-def create_app(gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar | SidecarPool]) -> FastAPI:
+def create_app(
+    gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar | SidecarPool]
+) -> FastAPI:
     @asynccontextmanager
     async def _lifespan(app_: FastAPI) -> AsyncIterator[None]:
         # the persistent sidecar is spawned lazily on first battle; stop it on
