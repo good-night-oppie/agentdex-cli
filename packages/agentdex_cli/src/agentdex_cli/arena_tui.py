@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import socket
 import sys
 from typing import Any
 
@@ -80,8 +82,11 @@ def _render_turn(console, state: dict[str, Any]) -> None:
     console.print(f"[dim]battle {battle_id}[/dim]")
 
 
-def _render_receipt(console, receipt: dict[str, Any]) -> None:
-    """Paint the end-of-battle receipt: outcome, rating delta, replay link."""
+def _render_receipt(console, receipt: dict[str, Any], base: str) -> None:
+    """Paint the end-of-battle receipt: outcome, rating delta, replay link.
+
+    ``base`` is the arena URL the battle was actually played against so the replay
+    link is correct even when the user passed a non-default --url."""
     from rich.panel import Panel
     from rich.text import Text
 
@@ -106,7 +111,7 @@ def _render_receipt(console, receipt: dict[str, Any]) -> None:
         lines.append(f"[red]⚠ quarantined: {receipt.get('quarantine_reason', '')}[/red]")
     replay = receipt.get("replay")
     if replay:
-        lines.append(f"[dim]replay: {resolve_base()}{replay}[/dim]")
+        lines.append(f"[dim]replay: {base.rstrip('/')}{replay}[/dim]")
     console.print(Panel(Text.from_markup("\n".join(lines)), title="result", border_style="green"))
 
 
@@ -139,7 +144,14 @@ def _resolve_token(
     skips this entirely.
     """
     key_path = args.key or os.path.expanduser(f"~/.agentdex/{args.agent}.key")
+    tok_path = os.path.expanduser(f"~/.agentdex/{args.agent}.token")
     token = args.token or os.environ.get("ADX_ARENA_TOKEN")
+    # Reuse the token saved by a prior enrollment (same agent) so a returning
+    # player does not re-enroll every run — but only if it is still valid.
+    if not token and os.path.exists(tok_path):
+        saved = open(tok_path).read().strip()
+        if saved and not token_expired(saved):
+            token = saved
 
     if token:
         if token_expired(token):
@@ -170,13 +182,21 @@ def _resolve_token(
 
     code = Prompt.ask("paste the confirmation code", console=console)
     token = client.enroll_confirm(code.strip())
-    tok_path = os.path.expanduser(f"~/.agentdex/{args.agent}.token")
     os.makedirs(os.path.dirname(tok_path), exist_ok=True)
     with open(tok_path, "w") as f:
         f.write(token)
     os.chmod(tok_path, 0o600)
     console.print(f"[green]enrolled[/green] — token saved to {tok_path}")
     return token, identity
+
+
+def _default_agent_name() -> str:
+    """A machine-stable, globally-distinct default agent name. Arena names are
+    unique across ALL users, so a bare ``terminal-player`` would let only the first
+    enroller ever claim it; suffix the hostname so a fresh box gets its own name
+    while staying stable across runs (so the saved key/token keep matching)."""
+    host = re.sub(r"[^a-zA-Z0-9_-]", "", socket.gethostname()) or "host"
+    return f"terminal-player-{host}"[:64]
 
 
 def cmd_arena_play(argv: list[str]) -> int:
@@ -188,7 +208,9 @@ def cmd_arena_play(argv: list[str]) -> int:
     p.add_argument("--token", help="consent token (default: $ADX_ARENA_TOKEN; else enroll)")
     p.add_argument("--owner", help="owner email for enrollment (if no token)")
     p.add_argument(
-        "--agent", default="terminal-player", help="agent name (default: terminal-player)"
+        "--agent",
+        default=_default_agent_name(),
+        help="agent name (default: terminal-player-<hostname>)",
     )
     p.add_argument(
         "--key", help="path to the agent's Ed25519 key (default: ~/.agentdex/<agent>.key)"
@@ -199,19 +221,37 @@ def cmd_arena_play(argv: list[str]) -> int:
     args = p.parse_args(argv)
 
     console = _console()
-    team_packed = None
-    if args.team:
-        team_packed = open(args.team).read().strip()
+    # Fail BEFORE enrolling / starting a battle if input is not interactive —
+    # otherwise we'd begin a live battle and only discover stdin is not a TTY at
+    # the first move prompt.
+    if not sys.stdin.isatty():
+        raise SystemExit(
+            "error: `adx arena play` needs an interactive terminal (stdin is not a TTY)"
+        )
+
+    raw_team = open(args.team).read().strip() if args.team else None
 
     try:
         with ArenaClient(base=resolve_base(args.url)) as client:
             token, identity = _resolve_token(client, args, console)
+            # A packed team is a single line; a Showdown EXPORT (multi-line) must be
+            # packed via /team/draft before /battle/begin (which expects packed).
+            team_packed = raw_team
+            if raw_team and "\n" in raw_team:
+                draft = client.team_draft(token, raw_team)
+                if not draft.get("valid", False):
+                    raise SystemExit(f"error: team failed validation: {draft.get('errors')}")
+                team_packed = draft["packed"]
             console.print(
                 f"[dim]arena: {client.base}  ·  agent: {identity.name}  ·  lane: {args.lane}[/dim]"
             )
             state = client.battle_begin(
                 token, identity, team_packed=team_packed, lane=args.lane, gym_leader=args.gym
             )
+            # battle_id is fixed for the whole battle; /choose responses need not
+            # echo it, so capture it once from begin (a multi-turn battle would
+            # otherwise KeyError on state["battle_id"] after the first choice).
+            battle_id = state["battle_id"]
             while state.get("status") != "ended":
                 _render_turn(console, state)
                 n = int(state.get("n_choices") or 0)
@@ -220,10 +260,13 @@ def cmd_arena_play(argv: list[str]) -> int:
                     return 1
                 choice = _prompt_choice(console, n)
                 if choice is None:
-                    console.print("[yellow]forfeiting…[/yellow]")
+                    console.print(
+                        "[yellow]leaving — the battle stays LIVE server-side (not "
+                        "forfeited); resume by polling /state.[/yellow]"
+                    )
                     return 0
-                state = client.battle_choose(token, state["battle_id"], choice)
-            _render_receipt(console, state)
+                state = client.battle_choose(token, battle_id, choice)
+            _render_receipt(console, state, client.base)
             return 0
     except KeyboardInterrupt:
         console.print(

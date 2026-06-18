@@ -13,6 +13,19 @@ def _rec() -> Console:
     return Console(record=True, width=100, no_color=True)
 
 
+class _TTY:
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _interactive_stdin(monkeypatch):
+    # cmd_arena_play now fails fast if stdin is not a TTY; pytest's stdin is not,
+    # so present an interactive stdin for the play-loop tests (render-only tests
+    # are unaffected).
+    monkeypatch.setattr("sys.stdin", _TTY())
+
+
 def test_hp_bar_thresholds_and_clamp() -> None:
     assert "100%" in arena_tui._hp_bar(100)
     assert "green" in arena_tui._hp_bar(80)
@@ -56,17 +69,17 @@ def test_render_receipt_win_with_rating_and_replay() -> None:
         "replay": "/replay/rated-xyz",
         "badge_awarded": None,
     }
-    arena_tui._render_receipt(console, receipt)
+    arena_tui._render_receipt(console, receipt, "https://arena.example")
     out = console.export_text()
     assert "you won" in out
     assert "MyBot" in out
     assert "+12.3" in out
-    assert "/replay/rated-xyz" in out
+    assert "https://arena.example/replay/rated-xyz" in out  # uses the passed base
 
 
 def test_render_receipt_loss() -> None:
     console = _rec()
-    arena_tui._render_receipt(console, {"winner": "Foe", "you_won": False, "turns": 9})
+    arena_tui._render_receipt(console, {"winner": "Foe", "you_won": False, "turns": 9}, "https://x")
     assert "you lost" in console.export_text()
 
 
@@ -138,3 +151,69 @@ def test_play_requires_token_or_owner(monkeypatch) -> None:
     monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: _FakeClient())
     with pytest.raises(SystemExit):
         arena_tui.cmd_arena_play(["--agent", "nobody"])
+
+
+class _MultiTurnClient(_FakeClient):
+    """Turn 1 choose returns another your_move that OMITS battle_id (the gateway
+    need not echo it); turn 2 ends. Records the battle_id passed to each choose."""
+
+    def __init__(self, *a, **k) -> None:
+        super().__init__(*a, **k)
+        self.chose_ids: list[str] = []
+        self._n = 0
+
+    def battle_choose(self, token, battle_id, idx):
+        self.chose.append(idx)
+        self.chose_ids.append(battle_id)
+        self._n += 1
+        if self._n == 1:
+            # no "battle_id" key here on purpose
+            return {"status": "your_move", "turn": 2, "n_choices": 2, "state": "1. a  2. b"}
+        return {"status": "ended", "winner": "x", "you_won": True, "turns": 2}
+
+
+def test_play_loop_preserves_battle_id_across_turns(monkeypatch) -> None:
+    fake = _MultiTurnClient()
+    monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: fake)
+    monkeypatch.setattr(
+        arena_tui, "_resolve_token", lambda client, args, console: ("tok", _FakeIdentity())
+    )
+    monkeypatch.setattr(arena_tui, "_prompt_choice", lambda console, n: 1)
+
+    rc = arena_tui.cmd_arena_play(["--token", "tok"])
+    assert rc == 0
+    # both choices routed to the begin battle_id even though turn-1's response omitted it
+    assert fake.chose_ids == ["sandbox-loop", "sandbox-loop"]
+
+
+class _PackingClient(_FakeClient):
+    def __init__(self, *a, **k) -> None:
+        super().__init__(*a, **k)
+        self.drafted: list[str] = []
+        self.began_team = "UNSET"
+
+    def team_draft(self, token, export):
+        self.drafted.append(export)
+        return {"packed": "PACKED|gen9ou|...", "valid": True, "errors": []}
+
+    def battle_begin(self, token, identity, *, team_packed=None, lane="sandbox", gym_leader=None):
+        self.began_team = team_packed
+        return super().battle_begin()
+
+
+def test_play_packs_exported_team_before_begin(monkeypatch, tmp_path) -> None:
+    export = tmp_path / "team.txt"
+    export.write_text(
+        "Pikachu @ Light Ball\nAbility: Static\n- Thunderbolt\n"
+    )  # multi-line = export
+    fake = _PackingClient()
+    monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: fake)
+    monkeypatch.setattr(
+        arena_tui, "_resolve_token", lambda client, args, console: ("tok", _FakeIdentity())
+    )
+    monkeypatch.setattr(arena_tui, "_prompt_choice", lambda console, n: 1)
+
+    rc = arena_tui.cmd_arena_play(["--token", "tok", "--team", str(export)])
+    assert rc == 0
+    assert fake.drafted and fake.drafted[0].startswith("Pikachu")  # export was sent to /team/draft
+    assert fake.began_team == "PACKED|gen9ou|..."  # begin received the PACKED form
