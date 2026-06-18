@@ -268,6 +268,10 @@ def test_error_keeps_side_prefix_with_opaque_message():
     assert list(ev2.args) == ["p2", "[Unavailable choice] move|1 is disabled"]
     # a bare Showdown |error|TEXT (no side prefix, no pipe) degrades to one arg
     assert list(parse_line("|error|[Invalid choice]").args) == ["[Invalid choice]"]
+    # a bare |error|TEXT whose TEXT carries a pipe stays ONE opaque arg — the side
+    # is peeled ONLY when the first field really is p1/p2 (PR #223 review 3432349124)
+    ev3 = parse_line("|error|[Unavailable choice] move|1 is disabled")
+    assert list(ev3.args) == ["[Unavailable choice] move|1 is disabled"]
 
 
 def test_kwarg_idents_are_sanitized():

@@ -373,6 +373,13 @@ def parse_line(line: str, *, index: int = -1) -> ProtocolEvent:
         lead = OPAQUE_PAYLOAD_TYPES[msg_type]
         prefix = f"|{msg_type}|"
         body = line[len(prefix) :] if line.startswith(prefix) else "|".join(parts[1:])
+        if msg_type == "error" and body.split("|", 1)[0] not in ("p1", "p2"):
+            # |error| is bare Showdown text by default. The sidecar augments CAPTURED
+            # control errors with a side prefix (`|error|p1|msg`, lead 1), but a raw /
+            # persisted bare `|error|TEXT` whose TEXT carries a pipe (e.g.
+            # `[Unavailable choice] move|1 is disabled`) must stay ONE opaque arg —
+            # only peel a side when the first field really is one. PR #223 review.
+            lead = 0
         positional = body.split("|", lead) if lead else [body]
         kwargs: dict[str, str] = {}
     else:
