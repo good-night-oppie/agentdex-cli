@@ -1438,6 +1438,10 @@ def create_app(
     app = FastAPI(title="agentdex-arena", version="0.1.0", lifespan=_lifespan)
     app.state.gateway = gateway
     app.state.sidecar = None
+    # Sticky flag: a lazy sidecar start() that raised (e.g. node_modules/sidecar.mjs
+    # missing). The instance is never stored on failure, so /healthz can't read it
+    # off a returncode — this marker is how a failed start surfaces as unhealthy.
+    app.state.sidecar_start_failed = False
 
     from agentdex_arena.mcp_surface import current_gateway, current_sidecar_fn
 
@@ -1453,8 +1457,18 @@ def create_app(
 
     async def _sidecar() -> Sidecar:
         if app.state.sidecar is None:
-            app.state.sidecar = sidecar_factory()
-            await app.state.sidecar.start()
+            sc = sidecar_factory()
+            try:
+                await sc.start()
+            except BaseException:
+                # A failed lazy start must surface as unhealthy. Don't leave a
+                # non-None, unstarted instance (returncode=None reads as "alive"
+                # to /healthz while every sim request fails "sidecar not started");
+                # flag it and re-raise so the next request retries a fresh start.
+                app.state.sidecar_start_failed = True
+                raise
+            app.state.sidecar = sc
+            app.state.sidecar_start_failed = False
         return app.state.sidecar
 
     _ARENA_HEALTH = {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
@@ -1480,10 +1494,12 @@ def create_app(
         # Real readiness probe (was a static {ok:true}). The sidecar spawns lazily
         # on the first battle, so a None sidecar is READY (it will start on demand).
         # Once spawned, a crashed node process → 503 so the platform recycles the
-        # container instead of serving an OOM/dead-sidecar spiral. Liveness is read
-        # from the cached returncode (no IPC) to keep the probe cheap + non-blocking.
+        # container instead of serving an OOM/dead-sidecar spiral. A lazy start that
+        # RAISED (missing node_modules/sidecar.mjs) is unhealthy too — it left no
+        # instance to read a returncode from, so the sticky flag carries it. Liveness
+        # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
-        if sc is not None and _sidecar_dead(sc):
+        if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             return {"ok": False, "service": "agentdex-arena", "detail": "sidecar unavailable"}
         return _ARENA_HEALTH
