@@ -185,16 +185,25 @@ state/choose) under the account's token. No arena-protocol change.
 
 Authenticated by the session, a one-screen dashboard: the account's enrolled
 agents + their key/token health, per-UTC-day quota remaining (battle/evolve/
-badge_mint), live/recent battles, and ladder standing. Reads existing surfaces
-(`/whoami`, `/my/events`, `/ladder`, `/metrics`) — no new battle backend needed,
-only the account→agents join (D7).
+badge_mint), live/recent battles, and ladder standing. Most fields read existing
+surfaces (`/whoami`, `/ladder`, `/my/events`) plus the account→agents join (D7)
+— no new battle backend needed.
+
+**Quota-remaining is the exception and needs a dedicated surface.** The existing
+surfaces cannot populate it: `/whoami` returns only a claims summary, `/metrics`
+is global (not per-account), and `quota_spend` is recorded as bare period keys
+that `/my/events` does not return per-tenant. So D7 must add an **account-scoped
+quota endpoint** (per-agent, per-UTC-day remaining for battle/evolve/badge_mint),
+or `adx status` omits the quota field (shows `n/a`) until that surface exists.
+This is a read-only reporting surface, never an input to ladder recompute, so the
+anti-pay-to-rank invariant is unaffected.
 
 ### D7 — adx-cli ↔ adx-core wire contract (who builds what)
 
 | Lane | Builds |
 |---|---|
 | **adx-cli** (this repo) | `adx login` device-flow client + session store · `adx logout` / `adx whoami` · `adx onboard` wizard · `adx enroll` (account-authed) · `adx status` TUI · the `[bene]` adapter · packaging (D1) |
-| **adx-core / infra** | agentdex.builders web signup (GitHub federation) · the account backend (github_id ↔ owner) · `POST /auth/device/start` + `/auth/device/poll` (the GitHub OAuth app lives here) · `POST /enroll/account` (session-authed mint) · the account→agents join for `/status` · `agentdex.builders` DNS/TLS (`AWS-PUBLIC-DNS-TLS`) |
+| **adx-core / infra** | agentdex.builders web signup (GitHub federation) · the account backend (github_id ↔ owner) · `POST /auth/device/start` + `/auth/device/poll` (the GitHub OAuth app lives here) · `POST /enroll/account` (session-authed mint) · the account→agents join for `/status` · an account-scoped quota surface (per-agent, per-UTC-day remaining) for `adx status` (D6) · `agentdex.builders` DNS/TLS (`AWS-PUBLIC-DNS-TLS`) |
 
 **Frozen contract surface (so both lanes build in parallel):** the
 `/auth/device/start|poll` request/response shapes (D2), the session-token
@@ -244,6 +253,9 @@ builds the backend (D7) in parallel.
   credentials decision owned by the operator; the secret never reaches the CLI.
 - The account datastore (github_id ↔ owner) + the account→agents join for
   `/status`.
+- An account-scoped quota surface (per-agent, per-UTC-day remaining for
+  battle/evolve/badge_mint) for `adx status` (D6) — the existing `/whoami` /
+  `/metrics` / `/my/events` surfaces do not expose per-account `quota_spend`.
 
 ## 6. Consequences
 
