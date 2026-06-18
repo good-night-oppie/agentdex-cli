@@ -49,3 +49,19 @@ def test_arena_swallows_trailing_args(argv, capsys):
     rc = main(argv)
     assert rc == 1
     assert "agent-starter-kit" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["arena", "--owner", "x@y.com"],
+        ["arena", "--base-url", "https://agentdex.ai-builders.space"],
+    ],
+)
+def test_arena_option_first_routes_to_defer(argv, capsys):
+    # The footgun: an OPTION-first arena call (a flag with NO positional before it)
+    # must still route to the defer stub, not argparse's exit-2 "unrecognized
+    # arguments". nargs=REMAINDER alone fails this; main() intercepts it. PR #183 review.
+    rc = main(argv)
+    assert rc == 1
+    assert "agent-starter-kit" in capsys.readouterr().err
