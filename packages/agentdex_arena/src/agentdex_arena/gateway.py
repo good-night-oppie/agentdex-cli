@@ -1184,11 +1184,23 @@ class ArenaGateway:
 
                 def _clear_finish(task: asyncio.Future, sess: BattleSession = session) -> None:
                     sess.finish_task = None
-                    # Retrieve any background failure so it isn't logged as a
-                    # "Task exception was never retrieved" when the caller was
-                    # cancelled (the non-cancelled caller already gets it re-raised).
+                    # Retrieve any background failure so asyncio doesn't emit a bare
+                    # "Task exception was never retrieved" — but LOG it first. When
+                    # the /choose caller was cancelled, this callback is the ONLY
+                    # server-side signal that committing the terminal receipt
+                    # failed; silently consuming the exception would make those
+                    # failures invisible (PR #291 review 3435604694). (The
+                    # non-cancelled caller also gets it re-raised; a duplicate log
+                    # for that rare path is acceptable vs. losing the signal.)
                     if not task.cancelled():
-                        task.exception()
+                        exc = task.exception()
+                        if exc is not None:
+                            log.error(
+                                "backgrounded finish failed for battle %s: %r",
+                                sess.battle_id,
+                                exc,
+                                exc_info=exc,
+                            )
 
                 finish_task.add_done_callback(_clear_finish)
                 return await asyncio.shield(finish_task)
