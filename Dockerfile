@@ -35,6 +35,13 @@ RUN uv pip install \
 # Install npm dependencies for sidecar
 RUN cd packages/adx_showdown && npm ci --omit=dev
 
+# Cache-bust: bump BENE_SITE_REV to force the build cache to miss from here down
+# so the COPY site/ layer is rebuilt from a fresh clone. The ai-builders/Koyeb
+# deploy otherwise reuses a cached image on a same-branch re-deploy, leaving the
+# served /bene/ stale even after the site/ content changed in git.
+ARG BENE_SITE_REV=2026-06-18T06Z-converge-clean
+RUN echo "bene /bene/ site rev: ${BENE_SITE_REV}"
+
 # BENE landing + docs (static, served at /bene/ by the gateway when present).
 COPY site/ ./site/
 
