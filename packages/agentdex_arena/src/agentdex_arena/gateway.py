@@ -1143,7 +1143,20 @@ class ArenaGateway:
                     _push_recent(session, f"T{current_event_turn}: {formatted}")
 
             if state.get("end"):
-                return await self._finish(session, state["end"])
+                # The battle has reached a terminal sidecar state — the finish
+                # MUST run to completion even if THIS request is cancelled (e.g.
+                # the /choose caller disconnects) while _finish is suspended on the
+                # per-visitor rating lock. /choose clears session.pending before
+                # calling here, and PR #276 keeps session.ended None until the
+                # durable append succeeds, so a bare cancel mid-lock-wait would
+                # strand a battle that already ended as pending=None + ended=None —
+                # /state then 409s until stale-expiry records a bogus timeout
+                # forfeit for a battle whose real result was lost. Shield the
+                # finish so the cancel propagates to the caller while the durable
+                # battle_end/period/replay + session.ended still land in the
+                # background (PR #276 review 3434024561). No double-finish: a retry
+                # sees pending=None and 409s rather than re-entering _finish.
+                return await asyncio.shield(self._finish(session, state["end"]))
 
             choices: dict[str, str] = {}
             if visitor_choice is not None:
