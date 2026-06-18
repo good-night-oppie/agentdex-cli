@@ -1015,8 +1015,12 @@ class ArenaGateway:
                 out["opponent_team"] = opp_team
             return out
         except BaseException:
-            # Published but failed before returning — don't leave a dead battle in
-            # self.sessions counted against the owner cap (PR #254 review).
+            # Published but failed before returning — stop the live sidecar battle
+            # (a pooled sidecar releases the slot's capacity only on an explicit
+            # stop, PR #259 review) BEFORE dropping our only handle, then remove it
+            # from self.sessions so a dead battle isn't counted (PR #254 review).
+            with contextlib.suppress(Exception):
+                await sidecar.request("stop", battle=battle_id)
             self.sessions.pop(battle_id, None)
             raise
 
@@ -1526,8 +1530,12 @@ class ArenaGateway:
                 **state,
             }
         except BaseException:
-            # Published but failed mid-replay — don't leave a dead fork session in
-            # self.sessions counted against the owner cap (PR #254 review).
+            # Published but failed mid-replay — stop the live sidecar battle (a pooled
+            # sidecar frees the slot's capacity only on an explicit stop, PR #259
+            # review) BEFORE dropping our only handle, then remove the dead fork
+            # session so it isn't counted against the owner cap (PR #254 review).
+            with contextlib.suppress(Exception):
+                await sidecar.request("stop", battle=battle_id)
             self.sessions.pop(battle_id, None)
             raise
 
