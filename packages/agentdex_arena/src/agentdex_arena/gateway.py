@@ -63,7 +63,7 @@ from agentdex_engine.modules.arena import (
     extract_signatures,
     recompute_ladder,
 )
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -1431,8 +1431,23 @@ def create_app(
             return FileResponse(str(landing), media_type="text/html")
         return _ARENA_HEALTH
 
+    def _sidecar_dead(sc: Sidecar | SidecarPool) -> bool:
+        """Liveness of the running sim tier — synchronous, IPC-free (no hang risk)."""
+        if isinstance(sc, SidecarPool):
+            return sc.any_dead()
+        return sc.returncode is not None
+
     @app.get("/healthz", include_in_schema=False)
-    async def healthz() -> dict:
+    async def healthz(response: Response) -> dict:
+        # Real readiness probe (was a static {ok:true}). The sidecar spawns lazily
+        # on the first battle, so a None sidecar is READY (it will start on demand).
+        # Once spawned, a crashed node process → 503 so the platform recycles the
+        # container instead of serving an OOM/dead-sidecar spiral. Liveness is read
+        # from the cached returncode (no IPC) to keep the probe cheap + non-blocking.
+        sc = app.state.sidecar
+        if sc is not None and _sidecar_dead(sc):
+            response.status_code = 503
+            return {"ok": False, "service": "agentdex-arena", "detail": "sidecar unavailable"}
         return _ARENA_HEALTH
 
     @app.get("/ladder")
