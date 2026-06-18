@@ -215,9 +215,9 @@
       "impact": "_check_collusion returns detailed reason strings (thresholds, 'repeatedly clicked choice: move 0', 'win-transfer W-L over N matches') into session.ended.quarantine_reason, surfaced to the visiting agent on the battle receipt. Leaking the exact heuristic enables trivial evasion (add 1 random move; stay under the 5-match win-transfer threshold) \u2014 same D7 anti-enumeration class as the battle_id leak (#186).",
       "lane": "integrity",
       "priority": "P1",
-      "status": "review",
+      "status": "running",
       "title": "Collusion quarantine_reason leaks heuristic internals to the agent (D7)",
-      "updated_at": "2026-06-17T08:19:26Z"
+      "updated_at": "2026-06-18T09:31:01Z"
     },
     {
       "assignee": "adx-cli",
@@ -355,7 +355,13 @@
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Confirmed merged as PR #17 (origin/main). /blog scaffold + site/build-blog.py live; all 3 blog posts render against it (verified build-blog.py -> 3 EN posts + index).",
+          "created_at": "2026-06-18T01:58:38Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "site/build-docs.py",
@@ -366,9 +372,9 @@
       "impact": "No blog exists yet; the WHY/WHAT/HOW narrative needs a home. Render lane (bene).",
       "lane": "blog",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Scaffold the new /blog section on bene-site (index + post template + nav)",
-      "updated_at": "2026-06-17T22:32:11Z"
+      "updated_at": "2026-06-18T01:58:38Z"
     },
     {
       "assignee": "bene-core",
@@ -377,6 +383,11 @@
           "author": "bene-core",
           "body": "Drafted + shipped as PR #14 (good-night-oppie/bene, branch content/blog-why-bene). Abstract-only, leak-scan clean. Source md only; render is bene's lane (BENE-DOC-01 scaffold + BENE-DOC-10 deploy).",
           "created_at": "2026-06-17T22:37:41Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "MERGED to main as PR #14 (squash). WHY blog post live in source (blog/why-bene.md); render pending bene's BENE-DOC-01 scaffold + DOC-10 deploy.",
+          "created_at": "2026-06-18T01:42:52Z"
         }
       ],
       "created_by": "bene-core",
@@ -389,13 +400,19 @@
       "impact": "Frames the whole site: BENE is the durable, auditable local-first multi-agent substrate that backs agentdex-cli (the arena). Gom-jabbar harness thesis.",
       "lane": "blog-content",
       "priority": "P0",
-      "status": "review",
+      "status": "done",
       "title": "Blog post: WHY we build BENE \u2014 the harness behind the arena",
-      "updated_at": "2026-06-17T22:37:41Z"
+      "updated_at": "2026-06-18T01:42:52Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #18 (squash). Seven-pillars WHAT post; all CLI snippets ground-truthed; render-verified via build-blog.py.",
+          "created_at": "2026-06-18T01:48:12Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "examples/library_basics.py",
@@ -407,13 +424,19 @@
       "impact": "Crisp WHAT: per-agent VFS, checkpoints, engrams, eval-probe kill-gates, autonomy ladder, MCP server, evolutionary meta-harness search.",
       "lane": "blog-content",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Blog post: WHAT BENE is \u2014 the seven pillars",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:48:12Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #20. HOW post; opening WHY/WHAT/HOW series complete. Ground-truthed + render-verified.",
+          "created_at": "2026-06-18T01:49:48Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "bene/kernel/eval",
@@ -425,13 +448,19 @@
       "impact": "Answers HOW: tiny PRs, falsifiable eval-probe kill-gates, the breeding program, trace-based RAG.",
       "lane": "blog-content",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Blog post: HOW we build BENE \u2014 harness engineering + eval-gated evolution",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:49:48Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #21. Examples gallery; 4 standalone examples verified exit 0.",
+          "created_at": "2026-06-18T01:51:52Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "examples/",
@@ -443,13 +472,19 @@
       "impact": "Mission asks for REAL examples; 19 example scripts exist but are not woven into the docs narrative.",
       "lane": "docs-examples",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Surface real runnable examples per pillar in the docs",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:51:52Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #23. Abstract arena case study; hard-constraint leak-scan clean.",
+          "created_at": "2026-06-18T01:53:46Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "docs/case-studies/cs02-ci-self-healing-refactor-swarm.md"
@@ -459,13 +494,19 @@
       "impact": "Flagship case study and the concrete WHY: BENE as the substrate backing a competitive multi-agent coding platform.",
       "lane": "case-study",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Case study: multi-agent coding arena on BENE (ABSTRACT)",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:53:46Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #24. Trace-RAG case study; retrieve snippets ground-truthed.",
+          "created_at": "2026-06-18T01:55:04Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "bene/kernel/memory",
@@ -476,13 +517,19 @@
       "impact": "Shows engrams + trace-based RAG \u2014 the next agent never starts cold.",
       "lane": "case-study",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "title": "Case study: trace-based RAG / Other Memory (engrams)",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:55:04Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #25. Meta-harness breeding-program case study; mh snippets ground-truthed.",
+          "created_at": "2026-06-18T01:56:17Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "bene/metaharness",
@@ -493,13 +540,19 @@
       "impact": "Shows the breeding program \u2014 kill-gated promotion of evolved harness strategies.",
       "lane": "case-study",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "title": "Case study: evolutionary meta-harness search",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:56:17Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #26. 3 mermaid diagrams; autonomy labels ground-truthed against autonomy.py.",
+          "created_at": "2026-06-18T01:58:05Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "docs/architecture.md"
@@ -509,13 +562,19 @@
       "impact": "Mission asks for designs; visual diagrams make the architecture legible.",
       "lane": "design",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "title": "Design: architecture diagrams (Nexus, engram ladder, autonomy ladder)",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:58:05Z"
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "READY FOR BENE: all 8 content cards (DOC-02..09) merged to origin/main. New source for render+deploy: blog/{why-bene,what-is-bene,how-we-build-bene}.md ; docs/examples.md ; docs/case-studies/{cs03-multi-agent-arena,cs04-trace-rag-other-memory,cs05-meta-harness-evolution}.md ; docs/design/architecture-diagrams.md (mermaid). Run site/build-blog.py + build-docs.py, wire nav for the new docs (examples, cs03-05, design diagrams w/ mermaid), 4-copy mirror + Koyeb deploy, render-verify 4 view x lang (chromium dump-DOM). zh translations are og's lane.",
+          "created_at": "2026-06-18T01:58:38Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "site/build-docs.py"
@@ -527,11 +586,22 @@
       "priority": "P1",
       "status": "todo",
       "title": "Render + deploy all new blog/docs/case-study/design content",
-      "updated_at": "2026-06-17T22:32:12Z"
+      "updated_at": "2026-06-18T01:58:38Z"
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "PR #231 opened (good-night-oppie/agentdex-cli). 6 new tests, arena suite 135 green, ruff+mypy clean, doc-lint pass. Polling pre-commit CI.",
+          "created_at": "2026-06-18T01:47:59Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #231 (7774a72f). Also swept pre-existing --all-files CI debt (ruff-format gateway.py+arena_loadtest.py+__main__.py, ruff UP038 pool.py, B017 test_client.py) that was redding every PR.",
+          "created_at": "2026-06-18T01:57:38Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "__main__.py:128 hardcodes _file_inbox_notifier to container /tmp; __main__.py:7 docstring promises ARENA_OWNER_WEBHOOK but no code reads it; gateway.py:622 notify_owner is the only path."
@@ -541,13 +611,24 @@
       "impact": "Self-serve /enroll/confirm is unreachable for external users -> 0 tokens minted -> no players can onboard.",
       "lane": "onboarding",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "Wire a real confirmation-code delivery channel (env webhook/email, file fallback) into build_gateway()",
-      "updated_at": "2026-06-17T22:39:10Z"
+      "updated_at": "2026-06-18T01:57:38Z"
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "PR #232 opened. python -m agentdex_arena.batch_mint; 7 tests; --all-files green locally. Polling CI.",
+          "created_at": "2026-06-18T02:02:10Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #232. Curated-launch token minting is now available.",
+          "created_at": "2026-06-18T02:04:14Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "consent.py:136 mint() works; gateway.py:639-649 ConsentClaims shape; _registered append-only gateway.py:637."
@@ -557,9 +638,9 @@
       "impact": "Fastest path to real players today: hand pre-minted tokens to configured agents without the broken confirm flow.",
       "lane": "onboarding",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "Batch-mint N consent tokens via one-shot script (emit register events) + distribute, bypassing self-serve confirm",
-      "updated_at": "2026-06-17T22:39:10Z"
+      "updated_at": "2026-06-18T02:04:14Z"
     },
     {
       "assignee": "adx-core",
@@ -597,8 +678,14 @@
       "updated_at": "2026-06-17T22:39:10Z"
     },
     {
-      "assignee": "adx-core",
-      "comments": [],
+      "assignee": "adx-cli",
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "ALREADY DONE by adx-cli #203/#204 \u2014 pool.py transient_replay path routes the dispute re-sim correctly under POOL_SIZE>1. Reconciled against origin/main; no separate PR needed.",
+          "created_at": "2026-06-18T01:57:39Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "gateway.py:1818 replay_input_log(battle_id=f'{id}-dispute') never start-ed; pool.py:95-98 raises 'not owned'."
@@ -608,9 +695,9 @@
       "impact": "Disputes 500 the instant ADX_SIDECAR_POOL_SIZE>1 (the config 100 concurrent needs) -> broken integrity surface under scale.",
       "lane": "routing",
       "priority": "P1",
-      "status": "todo",
+      "status": "archived",
       "title": "Route dispute replay op through SidecarPool (start <id>-dispute or special-case replay as battle-less) + regression test",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T01:57:39Z"
     },
     {
       "assignee": "adx-core",
@@ -630,7 +717,13 @@
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #243. Per-owner cap (default 3, 429+Retry-After, keyed on normalized owner) + Retry-After on the pool-full 503.",
+          "created_at": "2026-06-18T02:51:14Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "gateway.py:836-843 bare 503",
@@ -641,13 +734,19 @@
       "impact": "Bare 503 gives clients no backoff signal; one owner can fill the whole pool and starve the other 99 users.",
       "lane": "admission",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Admission control: Retry-After on capacity 503 + per-owner concurrent-battle cap (anti-monopolization)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T02:51:14Z"
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #238. /healthz now 503s on a dead/OOM sidecar so the platform recycles the container. SidecarPool.any_dead() added.",
+          "created_at": "2026-06-18T02:21:44Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "gateway.py:1406/1418-1420 static _ARENA_HEALTH; Sidecar.rss_mb adx_showdown/sidecar.py:153; SidecarPool.rss_mb pool.py:108."
@@ -657,13 +756,19 @@
       "impact": "Platform never recycles a sick container -> an OOM/dead-sidecar spiral stays 'healthy' and keeps taking traffic.",
       "lane": "observability",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Make /healthz a real readiness probe (sidecar alive + RSS) instead of static {ok:true}",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T02:21:44Z"
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #240. GET /metrics: active_battles, registered_agents, cap_503_total counter, sidecar rss (timeout-bounded). Also EOF-swept the synced blog HTML to unblock CI.",
+          "created_at": "2026-06-18T02:36:01Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist."
@@ -673,9 +778,9 @@
       "impact": "Operator is blind between a healthy spike and an OOM spiral; the 503 path increments no counter.",
       "lane": "observability",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Add /metrics (or /debug/stats): RSS, active battles, 503 count (queue depth when queue lands)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T02:36:01Z"
     },
     {
       "assignee": "adx-core",
@@ -699,7 +804,13 @@
     },
     {
       "assignee": "adx-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "MERGED as PR #246. Boot rebuilds begin-minus-end set; /choose returns owner-scoped 409 on restart-dropped battles (non-owners 403).",
+          "created_at": "2026-06-18T02:57:34Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "self.sessions={} on boot gateway.py:572; boot replay rebuilds only names/memberships gateway.py:544-565; /choose 403 gateway.py:1663-1664."
@@ -709,9 +820,9 @@
       "impact": "After a restart, /choose on a dropped in-flight battle returns an opaque 403, confusing players mid-game.",
       "lane": "durability",
       "priority": "P1",
-      "status": "triage",
+      "status": "done",
       "title": "Return a clear 409 'interrupted by restart' for begin-without-end battles after gateway restart (vs opaque 403)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T02:57:34Z"
     },
     {
       "assignee": "adx-core",
@@ -747,7 +858,7 @@
       "updated_at": "2026-06-17T22:39:11Z"
     },
     {
-      "assignee": "adx-cli",
+      "assignee": "adx-core",
       "comments": [],
       "created_by": "adx-core",
       "evidence": [
@@ -758,9 +869,9 @@
       "impact": "The SidecarPool scale lever is silently dropped on deploy -> pool size can't be set on the bigger box without the --env-vars escape hatch.",
       "lane": "ops",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T06:02:54Z"
     },
     {
       "assignee": "harness",
@@ -796,8 +907,14 @@
       "updated_at": "2026-06-17T22:39:11Z"
     },
     {
-      "assignee": "platform-instructor",
-      "comments": [],
+      "assignee": "adx-core",
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "DONE \u2014 persistent ARENA_SIGNING_KEY_HEX + ARENA_BADGE_SIGNING_KEY_HEX + ARENA_ADMIN_TOKEN_HASH generated on-box, /etc/agentdex/arena.env (0600), injected via --env-file. Tokens survive restart. (Box-generated; 1Password backup pending op rate-limit clear.)",
+          "created_at": "2026-06-18T06:02:54Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "__main__.py:61-67 mints ephemeral key with warning-only when unset; consent.py:118-120 fail-closes only if BOTH empty."
@@ -807,13 +924,19 @@
       "impact": "If the key is the ephemeral fallback, every consent token is invalidated on sleep/wake -> all players logged out mid-launch.",
       "lane": "onboarding",
       "priority": "P0",
-      "status": "blocked",
+      "status": "done",
       "title": "Verify the live deploy has a persistent ARENA_SIGNING_KEY_HEX (else all tokens die on sleep/wake/redeploy)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T06:02:54Z"
     },
     {
-      "assignee": "platform-instructor",
-      "comments": [],
+      "assignee": "adx-core",
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "DONE \u2014 provisioned fresh Lightsail 2xlarge 'agentdex-arena-1' (8vCPU/30GB, ubuntu_22_04, us-west-2, acct 981019652708), static IP 54.203.252.69. europa untouched. Arena deployed + LIVE: http://54.203.252.69:8889/healthz=200, /metrics live (latest code). pool=4, per-owner cap=3.",
+          "created_at": "2026-06-18T06:02:54Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "ADR-0012:117-118; deploy payload cli.py:844-849 has no instance-size/scale-to-zero field; quota 2/2 used."
@@ -823,9 +946,9 @@
       "impact": "THE hard blocker for true 100 concurrent: 256MB nano physically cannot host gateway + multi-sidecar pool.",
       "lane": "platform",
       "priority": "P0",
-      "status": "blocked",
+      "status": "done",
       "title": "INSTRUCTOR: provision a multi-core instance bigger than the 256MB nano, scale-to-zero DISABLED",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T06:02:54Z"
     },
     {
       "assignee": "platform-instructor",
@@ -845,8 +968,14 @@
       "updated_at": "2026-06-17T22:39:11Z"
     },
     {
-      "assignee": "platform-instructor",
-      "comments": [],
+      "assignee": "adx-core",
+      "comments": [
+        {
+          "author": "adx-core",
+          "body": "Runbook written to box /opt/agentdex/RUNBOOK.md (deploy/redeploy/rollback/operate/scale/pre-flight). PR to docs/runbooks/arena-go-live.md pending.",
+          "created_at": "2026-06-18T06:10:19Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "docs/runbooks/ holds only badge-admin.md + membership-admin.md; defaults POOL_SIZE=1",
@@ -858,9 +987,354 @@
       "impact": "Dangerous defaults + boot-crash envs + keep-alive + rollback are scattered across go-nogo + loadtest + ADR-0012.",
       "lane": "ops",
       "priority": "P1",
-      "status": "todo",
+      "status": "review",
       "title": "Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback)",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-18T06:10:19Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #29. Relocated 4 internal design specs + research to internal-docs/; kept architecture-diagrams.md public; deleted en HTML; fixed inbound link. FLAG bene: site/index.html:854 still refs docs/design/v0.3-roadmap-spec.md (landing lane). FLAG og: zh design/research un-publish (SCRUB-07).",
+          "created_at": "2026-06-18T02:41:05Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "PR#27",
+        "docs/design/v0.3-roadmap-spec.md"
+      ],
+      "fix": "Replicate the #27 DNS pattern: git mv docs/design + docs/research -> internal-docs/ (keep as internal source, out of the rglob build); git rm the published site/docs/design+research HTML (en; zh HTML too). Reader value already lives in the blog WHY/WHAT + docs/architecture.md. No build-docs.py edit (avoids og collision).",
+      "id": "BENE-SCRUB-01",
+      "impact": "v0.3-roadmap-spec.md (agent-generated: wf_ab0851dc-a40, 16 agents, per-feature Status/LOC/Verdict/Scene) + KERNEL-SPEC.md (build contract) + research/* are internal-by-nature; ZERO reader value, confuse real users.",
+      "lane": "unpublish",
+      "priority": "P1",
+      "status": "done",
+      "title": "UN-PUBLISH docs/design/ + docs/research/ (relocate out of docs/, delete published HTML)",
+      "updated_at": "2026-06-18T02:41:05Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "NO-ACTION (false positive): the grep hits are the tutorial's own example-project test names (tests/test_payment.py::test_* = the self-healing demo's payment-engine scenario), legitimate reader content, NOT bene-internal work-trace. Verified clean of real work-trace (Status/Verdict/Scene/wf_/adx-cli).",
+          "created_at": "2026-06-18T02:48:01Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/tutorials/t02-e2e-self-healing.md"
+      ],
+      "fix": "REMOVE Status:/LOC/Verdict/adversarial/test-paths/adx-cli-N/wf_/dramatized Scenes; REWRITE agent-Scenes -> reader scenarios, feature-status -> plain language; KEEP real schema (run_id/experiment_runs/ULID) stripped of agent framing. Kedaibiao: doc must respect the reader.",
+      "id": "BENE-SCRUB-02",
+      "impact": "Reader doc polluted with agent work-trace (Status/Verdict/Scene/wf_ ids).",
+      "lane": "scrub",
+      "priority": "P1",
+      "status": "done",
+      "title": "Scrub work-trace from docs/tutorials/t02-e2e-self-healing.md",
+      "updated_at": "2026-06-18T02:48:01Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "NO-ACTION: verified clean of real agent work-trace.",
+          "created_at": "2026-06-18T02:48:01Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/tutorials/t07-regression-guard.md"
+      ],
+      "fix": "Same 3-bucket scrub (REMOVE/REWRITE/KEEP) per the rubric.",
+      "id": "BENE-SCRUB-03",
+      "impact": "Reader doc polluted with agent work-trace.",
+      "lane": "scrub",
+      "priority": "P1",
+      "status": "done",
+      "title": "Scrub work-trace from docs/tutorials/t07-regression-guard.md",
+      "updated_at": "2026-06-18T02:48:01Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "NO-ACTION (false positive): tests/test_db.py::test_* are the tutorial's db-scale example, reader content. Verified clean of real work-trace.",
+          "created_at": "2026-06-18T02:48:01Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/tutorials/t08-hundred-agents-scale.md"
+      ],
+      "fix": "Same 3-bucket scrub (REMOVE/REWRITE/KEEP).",
+      "id": "BENE-SCRUB-04",
+      "impact": "Reader doc polluted with agent work-trace.",
+      "lane": "scrub",
+      "priority": "P1",
+      "status": "done",
+      "title": "Scrub work-trace from docs/tutorials/t08-hundred-agents-scale.md",
+      "updated_at": "2026-06-18T02:48:01Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "NO-ACTION: COMMUNITY-BENCH-REPORT clean of real work-trace (only had an example test path).",
+          "created_at": "2026-06-18T02:48:01Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Reopened review: the 02:48 'NO-ACTION clean' assessment was WRONG -- the report did carry orchestrating-session/API-quota work-trace. Scrubbed at source in good-night-oppie/bene PR #44 (2726d0f); committed site HTML regenerated in #45 (ceb1e13). Kept the 12 Verdict cells + self-review caveat. Live-verify rides BENE-SCRUB-08 -> move to done once live shows 0 work-trace.",
+          "created_at": "2026-06-18T06:21:36Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "LIVE-VERIFIED clean (06:36:33 deploy): /bene/docs/benchmarks/COMMUNITY-BENCH-REPORT.html = 0 work-trace hits, /bene/docs/codegen.html = 0, /bene/zh/docs/codegen.html = 0. Source (#44/#45) + live both prove it -> done.",
+          "created_at": "2026-06-18T06:39:38Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/benchmarks/COMMUNITY-BENCH-REPORT.md"
+      ],
+      "fix": "REMOVE Verdict/adversarial/wf_ framing; KEEP real benchmark numbers + methodology in reader terms.",
+      "id": "BENE-SCRUB-05",
+      "impact": "Benchmark report carries agent work-trace framing.",
+      "lane": "scrub",
+      "priority": "P2",
+      "status": "done",
+      "title": "Scrub docs/benchmarks/COMMUNITY-BENCH-REPORT.md",
+      "updated_at": "2026-06-18T06:39:38Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "MERGED as PR #30. Worked-example rewritten reader-first; real concepts kept.",
+          "created_at": "2026-06-18T02:45:03Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "REVISED: full read showed the doc is internal-by-nature (whole-doc agent process). UN-PUBLISHED via PR #31 (relocate + delete en HTML), superseding the partial scrub PR #30. zh source+HTML -> og (SCRUB-07).",
+          "created_at": "2026-06-18T02:47:00Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/primitive-review-cycle.md"
+      ],
+      "fix": "Same 3-bucket scrub; decide keep-vs-unpublish if it is internal-by-nature.",
+      "id": "BENE-SCRUB-06",
+      "impact": "Reader doc carries agent work-trace.",
+      "lane": "scrub",
+      "priority": "P2",
+      "status": "done",
+      "title": "Scrub docs/primitive-review-cycle.md",
+      "updated_at": "2026-06-18T02:47:00Z"
+    },
+    {
+      "assignee": "og",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Mostly mooted by og's zh reset (c2a876c): docs/zh now = only README + cli-reference + integrating-bene (the 3 priority translations); the zh design/research/tutorials/codegen/COMMUNITY-BENCH counterparts were deleted from source, and #45 regenerated their committed site/zh/docs HTML as clean EN-fallback pages. og: confirm nothing zh-side still carries work-trace, then close. Tracked alongside BENE-RVW-P0-cn-docs.",
+          "created_at": "2026-06-18T06:21:36Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/zh/design/v0.3-roadmap-spec.md",
+        "PR#28"
+      ],
+      "fix": "After PR #28 (og zh pass) lands: relocate docs/zh/design + docs/zh/research out of build, scrub docs/zh/tutorials t02/t08 + others, mirror the en scrub. Coordinate with bene-core (en is source of truth).",
+      "id": "BENE-SCRUB-07",
+      "impact": "zh docs carry the same work-trace; zh is og lane.",
+      "lane": "scrub-zh",
+      "priority": "P1",
+      "status": "done",
+      "title": "ZH scrub: all docs/zh/ counterparts (design+research unpublish + reader-doc scrub)",
+      "updated_at": "2026-06-18T09:30:43.357151Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "SCOPE EXPANSION (Eddie review): this single redeploy is also the P0#3 fix -- live /bene/docs shows 45 docs but repo committed = 37; the redeploy must bring live to 37. Ride it together with P0#1 (BENE-RVW-P0-version, landing 0.2.1) + P0#2 (BENE-RVW-P0-llms-canonical) once those land on main, so ONE deploy makes live provenance-clean. Source already clean for the EN scrub (#44/#45). Live-verify checklist: docs=37, version=0.2.1, llms=good-night-oppie/bene, codegen/COMMUNITY-BENCH 0 work-trace (EN+zh). Gates BENE-RVW-P0-launch-gate.",
+          "created_at": "2026-06-18T06:21:36Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "PR#27",
+        "BENE-DOC-10"
+      ],
+      "fix": "Rebuild build-docs.py + build-blog.py, purge stale design/research sidebar links, 4-copy mirror + ONE arena Koyeb redeploy, live-verify docs no longer show Status/LOC/Verdict/Scene-04:32 (chromium dump-DOM).",
+      "id": "BENE-SCRUB-08",
+      "impact": "Scrub must reach the live site in the same redeploy as DNS-removal + DOC-10 + latest zh.",
+      "lane": "render-deploy",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean",
+      "updated_at": "2026-06-18T06:21:36Z"
+    },
+    {
+      "assignee": "adx-core",
+      "comments": [],
+      "created_by": "adx-core",
+      "evidence": [
+        "op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted."
+      ],
+      "fix": "Namecheap setHosts agentdex.builders @ A -> 54.203.252.69 (preserve existing records); install Caddy reverse_proxy :8889 with auto-TLS once DNS resolves.",
+      "id": "AWS-PUBLIC-DNS-TLS",
+      "impact": "Public play endpoint per Eddie: agentdex.builders = arena (users play via agentdex-cli); ai-builders.space stays landing+docs and redirects login/signup here.",
+      "lane": "platform",
+      "priority": "P1",
+      "status": "blocked",
+      "title": "agentdex.builders DNS A-record + Caddy auto-TLS -> arena box",
+      "updated_at": "2026-06-18T06:02:54Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main."
+      ],
+      "fix": "Update site/index.html + site/zh/index.html v0.2.0->0.2.1; ideally auto-inject the version from pyproject.toml in build-docs.py so it can never drift again.",
+      "id": "BENE-RVW-P0-version",
+      "impact": "A provenance/reproducibility product must not drift its own version. Landing shows v0.2.0 while pyproject.toml + PyPI are 0.2.1 -> users doubt the page is current.",
+      "lane": "launch-gate",
+      "priority": "P0",
+      "status": "todo",
+      "title": "P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1",
+      "updated_at": "2026-06-18T06:21:17Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene."
+      ],
+      "fix": "Point site/llms.txt Source/issue-tracker/discussions + every GitHub link (landing, docs footer, README badge) to good-night-oppie/bene. DECISION to confirm w/ Eddie: good-night-oppie/bene = canonical package+source repo; EdwardTang/bene-site = marketing mirror.",
+      "id": "BENE-RVW-P0-llms-canonical",
+      "impact": "llms.txt is the AI-agent entrypoint; it names the WRONG repo as authoritative Source/Issues/Discussions -> agents file issues on the marketing mirror, humans get confused.",
+      "lane": "launch-gate",
+      "priority": "P0",
+      "status": "todo",
+      "title": "P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene",
+      "updated_at": "2026-06-18T06:21:17Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'."
+      ],
+      "fix": "On site/index.html (+ zh): surface the turnkey-vs-wire-yourself line near the first screen; annotate the 30s/0.3s/real-HEAD-run claims with version 0.2.1 + recording provenance. Sequence AFTER BENE-RVW-P0-version (same file).",
+      "id": "BENE-RVW-P1-landing-honesty",
+      "impact": "Landing reads as a fully-stable product; the honest 'agent loop turnkey, rest is lego' framing sits too low; perf claims unbound to a version look like marketing once 0.2.1 behavior shifts.",
+      "lane": "launch-ux",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance",
+      "updated_at": "2026-06-18T06:21:17Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "DONE at source: PR #47 (96d5714) merged. README first screen = positioning + 3 bullets + honest-scope (turnkey-vs-wire-yourself, links Integrating BENE) + docs link; Quick start (60s) w/ expected-output pulled above the kernel; Litany + framing table + 16 papers moved to 'Why the name works'/'Grounded in research'. Also dropped the dead docs/design+docs/research links (un-published in #29) + stale (v0.2.0). README renders live on GitHub immediately (no deploy needed). 0 broken anchors, markdownlint delta 0.",
+          "created_at": "2026-06-18T06:36:46Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "DONE \u2014 source + GitHub-live both verified. PR #47 (96d5714) on origin/main; `gh api repos/good-night-oppie/bene/readme` serves the new structure (Quick start (60 seconds) / Running agents / Why the name works headings present) with 0 dead docs/design+docs/research links. README renders from origin/main directly so it's live with no deploy.",
+          "created_at": "2026-06-18T09:29:32Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "Eddie review Repo-README + Day-2 sequence."
+      ],
+      "fix": "README first screen = one-line positioning + 3 bullets + 60s quickstart + expected-output + docs link FIRST; move Dune lore + 16 papers to a 'Why the name works' / 'Design metaphor' section lower down. File: README.md (good-night-oppie/bene).",
+      "id": "BENE-RVW-P1-readme-restructure",
+      "impact": "README opens with banner/badges/Dune quote/lore/16 papers before Quick Start -> slows a first-time user's 'can I run this' judgment.",
+      "lane": "readme",
+      "priority": "P1",
+      "status": "done",
+      "title": "Day-2 README restructure: user-success path first, lore + 16 papers down",
+      "updated_at": "2026-06-18T09:29:32Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "DONE at source: the turnkey-vs-lego honesty is now near the README first screen + tone stays grounded (no 'fully supersedes') via PR #47; version drift in docs/integrating-bene.md ('still 0.2.0' -> in published 0.2.1) fixed in PR #48 (90f2ae1). The (v0.2.0) tags in meta-harness.md/t01 left as-is (historical feature-intro tags, not drift). The integrating-bene HTML re-render rides bene-12's BENE-SCRUB-08 deploy.",
+          "created_at": "2026-06-18T06:36:46Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "DONE \u2014 both card deliverables (pull turnkey-vs-lego honesty into README + align tone to benchmark 'strong, not fully-supersedes') are README changes, GitHub-live via #47. The extra docs/integrating-bene.md version fix (#48, still-0.2.0 -> in published 0.2.1) is merged at source; its site-HTML render rides bene-12's BENE-SCRUB-08 deploy (deploy-target is 2 commits behind -> bene-12 push deploy-target + re-POST, fleet-fixable, NOT an Eddie blocker \u2014 corrected my earlier #382). Not gating this card.",
+          "created_at": "2026-06-18T09:29:32Z"
+        }
+      ],
+      "created_by": "bene-core",
+      "evidence": [
+        "Eddie review Docs (Integrating BENE best doc) + Benchmark-report honesty."
+      ],
+      "fix": "Surface the turnkey-vs-wire-yourself split in README near the top; keep README/docs claims 'strong, not fully-supersedes' per docs/benchmarks. Files: README.md (+ docs/README.md if needed). bene owns the site/index.html landing twin (BENE-RVW-P1-landing-honesty) -> non-overlapping.",
+      "id": "BENE-RVW-P1-docs-honesty-tone",
+      "impact": "Users infer from the first screen that everything is end-to-end wired; the honest turnkey-vs-wire-yourself split lives only deep in docs; README/landing tone should match the benchmark report's 'not fully supersedes' honesty.",
+      "lane": "docs",
+      "priority": "P1",
+      "status": "done",
+      "title": "Pull Integrating-BENE turnkey-vs-lego honesty into README; align tone with benchmark honesty",
+      "updated_at": "2026-06-18T09:29:32Z"
+    },
+    {
+      "assignee": "og",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "docs/zh now = README + cli-reference + integrating-bene only (exactly the 3 priority docs); og confirmed lane done on bus #373 / commit c2a876c."
+      ],
+      "fix": "Rename entry -> \u4e2d\u6587\u7d22\u5f15/\u7ffb\u8bd1\u4e2d; translate 3 priority docs FIRST (README, cli-reference, integrating-bene) [DONE on main c2a876c]; localize CN nav (01 Gap/02 Contract -> \u4e2d\u6587); first-occurrence-only annotations; restrain first-screen voice. og: self-verify nav-localization + annotation density vs Eddie's asks, then move to done.",
+      "id": "BENE-RVW-P0-cn-docs",
+      "impact": "Entry is 'BENE \u6587\u6863' but most body is English; users expect Chinese content. CN docs scored 3/10.",
+      "lane": "docs-zh",
+      "priority": "P0",
+      "status": "done",
+      "title": "P0#4 CN docs = Chinese shell + English body: fix entry/nav/priority-3/annotation",
+      "updated_at": "2026-06-18T09:30:43.357151Z"
+    },
+    {
+      "assignee": "bene",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "Eddie review Day-3 + total readiness 6.5/10 (private-preview yes",
+        "public-launch no until P0s fixed)."
+      ],
+      "fix": "On a fresh machine: pipx install bene && bene demo --no-ui && bene --version -> landing version = PyPI = repo, all 0.2.1; /bene/llms.txt repo links = good-night-oppie/bene; CN docs promise no untranslated content; live /bene/docs index = 37 not 45. Gate runs AFTER BENE-SCRUB-08 deploy.",
+      "id": "BENE-RVW-P0-launch-gate",
+      "impact": "Public launch must not ship with version/repo/CN drift; needs one repeatable readiness gate before flipping public.",
+      "lane": "launch-gate",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN",
+      "updated_at": "2026-06-18T06:21:18Z"
     }
   ],
   "events": [
@@ -1322,8 +1796,1227 @@
       "card_id": "ADX-ONLINE-001",
       "created_at": "2026-06-17T23:07:54Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-02",
+      "created_at": "2026-06-18T01:42:52Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-02",
+      "created_at": "2026-06-18T01:42:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-delivery-channel",
+      "created_at": "2026-06-18T01:47:35Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-delivery-channel",
+      "created_at": "2026-06-18T01:47:59Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-03",
+      "created_at": "2026-06-18T01:48:09Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-03",
+      "created_at": "2026-06-18T01:48:12Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-03",
+      "created_at": "2026-06-18T01:48:12Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-04",
+      "created_at": "2026-06-18T01:49:45Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-04",
+      "created_at": "2026-06-18T01:49:48Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-04",
+      "created_at": "2026-06-18T01:49:48Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-05",
+      "created_at": "2026-06-18T01:51:47Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-05",
+      "created_at": "2026-06-18T01:51:52Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-05",
+      "created_at": "2026-06-18T01:51:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-06",
+      "created_at": "2026-06-18T01:53:42Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-06",
+      "created_at": "2026-06-18T01:53:46Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-06",
+      "created_at": "2026-06-18T01:53:46Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-07",
+      "created_at": "2026-06-18T01:55:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-07",
+      "created_at": "2026-06-18T01:55:04Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-07",
+      "created_at": "2026-06-18T01:55:04Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-08",
+      "created_at": "2026-06-18T01:56:14Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-08",
+      "created_at": "2026-06-18T01:56:17Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-08",
+      "created_at": "2026-06-18T01:56:17Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-delivery-channel",
+      "created_at": "2026-06-18T01:57:38Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-delivery-channel",
+      "created_at": "2026-06-18T01:57:38Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ROUTE-P1-dispute-pool",
+      "created_at": "2026-06-18T01:57:38Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "archived"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ROUTE-P1-dispute-pool",
+      "created_at": "2026-06-18T01:57:39Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-09",
+      "created_at": "2026-06-18T01:58:02Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-09",
+      "created_at": "2026-06-18T01:58:05Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-09",
+      "created_at": "2026-06-18T01:58:05Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-01",
+      "created_at": "2026-06-18T01:58:38Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-01",
+      "created_at": "2026-06-18T01:58:38Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-DOC-10",
+      "created_at": "2026-06-18T01:58:38Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-batch-mint",
+      "created_at": "2026-06-18T02:02:10Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-batch-mint",
+      "created_at": "2026-06-18T02:02:10Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-batch-mint",
+      "created_at": "2026-06-18T02:04:13Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-batch-mint",
+      "created_at": "2026-06-18T02:04:14Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-healthz-readiness",
+      "created_at": "2026-06-18T02:10:41Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-healthz-readiness",
+      "created_at": "2026-06-18T02:20:17Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-healthz-readiness",
+      "created_at": "2026-06-18T02:21:44Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-healthz-readiness",
+      "created_at": "2026-06-18T02:21:44Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-metrics-stats",
+      "created_at": "2026-06-18T02:23:11Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-metrics-stats",
+      "created_at": "2026-06-18T02:26:35Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-metrics-stats",
+      "created_at": "2026-06-18T02:36:01Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-metrics-stats",
+      "created_at": "2026-06-18T02:36:01Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "created_at": "2026-06-18T02:36:35Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-01",
+      "created_at": "2026-06-18T02:37:25Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-02",
+      "created_at": "2026-06-18T02:37:25Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-03",
+      "created_at": "2026-06-18T02:37:25Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-04",
+      "created_at": "2026-06-18T02:37:26Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T02:37:26Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-06",
+      "created_at": "2026-06-18T02:37:26Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-07",
+      "created_at": "2026-06-18T02:37:26Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-08",
+      "created_at": "2026-06-18T02:37:26Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-01",
+      "created_at": "2026-06-18T02:41:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-01",
+      "created_at": "2026-06-18T02:41:05Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-01",
+      "created_at": "2026-06-18T02:41:05Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-06",
+      "created_at": "2026-06-18T02:45:00Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-06",
+      "created_at": "2026-06-18T02:45:03Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-06",
+      "created_at": "2026-06-18T02:47:00Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "created_at": "2026-06-18T02:47:02Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-02",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-03",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-04",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-02",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-04",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-03",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T02:48:01Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "created_at": "2026-06-18T02:51:14Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ADMIT-P1-retry-after-and-per-owner-cap",
+      "created_at": "2026-06-18T02:51:14Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-interrupted-signal",
+      "created_at": "2026-06-18T02:51:44Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "triage"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-interrupted-signal",
+      "created_at": "2026-06-18T02:56:14Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-interrupted-signal",
+      "created_at": "2026-06-18T02:57:34Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-interrupted-signal",
+      "created_at": "2026-06-18T02:57:34Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "INSTR-P0-bigger-instance",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "platform-instructor",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "INSTR-P0-bigger-instance",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-verify-signing-key",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "platform-instructor",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P0-verify-signing-key",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-forward-scale-envvars",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "add",
+      "actor": "adx-core",
+      "card_id": "AWS-PUBLIC-DNS-TLS",
+      "created_at": "2026-06-18T06:02:54Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-go-live-runbook",
+      "created_at": "2026-06-18T06:10:18Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "platform-instructor",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-go-live-runbook",
+      "created_at": "2026-06-18T06:10:19Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P0-version",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P0-llms-canonical",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-landing-honesty",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-readme-restructure",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-docs-honesty-tone",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P0-cn-docs",
+      "created_at": "2026-06-18T06:21:17Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P0-launch-gate",
+      "created_at": "2026-06-18T06:21:18Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T06:21:36Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T06:21:36Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-08",
+      "created_at": "2026-06-18T06:21:36Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-07",
+      "created_at": "2026-06-18T06:21:36Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-readme-restructure",
+      "created_at": "2026-06-18T06:36:46Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-readme-restructure",
+      "created_at": "2026-06-18T06:36:46Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-docs-honesty-tone",
+      "created_at": "2026-06-18T06:36:46Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-docs-honesty-tone",
+      "created_at": "2026-06-18T06:36:46Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T06:39:38Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-SCRUB-05",
+      "created_at": "2026-06-18T06:39:38Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-readme-restructure",
+      "created_at": "2026-06-18T09:29:32Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-readme-restructure",
+      "created_at": "2026-06-18T09:29:32Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-docs-honesty-tone",
+      "created_at": "2026-06-18T09:29:32Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-RVW-P1-docs-honesty-tone",
+      "created_at": "2026-06-18T09:29:32Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "og",
+      "card_id": "BENE-SCRUB-07",
+      "created_at": "2026-06-18T09:30:43.357151Z",
+      "detail": {
+        "after": {
+          "assignee": "og",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "og",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "og",
+      "card_id": "BENE-RVW-P0-cn-docs",
+      "created_at": "2026-06-18T09:30:43.357151Z",
+      "detail": {
+        "after": {
+          "assignee": "og",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "og",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "ADX-P1-005",
+      "created_at": "2026-06-18T09:31:01Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "review"
+        }
+      }
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-17T23:07:54Z"
+  "updated_at": "2026-06-18T09:31:01Z"
 }
