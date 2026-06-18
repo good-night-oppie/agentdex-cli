@@ -308,3 +308,37 @@ def test_failed_session_dropped_even_when_stop_is_cancelled(gw):
     # The finally popped the dead fork despite the cancelled stop.
     assert not [bid for bid in gw.sessions if "fork" in bid]
     assert gw._owner_inflight == {}
+
+
+def test_post_publish_stop_reaches_sidecar_even_when_cleanup_cancelled(gw):
+    """If the post-publish cleanup is cancelled mid-stop, the stop must still reach
+    the (possibly pooled) sidecar — dispatched as a shielded task drained before the
+    cancel propagates — so the slot's capacity is freed (PR #264 review)."""
+    stop_done: list[int] = []
+    stop_started = asyncio.Event()
+
+    class _SlowStopSidecar:
+        returncode = None
+
+        async def request(self, op: str, **kwargs):
+            if op == "stop":
+                stop_started.set()
+                await asyncio.sleep(0.02)  # routing the stop to the owning sidecar
+                stop_done.append(1)
+                return {"ok": True}
+            return {"state": {}}  # empty → _advance stalls AFTER publish
+
+    async def _run() -> None:
+        sc = _SlowStopSidecar()
+        t = asyncio.create_task(
+            gw.battle_fork("sandbox-src", _fork_src(), turn=0, sidecar=sc, owner=_OWNER)
+        )
+        await stop_started.wait()  # we're now inside the post-publish stop
+        t.cancel()
+        with pytest.raises(BaseException):  # noqa: PT011,B017 — cancel propagates
+            await t
+        assert stop_done == [1]  # stop reached the sidecar despite the cancel
+        assert not [bid for bid in gw.sessions if "fork" in bid]  # session dropped
+        assert gw._owner_inflight == {}
+
+    asyncio.run(_run())
