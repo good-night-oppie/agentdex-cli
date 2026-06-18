@@ -85,10 +85,18 @@ def _deliver_webhook(
         log.info("owner notify: POSTed confirmation code for %r to webhook", owner)
         return True
     except Exception as exc:  # noqa: BLE001 — any delivery failure must fall back, never drop the code
+        # Redact: str(exc) on httpx failures (HTTPStatusError from raise_for_status,
+        # ConnectError, etc.) embeds the full request URL, which can carry a delivery
+        # secret in its query string. Log only the exception TYPE + HTTP status —
+        # never the raw exception/URL. PR #231 review 3432522335.
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        reason = (
+            f"{type(exc).__name__} (HTTP {status})" if status is not None else type(exc).__name__
+        )
         log.warning(
             "owner notify: webhook delivery failed for %r (%s); falling back to file inbox",
             owner,
-            exc,
+            reason,
         )
         if fallback is not None:
             try:
