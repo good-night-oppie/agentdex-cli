@@ -336,3 +336,37 @@ def test_webhook_notifier_delivers_off_thread(monkeypatch):
     notify("owner@example.com", "abc")
     assert done.wait(timeout=5), "webhook delivery thread did not run"
     assert delivered == [("https://hook.example/owner", "owner@example.com", "abc", 4.0)]
+
+
+def test_webhook_notifier_backpressures_to_fallback_when_saturated(monkeypatch):
+    """A saturated backlog must NOT spawn unbounded threads (256 MB Koyeb nano OOM
+    risk). With the in-flight slot held by a blocked delivery, the next notify
+    delivers via the file-inbox fallback inline instead of queueing. PR #231 review."""
+    import threading
+
+    import agentdex_arena.__main__ as m
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking_deliver(url, owner, code, *, timeout, fallback):
+        started.set()
+        release.wait(timeout=5)  # hold the single in-flight slot
+        return True
+
+    monkeypatch.setattr(m, "_deliver_webhook", blocking_deliver)
+
+    fallback_calls: list = []
+    notify = m._webhook_notifier(
+        "https://hook.example/owner",
+        fallback=lambda o, c: fallback_calls.append((o, c)),
+        timeout=1.0,
+        max_workers=1,
+        max_inflight=1,
+    )
+
+    notify("a@example.com", "code1")  # takes the only slot, blocks in delivery
+    assert started.wait(timeout=5), "first delivery did not start"
+    notify("b@example.com", "code2")  # saturated -> inline file-inbox fallback
+    assert fallback_calls == [("b@example.com", "code2")]
+    release.set()  # let the first delivery finish cleanly

@@ -103,25 +103,52 @@ def _webhook_notifier(
     *,
     fallback: Callable[[str, str], None] | None,
     timeout: float,
+    max_workers: int = 4,
+    max_inflight: int = 64,
 ) -> Callable[[str, str], None]:
     """A `notify_owner` that POSTs the code to ``url`` off the event loop.
 
     ``enroll_request`` runs ON the asyncio event loop (the `/enroll/request`
     route is ``async def`` and calls it directly), so a blocking webhook POST
-    would stall every in-flight battle turn under load. We therefore fire the
-    delivery in a daemon thread and return immediately, preserving the synchronous
-    ``Callable[[str, str], None]`` contract with zero gateway changes. Delivery
-    (and the file-inbox fallback on failure) happens in the thread.
+    would stall every in-flight battle turn under load. Deliveries therefore run
+    off-loop in a **bounded** thread pool (``max_workers``) gated by a
+    ``max_inflight`` semaphore, preserving the synchronous
+    ``Callable[[str, str], None]`` contract with zero gateway changes.
+
+    The bound is load-bearing: the previous one-daemon-thread-per-request design
+    let a webhook outage + enrollment burst spawn an unbounded number of live
+    threads (each blocked up to ``timeout`` seconds), exhausting memory/CPU on the
+    256 MB Koyeb nano and taking unrelated battle traffic down (PR #231 review
+    3432522331). When the backlog is saturated the code is NEVER dropped — we apply
+    backpressure by delivering through the file-inbox ``fallback`` inline (a fast
+    local write) and logging it, rather than queueing/spawning without limit.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
+    executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="arena-owner-webhook")
+    inflight = threading.BoundedSemaphore(max_inflight)
 
     def notify(owner: str, code: str) -> None:
-        threading.Thread(
-            target=_deliver_webhook,
-            args=(url, owner, code),
-            kwargs={"timeout": timeout, "fallback": fallback},
-            name="arena-owner-webhook",
-            daemon=True,
-        ).start()
+        if not inflight.acquire(blocking=False):
+            # backlog saturated — backpressure to the fast file inbox inline rather
+            # than grow the queue/threads without bound. The code still reaches the
+            # operator.
+            log.warning(
+                "owner notify: webhook backlog full (>= %d in flight) for %r; using file inbox",
+                max_inflight,
+                owner,
+            )
+            if fallback is not None:
+                fallback(owner, code)
+            return
+
+        def _task() -> None:
+            try:
+                _deliver_webhook(url, owner, code, timeout=timeout, fallback=fallback)
+            finally:
+                inflight.release()
+
+        executor.submit(_task)
 
     return notify
 
