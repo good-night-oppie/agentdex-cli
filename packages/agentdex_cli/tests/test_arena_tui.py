@@ -217,3 +217,29 @@ def test_play_packs_exported_team_before_begin(monkeypatch, tmp_path) -> None:
     assert rc == 0
     assert fake.drafted and fake.drafted[0].startswith("Pikachu")  # export was sent to /team/draft
     assert fake.began_team == "PACKED|gen9ou|..."  # begin received the PACKED form
+
+
+def test_default_agent_name_survives_server_name_cap(monkeypatch) -> None:
+    """PR #279 review: the default agent name must fit the arena's 24-char
+    server cap (MAX_NAME_LEN) so the CLI-side and server-side names match, and
+    it must hash the FULL hostname so hosts sharing an 8-char prefix don't
+    collide at enrollment."""
+    from adx_showdown.protocol import MAX_NAME_LEN, sanitize_name
+
+    monkeypatch.setattr("socket.gethostname", lambda: "my-very-long-shared-prefix-host-1")
+    name = arena_tui._default_agent_name()
+
+    # Fits the cap -> the server stores exactly what the CLI saved (no truncation).
+    assert len(name) <= MAX_NAME_LEN
+    assert sanitize_name(name) == name
+    assert name.startswith("terminal-player-")
+
+    # Stable across runs for the same host.
+    assert arena_tui._default_agent_name() == name
+
+    # Two hosts that share the first 8 chars (and so used to truncate to the same
+    # server name) now get distinct names via the full-hostname hash.
+    monkeypatch.setattr("socket.gethostname", lambda: "my-very-long-shared-prefix-host-2")
+    other = arena_tui._default_agent_name()
+    assert other != name
+    assert len(other) <= MAX_NAME_LEN
