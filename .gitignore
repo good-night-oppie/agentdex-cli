@@ -51,6 +51,18 @@ site/zh/blog/**/*.db-shm
 site/zh/blog/**/*.db-wal
 site/zh/blog/**/.env
 site/zh/blog/**/.env.*
+# ...and the Python BUILD artifacts the `!...**` re-include also deactivated —
+# running tooling from a blog dir must not let a virtualenv / build cache become
+# addable just because the dir is tracked (PR #242 review). `.venv/` is the
+# reviewer's repro: `git check-ignore --no-index site/zh/blog/.venv/pyvenv.cfg`.
+site/blog/**/__pycache__/
+site/blog/**/*.pyo
+site/blog/**/.venv/
+site/blog/**/*.egg-info/
+site/zh/blog/**/__pycache__/
+site/zh/blog/**/*.pyo
+site/zh/blog/**/.venv/
+site/zh/blog/**/*.egg-info/
 
 # supergoal harness artifacts (skill state, not source)
 .supergoal/
