@@ -197,6 +197,39 @@ def test_build_gateway_uses_file_inbox_when_webhook_unset(monkeypatch, tmp_path:
     assert files[0].read_text(encoding="utf-8").strip() == "code-xyz"
 
 
+def test_file_inbox_concurrent_same_owner_no_collision(tmp_path: Path):
+    """Two simultaneous enrollments for ONE owner must not race on a shared temp
+    file. The old `<owner>.code.tmp` path let concurrent writers overwrite/move each
+    other's temp (FileNotFoundError on replace, or a corrupt code); a per-delivery
+    mkstemp removes the collision. PR #231 review 3432522339."""
+    import threading
+
+    import agentdex_arena.__main__ as m
+
+    inbox = tmp_path / "inbox"
+    notify = m._file_inbox_notifier(inbox)
+    errors: list = []
+
+    def worker(i: int) -> None:
+        try:
+            for _ in range(25):
+                notify("owner@example.com", f"code-{i}")
+        except Exception as e:  # noqa: BLE001 — surface any race for the assert
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"concurrent same-owner writes raced: {errors}"
+    target = inbox / m._owner_slug("owner@example.com")
+    content = target.read_text(encoding="utf-8")
+    assert content.startswith("code-") and content.endswith("\n")  # intact, not half-written
+    assert [p.name for p in inbox.iterdir() if p.name.endswith(".tmp")] == []  # no stray temps
+
+
 def test_deliver_webhook_posts_payload(monkeypatch):
     """_deliver_webhook POSTs {owner, code} and returns True on 2xx; no fallback."""
     import agentdex_arena.__main__ as m
