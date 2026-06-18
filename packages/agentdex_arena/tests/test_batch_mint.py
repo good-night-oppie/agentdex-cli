@@ -145,6 +145,39 @@ def test_main_writes_0600_file_and_no_token_on_stdout(tmp_path, monkeypatch, cap
         assert r["token"] not in out
 
 
+def test_main_overwrites_existing_loose_file_to_0600(tmp_path, monkeypatch):
+    """Reusing an --out path that already exists must NOT keep its looser mode.
+
+    The prior os.open(out, O_CREAT, 0o600) ignored the mode for an existing file,
+    so writing tokens over a touched/checked-in 0644 placeholder leaked them under
+    world-readable perms. The atomic temp+replace write resets the inode to 0600.
+    """
+    monkeypatch.setenv("ARENA_SIGNING_KEY_HEX", _key_hex())
+    roster_path = tmp_path / "roster.json"
+    out_path = tmp_path / "tokens.json"
+    roster_path.write_text(json.dumps(_roster(1)), encoding="utf-8")
+
+    # Pre-existing world-readable file at the target path (the leak precondition).
+    out_path.write_text("stale placeholder", encoding="utf-8")
+    out_path.chmod(0o644)
+    assert stat.S_IMODE(out_path.stat().st_mode) == 0o644
+
+    rc = bm.main(
+        [
+            "--roster",
+            str(roster_path),
+            "--out",
+            str(out_path),
+            "--runtime-dir",
+            str(tmp_path / "rt"),
+        ]
+    )
+    assert rc == 0
+    # Overwrite reset the secret file to owner-only.
+    assert stat.S_IMODE(out_path.stat().st_mode) == 0o600
+    assert len(json.loads(out_path.read_text(encoding="utf-8"))) == 1
+
+
 def test_main_fail_closed_without_signing_key(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("ARENA_SIGNING_KEY_HEX", raising=False)
     roster_path = tmp_path / "roster.json"

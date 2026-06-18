@@ -24,10 +24,12 @@ per-battle proof-of-possession works; the private key never touches this tool).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
 import sys
+import tempfile
 import time
 import uuid
 from collections.abc import Callable
@@ -171,13 +173,31 @@ def batch_mint(
 
 
 def _write_tokens(out_path: Path, results: list[dict[str, Any]]) -> None:
-    """Write tokens to a 0600 file (tokens are secrets — never stdout)."""
+    """Atomically write tokens to a 0600 file (secrets — never stdout).
+
+    Write to a private temp file in the same directory then ``os.replace`` it
+    into place, so the final inode ALWAYS carries 0600 — even when ``out_path``
+    already exists with a looser mode. The earlier ``os.open(out_path, O_CREAT,
+    0o600)`` ignored the mode for an *existing* file, so a rerun against a
+    touched/checked-in 0644 placeholder leaked the secret tokens under the old
+    permissions (PR #232 review). The atomic rename also guarantees a crash
+    mid-write never leaves a partial — or world-readable — token file behind.
+    """
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # Create with restrictive perms BEFORE writing the secret payload.
-    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(results, fh, indent=2)
-        fh.write("\n")
+    # mkstemp creates the file 0600 and owned by us; we never widen it.
+    fd, tmp = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".tmp")
+    try:
+        os.fchmod(fd, 0o600)  # explicit + future-proof against a permissive umask
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(results, fh, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, out_path)  # atomic; the 0600 temp inode becomes out_path
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(tmp)
+        raise
 
 
 def main(argv: list[str] | None = None) -> int:
