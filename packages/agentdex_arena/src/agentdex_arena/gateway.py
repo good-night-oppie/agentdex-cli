@@ -2143,13 +2143,29 @@ def create_app(
         # own it.
         if data is None or claims.token_id != data.get("tenant"):
             raise _opaque_error(403, "dispute denied: no such battle for this token") from None
-        gateway.events.append(
-            "dispute",
-            {
-                "battle_id": battle_id,
-                "timestamp": gateway.now(),
-            },
-        )
+
+        # Idempotence (ADX-P1-006): this handler can 500 mid-flight (the resim /
+        # sidecar can throw below) and be retried, and a battle can legitimately
+        # be disputed more than once — so record the "dispute" (and any resulting
+        # "quarantine") row AT MOST ONCE per battle. Without this guard each
+        # retry appended another row, structurally duplicating the durable event
+        # log. Disputes are rare so the O(events) scan is fine; resim itself is
+        # deterministic and safe to repeat.
+        def _already_logged(event_type: str) -> bool:
+            return any(
+                ev.get("type") == event_type
+                and (ev.get("payload") or {}).get("battle_id") == battle_id
+                for ev in gateway.events.iter_events()
+            )
+
+        if not _already_logged("dispute"):
+            gateway.events.append(
+                "dispute",
+                {
+                    "battle_id": battle_id,
+                    "timestamp": gateway.now(),
+                },
+            )
         input_log = data.get("input_log")
         if not input_log:
             log_file = gateway.artifacts_dir / f"{battle_id}.inputlog.json"
@@ -2171,14 +2187,15 @@ def create_app(
             reported_winner = sanitize_name(data["winner"])
             match = resim_winner == reported_winner
             if not match:
-                gateway.events.append(
-                    "quarantine",
-                    {
-                        "battle_id": battle_id,
-                        "reason": f"dispute successful: resim winner {resim_winner!r} != reported {reported_winner!r}",
-                        "timestamp": gateway.now(),
-                    },
-                )
+                if not _already_logged("quarantine"):
+                    gateway.events.append(
+                        "quarantine",
+                        {
+                            "battle_id": battle_id,
+                            "reason": f"dispute successful: resim winner {resim_winner!r} != reported {reported_winner!r}",
+                            "timestamp": gateway.now(),
+                        },
+                    )
                 return {
                     "disputed": True,
                     "match": False,
