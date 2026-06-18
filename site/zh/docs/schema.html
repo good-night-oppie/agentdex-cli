@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>探秘 bene.db — BENE 文档</title>
-<meta name="description" content="BENE 0.2.0 文档 — 探秘 bene.db" />
+<title>Inside bene.db — 中文索引 / 翻译中</title>
+<meta name="description" content="BENE 0.2.1 文档 — Inside bene.db" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -164,10 +164,10 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <a class="nav" href="index.html">文档索引</a>
   <a class="nav" href="../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
   <button class="nav copy-llms" data-llms-url="../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
-  <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="vertical-align:text-bottom"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
+  <a class="nav" href="https://github.com/good-night-oppie/bene" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="vertical-align:text-bottom"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
   <a class="nav" href="../../docs/schema.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
 </div></div>
-<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../docs/schema.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
+<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../docs/schema.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/good-night-oppie/bene/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -242,81 +242,81 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="case-studies/cs05-meta-harness-evolution.html">cs05-meta-harness-evolution</a></aside>
 <main>
 <div class="crumbs"><a href="index.html">docs</a> / schema.md</div>
-<h1 id="benedb">探秘 bene.db</h1>
-<p>用任何一款 SQLite 客户端直接打开 <code>bene.db</code>，你就能用最纯粹的 SQL 回答你的 agents 能引发的所有疑问：它们到底干了什么，写了哪些文件，脑子里记住了什么，以及你能把它们回滚到哪个时间点。本页面将 11 张表的使命全部拆解，为你指明它们能回答什么问题，详细记录每一个字段，并且备好了一堆可以直接复制粘贴的查询语句。</p>
+<h1 id="inside-benedb">Inside bene.db</h1>
+<p>Open <code>bene.db</code> with any SQLite client and you can answer, in plain SQL, every question your agents can raise: what they did, what they wrote, what they remember, and where you can roll them back to. This page maps each of the 11 tables to the question it answers, documents every column, and hands you queries ready to paste.</p>
 <blockquote>
-<p><strong>你整支 agent 舰队的所有状态，全部被打包在这唯一一个 SQLite 文件里 —— 查询它，用 <code>cp</code> 备份它；没有半个字节的数据会离开你的机器。</strong></p>
+<p><strong>The entire state of your agent fleet is one SQLite file — query it, <code>cp</code> it, back it up; nothing leaves your machine.</strong></p>
 </blockquote>
-<p>当前的 Schema 已经推进到了 <strong>v4</strong> 版本，具体定义见 <code>bene/schema.py</code>。</p>
+<p>The schema is at version <strong>4</strong>, defined in <code>bene/schema.py</code>.</p>
 <hr />
 <p><a id="overview"></a></p>
-<h2 id="_1">一份文件，十一张表</h2>
-<p>bene 将所有的数据统统放进一个开启了 WAL (预写式日志) 模式的 SQLite 数据库里。这里以 <code>agents</code> 表为核心，向下挂载了多张表 (<code>files</code>, <code>events</code>, <code>tool_calls</code>, <code>state</code>, <code>checkpoints</code>, <code>memory</code>, <code>agent_skills</code>)；<code>blobs</code> 则专门负责屯放 <code>files</code> 所指向的二进制字节肉身。<code>shared_log</code> 则用来记录 A2A 总线 (bus) 上的协同共识事件（虽然 <code>shared_log.agent_id</code> 记录的是发起方 agent 的名字，但出于解耦它并没有挂载指向 <code>agents</code> 的外键约束）：</p>
-<div class="codehilite"><pre><span></span><code>agents  ----&lt;  files         (1:N - 每个 agent 拥有多份文件)
-        ----&lt;  tool_calls    (1:N - 每个 agent 发起多次工具调用)
-        ----&lt;  state         (1:N - 每个 agent 维护多对 KV 状态)
-        ----&lt;  events        (1:N - 每个 agent 产生多条事件流)
-        ----&lt;  checkpoints   (1:N - 每个 agent 留下多个检查点)
+<h2 id="one-file-eleven-tables">One file, eleven tables</h2>
+<p>bene keeps everything in a single SQLite database opened in WAL (Write-Ahead Logging) mode. Several tables hang off <code>agents</code> (<code>files</code>, <code>events</code>, <code>tool_calls</code>, <code>state</code>, <code>checkpoints</code>, <code>memory</code>, <code>agent_skills</code>); <code>blobs</code> holds the bytes that <code>files</code> points at. <code>shared_log</code> records coordination events on the A2A bus (<code>shared_log.agent_id</code> contains the base agent name but has no foreign key constraint to <code>agents</code>):</p>
+<div class="codehilite"><pre><span></span><code>agents  ----&lt;  files         (1:N - each agent has many files)
+        ----&lt;  tool_calls    (1:N - each agent has many tool calls)
+        ----&lt;  state         (1:N - each agent has many KV pairs)
+        ----&lt;  events        (1:N - each agent has many events)
+        ----&lt;  checkpoints   (1:N - each agent has many checkpoints)
 
-blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 blob)
+blobs   &lt;----  files         (1:N - many files can share one blob)
 </code></pre></div>
 
-<p>这两条铁律贯穿全局：</p>
+<p>Two conventions hold everywhere:</p>
 <ul>
-<li><strong>Timestamps (时间戳)</strong> 全部采用携带毫秒精度的 ISO 8601 文本格式，统一由 <code>strftime('%Y-%m-%dT%H:%M:%f', 'now')</code> 生成。</li>
-<li><strong>JSON 字段</strong> —— 包括 <code>config</code>, <code>metadata</code>, <code>input</code>, <code>output</code>, <code>payload</code>, <code>value</code>, <code>file_manifest</code>, <code>state_snapshot</code> —— 必须永远塞入合法的 JSON 文本。</li>
+<li><strong>Timestamps</strong> are ISO 8601 text at millisecond precision, produced by <code>strftime('%Y-%m-%dT%H:%M:%f', 'now')</code>.</li>
+<li><strong>JSON columns</strong> — <code>config</code>, <code>metadata</code>, <code>input</code>, <code>output</code>, <code>payload</code>, <code>value</code>, <code>file_manifest</code>, <code>state_snapshot</code> — always contain valid JSON text.</li>
 </ul>
 <hr />
-<h2 id="_2">问题导向查询指南</h2>
+<h2 id="pick-your-question">Pick your question</h2>
 <table>
 <thead>
 <tr>
-<th>遇到这个问题时...</th>
-<th>请查阅</th>
+<th>If you're asking…</th>
+<th>Read</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>这个 agent 到底干了什么？</td>
-<td><a href="#events">events 事件流</a></td>
+<td>What did this agent actually do?</td>
+<td><a href="#events">events</a></td>
 </tr>
 <tr>
-<td>跑了什么 tool？输入是什么？耗时多久？</td>
-<td><a href="#tool_calls-每一笔工具调用账单">tool_calls 调用账本</a></td>
+<td>Which tools ran, with what input and timing?</td>
+<td><a href="#tool_calls-every-tool-invocation">tool_calls</a></td>
 </tr>
 <tr>
-<td>到底生了几个 agent？它们还活着吗？</td>
-<td><a href="#agents-花名册">agents 花名册</a></td>
+<td>Which agents exist, and are they alive?</td>
+<td><a href="#agents-the-roster">agents</a></td>
 </tr>
 <tr>
-<td>agent 当前的作业状态 (短期记忆草稿) 是什么？</td>
-<td><a href="#state-专属的键值存储草稿本">state 专属键值存储</a></td>
+<td>What is an agent's current working state (short-term scratch)?</td>
+<td><a href="#state-per-agent-key-value-memory">state</a></td>
 </tr>
 <tr>
-<td>agent 跨 session 还能记住啥？</td>
-<td>查 <code>memory</code> + <code>memory_fts</code> —— 支持全文检索 (<code>SELECT … FROM memory_fts WHERE memory_fts MATCH '…'</code>); 详见 <a href="memory.html">memory.md</a></td>
+<td>What does an agent durably remember / recall across sessions?</td>
+<td><code>memory</code> + <code>memory_fts</code> — full-text searchable (<code>SELECT … FROM memory_fts WHERE memory_fts MATCH '…'</code>); see <a href="memory.html">memory.md</a></td>
 </tr>
 <tr>
-<td>我能回滚到哪里？</td>
-<td><a href="#checkpoints-随时退回的时空快照">checkpoints 状态快照</a></td>
+<td>Where can I roll back to?</td>
+<td><a href="#checkpoints-snapshots-you-can-return-to">checkpoints</a></td>
 </tr>
 <tr>
-<td>这个 agent 到底写了什么东西？</td>
-<td><a href="#files-虚拟文件系统">files 虚拟文件系统</a></td>
+<td>What has an agent written?</td>
+<td><a href="#files-the-virtual-filesystem">files</a></td>
 </tr>
 <tr>
-<td>文件的字节肉身到底是怎么存的？</td>
-<td><a href="#blobs-彻底去重的内容块">blobs 去重内容块</a></td>
+<td>How are the bytes actually stored?</td>
+<td><a href="#blobs-deduplicated-content">blobs</a></td>
 </tr>
 <tr>
-<td>这份文件经历过几次数据库迁移？</td>
-<td><a href="#schema_version-迁移大账本">schema_version 迁移大账本</a></td>
+<td>Which migrations has this file seen?</td>
+<td><a href="#schema_version-the-migration-record">schema_version</a></td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="events">events</h2>
-<p>这就是 bene 的审计账本 (audit trail)。agent 的一举一动 —— 写文件、调 tool、生命周期切换、打 checkpoint —— 统统只能向这里追加写入 (append-only) 且永不篡改，因此你查出来的这串流水就是铁一般的事实。</p>
+<p>bene's audit trail. Every move an agent makes — file writes, tool calls, lifecycle transitions, checkpoints — is appended here and never rewritten, so the journal you query is exactly what happened.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">event_id</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
@@ -325,20 +325,20 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="w">    </span><span class="k">timestamp</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">)),</span>
 <span class="w">    </span><span class="n">idempotency_key</span><span class="w"> </span><span class="nb">TEXT</span>
 <span class="p">);</span>
-<span class="c1">-- v4 版本的 schema 补上了一个部分唯一索引，以支撑安全的 (Temporal) 重试机制:</span>
+<span class="c1">-- schema v4 also adds a partial unique index for safe (Temporal) retries:</span>
 <span class="c1">-- CREATE UNIQUE INDEX idx_events_idem ON events(agent_id, idempotency_key)</span>
 <span class="c1">--   WHERE idempotency_key IS NOT NULL;</span>
-<span class="c1">-- 同样的 `idempotency_key TEXT` 字段及部分唯一索引，在 `tool_calls` 和 `files` 表里也有。</span>
+<span class="c1">-- The same `idempotency_key TEXT` column + partial unique index exist on `tool_calls` and `files`.</span>
 </code></pre></div>
 
-<h3 id="_3">字段说明</h3>
+<h3 id="column-guide">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -346,166 +346,166 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>event_id</code></td>
 <td>INTEGER</td>
 <td>PRIMARY KEY AUTOINCREMENT</td>
-<td>单调递增，天然充当全局事件排序器。</td>
+<td>Rises monotonically, so it doubles as a global ordering.</td>
 </tr>
 <tr>
 <td><code>agent_id</code></td>
 <td>TEXT</td>
 <td>NOT NULL, FK -&gt; agents</td>
-<td>该事件的肇事者。</td>
+<td>The agent behind the event.</td>
 </tr>
 <tr>
 <td><code>event_type</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>下文列出的各类事件标识符。</td>
+<td>One of the strings catalogued below.</td>
 </tr>
 <tr>
 <td><code>payload</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 默认 <code>'{}'</code></td>
-<td>事件相关的细节，统统打成 JSON 对象。</td>
+<td>NOT NULL, default <code>'{}'</code></td>
+<td>Event-specific detail as a JSON object.</td>
 </tr>
 <tr>
 <td><code>timestamp</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>自动写入的 ISO 8601 毫秒级时间戳。</td>
+<td>NOT NULL, auto-generated</td>
+<td>ISO 8601, millisecond precision, written automatically.</td>
 </tr>
 <tr>
 <td><code>idempotency_key</code></td>
 <td>TEXT</td>
-<td>可空, 若有值则在单个 agent 内必须唯一 (v4)</td>
-<td>带着相同 key 复用的写入会被无视而不是产生重复数据 —— 这是支撑 Temporal 任务安全重试的核心。<code>tool_calls</code> 和 <code>files</code> 同样搭载此字段。</td>
+<td>nullable, unique per agent when set (v4)</td>
+<td>A replayed write with the same key is a no-op instead of a duplicate — enables safe Temporal activity retries. Also on <code>tool_calls</code> and <code>files</code>.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="event-types">事件类型 (Event types)</h3>
-<p>bene 默认发射的标准 <code>event_type</code> 以及各自的 payload 长相（如果挂了 Temporal runtime，还会多吐几个额外类型）：</p>
+<h3 id="event-types">Event types</h3>
+<p>The standard <code>event_type</code>s bene emits, with the payload shape each carries (the Temporal runtime emits a few additional types):</p>
 <table>
 <thead>
 <tr>
-<th>Event Type 事件类型</th>
-<th>Payload 示例</th>
-<th>触发场景</th>
+<th>Event Type</th>
+<th>Payload Example</th>
+<th>Trigger</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>agent_spawn</code></td>
 <td><code>{"name": "...", "parent_id": null, "config": {...}}</code></td>
-<td>通过 <code>spawn()</code> 新建 agent 时</td>
+<td>Agent created via <code>spawn()</code></td>
 </tr>
 <tr>
 <td><code>agent_pause</code></td>
 <td><code>{}</code></td>
-<td>Agent 被暂停时</td>
+<td>Agent paused</td>
 </tr>
 <tr>
 <td><code>agent_resume</code></td>
 <td><code>{}</code></td>
-<td>Agent 被唤醒恢复时</td>
+<td>Agent resumed</td>
 </tr>
 <tr>
 <td><code>agent_kill</code></td>
 <td><code>{}</code></td>
-<td>Agent 被强制处决时</td>
+<td>Agent killed</td>
 </tr>
 <tr>
 <td><code>agent_complete</code></td>
 <td><code>{}</code></td>
-<td>Agent 顺利完工退场时</td>
+<td>Agent completed successfully</td>
 </tr>
 <tr>
 <td><code>agent_fail</code></td>
 <td><code>{"error": "..."}</code></td>
-<td>Agent 干砸了报错时</td>
+<td>Agent failed</td>
 </tr>
 <tr>
 <td><code>state_change</code></td>
 <td><code>{"field": "status", "from": "initialized", "to": "running"}</code></td>
-<td>发生状态跃迁时</td>
+<td>Status transition</td>
 </tr>
 <tr>
 <td><code>file_read</code></td>
 <td><code>{"path": "/src/app.py"}</code></td>
-<td>从 VFS 里读文件时</td>
+<td>File read from VFS</td>
 </tr>
 <tr>
 <td><code>file_write</code></td>
 <td><code>{"path": "/src/app.py", "size": 1234, "version": 2}</code></td>
-<td>往 VFS 里写文件时</td>
+<td>File written to VFS</td>
 </tr>
 <tr>
 <td><code>file_delete</code></td>
 <td><code>{"path": "/tmp/scratch.txt"}</code></td>
-<td>从 VFS 删文件时</td>
+<td>File deleted from VFS</td>
 </tr>
 <tr>
 <td><code>tool_call_start</code></td>
 <td><code>{"call_id": "...", "tool_name": "fs_read"}</code></td>
-<td>开始调 tool 时</td>
+<td>Tool execution started</td>
 </tr>
 <tr>
 <td><code>tool_call_end</code></td>
 <td><code>{"call_id": "...", "status": "success"}</code></td>
-<td>调完 tool 时</td>
+<td>Tool execution completed</td>
 </tr>
 <tr>
 <td><code>llm_call</code></td>
 <td><code>{"model": "...", "prompt_len": 1234, "input_tokens": 800, "output_tokens": 120, "cache_read_tokens": 0, "cache_creation_tokens": 0}</code></td>
-<td>完成一次模型调用时 (仅 Temporal 运行时会发)</td>
+<td>Model call completed (Temporal runtime only)</td>
 </tr>
 <tr>
 <td><code>checkpoint_create</code></td>
 <td><code>{"checkpoint_id": "...", "label": "pre-refactor"}</code></td>
-<td>刚切完一张 checkpoint 快照时</td>
+<td>Checkpoint created</td>
 </tr>
 <tr>
 <td><code>checkpoint_restore</code></td>
 <td><code>{"checkpoint_id": "..."}</code></td>
-<td>刚恢复完一次 checkpoint 快照时</td>
+<td>Checkpoint restored</td>
 </tr>
 <tr>
 <td><code>error</code></td>
 <td><code>{"message": "..."}</code></td>
-<td>遇到运行时严重错误时</td>
+<td>Runtime error</td>
 </tr>
 <tr>
 <td><code>warning</code></td>
 <td><code>{"message": "..."}</code></td>
-<td>抛出运行时警告时</td>
+<td>Runtime warning</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_4">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 抽调某个 agent 完整的时间轴流水</span>
+<h3 id="paste-ready-queries">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- Full timeline for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">event_id</span><span class="p">,</span><span class="w"> </span><span class="n">event_type</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">event_id</span><span class="p">;</span>
 
-<span class="c1">-- 这个 agent 在过去一小时里到底搞了什么名堂？</span>
+<span class="c1">-- What did an agent do in the last hour?</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">event_type</span><span class="p">,</span><span class="w"> </span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">AND</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-1 hour&#39;</span><span class="p">)</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">event_id</span><span class="p">;</span>
 
-<span class="c1">-- 统计某个 agent 发出的各类事件数量</span>
+<span class="c1">-- Count events by type for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">event_type</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="k">count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">event_type</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">count</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 全局系统活动概览</span>
+<span class="c1">-- System-wide activity summary</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">event_type</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="k">count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">events</span>
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">event_type</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">count</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 跨越所有 agent 找出所有的文件写入动作</span>
+<span class="c1">-- Find all file writes across all agents</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">name</span><span class="p">,</span>
 <span class="w">       </span><span class="n">json_extract</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$.path&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">file_path</span><span class="p">,</span>
 <span class="w">       </span><span class="n">json_extract</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">payload</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$.size&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="k">size</span><span class="p">,</span>
@@ -517,10 +517,10 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
 </code></pre></div>
 
-<p><em>背后的索引支撑: <code>idx_events_agent_time</code> (<code>agent_id, timestamp</code>) 以及 <code>idx_events_type</code> (<code>event_type</code>) —— 详情查阅文末的 <a href="#index-reference">索引目录</a>。</em></p>
+<p><em>Indexed by <code>idx_events_agent_time</code> (<code>agent_id, timestamp</code>) and <code>idx_events_type</code> (<code>event_type</code>) — see the <a href="#index-catalog">index catalog</a>.</em></p>
 <hr />
-<h2 id="tool_calls">tool_calls: 每一笔工具调用账单</h2>
-<p>agent 调用工具的每一个动作都会带着它的输入、输出、耗时以及 token 花销一起入账 —— 一旦遇到卡死或是崩溃的调用，你完全可以逐笔核查，甚至能把嵌套调用还原成一条清晰的调用链。</p>
+<h2 id="tool_calls-every-tool-invocation">tool_calls: every tool invocation</h2>
+<p>Each tool an agent runs is journaled with its input, output, timing, and token spend — so a slow or failing run can be traced call by call, and nested calls reconstructed as a chain.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">tool_calls</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">call_id</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
@@ -539,14 +539,14 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_5">字段说明</h3>
+<h3 id="column-guide_1">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -554,91 +554,91 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>call_id</code></td>
 <td>TEXT</td>
 <td>PRIMARY KEY</td>
-<td>ULID，每次调用独一无二。</td>
+<td>ULID, unique per invocation.</td>
 </tr>
 <tr>
 <td><code>agent_id</code></td>
 <td>TEXT</td>
 <td>NOT NULL, FK -&gt; agents</td>
-<td>发起调用的 agent。</td>
+<td>The calling agent.</td>
 </tr>
 <tr>
 <td><code>tool_name</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>跑的到底是什么 tool (比如 <code>fs_read</code>, <code>shell_exec</code>, <code>fs_write</code>)。</td>
+<td>Which tool ran (e.g., <code>fs_read</code>, <code>shell_exec</code>, <code>fs_write</code>).</td>
 </tr>
 <tr>
 <td><code>input</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>入参，直接序列化成 JSON。</td>
+<td>Arguments, serialized as JSON.</td>
 </tr>
 <tr>
 <td><code>output</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>出参 JSON；调用结束前保持 NULL。</td>
+<td>nullable</td>
+<td>Result as JSON; stays NULL until the call finishes.</td>
 </tr>
 <tr>
 <td><code>status</code></td>
 <td>TEXT</td>
-<td>NOT NULL, CHECK 约束</td>
-<td>必须是 <code>pending</code>, <code>running</code>, <code>success</code>, <code>error</code>, <code>timeout</code> 其中之一。</td>
+<td>NOT NULL, CHECK constraint</td>
+<td>One of <code>pending</code>, <code>running</code>, <code>success</code>, <code>error</code>, <code>timeout</code>.</td>
 </tr>
 <tr>
 <td><code>started_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>记录调用的初始时间戳。</td>
+<td>NOT NULL, auto-generated</td>
+<td>Set when the call is logged.</td>
 </tr>
 <tr>
 <td><code>completed_at</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>调用收摊时填入。</td>
+<td>nullable</td>
+<td>Filled in at finish time.</td>
 </tr>
 <tr>
 <td><code>duration_ms</code></td>
 <td>INTEGER</td>
-<td>可空</td>
-<td>调用收摊时算出的真实耗时 (毫秒)。</td>
+<td>nullable</td>
+<td>Wall-clock milliseconds, computed on completion.</td>
 </tr>
 <tr>
 <td><code>token_count</code></td>
 <td>INTEGER</td>
-<td>可空</td>
-<td>触发本次 tool 使用的那次模型请求究竟烧了多少个 token。</td>
+<td>nullable</td>
+<td>Tokens consumed by the model call that triggered this tool use.</td>
 </tr>
 <tr>
 <td><code>cost_usd</code></td>
 <td>REAL</td>
-<td>默认 0.0</td>
-<td>预留的美元计价估算字段。</td>
+<td>default 0.0</td>
+<td>USD estimate; reserved for future use.</td>
 </tr>
 <tr>
 <td><code>parent_call_id</code></td>
 <td>TEXT</td>
-<td>FK -&gt; tool_calls(call_id), 可空</td>
-<td>指向父级调用，借此把嵌套调用串成一条清晰的跟踪链。</td>
+<td>FK -&gt; tool_calls(call_id), nullable</td>
+<td>Points at the parent call, so nested calls form a traceable chain.</td>
 </tr>
 <tr>
 <td><code>error_message</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>只有当状态变成 <code>error</code> 时才会填入的错误明细。</td>
+<td>nullable</td>
+<td>Populated when status is <code>error</code>.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_6">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 抓取某个 agent 最近的 tool 账单</span>
+<h3 id="paste-ready-queries_1">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- Recent tool calls for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">call_id</span><span class="p">,</span><span class="w"> </span><span class="n">tool_name</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">duration_ms</span><span class="p">,</span><span class="w"> </span><span class="n">token_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">started_at</span><span class="w"> </span><span class="k">DESC</span>
 <span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
 
-<span class="c1">-- 算算各 agent 的 token 燃烧账单</span>
+<span class="c1">-- Token consumption by agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">tc</span><span class="p">.</span><span class="n">token_count</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">total_tokens</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">calls</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span><span class="w"> </span><span class="n">tc</span>
 <span class="k">JOIN</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">tc</span><span class="p">.</span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">agent_id</span>
@@ -646,20 +646,20 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">tc</span><span class="p">.</span><span class="n">agent_id</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">total_tokens</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 把失败的 tool 调用连同报错细则全翻出来</span>
+<span class="c1">-- Failed tool calls with error details</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">tool_name</span><span class="p">,</span><span class="w"> </span><span class="n">error_message</span><span class="p">,</span><span class="w"> </span><span class="n">started_at</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;error&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">started_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 按照工具类别看平均耗时</span>
+<span class="c1">-- Average duration per tool type</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">tool_name</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">calls</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;success&#39;</span>
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">tool_name</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 追踪一条 tool 嵌套调用链 (通过递归 CTE)</span>
+<span class="c1">-- Trace a tool call chain (recursive CTE)</span>
 <span class="k">WITH</span><span class="w"> </span><span class="k">RECURSIVE</span><span class="w"> </span><span class="k">chain</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">call_id</span><span class="p">,</span><span class="w"> </span><span class="n">tool_name</span><span class="p">,</span><span class="w"> </span><span class="n">parent_call_id</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">depth</span>
 <span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="n">tool_calls</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">call_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;target-call-id&#39;</span>
@@ -670,10 +670,10 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">chain</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">depth</span><span class="p">;</span>
 </code></pre></div>
 
-<p><em>背后的索引支撑: <code>idx_tool_calls_agent</code> (<code>agent_id, started_at</code>), <code>idx_tool_calls_tool</code> (<code>tool_name</code>), 以及 <code>idx_tool_calls_status</code> (<code>status</code>) —— 详情查阅文末的 <a href="#index-reference">索引目录</a>。</em></p>
+<p><em>Indexed by <code>idx_tool_calls_agent</code> (<code>agent_id, started_at</code>), <code>idx_tool_calls_tool</code> (<code>tool_name</code>), and <code>idx_tool_calls_status</code> (<code>status</code>) — see the <a href="#index-catalog">index catalog</a>.</em></p>
 <hr />
-<h2 id="agents">agents: 花名册</h2>
-<p>一表包揽所有 agent 户口：到底有谁存在，谁生了谁，以及此刻它们各自处于何种生命体征状态。</p>
+<h2 id="agents-the-roster">agents: the roster</h2>
+<p>One row per agent: who exists, who spawned whom, and which lifecycle state each one is in right now.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 <span class="w">    </span><span class="n">name</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
@@ -688,14 +688,14 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_7">字段说明</h3>
+<h3 id="column-guide_2">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -703,82 +703,82 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>agent_id</code></td>
 <td>TEXT</td>
 <td>PRIMARY KEY</td>
-<td>ULID —— 唯一且原生自带时间排序能力。</td>
+<td>ULID — unique and sortable by creation time.</td>
 </tr>
 <tr>
 <td><code>name</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>你赋予它的代号 (比如 "test-writer")。</td>
+<td>A label you choose (e.g., "test-writer").</td>
 </tr>
 <tr>
 <td><code>parent_id</code></td>
 <td>TEXT</td>
-<td>FK -&gt; agents(agent_id), 可空</td>
-<td>如果它是被别的 agent 孵化出来的，这里就有值；根节点则为 NULL。</td>
+<td>FK -&gt; agents(agent_id), nullable</td>
+<td>Set when another agent spawned this one; NULL at the root.</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>诞生时刻敲下的 ISO 8601 钢印。</td>
+<td>NOT NULL, auto-generated</td>
+<td>Stamped at spawn, ISO 8601.</td>
 </tr>
 <tr>
 <td><code>status</code></td>
 <td>TEXT</td>
-<td>NOT NULL, CHECK 约束</td>
-<td>必须是 <code>initialized</code>, <code>running</code>, <code>paused</code>, <code>completed</code>, <code>failed</code>, <code>killed</code> 其中之一。</td>
+<td>NOT NULL, CHECK constraint</td>
+<td>One of <code>initialized</code>, <code>running</code>, <code>paused</code>, <code>completed</code>, <code>failed</code>, <code>killed</code>.</td>
 </tr>
 <tr>
 <td><code>config</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 默认 <code>'{}'</code></td>
-<td>该 agent 专属的 JSON 配置文件 (例如 <code>{"force_model": "deepseek-r1-70b"}</code>)。</td>
+<td>NOT NULL, default <code>'{}'</code></td>
+<td>JSON settings for the agent (e.g., <code>{"force_model": "deepseek-r1-70b"}</code>).</td>
 </tr>
 <tr>
 <td><code>metadata</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 默认 <code>'{}'</code></td>
-<td>一块任你塞入任意格式化信息的自由 JSON 空地。</td>
+<td>NOT NULL, default <code>'{}'</code></td>
+<td>Free-form JSON, yours to fill.</td>
 </tr>
 <tr>
 <td><code>pid</code></td>
 <td>INTEGER</td>
-<td>可空</td>
-<td>该 agent 苟活在操作系统里时对应的进程 ID。</td>
+<td>nullable</td>
+<td>OS process ID while the agent runs.</td>
 </tr>
 <tr>
 <td><code>last_heartbeat</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>最后的脉搏跳动时间，ISO 8601 格式。</td>
+<td>nullable</td>
+<td>Most recent heartbeat, ISO 8601.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_8">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 揪出所有还在奔跑的 agents</span>
+<h3 id="paste-ready-queries_2">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- List all running agents</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">last_heartbeat</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;running&#39;</span><span class="p">;</span>
 
-<span class="c1">-- 查找被某位 &quot;父辈&quot; 孵化出的所有徒子徒孙</span>
+<span class="c1">-- Find agents spawned by a parent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">status</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">parent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="p">;</span>
 
-<span class="c1">-- 看看所有 agent 目前生死状态的盘点</span>
+<span class="c1">-- Agent lifecycle summary</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="k">count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">status</span><span class="p">;</span>
 
-<span class="c1">-- 抓出那些心跳骤停的僵尸 agent (5分钟没心跳的)</span>
+<span class="c1">-- Find stale agents (no heartbeat in 5 minutes)</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">last_heartbeat</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">agents</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;running&#39;</span>
 <span class="k">AND</span><span class="w"> </span><span class="n">last_heartbeat</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-5 minutes&#39;</span><span class="p">);</span>
 </code></pre></div>
 
-<p><em>背后的索引支撑: <code>idx_agents_status</code> (<code>status</code>) 以及 <code>idx_agents_parent</code> (<code>parent_id</code>) —— 详情查阅文末的 <a href="#index-reference">索引目录</a>。</em></p>
+<p><em>Indexed by <code>idx_agents_status</code> (<code>status</code>) and <code>idx_agents_parent</code> (<code>parent_id</code>) — see the <a href="#index-catalog">index catalog</a>.</em></p>
 <hr />
-<h2 id="state">state: 专属的键值存储草稿本</h2>
-<p>只要是一个能写进 JSON 里的数据，就能存在这里：每个 agent 都会圈定一块自己的专属键值命名空间，把脑子里随时要查的进度和状态记在账上。</p>
+<h2 id="state-per-agent-key-value-memory">state: per-agent key-value memory</h2>
+<p>What an agent currently knows, as queryable rows: each agent gets its own key-value namespace, and any JSON-serializable value fits.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="k">state</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
 <span class="w">    </span><span class="k">key</span><span class="w">             </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
@@ -788,68 +788,68 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_9">字段说明</h3>
+<h3 id="column-guide_3">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>agent_id</code></td>
 <td>TEXT</td>
-<td>NOT NULL, FK -&gt; agents, PK 的一半</td>
-<td>领地主人 —— 主键的前半段。</td>
+<td>NOT NULL, FK -&gt; agents, part of PK</td>
+<td>Owner — first half of the primary key.</td>
 </tr>
 <tr>
 <td><code>key</code></td>
 <td>TEXT</td>
-<td>NOT NULL, PK 的另一半</td>
-<td>键名 (比如 <code>conversation</code>, <code>iteration</code>, <code>progress</code>)。</td>
+<td>NOT NULL, part of PK</td>
+<td>Entry name (e.g., <code>conversation</code>, <code>iteration</code>, <code>progress</code>).</td>
 </tr>
 <tr>
 <td><code>value</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>塞进去的 JSON 文本：字符串、数字、数组或者是嵌套对象。</td>
+<td>JSON text: string, number, array, or object.</td>
 </tr>
 <tr>
 <td><code>updated_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>只要有修改就立马刷新这根时间轴。</td>
+<td>NOT NULL, auto-generated</td>
+<td>Refreshed on every write.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_10">运作机制拆解</h3>
+<h3 id="behavior-notes">Behavior notes</h3>
 <ul>
-<li>这个由 <code>(agent_id, key)</code> 咬合而成的联合主键既保证了键名在 agent 地界内的唯一性，也成为了支撑 <code>ON CONFLICT</code> 覆写操作的核心基石。</li>
-<li><code>set_state()</code> 方法实际上是在执行 <code>INSERT ... ON CONFLICT DO UPDATE</code>，因此，重新塞入一个已存在的 key 就能直接完成一次原子级别的旧值换血。</li>
-<li>CCR 会顺手把 <code>conversation</code>、<code>iteration</code>、<code>task</code> 和 <code>result</code> 等记录丢在这里 —— 于是，你距离把一个 agent 的祖宗八代聊天记录全翻出来，只差一句 SELECT。</li>
+<li>The composite primary key <code>(agent_id, key)</code> keeps keys unique per agent and is what makes <code>ON CONFLICT</code> upserts possible.</li>
+<li><code>set_state()</code> runs <code>INSERT ... ON CONFLICT DO UPDATE</code>, so re-setting an existing key swaps in the new value atomically.</li>
+<li>The CCR loop persists <code>conversation</code>, <code>iteration</code>, <code>task</code>, and <code>result</code> here — which puts an agent's entire conversation history one SELECT away.</li>
 </ul>
-<h3 id="_11">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 掏空某个 agent 的所有底牌</span>
+<h3 id="paste-ready-queries_3">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- Get all state for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="k">key</span><span class="p">,</span><span class="w"> </span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span>
 <span class="k">FROM</span><span class="w"> </span><span class="k">state</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">key</span><span class="p">;</span>
 
-<span class="c1">-- 单独撬开某个指定的值</span>
+<span class="c1">-- Get a specific state value</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">state</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;iteration&#39;</span><span class="p">;</span>
 
-<span class="c1">-- 看看哪几个 agent 熬到了多少个迭代轮次</span>
+<span class="c1">-- Find agents at a specific iteration</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">value</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">iteration</span>
 <span class="k">FROM</span><span class="w"> </span><span class="k">state</span><span class="w"> </span><span class="n">s</span>
 <span class="k">JOIN</span><span class="w"> </span><span class="n">agents</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">agent_id</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="k">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;iteration&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">CAST</span><span class="p">(</span><span class="n">s</span><span class="p">.</span><span class="n">value</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 
-<span class="c1">-- 盘点一共有哪些 key 最受全场 agent 欢迎</span>
+<span class="c1">-- State key usage across all agents</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="k">key</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">agent_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="k">state</span>
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">key</span>
@@ -857,8 +857,8 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 </code></pre></div>
 
 <hr />
-<h2 id="checkpoints">checkpoints: 随时退回的时空快照</h2>
-<p>所谓的 checkpoint 就是把某个 agent 的文件系统和所有 state 数据直接冻成一块标本，这就意味着任何一记昏招都不再是末日：还原它，对比它，然后装作什么都没发生过一样继续跑。</p>
+<h2 id="checkpoints-snapshots-you-can-return-to">checkpoints: snapshots you can return to</h2>
+<p>A checkpoint freezes an agent's files and state at one moment, so a bad turn never has to be permanent: restore, diff, and keep going.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">checkpoints</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">checkpoint_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
@@ -871,14 +871,14 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_12">字段说明</h3>
+<h3 id="column-guide_4">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -886,60 +886,60 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>checkpoint_id</code></td>
 <td>TEXT</td>
 <td>PRIMARY KEY</td>
-<td>ULID。</td>
+<td>ULID.</td>
 </tr>
 <tr>
 <td><code>agent_id</code></td>
 <td>TEXT</td>
 <td>NOT NULL, FK -&gt; agents</td>
-<td>快照从属人。</td>
+<td>Whose snapshot this is.</td>
 </tr>
 <tr>
 <td><code>label</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>可选的标签注释 (比如 <code>"pre-refactor"</code>, <code>"auto-iter-10"</code>)。</td>
+<td>nullable</td>
+<td>Optional tag (e.g., <code>"pre-refactor"</code>, <code>"auto-iter-10"</code>).</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>拍下快照的刹那，ISO 8601。</td>
+<td>NOT NULL, auto-generated</td>
+<td>Stamped at creation, ISO 8601.</td>
 </tr>
 <tr>
 <td><code>event_id</code></td>
 <td>INTEGER</td>
-<td>FK -&gt; events(event_id), 可空</td>
-<td>死死锚定在当时事件流里的高水位标记；你要做 diff 就得靠它。</td>
+<td>FK -&gt; events(event_id), nullable</td>
+<td>Watermark into the event stream at snapshot time; diffs anchor on it.</td>
 </tr>
 <tr>
 <td><code>file_manifest</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>一长串文件花名册的 JSON 数组：<code>[{"path": "...", "content_hash": "...", "version": N}, ...]</code>。</td>
+<td>JSON array of file entries: <code>[{"path": "...", "content_hash": "...", "version": N}, ...]</code>.</td>
 </tr>
 <tr>
 <td><code>state_snapshot</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>拍快照时的 KV 状态底包：<code>{"key1": value1, "key2": value2, ...}</code>。</td>
+<td>Every KV pair at snapshot time: <code>{"key1": value1, "key2": value2, ...}</code>.</td>
 </tr>
 <tr>
 <td><code>metadata</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 默认 <code>'{}'</code></td>
-<td>额外的 JSON 数据，随你怎么用。</td>
+<td>NOT NULL, default <code>'{}'</code></td>
+<td>Extra JSON, yours to use.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_13">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 罗列某个 agent 留下的所有快照足迹</span>
+<h3 id="paste-ready-queries_4">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- List checkpoints for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">checkpoint_id</span><span class="p">,</span><span class="w"> </span><span class="n">label</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="p">,</span><span class="w"> </span><span class="n">event_id</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="p">;</span>
 
-<span class="c1">-- 把某个快照拿去体检 (算算打包了多少文件，多少个 state 键)</span>
+<span class="c1">-- Get checkpoint details (file count, state key count)</span>
 <span class="k">SELECT</span>
 <span class="w">    </span><span class="n">checkpoint_id</span><span class="p">,</span>
 <span class="w">    </span><span class="n">label</span><span class="p">,</span>
@@ -949,13 +949,13 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="p">;</span>
 
-<span class="c1">-- 捞出那些由系统自动定期生成的 checkpoints</span>
+<span class="c1">-- Find auto-checkpoints</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">checkpoint_id</span><span class="p">,</span><span class="w"> </span><span class="n">label</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">checkpoints</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">label</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;auto-iter-%&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">created_at</span><span class="p">;</span>
 
-<span class="c1">-- 拆包检视某一个快照里究竟藏了哪些文件</span>
+<span class="c1">-- Inspect a checkpoint&#39;s file manifest</span>
 <span class="k">SELECT</span>
 <span class="w">    </span><span class="n">json_extract</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$.path&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">path</span><span class="p">,</span>
 <span class="w">    </span><span class="n">json_extract</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$.content_hash&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">hash</span><span class="p">,</span>
@@ -964,10 +964,10 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">WHERE</span><span class="w"> </span><span class="n">checkpoint_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HABC...&#39;</span><span class="p">;</span>
 </code></pre></div>
 
-<p><em>背后的索引支撑: <code>idx_checkpoints_agent</code> (<code>agent_id, created_at</code>) —— 详情查阅文末的 <a href="#index-reference">索引目录</a>。</em></p>
+<p><em>Indexed by <code>idx_checkpoints_agent</code> (<code>agent_id, created_at</code>) — see the <a href="#index-catalog">index catalog</a>.</em></p>
 <hr />
-<h2 id="files">files: 虚拟文件系统</h2>
-<p>agent 敲下的任何一个字节，都会在这条专属赛道里生出崭新的版本号记录 —— 所有陈旧版本的尸骨都仍旧躺在那里任你查询；并且哪怕你下了删除指令，所谓的删除也不过是把它雪藏 (soft delete) 起来而已，它的身世历史绝不会因此陪葬。</p>
+<h2 id="files-the-virtual-filesystem">files: the virtual filesystem</h2>
+<p>Every write an agent makes becomes a new versioned row inside that agent's own namespace — earlier versions stay queryable, and a soft delete hides a path without destroying its history.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">files</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">file_id</span><span class="w">         </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
 <span class="w">    </span><span class="n">agent_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">agents</span><span class="p">(</span><span class="n">agent_id</span><span class="p">),</span>
@@ -984,14 +984,14 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_14">字段说明</h3>
+<h3 id="column-guide_5">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -999,85 +999,85 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>file_id</code></td>
 <td>INTEGER</td>
 <td>PRIMARY KEY AUTOINCREMENT</td>
-<td>内部主键标号。</td>
+<td>Internal row id.</td>
 </tr>
 <tr>
 <td><code>agent_id</code></td>
 <td>TEXT</td>
 <td>NOT NULL, FK -&gt; agents</td>
-<td>领地主人；一切查找必须以此起手过滤。</td>
+<td>Namespace owner; every lookup filters on it.</td>
 </tr>
 <tr>
 <td><code>path</code></td>
 <td>TEXT</td>
 <td>NOT NULL</td>
-<td>强制绝对路径并经由 POSIX 规格化处理 (例如 <code>/src/main.py</code>)。</td>
+<td>Absolute and POSIX-normalized (e.g., <code>/src/main.py</code>).</td>
 </tr>
 <tr>
 <td><code>is_dir</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 0</td>
-<td>标为 1 则意味着这是个目录。</td>
+<td>NOT NULL, default 0</td>
+<td>1 marks a directory.</td>
 </tr>
 <tr>
 <td><code>content_hash</code></td>
 <td>TEXT</td>
-<td>可空</td>
-<td>拿到这个去 <code>blobs</code> 里提取正主的 SHA-256 钥匙；对于目录则恒为 NULL。</td>
+<td>nullable</td>
+<td>SHA-256 key into <code>blobs</code>; NULL for directories.</td>
 </tr>
 <tr>
 <td><code>size</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 0</td>
-<td>没做压缩之前的文件裸字节数。</td>
+<td>NOT NULL, default 0</td>
+<td>Bytes before compression.</td>
 </tr>
 <tr>
 <td><code>mode</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 33188</td>
-<td>Unix 风格权限位；33188 等价于 <code>0o100644</code> (常规文件, rw-r--r--)。</td>
+<td>NOT NULL, default 33188</td>
+<td>Unix mode; 33188 = <code>0o100644</code> (regular file, rw-r--r--).</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>记录这具版本化化身降生那一刻。</td>
+<td>NOT NULL, auto-generated</td>
+<td>When this version appeared.</td>
 </tr>
 <tr>
 <td><code>modified_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>记录你最后一次去戳它的时刻。</td>
+<td>NOT NULL, auto-generated</td>
+<td>Last touch.</td>
 </tr>
 <tr>
 <td><code>version</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 1</td>
-<td>对同一条路径每次下笔，这里就乖乖 +1。</td>
+<td>NOT NULL, default 1</td>
+<td>Bumped on every write to the same path.</td>
 </tr>
 <tr>
 <td><code>deleted</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 0</td>
-<td>标为 1 即为软删除雪藏：在常规列表查询里蒸发，但作为历史陈迹保留，以便 checkpoint 随时诈尸还魂。</td>
+<td>NOT NULL, default 0</td>
+<td>1 = soft-deleted: hidden from listings, kept for history and checkpoint restore.</td>
 </tr>
 </tbody>
 </table>
-<p>这个压住全场的 <code>UNIQUE(agent_id, path, version)</code> 约束牢牢守死了版本更替的底线 —— 一切都必须是一个 agent 下面、一条路径里面独一无二的版本号。</p>
-<h3 id="_15">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 把某个 agent 辖区内还活着的活动文件统统列出来</span>
+<p>The constraint <code>UNIQUE(agent_id, path, version)</code> keeps versions distinct — one row per agent, per path, per version number.</p>
+<h3 id="paste-ready-queries_5">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- List all active files for an agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="k">size</span><span class="p">,</span><span class="w"> </span><span class="k">version</span><span class="p">,</span><span class="w"> </span><span class="n">modified_at</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">files</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">deleted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">is_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">path</span><span class="p">;</span>
 
-<span class="c1">-- 把某个特定文件的过往版本底裤也给翻出来</span>
+<span class="c1">-- Get file version history</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="k">version</span><span class="p">,</span><span class="w"> </span><span class="n">content_hash</span><span class="p">,</span><span class="w"> </span><span class="k">size</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="p">,</span><span class="w"> </span><span class="n">deleted</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">files</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/src/app.py&#39;</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">version</span><span class="p">;</span>
 
-<span class="c1">-- 查看某个目录下面一层的直系子集内容</span>
+<span class="c1">-- List directory contents (one level deep)</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">path</span><span class="p">,</span><span class="w"> </span><span class="n">is_dir</span><span class="p">,</span><span class="w"> </span><span class="k">size</span><span class="p">,</span><span class="w"> </span><span class="n">modified_at</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">files</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">agent_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;01HXYZ...&#39;</span>
@@ -1086,7 +1086,7 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">AND</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;/src/%/%&#39;</span>
 <span class="k">AND</span><span class="w"> </span><span class="n">path</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s1">&#39;/src&#39;</span><span class="p">;</span>
 
-<span class="c1">-- 盘点各个 agent 的仓库究竟吃掉了多少硬盘配额</span>
+<span class="c1">-- Total storage used per agent</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">agent_id</span><span class="p">,</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="k">size</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">total_bytes</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">file_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">files</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">deleted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">is_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
@@ -1094,10 +1094,10 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">total_bytes</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </code></pre></div>
 
-<p><em>背后的索引支撑: <code>idx_files_agent_path</code> (<code>agent_id, path</code>，带有局部过滤 <code>WHERE deleted = 0</code>) 以及 <code>idx_files_agent</code> (<code>agent_id</code>) —— 详情查阅文末的 <a href="#index-reference">索引目录</a>。</em></p>
+<p><em>Indexed by <code>idx_files_agent_path</code> (<code>agent_id, path</code>, partial: <code>WHERE deleted = 0</code>) and <code>idx_files_agent</code> (<code>agent_id</code>) — see the <a href="#index-catalog">index catalog</a>.</em></p>
 <hr />
-<h2 id="blobs">blobs: 彻底去重的内容块</h2>
-<p>文件里的肉身字节被死死地捏在 SHA-256 哈希值名下保管，只此一份 —— 如果两个 agent 碰巧写了丝毫不差的内容，系统只会在磁盘里落下唯一一份 blob，而且还是被压缩封印过的。</p>
+<h2 id="blobs-deduplicated-content">blobs: deduplicated content</h2>
+<p>File bytes are stored once, keyed by their SHA-256 — when two agents write the same content, only one blob lands on disk, compressed by default.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">blobs</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="n">content_hash</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 <span class="w">    </span><span class="n">content</span><span class="w">         </span><span class="nb">BLOB</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
@@ -1106,14 +1106,14 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_16">字段说明</h3>
+<h3 id="column-guide_6">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -1121,54 +1121,54 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>content_hash</code></td>
 <td>TEXT</td>
 <td>PRIMARY KEY</td>
-<td>未压缩裸数据的 SHA-256 十六进制签名。</td>
+<td>SHA-256 hex digest of the uncompressed bytes.</td>
 </tr>
 <tr>
 <td><code>content</code></td>
 <td>BLOB</td>
 <td>NOT NULL</td>
-<td>实打实的字节 —— 如果压缩标记被点亮，这就是一段 zstd 压缩包。</td>
+<td>The bytes — zstd-compressed when the flag says so.</td>
 </tr>
 <tr>
 <td><code>compressed</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 0</td>
-<td>1 = 该段数据已遭 zstd 压缩，0 = 原汁原味的裸片。</td>
+<td>NOT NULL, default 0</td>
+<td>1 = stored zstd-compressed, 0 = raw.</td>
 </tr>
 <tr>
 <td><code>ref_count</code></td>
 <td>INTEGER</td>
-<td>NOT NULL, 默认 1</td>
-<td>有多少条 files 里的记录是指向这里的；删掉文件记录就递减，跌落到 &lt;= 0 随时准备拉去火化 (回收)。</td>
+<td>NOT NULL, default 1</td>
+<td>How many file rows point here; drops when files are deleted, and at &lt;= 0 the blob can be collected.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_17">运作机制拆解</h3>
+<h3 id="behavior-notes_1">Behavior notes</h3>
 <ul>
-<li><strong>极致去重。</strong> 第二次尝试把一模一样的东西塞进来，系统连一根毛都不会往下存，只会在 <code>ref_count</code> 上无情地加个一。</li>
-<li><strong>全系压缩。</strong> 默认强制开启：所有字节在落盘前先被抓去过一遍 zstandard level 3，同时那个 <code>compressed</code> 标签负责告诉读取端在提取时别忘了先过个解压漏斗。</li>
-<li><strong>冷酷回收 (Garbage collection)。</strong> <code>BlobStore.gc()</code> 发作起来，所有 <code>ref_count &lt;= 0</code> 的行统统灰飞烟灭。这样做没一点毛病，因为所谓的软删除文件依旧会死死拽着自己的 <code>content_hash</code>，所以哪怕是被扔进垃圾桶的文件，凭 checkpoint 依然能顺理成章地捞出全尸。</li>
+<li><strong>Dedup.</strong> A second write of identical content stores nothing new — <code>ref_count</code> goes up instead.</li>
+<li><strong>Compression.</strong> On by default: bytes pass through zstandard level 3 before storage, and the <code>compressed</code> flag tells readers whether to decompress on the way out.</li>
+<li><strong>Garbage collection.</strong> <code>BlobStore.gc()</code> removes every row with <code>ref_count &lt;= 0</code>. That is safe because soft-deleted files keep their <code>content_hash</code>, so checkpoints can still restore them.</li>
 </ul>
-<h3 id="_18">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 调出 Blob 存储仓库的大体检报表</span>
+<h3 id="paste-ready-queries_6">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- Blob store statistics</span>
 <span class="k">SELECT</span>
 <span class="w">    </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">total_blobs</span><span class="p">,</span>
 <span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="k">LENGTH</span><span class="p">(</span><span class="n">content</span><span class="p">))</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">total_stored_bytes</span><span class="p">,</span>
 <span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="n">ref_count</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">total_references</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">blobs</span><span class="p">;</span>
 
-<span class="c1">-- 抓出那些无家可归随时会被物理超度的幽灵 blob</span>
+<span class="c1">-- Find orphaned blobs (eligible for GC)</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">content_hash</span><span class="p">,</span><span class="w"> </span><span class="k">LENGTH</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">stored_size</span><span class="p">,</span><span class="w"> </span><span class="n">ref_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">blobs</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">ref_count</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
 
-<span class="c1">-- 拉出按体量排名的全场前十大巨兽 blob</span>
+<span class="c1">-- Largest blobs by stored size</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">content_hash</span><span class="p">,</span><span class="w"> </span><span class="k">LENGTH</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">stored_bytes</span><span class="p">,</span><span class="w"> </span><span class="n">ref_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">blobs</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">LENGTH</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span>
 <span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
 
-<span class="c1">-- 看看哪些 blob 被不止一个文件高频白嫖</span>
+<span class="c1">-- Blobs shared across multiple files</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">content_hash</span><span class="p">,</span><span class="w"> </span><span class="n">ref_count</span>
 <span class="k">FROM</span><span class="w"> </span><span class="n">blobs</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">ref_count</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span>
@@ -1176,22 +1176,22 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 </code></pre></div>
 
 <hr />
-<h2 id="schema_version">schema_version: 迁移大账本</h2>
-<p>一横一竖只记录一条迁移指令，这样随便抛出一个 <code>bene.db</code> 的克隆体，它自己就能用这本账册自证清白：我究竟搭载了哪个阶段的骨架。</p>
+<h2 id="schema_version-the-migration-record">schema_version: the migration record</h2>
+<p>A one-row-per-migration ledger, so any copy of <code>bene.db</code> can prove which schema it carries.</p>
 <div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">schema_version</span><span class="w"> </span><span class="p">(</span>
 <span class="w">    </span><span class="k">version</span><span class="w">         </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
 <span class="w">    </span><span class="n">applied_at</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-%dT%H:%M:%f&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">))</span>
 <span class="p">);</span>
 </code></pre></div>
 
-<h3 id="_19">字段说明</h3>
+<h3 id="column-guide_7">Column guide</h3>
 <table>
 <thead>
 <tr>
-<th>字段</th>
-<th>类型</th>
-<th>约束</th>
-<th>描述</th>
+<th>Column</th>
+<th>Type</th>
+<th>Constraints</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
@@ -1199,58 +1199,58 @@ blobs   &lt;----  files         (1:N - 多个文件可能共享同一个内容 b
 <td><code>version</code></td>
 <td>INTEGER</td>
 <td>PRIMARY KEY</td>
-<td>迁移序列号。当前最新推进到了: 4。</td>
+<td>The migration number. Current: 4.</td>
 </tr>
 <tr>
 <td><code>applied_at</code></td>
 <td>TEXT</td>
-<td>NOT NULL, 自动生成</td>
-<td>执行这波迁移的确切时刻。</td>
+<td>NOT NULL, auto-generated</td>
+<td>When that migration ran.</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_20">迁移动力学机制</h3>
+<h3 id="migration-mechanics">Migration mechanics</h3>
 <ul>
-<li>初次开荒建库时，直接把版本 4 硬凿进表里。</li>
-<li>在后续启动时，如果库里记载的版本落后于当前代码里锁定的 <code>SCHEMA_VERSION</code>，系统就会通过 <code>_apply_migrations()</code> 一阶一阶地把它暴力推向前沿。</li>
-<li>未来的更新，会在 <code>bene/schema.py</code> 里统一按 <code>if from_version &lt; N:</code> 规矩落座。</li>
+<li>First initialization inserts version 4.</li>
+<li>On later opens, a database that trails the code's <code>SCHEMA_VERSION</code> is brought forward by incremental migrations through <code>_apply_migrations()</code>.</li>
+<li>Future steps land as <code>if from_version &lt; N:</code> blocks in <code>bene/schema.py</code>.</li>
 </ul>
-<h3 id="_21">开箱即用的查询语句</h3>
-<div class="codehilite"><pre><span></span><code><span class="c1">-- 查查当前的 schema 究竟推进到了哪一版</span>
+<h3 id="paste-ready-queries_7">Paste-ready queries</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">-- Check current schema version</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="k">version</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">current_version</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">schema_version</span><span class="p">;</span>
 
-<span class="c1">-- 拉出整个从古到今的迁移编年史</span>
+<span class="c1">-- Migration history</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="k">version</span><span class="p">,</span><span class="w"> </span><span class="n">applied_at</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">schema_version</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">version</span><span class="p">;</span>
 </code></pre></div>
 
 <hr />
 <p><a id="relationships"></a></p>
-<h2 id="_22">表与表是如何在暗中咬合的</h2>
-<p>schema 内部的每根引线，在这里一览无遗：</p>
-<div class="codehilite"><pre><span></span><code>agents.agent_id    ----&lt;  files.agent_id           (一个 agent 坐拥多份文件)
-agents.agent_id    ----&lt;  tool_calls.agent_id      (一个 agent 发起多笔 tool 调用)
-agents.agent_id    ----&lt;  state.agent_id           (一个 agent 维系多条 state 状态键)
-agents.agent_id    ----&lt;  events.agent_id          (一个 agent 产生多条流转事件)
-agents.agent_id    ----&lt;  checkpoints.agent_id     (一个 agent 刻下多座 checkpoint 墓碑)
-agents.agent_id    &lt;---   agents.parent_id         (血脉相连的自我嵌套)
-blobs.content_hash &lt;---   files.content_hash       (同一坨血肉对应多张皮囊)
-tool_calls.call_id &lt;---   tool_calls.parent_call_id (层层嵌套的调用闭环链条)
-events.event_id    &lt;---   checkpoints.event_id     (把 checkpoint 钢钉直接打穿事件流)
+<h2 id="how-the-tables-join-up">How the tables join up</h2>
+<p>Every relationship in the schema, in one view:</p>
+<div class="codehilite"><pre><span></span><code>agents.agent_id    ----&lt;  files.agent_id           (one agent, many files)
+agents.agent_id    ----&lt;  tool_calls.agent_id      (one agent, many tool calls)
+agents.agent_id    ----&lt;  state.agent_id           (one agent, many state keys)
+agents.agent_id    ----&lt;  events.agent_id          (one agent, many events)
+agents.agent_id    ----&lt;  checkpoints.agent_id     (one agent, many checkpoints)
+agents.agent_id    &lt;---   agents.parent_id         (self-referencing parent/child)
+blobs.content_hash &lt;---   files.content_hash       (one blob, many file versions)
+tool_calls.call_id &lt;---   tool_calls.parent_call_id (self-referencing call chain)
+events.event_id    &lt;---   checkpoints.event_id     (checkpoint watermark into event stream)
 </code></pre></div>
 
-<p>这些连线可不是画在纸上的涂鸦。所有的牵扯都会被强制通过 <code>PRAGMA foreign_keys=ON</code> 让底层的 SQLite 执行冷血拒签 —— 任何文件休想去投靠一个根本不存在的幽灵 agent。</p>
+<p>These links are not decorative. Every connection sets <code>PRAGMA foreign_keys=ON</code>, so SQLite itself refuses orphaned rows — a file can never belong to an agent that does not exist.</p>
 <hr />
 <p><a id="index-reference"></a></p>
-<h2 id="_23">索引目录</h2>
-<p>随着 schema 下发的每一把索引利器，以及它们所背负的特定狩猎指标：</p>
+<h2 id="index-catalog">Index catalog</h2>
+<p>Each index that ships with the schema, and the query shape it serves:</p>
 <table>
 <thead>
 <tr>
-<th>所在表</th>
-<th>索引代号</th>
-<th>横跨字段</th>
-<th>是否偏袒 (Partial)</th>
-<th>服役使命</th>
+<th>Table</th>
+<th>Index Name</th>
+<th>Columns</th>
+<th>Partial?</th>
+<th>Purpose</th>
 </tr>
 </thead>
 <tbody>
@@ -1258,78 +1258,78 @@ events.event_id    &lt;---   checkpoints.event_id     (把 checkpoint 钢钉直�
 <td>agents</td>
 <td><code>idx_agents_status</code></td>
 <td><code>status</code></td>
-<td>否</td>
-<td>借用生命周期大类去大筛 agent</td>
+<td>No</td>
+<td>Filter agents by lifecycle state</td>
 </tr>
 <tr>
 <td>agents</td>
 <td><code>idx_agents_parent</code></td>
 <td><code>parent_id</code></td>
-<td>否</td>
-<td>揪出子嗣</td>
+<td>No</td>
+<td>Find child agents</td>
 </tr>
 <tr>
 <td>files</td>
 <td><code>idx_files_agent_path</code></td>
 <td><code>agent_id, path</code></td>
-<td>是 (<code>deleted=0</code>)</td>
-<td>排除掉软删除垃圾后的极速文件拔查</td>
+<td>Yes (<code>deleted=0</code>)</td>
+<td>Fast file lookup excluding deleted</td>
 </tr>
 <tr>
 <td>files</td>
 <td><code>idx_files_agent</code></td>
 <td><code>agent_id</code></td>
-<td>否</td>
-<td>把某个 agent 名下的破烂全抖搂出来</td>
+<td>No</td>
+<td>List all files for an agent</td>
 </tr>
 <tr>
 <td>tool_calls</td>
 <td><code>idx_tool_calls_agent</code></td>
 <td><code>agent_id, started_at</code></td>
-<td>否</td>
-<td>依照时间轴铺开的调用长卷</td>
+<td>No</td>
+<td>Chronological call history</td>
 </tr>
 <tr>
 <td>tool_calls</td>
 <td><code>idx_tool_calls_tool</code></td>
 <td><code>tool_name</code></td>
-<td>否</td>
-<td>认清具体到底用了哪件法宝</td>
+<td>No</td>
+<td>Filter by tool type</td>
 </tr>
 <tr>
 <td>tool_calls</td>
 <td><code>idx_tool_calls_status</code></td>
 <td><code>status</code></td>
-<td>否</td>
-<td>顺着状态把调用抠出来</td>
+<td>No</td>
+<td>Find calls by status</td>
 </tr>
 <tr>
 <td>events</td>
 <td><code>idx_events_agent_time</code></td>
 <td><code>agent_id, timestamp</code></td>
-<td>否</td>
-<td>把事件串联回时间长河</td>
+<td>No</td>
+<td>Chronological event stream</td>
 </tr>
 <tr>
 <td>events</td>
 <td><code>idx_events_type</code></td>
 <td><code>event_type</code></td>
-<td>否</td>
-<td>依据事件种姓展开过滤</td>
+<td>No</td>
+<td>Filter by event type</td>
 </tr>
 <tr>
 <td>checkpoints</td>
 <td><code>idx_checkpoints_agent</code></td>
 <td><code>agent_id, created_at</code></td>
-<td>否</td>
-<td>按资排辈地罗列出来的快照履历</td>
+<td>No</td>
+<td>Chronological checkpoint listing</td>
 </tr>
 </tbody>
 </table>
-<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/schema.md" target="_blank" rel="noopener noreferrer">docs/schema.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
+<div class="src">source: <a href="https://github.com/good-night-oppie/bene/blob/main/docs/schema.md" target="_blank" rel="noopener noreferrer">docs/schema.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
-<footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>
-<a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer">Building something on bene? Open a Discussion.</a></div></footer>
+<footer class="ft"><div class="in"><span>BENE 0.2.1 · local-first · SQLite · built in the open</span>
+<a href="https://github.com/good-night-oppie/bene/discussions" target="_blank" rel="noopener noreferrer">Building something on bene? Open a Discussion.</a></div></footer>
 </body>
 </html>
