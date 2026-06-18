@@ -29,6 +29,10 @@ repos:
       - id: trailing-whitespace
         exclude: '\.md$'      # markdown trailing-space = soft line break
       - id: end-of-file-fixer
+        # site/blog HTML is GENERATED + synced from the bene-site repo ("never edit
+        # the HTML" — site/build-blog.py emits no trailing newline). Every bene blog
+        # sync otherwise re-breaks full-tree CI for every open PR (bene-main #33/#37).
+        exclude: '^site/(zh/)?blog/.*\.html$'
       - id: check-yaml
         exclude: '^expeditions/'
       - id: check-toml
