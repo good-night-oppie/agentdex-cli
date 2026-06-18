@@ -182,3 +182,28 @@ def test_cumulative_truncation_is_consistent_across_resim(monkeypatch):
     assert len(original.protocol_log) <= 25
     # truncation is consistent → canonical (|t:|-stripped) protocols still agree
     assert canonical_protocol(original) == canonical_protocol(replayed)
+
+
+def test_byte_cap_truncates_consistently_across_resim(monkeypatch):
+    """A long battle can stay UNDER the line cap yet exceed the 16 MiB Python
+    readline budget because each captured |request| carries the side's roster JSON.
+    The companion BYTE cap bounds the log; with a tiny byte budget both the live
+    battle and its replay truncate at the same cumulative point, so re-sim parity
+    holds (a per-step byte cap would diverge). PR #214 review 3432149322."""
+    monkeypatch.setenv("ADX_SIDECAR_MAX_PROTOCOL_BYTES", "512")  # well under one battle
+
+    async def _run() -> tuple[BattleResult, BattleResult]:
+        async with Sidecar() as sc:
+            original = await run_battle(sc, **_spec(seed_base=42424))
+            replayed = await replay_input_log(
+                sc, battle_id="bytecap-replay", input_log=original.input_log
+            )
+            return original, replayed
+
+    original, replayed = asyncio.run(_run())
+    assert original.protocol_truncated is True  # byte budget hit before the line cap
+    assert replayed.protocol_truncated is True
+    # the stored log is a contiguous prefix bounded by the byte budget
+    assert sum(len(ln.encode("utf-8")) + 1 for ln in original.protocol_log) <= 512
+    # consistent truncation point → canonical (|t:|-stripped) protocols still agree
+    assert canonical_protocol(original) == canonical_protocol(replayed)

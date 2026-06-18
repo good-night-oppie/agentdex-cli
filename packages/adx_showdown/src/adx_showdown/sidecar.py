@@ -67,11 +67,16 @@ class Sidecar:
         }
         if self._max_battles is not None:
             env["ADX_SIDECAR_MAX_BATTLES"] = str(self._max_battles)
-        # pass the protocol-log cap through (else the sidecar default applies and
-        # the knob is unreachable from a deployed gateway / a test).
+        # pass the protocol-log caps through (else the sidecar default applies and
+        # the knob is unreachable from a deployed gateway / a test). Both the line
+        # cap and its companion byte cap (bounds the single-NDJSON replay response
+        # under the 16 MiB readline limit).
         _proto_cap = os.environ.get("ADX_SIDECAR_MAX_PROTOCOL_LINES")
         if _proto_cap:
             env["ADX_SIDECAR_MAX_PROTOCOL_LINES"] = _proto_cap
+        _proto_byte_cap = os.environ.get("ADX_SIDECAR_MAX_PROTOCOL_BYTES")
+        if _proto_byte_cap:
+            env["ADX_SIDECAR_MAX_PROTOCOL_BYTES"] = _proto_byte_cap
         # V8 old-space cap. Default 96 MB fits the 256 MB nano (one sidecar +
         # FastAPI gateway). On a multi-core box each pooled sidecar (ADR-0012
         # SidecarPool) gets its own process — raise this via the env knob so a
