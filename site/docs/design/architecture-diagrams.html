@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用 — BENE 文档</title>
-<meta name="description" content="BENE 0.2.0 文档 — 菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用" />
+<title>Architecture diagrams — BENE docs</title>
+<meta name="description" content="BENE 0.2.0 documentation — Architecture diagrams" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -155,19 +155,19 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .codehilite .il { color: #AE81FF } /* Literal.Number.Integer.Long */
 .codehilite { background: var(--term-bg) !important; }
 </style>
-
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"; mermaid.initialize({startOnLoad: true, theme: "neutral"});</script>
 </head>
 <body>
 <div class="top"><div class="top-in">
-  <a class="brand" href="../../../index.html">BENE</a>
-  <a class="nav" href="../../../index.html">Landing</a>
-  <a class="nav" href="../index.html">文档索引</a>
-  <a class="nav" href="../../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
-  <button class="nav copy-llms" data-llms-url="../../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
+  <a class="brand" href="../../index.html">BENE</a>
+  <a class="nav" href="../../index.html">Landing</a>
+  <a class="nav" href="../index.html">Docs index</a>
+  <a class="nav" href="../../SKILL.md" target="_blank" rel="noopener noreferrer" title="Hand BENE to your agent in one URL">SKILL.md ↗</a>
+  <button class="nav copy-llms" data-llms-url="../../llms.txt" data-copied-label="✓ copied" data-opened-label="↗ opened" title="Copy the llms.txt site map (an LLM-friendly index pointing at SKILL.md + every doc). Paste it into your agent's context.">Copy llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="vertical-align:text-bottom"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
-  <a class="nav" href="../../../docs/recipes/atomic-completion.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
+  <a class="nav" href="../../zh/docs/design/architecture-diagrams.html" title="切换到中文" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">文</a>
 </div></div>
-<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/recipes/atomic-completion.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
+
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -217,9 +217,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
 <h4>Recipes</h4>
-<a class="cur" href="../recipes/atomic-completion.html">atomic-completion</a>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
-<a href="../design/architecture-diagrams.html">architecture-diagrams</a>
+<a class="cur" href="../design/architecture-diagrams.html">architecture-diagrams</a>
 <h4>Benchmarks and gates</h4>
 <a href="../benchmarks/COMMUNITY-BENCH-REPORT.html">COMMUNITY-BENCH-REPORT</a>
 <a href="../benchmarks/PREREG.html">PREREG</a>
@@ -241,78 +241,78 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../case-studies/cs04-trace-rag-other-memory.html">cs04-trace-rag-other-memory</a>
 <a href="../case-studies/cs05-meta-harness-evolution.html">cs05-meta-harness-evolution</a></aside>
 <main>
-<div class="crumbs"><a href="../index.html">docs</a> / recipes/atomic-completion.md</div>
-<h1 id="atomic-completion">菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用</h1>
-<p>在一个长时间运行的 Agent 系统里，最致命的 P1 级连环 Bug 通常源自<strong>非原子化的完成操作 (non-atomic completion)</strong>：副作用（比如生成一张收据、扣减一次配额、或者派生一个分支）已经发生，结果进程却在把这条持久化记录提交落盘前暴毙了 —— 这会留下一个<strong>幽灵 (ghost)</strong>（外部状态变了，但没有任何记录察觉），或是在重试时触发双重扣费，又或是让那些存在内存里的计数器随着一次重启直接灰飞烟灭。</p>
-<p>解决这个问题，不需要请出 Temporal 或任何持久化运行时依赖。我们只需在一个普普通通的 SQLite 或 JSONL 日志上耍三招底层的<strong>无依赖通杀技 (substrate-agnostic moves)</strong>。相关的参考代码在 <code>bene/recipes/idempotent_append.py</code> 里；它们吃的是 <code>sqlite3.Connection</code> 而不是 <code>Bene</code> 实例，所以你大可以把它们整碗端进你自己的事件层里。</p>
-<h2 id="_1">三板斧</h2>
-<ol>
-<li><strong>幂等追加 (Idempotent append)</strong> — 先按 <code>idempotency_key</code> 执行 <code>SELECT</code>，没有再 <code>INSERT</code>；因为该列被设为 <code>UNIQUE</code>，所以任何重播（或者并发的竞争者）都会变成一次安全空转，并乖乖返回之前生成好的 ID。这就是<strong>精确一次 (Exactly-once)</strong> 的保证。</li>
-<li><strong>顺序倒置 (Ordering inversion)</strong> — <strong>先</strong>把持久化记录提交落盘，<strong>再</strong>把副作用释放到外部去，等副作用回调后再把记录标记为已完成。这样一来，即使发生崩溃，留下来的要么是一条干干净净的已完成记录，要么就是一条等着你重试的挂起记录——绝不会凭空冒出一个毫无案底的幽灵副作用。</li>
-<li><strong>拉起时的投影重建 (Projection rebuild)</strong> — 每次开机时，把那卷持久化日志从头到尾盘一遍，借此把内存状态（比如缓存或计数器）重塑出来，这样重启操作就再也别想偷走任何易失性数据了。</li>
-</ol>
-<h2 id="1">1. 幂等追加</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">append_once</span>
+<div class="crumbs"><a href="../index.html">docs</a> / design/architecture-diagrams.md</div>
+<h1 id="architecture-diagrams">Architecture diagrams</h1>
+<p>Three pictures of how BENE fits together: the single-file <strong>Nexus</strong>, the
+<strong>engram compression ladder</strong>, and the <strong>autonomy ladder</strong>. Each diagram is the
+shape; the prose says what it's load-bearing for.</p>
+<h2 id="the-nexus-many-isolated-agents-one-file">The Nexus — many isolated agents, one file</h2>
+<p>Every agent has its own VFS, event journal, checkpoints, and traces — but they
+all live in <strong>one</strong> SQLite database. That single file is the Nexus: the join
+point for the whole swarm, and the thing you copy, diff, or check into git.
+(WAL mode keeps recent commits in a <code>bene.db-wal</code> sidecar until a checkpoint, so
+on a live process run a WAL checkpoint (or close) before copying only <code>bene.db</code>,
+or copy the <code>-wal</code>/<code>-shm</code> sidecars alongside it.)</p>
+<div class="mermaid">
+flowchart TB
+    subgraph agents["Isolated agents (SQL-scoped by agent_id)"]
+        A1["researcher<br/>VFS · events · checkpoints"]
+        A2["refactor-bot<br/>VFS · events · checkpoints"]
+        A3["reviewer<br/>VFS · events · checkpoints"]
+    end
+    A1 --> DB
+    A2 --> DB
+    A3 --> DB
+    DB[("bene.db — one auditable<br/>SQLite file · the Nexus")]
+    DB --> S["shared log · blobs · engrams"]
+</div>
 
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
+<p><em>Load-bearing:</em> an agent's own <code>fs_*</code> tools are scoped to its <code>agent_id</code>, so in
+normal operation "many agents, one file" doesn't mean agents stumble into each
+other. It is logical namespacing, not a hard authorization boundary — the
+operator surface (<code>Bene.read</code>/<code>query</code>, the <code>agent_read</code>/<code>agent_write</code> MCP tools)
+takes an explicit <code>agent_id</code> and can cross agents by design. The union is the
+audit surface.</p>
+<h2 id="the-engram-compression-ladder">The engram compression ladder</h2>
+<p>Execution traces are stored on a tiered ladder (0–4): raw at the bottom,
+progressively compressed summaries above. Retrieval searches the cheap high
+tiers first and drills into detail only on a hit — so memory stays searchable as
+the corpus grows.</p>
+<div class="mermaid">
+flowchart LR
+    T0["Tier 0<br/>raw traces<br/>(every turn)"] --> T1["Tier 1<br/>granule summaries"]
+    T1 --> T2["Tier 2"]
+    T2 --> T3["Tier 3"]
+    T3 --> T4["Tier 4<br/>most compressed"]
+    Q(["bene retrieve"]) -. "search cheap tiers,<br/>drill down on a hit" .-> T3
+    Q -.-> T2
+</div>
 
-<span class="n">seq</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-<span class="c1"># 如果用同一个 key 再重播一次，它只会是一次返回之前 ID 的空转：</span>
-<span class="n">seq2</span><span class="p">,</span> <span class="n">created2</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="k">assert</span> <span class="p">(</span><span class="n">created</span><span class="p">,</span> <span class="n">created2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">==</span> <span class="n">seq2</span>
-</code></pre></div>
+<p><em>Load-bearing:</em> capture is the default (every run drops a tier-0 trace), and the
+ladder is what keeps "remember everything" from becoming "scan everything."</p>
+<h2 id="the-autonomy-ladder-l0-l4">The autonomy ladder (L0 → L4)</h2>
+<p>Agents operate at a rung. Computed trust (four signals + a composite) raises the
+floor an agent is allowed to reach — but the top rung, autonomous promotion, is
+<strong>capped below L4 by the engine</strong> and only a human grant crosses it.</p>
+<div class="mermaid">
+flowchart TB
+    L0["L0 · Observe"] --> L1["L1 · Suggest"]
+    L1 --> L2["L2 · Act in sandbox"]
+    L2 --> L3["L3 · Act on shared state"]
+    L3 --> L4["L4 · Autonomous-promote"]
+    Trust["computed trust<br/>(4 signals + composite)"] -. "trust:auto promotes up to L3<br/>(records a grant); L4 stays human" .-> L3
+    Human["human grant<br/>(--by human:name)"] ==> L4
+</div>
 
-<p><code>idempotency_key</code> 这个字段被上了 <code>UNIQUE</code> 锁，所以哪怕是个直接绕过 <code>SELECT</code> 强行塞数据的并发疯子，也会被数据库的约束机制无情拍飞，绝对写不进重复的账条。</p>
-<h2 id="2">2. 顺序倒置 (告别幽灵副作用)</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete_in_order</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">shipped</span> <span class="o">=</span> <span class="p">[]</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">ship_the_box</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
-    <span class="n">shipped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;sku&quot;</span><span class="p">])</span>
-
-<span class="c1"># 先让持久化记录落盘 COMMIT，然后才触发对外可见的副作用</span>
-<span class="n">complete_in_order</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:ship&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;sku&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">},</span> <span class="n">side_effect</span><span class="o">=</span><span class="n">ship_the_box</span><span class="p">)</span>
-<span class="k">assert</span> <span class="n">shipped</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">]</span>
-</code></pre></div>
-
-<p><code>complete_in_order</code> 的逻辑是追加记录 + <strong>马上 COMMIT</strong>，然后再去触发那个副作用。如果 COMMIT 刚完进程就死了，你至少能从日志里捞出那条“已记录但未完结”的账，然后从头再驱动一次；这总比丢出一个没有任何案底的箱子要强得多。而被它干掉的反模式 —— <code>complete_side_effect_first</code> —— 则是先干脏活再 COMMIT，这两步之间的任何一次断电都会催生出一个幽灵（这个反面教材还留在模块里，专作反面教材之用）。</p>
-<p>如果进程死在外部调用的<strong>途中</strong>，那么这个帮手函式稍后会把这行挂起的记录拿出来重试。因此，请务必把你的幂等键 (idempotency key) 一并传给那个外部系统，或者确保这个副作用本身经得起反复碾压；毕竟，光靠一个本地日志，是没法把一个不具备幂等特性的远程突变魔法般地变成“精确一次”的。</p>
-<h2 id="3">3. 开机时的投影重建</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">append_once</span><span class="p">,</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">replay_projection</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-1&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">40</span><span class="p">})</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-2&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-
-<span class="n">balance</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
-<span class="n">replay_projection</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">key</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">balance</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span>
-    <span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;amount&quot;</span><span class="p">]))</span>
-<span class="k">assert</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">100</span>
-<span class="c1"># `balance` 纯粹是靠着持久化的日志一笔一笔重塑出来的 —— 跨越重启，无一分易失状态丢失。</span>
-<span class="c1"># (这就是专门用来治那类所谓的“重启失忆症 / `/replay` 报 404” 顽疾的配方)。</span>
-</code></pre></div>
-
-<h2 id="temporal">耐久性警语 —— 不需要 Temporal</h2>
-<p>这个菜谱是<strong>与底层无关的，且不会引入任何运行时依赖</strong>。只要你手头上有一个支持提交特性的日志系统（在这里是 SQLite；同样的打法你完全能无缝搬到一个用 <code>flock</code> 上锁的 JSONL 追加器上），它就能赋予你“精确一次”外加“无幽灵”的完成保障。</p>
-<p>但请记住，它<strong>不能</strong>提供超越你存储介质本身的跨进程耐久度。尤其是，BENE 的 <code>LocalRuntime</code> 已经挑明了<strong>不具备</strong>跨重启的耐久性，而 <code>submit_side_effect</code> 那本带护栏的账本也只有在用上了 <code>TemporalRuntime</code>（目前在大多数部署里都只是个占位符）时才作数 —— 所以，<strong>千万别</strong>指望运行时能帮你兜底持久化记录。这本提交过的日志<strong>本身</strong>才是那条持久化生命线，而这正是整套拳法的精髓所在：只消做个简单的时序倒置，外加一把幂等锁，你就能在不碰 Temporal 这尊大佛的前提下，把绝大把的原子化收益稳稳装进口袋。</p>
-<h2 id="_2">延伸阅读</h2>
-<ul>
-<li><code>bene/recipes/idempotent_append.py</code> — 包含参考用法的帮手函式。</li>
-<li><code>tests/test_atomic_completion_recipe.py</code> — 通过模拟崩溃，证实了精确一次 + 无幽灵机制的靠谱程度。</li>
-<li><a href="../integrating-bene.html">集成 BENE (Integrating BENE)</a> — 看看这套招式在那五个落地阶段里到底能排老几。</li>
-</ul>
-<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/recipes/atomic-completion.md" target="_blank" rel="noopener noreferrer">docs/recipes/atomic-completion.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
+<p><em>Load-bearing:</em> autonomy is <em>earned</em> from observed behavior, not asserted.
+Shared-state actions live at <strong>L3</strong>; the top rung — <strong>L4</strong>, autonomous
+self-promotion — is the one that always requires a human grant.</p>
+<hr />
+<p><em>Diagrams are Mermaid; the docs site renders them inline. Grounded in
+<code>bene/kernel/harness/autonomy.py</code> (the L0–L4 labels), the engram tier model, and
+the single-file Nexus design. Source: edit this markdown, never the generated
+HTML.</em></p>
+<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/design/architecture-diagrams.md" target="_blank" rel="noopener noreferrer">docs/design/architecture-diagrams.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
 <footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>

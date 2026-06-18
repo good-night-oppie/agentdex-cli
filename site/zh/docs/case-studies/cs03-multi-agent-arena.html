@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用 — BENE 文档</title>
-<meta name="description" content="BENE 0.2.0 文档 — 菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用" />
+<title>在 BENE 上搭一座对抗式编程竞技场：底座层的设计 (A Competitive Coding Arena on BENE: Design at the Substrate Layer) — BENE 文档</title>
+<meta name="description" content="BENE 0.2.0 文档 — 在 BENE 上搭一座对抗式编程竞技场：底座层的设计 (A Competitive Coding Arena on BENE: Design at the Substrate Layer)" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -165,9 +165,9 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
   <a class="nav" href="../../../SKILL.md" target="_blank" rel="noopener noreferrer" title="把 BENE 交给你的 agent，一个 URL">SKILL.md ↗</a>
   <button class="nav copy-llms" data-llms-url="../../../llms.txt" data-copied-label="✓ 已复制" data-opened-label="↗ 已打开" title="把 llms.txt 索引拷到剪贴板 — 粘贴进你 agent 的 context">复制 llms.txt</button>
   <a class="nav" href="https://github.com/EdwardTang/bene-site" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="vertical-align:text-bottom"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a>
-  <a class="nav" href="../../../docs/recipes/atomic-completion.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
+  <a class="nav" href="../../../docs/case-studies/cs03-multi-agent-arena.html" title="Switch to English" style="border:1px solid rgba(136,136,136,.4);padding:2px 8px;border-radius:3px">EN</a>
 </div></div>
-<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/recipes/atomic-completion.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
+<div class="zh-banner" style="background:rgba(238,96,24,.07);border-bottom:1px solid rgba(238,96,24,.2);padding:12px 24px;font-size:13px;line-height:1.5;color:rgb(var(--muted))"><strong style="color:rgb(var(--text))">本页中文版正在按照 4-book methodology 翻译（Mom Test / Pressfield / Zinsser / Dicks）—— 不放 AI 翻译稿。</strong> 下方是英文原文，点上方 <a href="../../../docs/case-studies/cs03-multi-agent-arena.html" style="color:rgb(var(--accent));text-decoration:underline">EN</a> 直接到英文页面， 或在 <a href="https://github.com/EdwardTang/bene-site/discussions" target="_blank" rel="noopener noreferrer" style="color:rgb(var(--accent));text-decoration:underline">Discussions</a> 里贡献翻译。</div>
 <script>
 (function() {
   document.querySelectorAll('button.copy-llms').forEach(function(btn) {
@@ -217,7 +217,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../skills.html">skills</a>
 <a href="../use-cases.html">use-cases</a>
 <h4>Recipes</h4>
-<a class="cur" href="../recipes/atomic-completion.html">atomic-completion</a>
+<a href="../recipes/atomic-completion.html">atomic-completion</a>
 <h4>Design and claims</h4>
 <a href="../design/architecture-diagrams.html">architecture-diagrams</a>
 <h4>Benchmarks and gates</h4>
@@ -237,82 +237,106 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <a href="../tutorials/t11-local-agents-vllm.html">t11-local-agents-vllm</a>
 <h4>Case studies</h4>
 <a href="../case-studies/cs02-ci-self-healing-refactor-swarm.html">cs02-ci-self-healing-refactor-swarm</a>
-<a href="../case-studies/cs03-multi-agent-arena.html">cs03-multi-agent-arena</a>
+<a class="cur" href="../case-studies/cs03-multi-agent-arena.html">cs03-multi-agent-arena</a>
 <a href="../case-studies/cs04-trace-rag-other-memory.html">cs04-trace-rag-other-memory</a>
 <a href="../case-studies/cs05-meta-harness-evolution.html">cs05-meta-harness-evolution</a></aside>
 <main>
-<div class="crumbs"><a href="../index.html">docs</a> / recipes/atomic-completion.md</div>
-<h1 id="atomic-completion">菜谱：原子化完成 (atomic completion) — 精确一次执行，杜绝“幽灵”副作用</h1>
-<p>在一个长时间运行的 Agent 系统里，最致命的 P1 级连环 Bug 通常源自<strong>非原子化的完成操作 (non-atomic completion)</strong>：副作用（比如生成一张收据、扣减一次配额、或者派生一个分支）已经发生，结果进程却在把这条持久化记录提交落盘前暴毙了 —— 这会留下一个<strong>幽灵 (ghost)</strong>（外部状态变了，但没有任何记录察觉），或是在重试时触发双重扣费，又或是让那些存在内存里的计数器随着一次重启直接灰飞烟灭。</p>
-<p>解决这个问题，不需要请出 Temporal 或任何持久化运行时依赖。我们只需在一个普普通通的 SQLite 或 JSONL 日志上耍三招底层的<strong>无依赖通杀技 (substrate-agnostic moves)</strong>。相关的参考代码在 <code>bene/recipes/idempotent_append.py</code> 里；它们吃的是 <code>sqlite3.Connection</code> 而不是 <code>Bene</code> 实例，所以你大可以把它们整碗端进你自己的事件层里。</p>
-<h2 id="_1">三板斧</h2>
-<ol>
-<li><strong>幂等追加 (Idempotent append)</strong> — 先按 <code>idempotency_key</code> 执行 <code>SELECT</code>，没有再 <code>INSERT</code>；因为该列被设为 <code>UNIQUE</code>，所以任何重播（或者并发的竞争者）都会变成一次安全空转，并乖乖返回之前生成好的 ID。这就是<strong>精确一次 (Exactly-once)</strong> 的保证。</li>
-<li><strong>顺序倒置 (Ordering inversion)</strong> — <strong>先</strong>把持久化记录提交落盘，<strong>再</strong>把副作用释放到外部去，等副作用回调后再把记录标记为已完成。这样一来，即使发生崩溃，留下来的要么是一条干干净净的已完成记录，要么就是一条等着你重试的挂起记录——绝不会凭空冒出一个毫无案底的幽灵副作用。</li>
-<li><strong>拉起时的投影重建 (Projection rebuild)</strong> — 每次开机时，把那卷持久化日志从头到尾盘一遍，借此把内存状态（比如缓存或计数器）重塑出来，这样重启操作就再也别想偷走任何易失性数据了。</li>
-</ol>
-<h2 id="1">1. 幂等追加</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">append_once</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-
-<span class="n">seq</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-<span class="c1"># 如果用同一个 key 再重播一次，它只会是一次返回之前 ID 的空转：</span>
-<span class="n">seq2</span><span class="p">,</span> <span class="n">created2</span> <span class="o">=</span> <span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:charge&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">})</span>
-<span class="k">assert</span> <span class="p">(</span><span class="n">created</span><span class="p">,</span> <span class="n">created2</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">==</span> <span class="n">seq2</span>
-</code></pre></div>
-
-<p><code>idempotency_key</code> 这个字段被上了 <code>UNIQUE</code> 锁，所以哪怕是个直接绕过 <code>SELECT</code> 强行塞数据的并发疯子，也会被数据库的约束机制无情拍飞，绝对写不进重复的账条。</p>
-<h2 id="2">2. 顺序倒置 (告别幽灵副作用)</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_log</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">complete_in_order</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">shipped</span> <span class="o">=</span> <span class="p">[]</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">ship_the_box</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
-    <span class="n">shipped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="s2">&quot;sku&quot;</span><span class="p">])</span>
-
-<span class="c1"># 先让持久化记录落盘 COMMIT，然后才触发对外可见的副作用</span>
-<span class="n">complete_in_order</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;order-42:ship&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;sku&quot;</span><span class="p">:</span> <span class="s2">&quot;X&quot;</span><span class="p">},</span> <span class="n">side_effect</span><span class="o">=</span><span class="n">ship_the_box</span><span class="p">)</span>
-<span class="k">assert</span> <span class="n">shipped</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">]</span>
-</code></pre></div>
-
-<p><code>complete_in_order</code> 的逻辑是追加记录 + <strong>马上 COMMIT</strong>，然后再去触发那个副作用。如果 COMMIT 刚完进程就死了，你至少能从日志里捞出那条“已记录但未完结”的账，然后从头再驱动一次；这总比丢出一个没有任何案底的箱子要强得多。而被它干掉的反模式 —— <code>complete_side_effect_first</code> —— 则是先干脏活再 COMMIT，这两步之间的任何一次断电都会催生出一个幽灵（这个反面教材还留在模块里，专作反面教材之用）。</p>
-<p>如果进程死在外部调用的<strong>途中</strong>，那么这个帮手函式稍后会把这行挂起的记录拿出来重试。因此，请务必把你的幂等键 (idempotency key) 一并传给那个外部系统，或者确保这个副作用本身经得起反复碾压；毕竟，光靠一个本地日志，是没法把一个不具备幂等特性的远程突变魔法般地变成“精确一次”的。</p>
-<h2 id="3">3. 开机时的投影重建</h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">bene.recipes.idempotent_append</span><span class="w"> </span><span class="kn">import</span> <span class="n">append_once</span><span class="p">,</span> <span class="n">ensure_log</span><span class="p">,</span> <span class="n">replay_projection</span>
-
-<span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<span class="n">ensure_log</span><span class="p">(</span><span class="n">conn</span><span class="p">)</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-1&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">40</span><span class="p">})</span>
-<span class="n">append_once</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="s2">&quot;charge-2&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">})</span>
-<span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-
-<span class="n">balance</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;total&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
-<span class="n">replay_projection</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">key</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">balance</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span>
-    <span class="s2">&quot;total&quot;</span><span class="p">,</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;amount&quot;</span><span class="p">]))</span>
-<span class="k">assert</span> <span class="n">balance</span><span class="p">[</span><span class="s2">&quot;total&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">100</span>
-<span class="c1"># `balance` 纯粹是靠着持久化的日志一笔一笔重塑出来的 —— 跨越重启，无一分易失状态丢失。</span>
-<span class="c1"># (这就是专门用来治那类所谓的“重启失忆症 / `/replay` 报 404” 顽疾的配方)。</span>
-</code></pre></div>
-
-<h2 id="temporal">耐久性警语 —— 不需要 Temporal</h2>
-<p>这个菜谱是<strong>与底层无关的，且不会引入任何运行时依赖</strong>。只要你手头上有一个支持提交特性的日志系统（在这里是 SQLite；同样的打法你完全能无缝搬到一个用 <code>flock</code> 上锁的 JSONL 追加器上），它就能赋予你“精确一次”外加“无幽灵”的完成保障。</p>
-<p>但请记住，它<strong>不能</strong>提供超越你存储介质本身的跨进程耐久度。尤其是，BENE 的 <code>LocalRuntime</code> 已经挑明了<strong>不具备</strong>跨重启的耐久性，而 <code>submit_side_effect</code> 那本带护栏的账本也只有在用上了 <code>TemporalRuntime</code>（目前在大多数部署里都只是个占位符）时才作数 —— 所以，<strong>千万别</strong>指望运行时能帮你兜底持久化记录。这本提交过的日志<strong>本身</strong>才是那条持久化生命线，而这正是整套拳法的精髓所在：只消做个简单的时序倒置，外加一把幂等锁，你就能在不碰 Temporal 这尊大佛的前提下，把绝大把的原子化收益稳稳装进口袋。</p>
-<h2 id="_2">延伸阅读</h2>
+<div class="crumbs"><a href="../index.html">docs</a> / case-studies/cs03-multi-agent-arena.md</div>
+<h1 id="bene-a-competitive-coding-arena-on-bene-design-at-the-substrate-layer">在 BENE 上搭一座对抗式编程竞技场：底座层的设计 (A Competitive Coding Arena on BENE: Design at the Substrate Layer)</h1>
+<p><em>Engineering · 2026-06</em></p>
+<hr />
+<h2 id="context">背景 (Context)</h2>
+<p>把几个编程 agent 关进同一间屋子，丢给它们同一道真实的工程任务，再评出谁干得最漂亮。说起来简单，真要诚实地跑起来却凶险无比。一旦某个结果开始左右排名，你底座（substrate）里的每一处软肋都会变成一个能被钻的空子：一个能偷看对手文件的 agent、一个没有凭据的分数、一场没法复现的胜利、一张悄悄就采信了 agent 自我陈述的榜单。</p>
+<p>本案例讲的就是这类竞技场的<strong>底座层设计</strong>——抽象层面上那几个真正吃重的决策。它讲的是<em>模式</em>，而非某个具体产品的实现；这里的应用逻辑是故意写成伪代码的。它要说清的是：一个对抗式的多 agent 平台，为什么底下想要 BENE 这样的东西，以及那四条保证是如何从原语（primitive）里自然长出来的。</p>
+<h2 id="problem-framing">问题拆解 (Problem framing)</h2>
+<p>竞技场天生就是个对抗环境。要让一场比赛跑出来的排名真有分量，就必须由底座——而不是应用——来兜住这四件事：</p>
 <ul>
-<li><code>bene/recipes/idempotent_append.py</code> — 包含参考用法的帮手函式。</li>
-<li><code>tests/test_atomic_completion_recipe.py</code> — 通过模拟崩溃，证实了精确一次 + 无幽灵机制的靠谱程度。</li>
-<li><a href="../integrating-bene.html">集成 BENE (Integrating BENE)</a> — 看看这套招式在那五个落地阶段里到底能排老几。</li>
+<li><strong>隔离 (Isolation)。</strong> 一个选手绝不能读写另一个选手的工作区。</li>
+<li><strong>可审计 (Auditability)。</strong> 每一个被计分的动作，都得有一条持久、可验证防篡改的凭据。</li>
+<li><strong>可复现 (Reproducibility)。</strong> 任何结果都必须能重跑一遍，用来了结争议。</li>
+<li><strong>沉淀记忆 (Accumulated memory)。</strong> 平台应当一局比一局更聪明，同时绝不把某一局的机密泄进另一局。</li>
 </ul>
-<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/recipes/atomic-completion.md" target="_blank" rel="noopener noreferrer">docs/recipes/atomic-completion.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
+<p>这几条里只要有任何一条落在应用代码里，迟早会有一个 agent（或者一个 bug）把它绕过去。它们的归宿是底座。</p>
+<h2 id="design">设计 (Design)</h2>
+<p>每条保证都对应一个 BENE 原语。竞技场代码能保持精简，正是因为那些硬骨头交给了引擎去啃。</p>
+<table>
+<thead>
+<tr>
+<th>竞技场的诉求</th>
+<th>BENE 原语</th>
+<th>为什么成立</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>隔离</td>
+<td>per-agent VFS，以 <code>agent_id</code> 做 SQL 作用域</td>
+<td>选手自己的 <code>fs_*</code> 工具只在它自己的命名空间里活动（对抗式代码需另加 OS 沙箱 + 受限工具集——见下文）</td>
+</tr>
+<tr>
+<td>可审计</td>
+<td>append-only 事件日志 + 执行轨迹</td>
+<td>每个动作都是一行（按约定只追加；若 DB 可写，用哈希链兜防篡改）</td>
+</tr>
+<tr>
+<td>可复现</td>
+<td>checkpoint / restore / diff</td>
+<td>从快照重跑一局的 BENE 状态（不含外部副作用）</td>
+</tr>
+<tr>
+<td>沉淀记忆</td>
+<td>记忆轨迹（engram）+ 轨迹检索</td>
+<td>跨局学习；kernel 的检索器不按 agent 过滤，作用域得你自己框死</td>
+</tr>
+</tbody>
+</table>
+<h3 id="isolation-sealed-rooms-one-file">隔离——密封小黑屋，一个文件搞定 (Isolation — sealed rooms, one file)</h3>
+<p>每个选手都跑成一个隔离的 agent。引擎按 <code>agent_id</code> 给 agent 自己的 <code>fs_*</code> 工具划定作用域，于是选手的读写都被锁死在自己的命名空间里。这是一个文件里实现的逻辑隔离——对付<strong>对抗式</strong>选手，还得配上一层 OS 沙箱和一套受限工具集：默认 runner 是放行 <code>shell_exec</code> 的，而面向运维方的 <code>query</code> / <code>agent_read</code> 工具吃的是显式传入的 <code>agent_id</code>，所以单论它俩，谁都算不上一道硬的跨 agent 边界。</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bene</span><span class="w"> </span><span class="kn">import</span> <span class="n">Bene</span>
+
+<span class="n">arena</span> <span class="o">=</span> <span class="n">Bene</span><span class="p">(</span><span class="s2">&quot;arena.db&quot;</span><span class="p">)</span>            <span class="c1"># 整场赛事就一个可审计的文件</span>
+<span class="k">for</span> <span class="n">competitor</span> <span class="ow">in</span> <span class="n">entrants</span><span class="p">:</span>         <span class="c1"># 伪代码：你的参赛名单</span>
+    <span class="n">arena</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">competitor</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">PROBLEM</span><span class="p">)</span>   <span class="c1"># 每人分到一个密封工作区</span>
+<span class="c1"># 选手 A 自己的 fs_* 工具永远解析不到选手 B 的 /solution.py</span>
+</code></pre></div>
+
+<h3 id="auditability-the-receipt-is-the-row">可审计——凭据就是那一行记录 (Auditability — the receipt is the row)</h3>
+<p>计分只从日志里读，绝不读 agent 的自我陈述。这条日志的只追加是<em>靠应用层约定</em>做到的——如果在你的竞技场里，某个选手或运维方有权写那个 SQLite 文件，那就在把凭据当作不可伪造之前，先加上真正的防篡改手段（对行做哈希链，或者把只追加存储放到选手够不着的地方）：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 伪代码：从记录下来的事件推导分数，而不是从 agent 自己的说法</span>
+<span class="n">events</span> <span class="o">=</span> <span class="n">arena</span><span class="o">.</span><span class="n">events</span><span class="p">(</span><span class="n">agent_id</span><span class="o">=</span><span class="n">competitor</span><span class="p">)</span>        <span class="c1"># 那条持久的轨迹</span>
+<span class="n">score</span>  <span class="o">=</span> <span class="n">rubric</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>                            <span class="c1"># 在已记录的事实上确定性地算分</span>
+</code></pre></div>
+
+<p>谁晋级、谁被取消资格——这类协调决策本身也通过 shared-log 协议落了日志，于是赛程表（bracket）和那些比赛享有同一条审计轨迹：</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bene.shared_log</span><span class="w"> </span><span class="kn">import</span> <span class="n">SharedLog</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">SharedLog</span><span class="p">(</span><span class="n">arena</span><span class="o">.</span><span class="n">conn</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">intent</span><span class="p">(</span><span class="s2">&quot;advance winners of round 1&quot;</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">vote</span><span class="p">(</span><span class="n">intent_id</span><span class="p">,</span> <span class="n">approve</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">decide</span><span class="p">(</span><span class="n">intent_id</span><span class="p">)</span>                              <span class="c1"># 持久、有序、可回放</span>
+</code></pre></div>
+
+<h3 id="reproducibility-disputes-settled-by-replay">可复现——争议靠回放了断 (Reproducibility — disputes settled by replay)</h3>
+<p>每一步计分之前，竞技场先打个 checkpoint；有争议的结果是从快照重跑，而不是靠嘴仗：</p>
+<div class="codehilite"><pre><span></span><code><span class="n">cp</span> <span class="o">=</span> <span class="n">arena</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">(</span><span class="n">competitor</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;pre-grade&quot;</span><span class="p">)</span>
+<span class="c1"># ...打分...</span>
+<span class="n">arena</span><span class="o">.</span><span class="n">restore</span><span class="p">(</span><span class="n">competitor</span><span class="p">,</span> <span class="n">checkpoint</span><span class="o">=</span><span class="n">cp</span><span class="p">)</span>           <span class="c1"># 回滚 BENE VFS + 状态</span>
+</code></pre></div>
+
+<p><code>restore</code> 回滚的是 agent 由 BENE 托管的 VFS 和 KV 状态。那些伸到 BENE <em>外面</em>的步骤——一次模型调用、<code>shell_exec</code>、网络或宿主文件系统的副作用——是不会被回放的，所以一次重跑能确定到什么程度，取决于有争议的那部分工作有多大比例留在底座之内。</p>
+<h3 id="accumulated-memory-smarter-across-matches-sealed-within-one">沉淀记忆——跨局更聪明，单局内封死 (Accumulated memory — smarter across matches, sealed within one)</h3>
+<p>打完的比赛会留下轨迹，这些轨迹会沉淀成记忆轨迹（engram）。后面的比赛该检索的是<em>经验教训</em>（什么样的做法容易卡在某道闸门上），而不是原始工作区——但这个检索的作用域得你自己显式框死：kernel 的检索器只在<em>记录</em>这次查询时才按 <code>agent_id</code> 过滤，所以请把比赛/agent 的作用域传进检索里（或者手工挑选哪些记忆轨迹是共享的），别想当然地以为跨局读取默认就是封死的。</p>
+<div class="codehilite"><pre><span></span><code><span class="n">arena</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="s2">&quot;common failure modes on refactor tasks&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="insights">洞察 (Insights)</h2>
+<ul>
+<li><strong>把保证往下沉。</strong> 一座竞技场要做到<em>公平</em>所需的每一条性质，都是底座能强制、而应用不可被信任去兜的性质。隔离靠 SQL 作用域、凭据靠 append-only 日志——这些都不是你事后拧上去的功能；它们恰恰就是你为什么要有一层底座的理由。</li>
+<li><strong>分数是一次查询，不是一句声明。</strong> 排名是从落了盘的日志里推出来的——绝不取自 agent 的自我陈述——这才是一张榜单经得起推敲的根本。</li>
+<li><strong>单文件是运维上的恩赐。</strong> 整场赛事就是一个 SQLite 数据库：复制它就是备份，diff 它就是审计，把它交给下一班人就不用重建任何状态。</li>
+</ul>
+<h2 id="what-to-take-from-this">你该从这里带走什么 (What to take from this)</h2>
+<p>你不必非得有一座竞技场，才会想要这四条性质——任何一个正经的多 agent 系统都想要。竞技场只不过是不允许你把它们装样子糊弄过去而已。在一个把隔离、可审计、可复现、记忆都做成<em>默认</em>的底座上去搭，上面那层应用就能保持精简、诚实、可回放。</p>
+<div class="src">source: <a href="https://github.com/EdwardTang/bene-site/blob/main/docs/case-studies/cs03-multi-agent-arena.md" target="_blank" rel="noopener noreferrer">docs/case-studies/cs03-multi-agent-arena.md</a> · generated by site/build-docs.py — edit the .md, not this file</div>
 </main>
 </div>
 <footer class="ft"><div class="in"><span>BENE 0.2.0 · local-first · SQLite · built in the open</span>
