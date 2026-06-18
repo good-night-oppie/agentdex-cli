@@ -26,9 +26,13 @@ import httpx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-# The live AWS arena (adx-core deploy); agentdex.builders once DNS/TLS land. The
-# legacy Koyeb host stays as a fallback the user can override via --url / env.
-DEFAULT_BASE = "https://agentdex.builders"
+# Default to the host that is ACTUALLY live + HTTPS-reachable + canonical in
+# skill.md: agentdex.ai-builders.space (the Koyeb arena). `agentdex.builders` is
+# the intended AWS home, but its DNS still points at registrar parking (it
+# 301s to superlinear.academy) with no TLS, so defaulting there makes `adx arena
+# play` time out out-of-box. Re-point this to agentdex.builders once its DNS/TLS
+# land (the AWS-PUBLIC-DNS-TLS work, adx-core). Override anytime via --url / env.
+DEFAULT_BASE = "https://agentdex.ai-builders.space"
 
 
 def resolve_base(base: str | None = None) -> str:

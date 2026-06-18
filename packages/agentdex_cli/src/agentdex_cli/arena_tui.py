@@ -280,7 +280,9 @@ def cmd_arena_play(argv: list[str]) -> int:
     p = argparse.ArgumentParser(
         prog="adx arena play", description="Play a battle in your terminal."
     )
-    p.add_argument("--url", help="arena base URL (default: $ADX_ARENA_URL or agentdex.builders)")
+    p.add_argument(
+        "--url", help="arena base URL (default: $ADX_ARENA_URL or agentdex.ai-builders.space)"
+    )
     p.add_argument("--token", help="consent token (default: $ADX_ARENA_TOKEN; else enroll)")
     p.add_argument("--owner", help="owner email for enrollment (if no token)")
     p.add_argument(
