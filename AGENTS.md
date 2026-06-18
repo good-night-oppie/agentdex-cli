@@ -3,7 +3,7 @@ title: AGENTS.md — agentdex-cli
 status: active
 owner: etang
 created: 2026-06-07
-updated: 2026-06-09
+updated: 2026-06-18
 type: reference
 scope: monorepo
 layer: cross-cutting
@@ -15,6 +15,15 @@ cross_cutting: true
 - Map (not encyclopedia) per [G2 ep3 pattern](docs/architecture/architecture.md)
 - Lazy-load linked surfaces — do not paste this file into the agent
 - Foundation: [CLAUDE.md](CLAUDE.md) + [IDEAL_EXPERIENCE.md](IDEAL_EXPERIENCE.md) + [EVAL.md](EVAL.md)
+
+## CI-POLICY
+
+Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green CI.
+
+- WHY: `vendor/aaop/**` pre-commit is permanently red + repo has no required checks → 0-red is waste (PRs #251/#253/#199 — do not repeat).
+- DO: merge UNSTABLE on the REAL gates only (your change's checks + your tests); accept vendor/pre-commit red. `gh pr merge --squash` (no `--admin`).
+- STILL: fix a regression YOUR diff causes (green→red); keep fix-all tiny-PR cadence; add no make-CI-green PRs.
+- See [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy.
 
 ## Tools
 
