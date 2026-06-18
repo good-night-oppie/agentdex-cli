@@ -25,6 +25,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import secrets
 import time
 import uuid
@@ -429,6 +430,9 @@ class BattleSession:
     parent: tuple[str, int] | None = None
     scratchpad: str = ""
     last_state: dict[str, Any] | None = None
+    # Normalized owner — keys the per-owner concurrency cap (ADR-0012 §7). Defaulted
+    # so existing constructions (tests, fork) need no change; battle_begin sets it.
+    owner: str = ""
 
 
 class EnrollRequest(BaseModel):
@@ -755,6 +759,21 @@ class ArenaGateway:
         except ConsentError as e:
             raise _opaque_error(403, e) from None
 
+        # Per-owner concurrency cap (anti-monopolization, ADR-0012 §7): one owner must
+        # not fill the shared sidecar pool and starve the other ~99 users. Keyed on the
+        # NORMALIZED owner (not token_id) so /enroll/reissue with a fresh token cannot
+        # reset the cap — the same rotation-as-reset closure the battle quota uses.
+        # Checked BEFORE any sidecar/team work so a capped owner burns nothing. 429
+        # (the caller has too many live battles) is distinct from the pool-full 503.
+        owner_norm = _normalize_owner(claims.owner)
+        max_per_owner = int(os.environ.get("ARENA_MAX_BATTLES_PER_OWNER", "3"))
+        if sum(1 for s in self.sessions.values() if s.owner == owner_norm) >= max_per_owner:
+            raise HTTPException(
+                status_code=429,
+                detail="too many concurrent battles for this owner — finish or forfeit one, then retry",
+                headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+            )
+
         if req.lane == "rated":
             if req.gym_leader is not None:
                 raise _opaque_error(400, "cannot select gym leader in rated lane")
@@ -787,6 +806,7 @@ class ArenaGateway:
         session = BattleSession(
             battle_id=battle_id,
             claims_token_id=claims.token_id,
+            owner=owner_norm,
             visitor_name=visitor,
             lane=req.lane,
             opponent=opponent,
@@ -853,6 +873,7 @@ class ArenaGateway:
                 raise HTTPException(
                     status_code=503,
                     detail="arena at capacity — finish or forfeit an active battle, then retry",
+                    headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
                 ) from None
             raise
         # Class A (atomicity): the durable begin receipt MUST exist before the
@@ -1285,6 +1306,9 @@ class ArenaGateway:
         session = BattleSession(
             battle_id=battle_id,
             claims_token_id=str(src["tenant"]),
+            owner=str(
+                src.get("owner", "")
+            ),  # fork: source owner not threaded → uncapped (sandbox-derived)
             visitor_name=str(src["visitor"]),
             lane="sandbox",
             opponent=opponent,
