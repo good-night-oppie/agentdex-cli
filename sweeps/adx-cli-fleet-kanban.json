@@ -12,7 +12,9 @@
   "cards": [
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 receipt atomicity landed; restart-survival residual closed by PR #280."
+      ],
       "created_by": "codex",
       "evidence": [
         "pass27",
@@ -27,13 +29,15 @@
       "impact": "Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.",
       "lane": "integrity",
       "priority": "P0",
-      "status": "ready",
+      "status": "done",
       "title": "Make arena receipts atomic before claiming honesty",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 Class B spend-after-success implemented at all spend sites (rated battle / badge_mint / evolve HTTP+MCP); verified in-code during the ADX-P2-004 work."
+      ],
       "created_by": "codex",
       "evidence": [
         "pass26",
@@ -47,13 +51,15 @@
       "impact": "Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.",
       "lane": "fairness",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Stop spending rated/evolution/badge quota before work is accepted",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 /my/events owner-export 3-case (tenant_id / legacy-badge agent_name / nested period battle_id) present + tested; verified by adx-cli-5."
+      ],
       "created_by": "codex",
       "evidence": [
         "pass17",
@@ -68,9 +74,9 @@
       "impact": "Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.",
       "lane": "owner-data",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Make owner export include replay, badge, and rating lineage",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "harness",
@@ -91,7 +97,9 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 only /admin/grant-membership is include_in_schema=False; auths via Depends(_check_admin) BEFORE await request.json() (auth-before-parse); gated agent routes use raw body:dict. Verified by adx-cli-5."
+      ],
       "created_by": "codex",
       "evidence": [
         "pass24",
@@ -102,9 +110,9 @@
       "impact": "Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.",
       "lane": "security",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Tighten admin surface and auth-before-parse contract",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "codex",
@@ -221,7 +229,9 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 append-before-resim residual closed by PR #281 (dispute/quarantine recorded only after a successful re-sim, atomic append_many); idempotence #278, restart-survival #280."
+      ],
       "created_by": "codex",
       "evidence": [
         "gateway.py:1771-1777 (append)",
@@ -232,13 +242,15 @@
       "impact": "POST /battle/{id}/dispute appends the 'dispute' event (gateway.py:1771-1777) BEFORE running replay_input_log (:1790). If re-sim throws (:1822) the handler 500s but the dispute event is already durable; a client retry appends a SECOND dispute event \u2014 structural event-log corruption (violates Class A write-then-log intent for disputes).",
       "lane": "integrity",
       "priority": "P1",
-      "status": "triage",
+      "status": "done",
       "title": "Dispute event appended BEFORE re-sim \u2014 duplicate events on retry",
-      "updated_at": "2026-06-17T08:12:29Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 ladder published_delta race fixed via the finish-lock window (PR #269)."
+      ],
       "created_by": "codex",
       "evidence": [
         "gateway.py:1131 (before snapshot)",
@@ -250,13 +262,15 @@
       "impact": "_finish captures before_rating (gateway.py:1131) OUTSIDE the atomic append window, then recomputes after (:1169). If a second concurrent _finish for the same visitor_name appends between A's capture and A's recompute, A's published_delta double-counts B's battle \u2014 a fairness/rating-integrity violation under async concurrency.",
       "lane": "fairness",
       "priority": "P1",
-      "status": "triage",
+      "status": "done",
       "title": "Ladder published_delta race: concurrent _finish for same player inflates delta",
-      "updated_at": "2026-06-17T08:12:29Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        "adx-cli-6 2026-06-18: DONE \u2014 PR #284: durable quota_spend event + UTC-day-scoped boot replay; spend_quota returns the debited key (no midnight day-skew); all 4 spend sites wired; 9 sidecar-free tests; full arena suite green (264 passed)."
+      ],
       "created_by": "codex",
       "evidence": [
         "consent.py:114-124/:159-182",
@@ -267,9 +281,9 @@
       "impact": "quota_used is in-memory only (consent.py:159-182); EventLog replay on boot (gateway.py:536-558) hydrates 'register'/'membership_grant' but NOT quota. A gateway restart resets every agent's daily rated cap, allowing >5 rated battles/UTC-day across restarts (anti-pay-to-rank-adjacent, ADR-0011 \u00a73a/\u00a75e). Exploitability is low on a stable single-process deploy (agent cannot force a restart), hence P2 not P1.",
       "lane": "fairness",
       "priority": "P2",
-      "status": "triage",
+      "status": "done",
       "title": "Rated-battle quota not persisted \u2014 resets on gateway restart",
-      "updated_at": "2026-06-17T08:12:49Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "codex",
@@ -318,7 +332,8 @@
           "author": "adx-cli",
           "body": "Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 \u2014 fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay.",
           "created_at": "2026-06-17T23:07:54Z"
-        }
+        },
+        "adx-cli-6 2026-06-18: launch scope SHIPPED \u2014 typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate)."
       ],
       "created_by": "adx-cli",
       "evidence": [
@@ -333,7 +348,7 @@
       "priority": "P1",
       "status": "running",
       "title": "launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)",
-      "updated_at": "2026-06-17T23:07:54Z"
+      "updated_at": "2026-06-18T11:14:19Z"
     },
     {
       "assignee": "adx-core",
@@ -3015,8 +3030,127 @@
           "status": "review"
         }
       }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P0-001",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "ready"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-001",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-002",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-004",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-006",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-007",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P2-004",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {
+        "before": {
+          "assignee": "adx-cli",
+          "status": "triage"
+        },
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-001",
+      "created_at": "2026-06-18T11:14:19Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-18T09:31:01Z"
+  "updated_at": "2026-06-18T11:14:19Z"
 }
