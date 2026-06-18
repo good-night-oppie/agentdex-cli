@@ -31,7 +31,10 @@ third-party / sibling-synced files you did not touch (e.g. the
 hook-excluded `vendor/aaop/**`) is NOT a blocker; fix such shared red as
 its own tiny PR instead of gating yours on it.
 
-- Your change's CI checks green (`uv run --no-sync pytest packages/` exits 0)
+- Your change's CI checks green — `uv run --no-sync pytest` over the
+  package(s) your diff touches exits 0 (scope to the **changed surface**, not a
+  full `packages/` sweep; a pre-existing failure in a package you did not touch
+  is a separate tiny PR, per the CI-POLICY note above)
 - No HIGH-severity `agentlint scan` findings (per `agentlint.yaml`)
 - `.pre-commit-config.yaml` hooks pass clean **on your diff** — ruff (lint+format),
   mypy (strict on `packages/agentdex_engine/src/agentdex_engine/cards/`),
