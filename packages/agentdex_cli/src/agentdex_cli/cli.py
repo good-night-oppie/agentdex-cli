@@ -974,6 +974,17 @@ def cmd_arena_defer(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else list(argv)
+    # `adx arena ...` is intentionally deferred (routed to the starter kit / MCP).
+    # Intercept it BEFORE argparse so the OPTION-first form (`adx arena --owner x`)
+    # also reaches the defer stub: the subparser's nargs=REMAINDER exits 2 on a
+    # leading `-` token instead of swallowing it (a known argparse quirk), which
+    # re-introduced the very ADX-P2-001 footgun the stub was meant to close. There
+    # are no global options before the subcommand, so the first token IS the
+    # subcommand. The `arena` subparser is kept so `adx --help` still lists it.
+    # PR #183 review 3426341132.
+    if raw and raw[0] == "arena":
+        return cmd_arena_defer(argparse.Namespace(arena_args=raw[1:]))
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
