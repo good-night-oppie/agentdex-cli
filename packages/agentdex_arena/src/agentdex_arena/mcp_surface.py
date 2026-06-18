@@ -17,7 +17,7 @@ from agentdex_engine.modules.arena import recompute_ladder
 from mcp.server.fastmcp import FastMCP
 
 from agentdex_arena.consent import ConsentError
-from agentdex_arena.gateway import ArenaGateway
+from agentdex_arena.gateway import INTERRUPTED_RESTART_MSG, ArenaGateway
 from agentdex_arena.offered_seeds import offer_seeds
 
 logger = logging.getLogger(__name__)
@@ -118,6 +118,11 @@ async def get_battle_state(token: str, battle_id: str) -> dict[str, Any]:
 
     session = gw.sessions.get(battle_id)
     if session is None:
+        # After a gateway restart the in-memory session is gone; if THIS owner begun
+        # (or forked) it in a prior process, signal the restart clearly instead of an
+        # ambiguous "not found" the agent reads as its own bug (PR #246 review).
+        if gw._interrupted.get(battle_id) == claims.token_id:
+            raise ValueError(INTERRUPTED_RESTART_MSG)
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:
@@ -144,6 +149,11 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
 
     session = gw.sessions.get(battle_id)
     if session is None:
+        # After a gateway restart the in-memory session is gone; if THIS owner begun
+        # (or forked) it in a prior process, signal the restart clearly instead of an
+        # ambiguous "not found" the agent reads as its own bug (PR #246 review).
+        if gw._interrupted.get(battle_id) == claims.token_id:
+            raise ValueError(INTERRUPTED_RESTART_MSG)
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:
@@ -259,6 +269,11 @@ async def read_scratchpad(token: str, battle_id: str) -> dict[str, Any]:
 
     session = gw.sessions.get(battle_id)
     if session is None:
+        # After a gateway restart the in-memory session is gone; if THIS owner begun
+        # (or forked) it in a prior process, signal the restart clearly instead of an
+        # ambiguous "not found" the agent reads as its own bug (PR #246 review).
+        if gw._interrupted.get(battle_id) == claims.token_id:
+            raise ValueError(INTERRUPTED_RESTART_MSG)
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:
@@ -275,6 +290,11 @@ async def write_scratchpad(token: str, battle_id: str, text: str) -> dict[str, A
 
     session = gw.sessions.get(battle_id)
     if session is None:
+        # After a gateway restart the in-memory session is gone; if THIS owner begun
+        # (or forked) it in a prior process, signal the restart clearly instead of an
+        # ambiguous "not found" the agent reads as its own bug (PR #246 review).
+        if gw._interrupted.get(battle_id) == claims.token_id:
+            raise ValueError(INTERRUPTED_RESTART_MSG)
         raise ValueError(f"Battle session not found: {battle_id}")
 
     if claims.token_id != session.claims_token_id:

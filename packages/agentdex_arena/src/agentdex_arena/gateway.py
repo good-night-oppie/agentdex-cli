@@ -478,6 +478,11 @@ class ChooseRequest(BaseModel):
 # from being created via a bad valid_until_epoch.
 MAX_GRANT_HORIZON_SEC = 400 * 86_400
 
+# Shown when a battle the caller begun/forked in a PRIOR process is touched after a
+# gateway restart (in-memory sessions are wiped). Owner-scoped — others still get the
+# opaque 403. Single-sourced so the HTTP 409 + the MCP error read identically (#246).
+INTERRUPTED_RESTART_MSG = "battle interrupted by a gateway restart — start a new battle"
+
 
 class GrantMembershipRequest(BaseModel):
     """POST /admin/grant-membership body (ADR-0011 11b.3). Auth runs BEFORE
@@ -559,7 +564,11 @@ class ArenaGateway:
             try:
                 if etype == "register":
                     self._registered.add(payload["name"])
-                elif etype == "battle_begin":
+                elif etype in ("battle_begin", "battle_fork"):
+                    # A fork is a live sandbox battle too (recorded as battle_fork with
+                    # its own battle_id + tenant_id, closed by the same battle_end). It
+                    # must join the interrupted set so a post-restart touch gets the 409
+                    # signal, not an opaque 403 (PR #246 review).
                     bid, tid = payload.get("battle_id"), payload.get("tenant_id")
                     if isinstance(bid, str) and isinstance(tid, str):
                         self._interrupted[bid] = tid
@@ -1888,7 +1897,14 @@ def create_app(
         except ConsentError as e:
             raise _opaque_error(403, e) from None
         session = gw.sessions.get(battle_id)
-        if session is None or claims.token_id != session.claims_token_id:
+        if session is None:
+            # HTTP pollers are explicitly supported to call /state before choosing;
+            # after a restart give THIS owner the same 409 'interrupted' signal the
+            # choose route gives, not an opaque 403 (others still 403, D7) (PR #246).
+            if gw._interrupted.get(battle_id) == claims.token_id:
+                raise HTTPException(status_code=409, detail=INTERRUPTED_RESTART_MSG) from None
+            raise _opaque_error(403, "no such battle for this token") from None
+        if claims.token_id != session.claims_token_id:
             raise _opaque_error(403, "no such battle for this token") from None
         # Mirror the choose/start path — expire stale sessions BEFORE returning
         # the state. Otherwise HTTP-only pollers see a live `your_move` payload
@@ -1915,10 +1931,7 @@ def create_app(
             # battle in a prior process and it never ended, say so clearly (409)
             # instead of the opaque 403 — others still get 403 (D7 anti-enumeration).
             if gw._interrupted.get(battle_id) == claims.token_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail="battle interrupted by a gateway restart — start a new battle",
-                ) from None
+                raise HTTPException(status_code=409, detail=INTERRUPTED_RESTART_MSG) from None
             raise _opaque_error(403, "no such battle for this token") from None
         if claims.token_id != session.claims_token_id:
             raise _opaque_error(403, "no such battle for this token") from None
