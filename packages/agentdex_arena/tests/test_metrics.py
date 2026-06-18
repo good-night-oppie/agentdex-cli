@@ -9,6 +9,7 @@ sidecar can't hang the probe).
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from adx_showdown.sidecar import Sidecar
@@ -45,13 +46,16 @@ def test_metrics_empty_state(ctx):
     assert body["sidecar_rss_mb"] is None
 
 
-def test_metrics_counts_sessions_and_registered(ctx):
+def test_metrics_counts_only_unfinished_sessions_and_registered(ctx):
     c, _app, gw = ctx
-    gw.sessions["battle-x"] = object()  # type: ignore[assignment]
-    gw.sessions["battle-y"] = object()  # type: ignore[assignment]
+    # gateway.sessions keeps FINISHED battles too (so /battle/{id}/state can serve
+    # the ended receipt) — active_battles must count only the in-flight ones.
+    gw.sessions["live-1"] = SimpleNamespace(ended=None)  # type: ignore[assignment]
+    gw.sessions["live-2"] = SimpleNamespace(ended=None)  # type: ignore[assignment]
+    gw.sessions["done-1"] = SimpleNamespace(ended={"winner": "x"})  # type: ignore[assignment]
     gw._registered.add("agent-a")
     body = c.get("/metrics").json()
-    assert body["active_battles"] == 2
+    assert body["active_battles"] == 2  # finished session excluded, not 3
     assert body["registered_agents"] == 1
 
 
