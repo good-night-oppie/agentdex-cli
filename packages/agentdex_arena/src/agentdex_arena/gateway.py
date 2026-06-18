@@ -741,6 +741,15 @@ class ArenaGateway:
                 # daily slot.
                 if not self.publication_allowed:
                     raise ConsentError("rated lane paused: instrument self-test red")
+                # Rated quota PREFLIGHT (read-only): reject an already-exhausted caller
+                # HERE — before ANY team resolution or sidecar work (pack_team /
+                # validate_team / sidecar.start) and before the durable battle_begin
+                # append — so an over-quota client minting fresh nonces via
+                # /battle/start can neither burn sidecar work nor write orphan rated
+                # begins. check_quota does NOT debit; the authoritative spend_quota
+                # still follows AFTER a successful append (Class B spend-after-success).
+                # PR #181 review 3424588956 + PR #230 review 3432471668.
+                self.authority.check_quota(claims, scope="battle")
         except ConsentError as e:
             raise _opaque_error(403, e) from None
 
@@ -822,20 +831,8 @@ class ArenaGateway:
             anchor_team_name = RATED_ANCHOR_TEAMS[anchor_team_idx]
             opp_team = await pack_team(sidecar, starter_pack()[anchor_team_name])
         session.p1_team, session.p2_team = team, opp_team
-        # Rated quota PREFLIGHT (read-only fast-fail): if the daily rated cap is
-        # already hit, return 403 BEFORE sidecar.start + the durable battle_begin
-        # append, so an over-quota agent (who can mint fresh nonces via
-        # /battle/start without a quota check) cannot repeatedly write orphan
-        # rated-begin rows into the EventLog / Postgres mirror. check_quota does NOT
-        # debit — the authoritative spend_quota still follows AFTER success below, so
-        # Class A (append-before-publish) and Class B (spend-after-success) both hold
-        # for battles that actually run. Mirrors the evolve guard (evolution_request
-        # / PR #173). PR #181 review 3424588956.
-        if req.lane == "rated":
-            try:
-                self.authority.check_quota(claims, scope="battle")
-            except ConsentError as e:
-                raise _opaque_error(403, e) from None
+        # (Rated quota preflight ran at the top of battle_begin — before any team or
+        # sidecar work — so an exhausted caller never reaches here. PR #230 review.)
         try:
             resp = await sidecar.request(
                 "start",
