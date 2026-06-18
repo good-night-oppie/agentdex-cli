@@ -8,6 +8,7 @@ Liveness is read from the cached returncode — no IPC — so the probe never ha
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -156,3 +157,72 @@ def test_healthz_recovers_to_200_when_start_flag_cleared(client):
     assert c.get("/healthz").status_code == 503
     app.state.sidecar_start_failed = False
     assert c.get("/healthz").status_code == 200
+
+
+def _make_gateway(tmp_path: Path) -> ArenaGateway:
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    return ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+
+
+def test_lazy_sidecar_start_is_serialized(tmp_path: Path):
+    """Two concurrent first requests must spawn EXACTLY ONE sidecar — without the
+    lock both observe app.state.sidecar is None and start two Node processes that
+    monopolize the shared pool (PR #248 review)."""
+    gateway = _make_gateway(tmp_path)
+    factory_calls: list[int] = []
+
+    class _SlowStart:
+        returncode = None
+
+        async def start(self) -> None:
+            await asyncio.sleep(0.01)  # yield so a second caller can race in
+
+        async def stop(self) -> None:
+            pass
+
+    def factory() -> _SlowStart:
+        factory_calls.append(1)
+        return _SlowStart()
+
+    app = create_app(gateway, sidecar_factory=factory)
+
+    async def _run() -> None:
+        a, b = await asyncio.gather(app.state.ensure_sidecar(), app.state.ensure_sidecar())
+        assert a is b  # both callers share the single started instance
+
+    asyncio.run(_run())
+    assert len(factory_calls) == 1
+
+
+def test_failed_lazy_start_stops_partial_sidecar(tmp_path: Path):
+    """A start() that raised after spawning a child must be stopped, not leaked
+    (PR #248 review)."""
+    gateway = _make_gateway(tmp_path)
+    stopped: list[int] = []
+
+    class _PartialStart:
+        returncode = None
+
+        async def start(self) -> None:
+            raise SidecarError("ready-event timeout after spawn")
+
+        async def stop(self) -> None:
+            stopped.append(1)
+
+    app = create_app(gateway, sidecar_factory=_PartialStart)
+
+    async def _run() -> None:
+        with pytest.raises(SidecarError):
+            await app.state.ensure_sidecar()
+
+    asyncio.run(_run())
+    assert stopped == [1]  # the partially-started child was torn down
+    assert app.state.sidecar is None
+    assert app.state.sidecar_start_failed is True
