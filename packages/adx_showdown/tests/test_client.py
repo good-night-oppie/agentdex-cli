@@ -186,6 +186,24 @@ def test_replace_updates_active_species():
     assert s.p1.active_species == "Zoroark"
 
 
+def test_replace_preserves_boosts_on_illusion_reveal():
+    """An Illusion reveal (|replace|) is the SAME active mon unmasked — it did NOT
+    switch out, so boosts gained while disguised (e.g. Nasty Plot) must survive the
+    reveal. Routing replace through _on_switch wiped them. PR #216 review 3432167183."""
+    s = reduce_lines(
+        [
+            "|switch|p1a: Decoy|Zoroark, L84, M|100/100",  # disguised as a teammate
+            "|-boost|p1a: Decoy|spa|2",  # Nasty Plot while disguised
+            "|-damage|p1a: Decoy|70/100",
+            "|replace|p1a: Zoroark|Zoroark, L84, M|70/100",  # illusion breaks
+        ]
+    )
+    assert s.p1.active_species == "Zoroark"  # revealed identity folded
+    assert s.p1.active_nickname == "Zoroark"  # nickname updated to the true mon
+    assert s.p1.hp_pct == 70  # HP carried, not reset to a fresh 100
+    assert s.p1.boosts == {"spa": 2}  # volatile boosts SURVIVE the reveal (the fix)
+
+
 def test_unknown_events_are_safe_noops():
     # a malformed / unknown type must not crash the fold (digest §7)
     s = reduce_lines(["|turn|1", "|totallymadeup|x|y", "|-neverseen|p1a: Z"])
