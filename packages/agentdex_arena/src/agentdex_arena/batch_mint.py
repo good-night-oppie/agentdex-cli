@@ -28,6 +28,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import time
@@ -49,6 +50,16 @@ _RESERVED_EXACT = frozenset({"visitor", "foe", "_house", "_ladder"})
 _TOKEN_TTL_SEC = 7 * 86_400
 _DEFAULT_SCOPES = ["enroll", "battle", "evolve", "badge_mint"]
 
+# Mirror the self-serve enrollment contract so the curated path can't mint
+# tokens the live gateway would reject. EnrollRequest enforces a contact-shaped
+# owner (3..120 chars, no placeholders/whitespace, an @ + a dotted domain) and
+# a 64-hex Ed25519 pubkey (ConsentClaims.agent_pubkey_hex); validating both here
+# — BEFORE the durable register — keeps a bad roster row from orphaning a name
+# or producing a token that 500s inside rated /battle/begin (PR #232 review).
+_PUBKEY_RE = re.compile(r"[0-9a-f]{64}")
+_OWNER_MIN_LEN = 3
+_OWNER_MAX_LEN = 120
+
 
 class BatchMintError(ValueError):
     """A roster entry that cannot be minted (reserved/duplicate/invalid)."""
@@ -57,6 +68,23 @@ class BatchMintError(ValueError):
 def _is_reserved(agent_name: str) -> bool:
     low = agent_name.lower()
     return low.startswith("anchor-") or low in _RESERVED_EXACT
+
+
+def _validate_owner_like_enrollment(owner: str) -> None:
+    """Reject owners the self-serve ``EnrollRequest`` intentionally rejects.
+
+    Mirrors ``gateway.EnrollRequest._owner_is_a_contact`` + its length bounds:
+    a placeholder like ``{OWNER}``, whitespace, a non-address, or an oversize
+    value would otherwise mint a token that later fails inside rated
+    ``/battle/begin`` or paid-feature gates when the owner is normalized outside
+    the ``ConsentError`` path — an unusable token or a 500, not a caught bad row.
+    """
+    if not (_OWNER_MIN_LEN <= len(owner) <= _OWNER_MAX_LEN):
+        raise BatchMintError(f"owner must be {_OWNER_MIN_LEN}-{_OWNER_MAX_LEN} chars: {owner!r}")
+    if any(c in owner for c in "{}<>") or any(c.isspace() for c in owner):
+        raise BatchMintError(f"owner must be a contact address, not a placeholder: {owner!r}")
+    if "@" not in owner or "." not in owner.rsplit("@", 1)[-1]:
+        raise BatchMintError(f"owner must be a reachable contact, e.g. name@example.com: {owner!r}")
 
 
 def load_registered(events: EventLog) -> set[str]:
@@ -115,6 +143,15 @@ def mint_one(
         raise BatchMintError("entry missing 'agent_name'")
     if not isinstance(pubkey, str):
         raise BatchMintError(f"{raw_name!r}: missing 'agent_pubkey_hex'")
+
+    # Validate owner + pubkey to the self-serve contract BEFORE the durable
+    # register — the gateway validates both at enroll_request, well before
+    # enroll_confirm appends. A malformed pubkey otherwise raised only at
+    # build_claims (AFTER the append), orphaning the reserved name so a corrected
+    # rerun could not mint it without manual event-log surgery (PR #232 review).
+    _validate_owner_like_enrollment(owner)
+    if not _PUBKEY_RE.fullmatch(pubkey):
+        raise BatchMintError(f"{raw_name!r}: agent_pubkey_hex must be 64 lowercase hex chars")
 
     agent_name = sanitize_name(raw_name) or "visitor"
     if _is_reserved(agent_name):
