@@ -85,7 +85,12 @@ OPAQUE_PAYLOAD_TYPES: dict[str, int] = {
     "request": 0,
     "raw": 0,
     "html": 0,
-    "error": 0,
+    # The sidecar augments captured |error| control lines with the parsed side as
+    # `|error|<side>|<message>` (sideupdate errors are pure text with no side of
+    # their own — PR #214 review). lead=1 keeps <side> structured and the message
+    # opaque; a bare Showdown |error|TEXT (no pipe in TEXT) still degrades to a
+    # single arg, so the change is back-compatible.
+    "error": 1,
     "inactive": 0,
     "inactiveoff": 0,
     "message": 0,
@@ -216,7 +221,7 @@ MESSAGE_TYPES: dict[str, _Spec] = {
     "request": _spec(Tier.META, "JSON", "hidden", "decision request (see protocol.py)"),
     "inactive": _spec(Tier.META, "TEXT", "hidden", "timer message"),
     "inactiveoff": _spec(Tier.META, "TEXT", "hidden", "timer off"),
-    "error": _spec(Tier.META, "TEXT", "hidden", "rejected choice (see sim fallback rail)"),
+    "error": _spec(Tier.META, "SIDE|TEXT", "hidden", "rejected choice, sidecar-tagged with side"),
 }
 
 

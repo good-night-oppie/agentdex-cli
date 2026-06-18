@@ -256,6 +256,20 @@ def test_multifield_opaque_keeps_structured_prefix():
     assert len(parse_line('|request|{"a":"x|y"}').args) == 1
 
 
+def test_error_keeps_side_prefix_with_opaque_message():
+    """The sidecar tags captured |error| control lines with the parsed side as
+    `|error|<side>|<message>` so events(result) can attribute a rejected choice to
+    a player. lead=1 keeps <side> structured while the message stays opaque (it may
+    echo a choice containing a pipe). PR #214 review 3432149319."""
+    ev = parse_line("|error|p1|[Invalid choice] Sorry, too late to make a different move")
+    assert list(ev.args) == ["p1", "[Invalid choice] Sorry, too late to make a different move"]
+    # a message that itself contains a pipe stays intact in the opaque tail
+    ev2 = parse_line("|error|p2|[Unavailable choice] move|1 is disabled")
+    assert list(ev2.args) == ["p2", "[Unavailable choice] move|1 is disabled"]
+    # a bare Showdown |error|TEXT (no side prefix, no pipe) degrades to one arg
+    assert list(parse_line("|error|[Invalid choice]").args) == ["[Invalid choice]"]
+
+
 def test_kwarg_idents_are_sanitized():
     """An opponent ident inside a kwarg ([of] p2a: <nick>) must be sanitized in
     both ev.idents AND the kwarg value — no A6 bypass. PR #200 review 3431806028.

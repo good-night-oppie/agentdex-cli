@@ -180,8 +180,18 @@ function attachReader(battleId, entry) {
           // so the canonical hash stays stable. Perspective redaction of the
           // opponent's private request is the Phase-8 fog-of-war concern.
           // (PR #201 review 3431865001.)
-          if (line.startsWith('|request|') || line.startsWith('|error|')) {
+          //
+          // |request| keeps its raw shape — the side is recoverable from the JSON
+          // (side.id, present even on wait requests: sim/battle.ts emits
+          // {wait:true, side:...}). |error| is pure text with NO side, so prefix
+          // the parsed side: `|error|<side>|<msg>`. lineproto types `error` as a
+          // multi-field opaque (lead=1) so <side> is structured and the message
+          // stays opaque, letting events(result) attribute a rejected choice to a
+          // player without a side-channel. (PR #214 review 3432149319.)
+          if (line.startsWith('|request|')) {
             captureProtocol(entry, line);
+          } else if (line.startsWith('|error|')) {
+            captureProtocol(entry, `|error|${side}|${line.slice('|error|'.length)}`);
           }
           if (line.startsWith('|request|')) {
             const reqJson = line.slice('|request|'.length);
