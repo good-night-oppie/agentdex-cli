@@ -32,7 +32,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.badge_auth import BadgeAuthError, BadgeAuthority
 from agentdex_arena.consent import ConsentAuthority
+from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
 from agentdex_arena.gateway import ArenaGateway, create_app
+from agentdex_arena.session import SessionAuthority, SessionError
 
 log = logging.getLogger("agentdex_arena.serve")
 
@@ -268,6 +270,34 @@ def build_gateway() -> ArenaGateway:
     # README-embed base URL").
     public_base_url = os.environ.get("ARENA_PUBLIC_BASE_URL", "")
 
+    # ADR-0013 D2/D3 onboarding — both soft-fail boot like badge above. Missing
+    # ARENA_SESSION_SIGNING_KEY_HEX or GITHUB_OAUTH_CLIENT_ID leaves the
+    # /auth/device/* + account routes 503 while every existing route comes up,
+    # so the onboarding lands deploy-slot by deploy-slot. device_flow needs the
+    # session authority too — without a way to mint sessions there is nothing for
+    # a completed login to return, so it stays unconfigured if either is absent.
+    try:
+        session_authority = SessionAuthority()
+    except SessionError as e:
+        log.warning(
+            "SessionAuthority unconfigured (%s); /auth/device/* + account routes "
+            "will respond 503 until ARENA_SESSION_SIGNING_KEY_HEX is set. "
+            "Other routes unaffected.",
+            e,
+        )
+        session_authority = None
+    device_flow: GitHubDeviceFlow | None = None
+    if session_authority is not None:
+        try:
+            device_flow = GitHubDeviceFlow()
+        except DeviceFlowError as e:
+            log.warning(
+                "GitHubDeviceFlow unconfigured (%s); /auth/device/* will respond "
+                "503 until GITHUB_OAUTH_CLIENT_ID is set. Other routes unaffected.",
+                e,
+            )
+            device_flow = None
+
     return ArenaGateway(
         authority=authority,
         events_path=runtime / "events.jsonl",
@@ -277,6 +307,8 @@ def build_gateway() -> ArenaGateway:
         event_sync=event_sync,
         admin_authority=admin,
         badge_authority=badge,
+        session_authority=session_authority,
+        device_flow=device_flow,
         public_base_url=public_base_url,
     )
 

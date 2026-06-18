@@ -1,0 +1,205 @@
+"""Integration tests for the device-flow routes (ADR-0013 D2): /auth/device/start
++ /auth/device/poll, wired through a real ArenaGateway + SessionAuthority + a
+GitHubDeviceFlow whose transport is a scripted fake (zero network).
+
+Covers the frozen contract shapes, the full login (start → pending → authorized
+→ session token + verified-email owner), the durable account_link write +
+account->agents resolution, GitHub-side fault → 502, and the 503-when-
+unconfigured posture (no session auth / no device-flow)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from adx_showdown.sidecar import Sidecar
+from agentdex_arena.consent import ConsentAuthority
+from agentdex_arena.device_flow import (
+    GITHUB_ACCESS_TOKEN_URL,
+    GITHUB_DEVICE_CODE_URL,
+    GITHUB_EMAILS_URL,
+    GITHUB_USER_URL,
+    GitHubDeviceFlow,
+)
+from agentdex_arena.gateway import ArenaGateway, create_app
+from agentdex_arena.session import SessionAuthority
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi.testclient import TestClient
+
+_OWNER = "eddie@oppie.xyz"
+_GH_ID = "12345678"
+
+
+class _FakeTransport:
+    def __init__(self, scripted):
+        self._scripted = {k: list(v) for k, v in scripted.items()}
+        self.calls = []
+
+    def __call__(self, method, url, headers, body):
+        self.calls.append((method, url, headers, body))
+        queue = self._scripted.get(url)
+        if not queue:
+            raise AssertionError(f"unexpected/exhausted call to {url}")
+        return queue.pop(0)
+
+
+def _start_script():
+    return {
+        GITHUB_DEVICE_CODE_URL: [
+            (
+                200,
+                {
+                    "device_code": "dev-abc",
+                    "user_code": "WXYZ-7890",
+                    "verification_uri": "https://github.com/login/device",
+                    "interval": 5,
+                    "expires_in": 900,
+                },
+            )
+        ]
+    }
+
+
+def _authorized_script():
+    return {
+        GITHUB_ACCESS_TOKEN_URL: [
+            (200, {"error": "authorization_pending"}),  # first poll
+            (200, {"access_token": "gho_token"}),  # second poll
+        ],
+        GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
+        GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+    }
+
+
+def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=True):
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    session = (
+        SessionAuthority(signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex())
+        if with_session
+        else None
+    )
+    flow = (
+        GitHubDeviceFlow(client_id="Iv1.test", transport=transport or (lambda *a: (200, {})))
+        if with_flow
+        else None
+    )
+    return ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+        session_authority=session,
+        device_flow=flow,
+    )
+
+
+def _client(gateway):
+    return TestClient(create_app(gateway, sidecar_factory=Sidecar), raise_server_exceptions=False)
+
+
+# ---- start ----
+
+
+def test_start_returns_frozen_contract_fields(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport(_start_script()))
+    with _client(gw) as c:
+        r = c.post("/auth/device/start")
+    assert r.status_code == 200
+    assert set(r.json()) == {
+        "user_code",
+        "verification_uri",
+        "device_code",
+        "interval",
+        "expires_in",
+    }
+    assert r.json()["user_code"] == "WXYZ-7890"
+
+
+# ---- full login: pending then authorized ----
+
+
+def test_poll_pending_then_authorized_full_login(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport(_authorized_script()))
+    with _client(gw) as c:
+        pending = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+        assert pending.status_code == 200
+        assert pending.json() == {"status": "pending"}
+
+        done = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+    assert done.status_code == 200
+    body = done.json()
+    assert set(body) == {"session_token", "owner", "expires_at"}
+    assert body["owner"] == _OWNER
+    # the returned session token verifies against the gateway's session authority
+    claims = gw.session_auth.verify_session(body["session_token"])
+    assert claims.owner == _OWNER
+    assert claims.github_id == _GH_ID
+    assert body["expires_at"] == claims.expires_at
+
+
+def test_successful_login_writes_durable_account_link(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport(_authorized_script()))
+    with _client(gw) as c:
+        c.post("/auth/device/poll", json={"device_code": "dev-abc"})  # pending
+        c.post("/auth/device/poll", json={"device_code": "dev-abc"})  # authorized
+    # in-memory link is live
+    assert gw.accounts.owner_for(_GH_ID) == _OWNER
+    # and durable: a fresh gateway over the SAME log rehydrates it
+    gw2 = _gateway(tmp_path)
+    assert gw2.accounts.owner_for(_GH_ID) == _OWNER
+
+
+def test_poll_denied_is_200_status_denied(tmp_path):
+    script = {GITHUB_ACCESS_TOKEN_URL: [(200, {"error": "access_denied"})]}
+    gw = _gateway(tmp_path, transport=_FakeTransport(script))
+    with _client(gw) as c:
+        r = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+    assert r.status_code == 200
+    assert r.json() == {"status": "denied"}
+
+
+def test_poll_github_fault_is_502(tmp_path):
+    # access_token authorized but /user 401s → DeviceFlowError → opaque 502
+    script = {
+        GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
+        GITHUB_USER_URL: [(401, {"message": "Bad credentials"})],
+    }
+    gw = _gateway(tmp_path, transport=_FakeTransport(script))
+    with _client(gw) as c:
+        r = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+    assert r.status_code == 502
+
+
+def test_poll_rejects_missing_device_code(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport({}))
+    with _client(gw) as c:
+        r = c.post("/auth/device/poll", json={})
+    assert r.status_code == 422  # pydantic body validation
+
+
+# ---- 503 when unconfigured ----
+
+
+def test_start_503_when_device_flow_unconfigured(tmp_path):
+    gw = _gateway(tmp_path, with_flow=False)
+    with _client(gw) as c:
+        r = c.post("/auth/device/start")
+    assert r.status_code == 503
+
+
+def test_poll_503_when_session_auth_unconfigured(tmp_path):
+    # device-flow present but no session authority → nothing to mint → 503
+    gw = _gateway(tmp_path, transport=_FakeTransport({}), with_session=False)
+    with _client(gw) as c:
+        r = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+    assert r.status_code == 503
+
+
+def test_existing_routes_unaffected_when_onboarding_unconfigured(tmp_path):
+    """The whole point of optional-at-boot: /ladder etc. still serve when the
+    onboarding env is absent."""
+    gw = _gateway(tmp_path, with_session=False, with_flow=False)
+    with _client(gw) as c:
+        assert c.get("/healthz").status_code == 200
+        assert c.post("/auth/device/start").status_code == 503
