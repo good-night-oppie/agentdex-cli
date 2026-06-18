@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import socket
 import sys
 from typing import Any
@@ -143,8 +144,11 @@ def _resolve_token(
     launch typically hands out a batch-minted token instead (--token / env), which
     skips this entirely.
     """
-    key_path = args.key or os.path.expanduser(f"~/.agentdex/{args.agent}.key")
-    tok_path = os.path.expanduser(f"~/.agentdex/{args.agent}.token")
+    # Reuse a prior default name's credentials on upgrade (see
+    # _effective_agent_name); an explicit --agent is unaffected.
+    agent = _effective_agent_name(args)
+    key_path = args.key or os.path.expanduser(f"~/.agentdex/{agent}.key")
+    tok_path = os.path.expanduser(f"~/.agentdex/{agent}.token")
     token = args.token or os.environ.get("ADX_ARENA_TOKEN")
     # Reuse the token saved by a prior enrollment (same agent) so a returning
     # player does not re-enroll every run — but only if it is still valid.
@@ -162,15 +166,15 @@ def _resolve_token(
                 f"error: token given but no agent key at {key_path} — the per-battle "
                 f"proof-of-possession needs the private key you enrolled with. Pass --key."
             )
-        return token, AgentIdentity.load(args.agent, key_path)
+        return token, AgentIdentity.load(agent, key_path)
 
     # No token: enroll.
     if not args.owner:
         raise SystemExit("error: no --token and no --owner; one is required to enroll")
     identity = (
-        AgentIdentity.load(args.agent, key_path)
+        AgentIdentity.load(agent, key_path)
         if os.path.exists(key_path)
-        else AgentIdentity.new(args.agent)
+        else AgentIdentity.new(agent)
     )
     identity.save(key_path)
     client.enroll_request(owner_email=args.owner, agent=identity)
@@ -192,20 +196,63 @@ def _resolve_token(
 
 def _default_agent_name() -> str:
     """A machine-stable, globally-distinct default agent name that survives the
-    arena's server-side name cap.
+    arena's 24-char server-side name cap (MAX_NAME_LEN) AND resists collisions at
+    public-arena scale.
 
-    Arena names are unique across ALL users AND capped at ``MAX_NAME_LEN`` (24)
-    by ``sanitize_name``, so a bare ``terminal-player-<hostname>`` is truncated
-    to ``terminal-player-<first 8 chars>`` server-side. Hosts that share an
-    8-char prefix then collide at enrollment (409) even though the CLI saved its
-    key/token under the full, untruncated name. Suffix a short hash of the FULL
-    hostname instead: distinct hosts stay distinct, the whole name is exactly 24
-    chars (== the cap, so the CLI-side and server-side names match — no silent
-    truncation), and it stays stable across runs so the saved key/token keep
-    matching."""
+    Arena names are unique across ALL users and capped at 24 chars by
+    ``sanitize_name`` (a longer name is silently truncated server-side, so the
+    CLI-side and server-side identities would diverge). The short ``tp-`` prefix
+    leaves room for a WIDE 60-bit hash of the FULL hostname so distinct hosts
+    stay distinct even at scale — the earlier 32-bit suffix could collide (two
+    hosts hashing to the same 8 hex). The leftover budget carries a short,
+    human-readable host hint. The whole name is <=24 chars (so CLI and server
+    names match) and stable across runs (so the saved key/token keep matching).
+
+    Default-name format history (see _legacy_default_agent_names for the
+    upgrade fallback): ``terminal-player-<hostname>`` (#271) ->
+    ``terminal-player-<8 hex>`` (#285) -> this ``tp-<hint>-<15 hex>`` form."""
     host = socket.gethostname() or "host"
-    digest = hashlib.blake2s(host.encode("utf-8"), digest_size=4).hexdigest()  # 8 hex chars
-    return f"terminal-player-{digest}"  # 16 + 8 == 24 == MAX_NAME_LEN
+    digest = hashlib.blake2s(host.encode("utf-8"), digest_size=8).hexdigest()[:15]  # 60 bits
+    hint = re.sub(r"[^a-z0-9]", "", host.lower())
+    room = 24 - len("tp-") - len(digest) - 1  # 1 for the '-' before the hash
+    hint = hint[: max(room, 0)]
+    return f"tp-{hint}-{digest}" if hint else f"tp-{digest}"
+
+
+def _legacy_default_agent_names() -> list[str]:
+    """Prior forms of the default agent name, so a returning user's existing
+    credentials are reused across default-name format changes instead of being
+    orphaned by an upgrade (PR #285 review 3435385944). Newest legacy form first."""
+    host = socket.gethostname() or "host"
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", host) or "host"
+    return [
+        # #285: terminal-player-<8 hex of the full hostname>
+        f"terminal-player-{hashlib.blake2s(host.encode('utf-8'), digest_size=4).hexdigest()}",
+        # pre-#279: terminal-player-<sanitized hostname>, capped at 64 (the CLI
+        # saved under the untruncated name even though the server truncated to 24).
+        f"terminal-player-{sanitized}"[:64],
+    ]
+
+
+def _effective_agent_name(args: argparse.Namespace) -> str:
+    """The agent name to actually use for credential paths + identity.
+
+    An explicit ``--agent`` is honored verbatim. For the DEFAULT agent, if this
+    machine has no credentials under the current default name but DOES have them
+    under a PRIOR default name, keep using that prior name so an upgrade (the
+    default-name format has changed across #271/#285/this PR) does not orphan a
+    still-valid token/key or force a needless re-enrollment."""
+    if args.agent != _default_agent_name():
+        return args.agent  # user chose it explicitly
+    base = os.path.expanduser("~/.agentdex")
+    if os.path.exists(os.path.join(base, f"{args.agent}.token")):
+        return args.agent  # already enrolled under the current default
+    for legacy in _legacy_default_agent_names():
+        if os.path.exists(os.path.join(base, f"{legacy}.token")) and os.path.exists(
+            os.path.join(base, f"{legacy}.key")
+        ):
+            return legacy
+    return args.agent
 
 
 def cmd_arena_play(argv: list[str]) -> int:
