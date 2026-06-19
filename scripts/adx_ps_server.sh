@@ -25,6 +25,22 @@ if [[ ! -x "$PS_BIN" ]]; then
   exit 1
 fi
 
+# The npm package ships only config-example.js (v0.11.10 excludes config/* except
+# the example), but server/config-loader requires config.js at startup — without
+# it the server exits before listening and the poke-env spikes cannot connect.
+# Mirror the official `cp config/config-example.js config/config.js` setup step.
+PS_CONFIG_DIR="$REPO_ROOT/packages/adx_showdown/node_modules/pokemon-showdown/config"
+PS_CONFIG="$PS_CONFIG_DIR/config.js"
+if [[ ! -f "$PS_CONFIG" ]]; then
+  if [[ ! -f "$PS_CONFIG_DIR/config-example.js" ]]; then
+    echo "error: pokemon-showdown config-example.js missing at $PS_CONFIG_DIR" >&2
+    echo "  run 'npm install' in packages/adx_showdown first." >&2
+    exit 1
+  fi
+  cp "$PS_CONFIG_DIR/config-example.js" "$PS_CONFIG"
+  echo "[adx-ps] created config.js from config-example.js (first run)"
+fi
+
 echo "[adx-ps] starting Pokémon Showdown server on ${ADX_PS_HOST}:${ADX_PS_PORT} (--no-security)"
 echo "[adx-ps] websocket: ws://${ADX_PS_HOST}:${ADX_PS_PORT}/showdown/websocket"
 # PS reads the bind host from config.js; --no-security + --port cover dev needs.
