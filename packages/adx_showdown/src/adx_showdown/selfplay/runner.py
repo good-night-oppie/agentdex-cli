@@ -21,9 +21,11 @@ Contract-2 result type + the pure aggregation are import-safe without it.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,27 @@ _PS_HOST = os.environ.get("ADX_PS_HOST", "127.0.0.1")
 _PS_PORT = os.environ.get("ADX_PS_PORT", "8000")
 # Where per-matchup traces are written (battle outcomes for replay/audit).
 _TRACE_DIR = Path(os.environ.get("ADX_SELFPLAY_TRACE_DIR", "/tmp/selfplay"))
+
+# Bounded thread pool for the LIVE codex move hook. The codex CLI is a blocking
+# subprocess; running it inline in the async battle loop would stall the event
+# loop (and every other MCP/arena request) for up to the per-move timeout. We run
+# it off-loop here and CAP concurrency (``ADX_CODEX_MAX_CONCURRENCY``, default 4)
+# so a fan-out of concurrent battles can't spawn an unbounded pile of codex procs.
+# Lazily created so the default (greedy / non-live) path never builds a pool.
+_codex_executor: ThreadPoolExecutor | None = None
+
+
+def _get_codex_executor() -> ThreadPoolExecutor:
+    global _codex_executor
+    if _codex_executor is None:
+        try:
+            max_workers = max(1, int(os.environ.get("ADX_CODEX_MAX_CONCURRENCY", "4") or "4"))
+        except (TypeError, ValueError):
+            max_workers = 4  # mistyped override must not crash a battle — fail safe
+        _codex_executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="adx-codex"
+        )
+    return _codex_executor
 
 
 class SelfPlayResult(BaseModel):
@@ -150,7 +173,10 @@ def make_harness_player(
             idx = _seeded_index(len(orders), rng_seed, getattr(battle, "turn", 0), key)
             return orders[idx]
 
-        def choose_move(self, battle: Any) -> Any:
+        async def choose_move(self, battle: Any) -> Any:
+            # poke-env awaits ``choose_move`` when it returns a coroutine, so this
+            # is async ONLY to keep the live-codex subprocess off the event loop
+            # (below); the synchronous strategies just return inline.
             self.total_moves += 1
             moves = list(getattr(battle, "available_moves", None) or [])
             if self.strategy == "random" or not moves:
@@ -162,9 +188,26 @@ def make_harness_player(
             if self.strategy in ("llm_freeform", "codex"):
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
-                chosen = select_codex_move(
-                    h, battle, decide=_resolve_codex_decide(), on_illegal=self._note_illegal
-                )
+                decide = _resolve_codex_decide()
+                if decide is None:
+                    # greedy default — pure + fast, no subprocess; stays on-loop.
+                    chosen = select_codex_move(h, battle, on_illegal=self._note_illegal)
+                else:
+                    # LIVE codex: the decide hook shells out to the blocking codex
+                    # CLI. Run it OFF the event loop in the bounded codex pool so a
+                    # slow call can't stall other MCP/arena requests. Surface an
+                    # illegal proposal back on the event-loop thread (not the worker)
+                    # so the counter stays race-free across concurrent battles.
+                    flagged: list[bool] = []
+                    loop = asyncio.get_running_loop()
+                    chosen = await loop.run_in_executor(
+                        _get_codex_executor(),
+                        lambda: select_codex_move(
+                            h, battle, decide=decide, on_illegal=lambda: flagged.append(True)
+                        ),
+                    )
+                    if flagged:
+                        self._note_illegal()
                 if chosen is not None:
                     return self.create_order(chosen)
                 return self._seeded_order(battle)
