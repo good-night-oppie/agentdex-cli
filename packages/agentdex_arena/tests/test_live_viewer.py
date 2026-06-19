@@ -320,12 +320,13 @@ async def test_finish_defers_frame_buffer_eviction_then_reclaims(tmp_path):
     )
     sess.frames = [dict(f) for f in _FRAMES]
     sess.frame_seq = len(_FRAMES)
+    sess.live_viewers = 1  # a viewer is mid-stream → _finish DEFERS (PR #377 #3443669243)
     gw.sessions[sess.battle_id] = sess
 
     await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
 
     assert sess.ended is not None  # battle committed (receipt published)
-    # DEFERRED: buffer retained so a viewer mid-stream still drains the final frames.
+    # DEFERRED: buffer retained so the live viewer mid-stream still drains the final frames.
     assert sess.frames != []  # NOT wiped at finish (PR #374 dropped-winning-turn race)
     assert sess.frames_evict_after is not None  # eviction deadline stamped
 
@@ -405,6 +406,7 @@ async def test_finish_tolerates_malformed_evict_grace_env(tmp_path, monkeypatch)
     )
     sess.frames = [dict(f) for f in _FRAMES]
     sess.frame_seq = len(_FRAMES)
+    sess.live_viewers = 1  # a viewer is mid-stream → _finish takes the defer (grace) path
     gw.sessions[sess.battle_id] = sess
 
     receipt = await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
@@ -516,3 +518,50 @@ async def test_reclaim_runs_even_when_forfeit_disallowed(tmp_path):
     clock["t"] = sess.frames_evict_after + 1.0
     await gw._expire_if_stale(sess, allow_forfeit=False)
     assert sess.frames == []  # reclaim still ran under allow_forfeit=False
+
+
+@pytest.mark.asyncio
+async def test_finish_clears_immediately_when_no_live_viewer(tmp_path):
+    """A /choose finish with NO live SSE viewer reclaims the buffer IMMEDIATELY — there is
+    no viewer to race, and deferring would leak the buffer of a finished-but-unobserved
+    session forever (no background reaper, sessions linger; PR #377 review 3443669243)."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 4_000.0}
+    gw.now = lambda: clock["t"]
+    sess = BattleSession(
+        battle_id="b_noviewer",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0, 1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    assert sess.live_viewers == 0  # nobody streaming
+    gw.sessions[sess.battle_id] = sess
+
+    await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
+
+    assert sess.ended is not None  # battle committed
+    assert sess.frames == []  # reclaimed immediately (no viewer to race)
+    assert sess.frames_evict_after is None  # no deferral deadline stamped
+
+
+def test_finished_stream_reclaims_buffer_on_last_viewer_exit(tmp_path):
+    """The last SSE viewer of a finished battle reclaims the frame buffer when its stream
+    ends, so a /choose-then-leave battle does not leak it — touch-driven, no background
+    reaper (PR #377 review 3443669243)."""
+    gw = _gateway(tmp_path)
+    bid = _seed_battle(gw)  # finished battle (ended set), frames pre-populated
+    assert gw.sessions[bid].frames != []
+    with _client(gw) as c:
+        r = c.get(f"/battle/{bid}/live")  # public spectator drains, emits event:end, exits
+    assert r.status_code == 200
+    frames, saw_end = _parse_sse(r.text)
+    assert saw_end is True  # the viewer DID drain + see the terminal event:end first
+    assert len(frames) == 2  # frames were streamed BEFORE the buffer was reclaimed
+    assert gw.sessions[bid].frames == []  # buffer reclaimed on the last viewer's exit
+    assert gw.sessions[bid].live_viewers == 0  # refcount balanced

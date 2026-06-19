@@ -490,6 +490,15 @@ class BattleSession:
     # clear raced an active SSE stream and dropped the winning turn). Reclaimed lazily by
     # ``_expire_if_stale`` once past this deadline.
     frames_evict_after: float | None = None
+    # Count of SSE streams (_sse_battle_stream) currently tailing this battle's frame
+    # buffer. _finish reclaims the buffer IMMEDIATELY when this is 0 (no viewer to race);
+    # while >0 it defers (the active viewers must drain the final frames + terminal
+    # event:end first — PR #374), and the LAST viewer to disconnect reclaims on exit. This
+    # keeps the buffer lifetime tied to active viewers (touch-driven, no background reaper)
+    # so a finished-but-unobserved battle never leaks it (PR #377 review 3443669243).
+    # Mutated only from the asyncio event loop, so the +=/-= are atomic (no await between
+    # read and write).
+    live_viewers: int = 0
 
 
 class EnrollRequest(BaseModel):
@@ -2109,18 +2118,19 @@ class ArenaGateway:
         # buffer accumulates per-battle for the gateway's life → unbounded heap on a
         # busy day. A viewer connecting after the battle ends follows the terminal
         # ``event: end`` to /replay/<id> (the durable post-hoc surface), so the live
-        # buffer is dead weight once the receipt is published. On the /choose winning-move
-        # path (defer_frame_evict=True) DEFER the clear by a grace window rather than wiping
-        # it here: a viewer already mid-stream when the winning /choose lands must drain the
-        # final (decisive) frames + the terminal event:end first — an immediate clear raced
-        # active streams and dropped the winning turn (PR #374 review); _expire_if_stale
-        # reclaims it once past the deadline. On the FORFEIT/abandoned path
-        # (defer_frame_evict=False) clear immediately: that battle timed out precisely
-        # because nobody was touching it, so there is no active SSE viewer to race — and
-        # deferring there would leak the buffer of a session nothing ever touches again
-        # (the reclaim is purely touch-driven; the gateway is SLEEPING-tolerant by design
-        # with no background reaper, so an un-re-touched deferred buffer is never freed).
-        if defer_frame_evict:
+        # buffer is dead weight once the receipt is published. DEFER the clear ONLY while a
+        # live SSE viewer is mid-stream (defer_frame_evict on the /choose winning-move path
+        # AND session.live_viewers > 0): that viewer must drain the final (decisive) frames
+        # + the terminal event:end first — an immediate clear raced active streams and
+        # dropped the winning turn (PR #374 review). The LAST viewer to disconnect reclaims
+        # the buffer on exit (see _sse_battle_stream), and frames_evict_after +
+        # _expire_if_stale are a touch-driven fallback if a viewer wedges open. With NO live
+        # viewer (the common /choose-then-leave path, or the forfeit/abandoned path) there
+        # is nothing to race, so reclaim IMMEDIATELY — otherwise a finished-but-unobserved
+        # session leaks its ~hundreds-of-KB (up to 10 MiB) buffer forever: the reclaim is
+        # purely touch-driven, the gateway is SLEEPING-tolerant with no background reaper,
+        # and finished sessions linger in self.sessions indefinitely (PR #377 review 3443669243).
+        if defer_frame_evict and session.live_viewers > 0:
             session.frames_evict_after = self.now() + _sse_evict_grace_sec()
         else:
             session.frames = []
@@ -2384,33 +2394,47 @@ async def _sse_battle_stream(
     """
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
-    while True:
-        if await request.is_disconnected():
-            return
-        # Drive the gateway's stale-expiry: reclaim a finished battle's frame buffer once
-        # past its grace, and — on AUTHENTICATED streams only (allow_forfeit) — forfeit an
-        # ABANDONED battle (idle past turn_budget_s) → ended → emit the terminal event:end
-        # instead of polling forever (PR #373). The public spectator stream is reclaim-only
-        # (PR #377 review 3443669242); it ends when an authenticated touch forfeits the
-        # battle or the client disconnects. Cheap no-op when nothing is due.
-        await gateway._expire_if_stale(session, allow_forfeit=allow_forfeit)
-        frames = session.frames
-        while sent < len(frames):
-            fr = frames[sent]
-            sent += 1
-            payload = {
-                "battle_id": session.battle_id,
-                "turn": fr.get("turn", 0),
-                "seq": fr.get("seq", sent),
-                "side": side,
-                "lines": project_frame(fr.get("raw_lines") or [], side=side),
-                "ts_ms": int(gateway.now() * 1000),
-            }
-            yield f"data: {json.dumps(payload)}\n\n"
-        if session.ended is not None:
-            yield f"event: end\ndata: {json.dumps({'replay': f'/replay/{session.battle_id}'})}\n\n"
-            return
-        await asyncio.sleep(poll_sec)
+    # Register as an active viewer so _finish defers the buffer clear while we drain
+    # (PR #374 race) and the LAST viewer to leave reclaims it (PR #377 review 3443669243).
+    session.live_viewers += 1
+    try:
+        while True:
+            if await request.is_disconnected():
+                return
+            # Drive the gateway's stale-expiry: reclaim a finished battle's frame buffer once
+            # past its grace, and — on AUTHENTICATED streams only (allow_forfeit) — forfeit an
+            # ABANDONED battle (idle past turn_budget_s) → ended → emit the terminal event:end
+            # instead of polling forever (PR #373). The public spectator stream is reclaim-only
+            # (PR #377 review 3443669242); it ends when an authenticated touch forfeits the
+            # battle or the client disconnects. Cheap no-op when nothing is due.
+            await gateway._expire_if_stale(session, allow_forfeit=allow_forfeit)
+            frames = session.frames
+            while sent < len(frames):
+                fr = frames[sent]
+                sent += 1
+                payload = {
+                    "battle_id": session.battle_id,
+                    "turn": fr.get("turn", 0),
+                    "seq": fr.get("seq", sent),
+                    "side": side,
+                    "lines": project_frame(fr.get("raw_lines") or [], side=side),
+                    "ts_ms": int(gateway.now() * 1000),
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            if session.ended is not None:
+                yield f"event: end\ndata: {json.dumps({'replay': f'/replay/{session.battle_id}'})}\n\n"
+                return
+            await asyncio.sleep(poll_sec)
+    finally:
+        # Last viewer of a FINISHED battle reclaims the buffer now: the deferral in _finish
+        # existed only to let active viewers drain, and with no background reaper an
+        # un-re-touched finished session would otherwise leak its buffer (PR #377 review
+        # 3443669243). Guarded on ``ended`` so a viewer disconnecting MID-battle never wipes
+        # a still-live buffer; the count guard means only the final concurrent viewer clears.
+        # (Runs on return, client-disconnect, and generator aclose.)
+        session.live_viewers -= 1
+        if session.live_viewers <= 0 and session.ended is not None:
+            session.frames = []
 
 
 def create_app(
