@@ -800,6 +800,17 @@ class ArenaGateway:
         return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
 
     def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
+        # GA-CORE-1 beta gate: the legacy email-OOB path also mints a consent
+        # token (at /enroll/confirm, via _mint_consent), so it must be invite-
+        # gated too — otherwise ARENA_INVITE_REQUIRED is bypassable by self-
+        # serving through request→confirm and never presenting an invite. Fail
+        # fast BEFORE generating/sending the OOB code so an un-admitted owner
+        # never receives one. Optional-at-boot (flag unset → open enroll). The
+        # owner is client-supplied here, but admission is keyed on the normalized
+        # owner an invite was redeemed for (a session-authed act), so a client
+        # cannot self-admit by naming an arbitrary owner.
+        if self._invite_required() and not self.invites.is_admitted(req.owner):
+            raise _opaque_error(403, "an invitation code is required for the beta")
         code = secrets.token_urlsafe(16)
         agent_name = self._guard_reserved_name(req.agent_name)
         # Request-time fail-fast on a taken name (the authoritative register is at
@@ -821,9 +832,18 @@ class ArenaGateway:
         }
 
     def enroll_confirm(self, code: str) -> dict[str, Any]:
-        req = self.pending_enrollments.pop(code, None)
+        # Peek (not pop) first so a rejected confirm does not consume the pending
+        # code — the caller can re-confirm once admitted.
+        req = self.pending_enrollments.get(code)
         if req is None:
             raise _opaque_error(404, "unknown/expired enrollment code")
+        # GA-CORE-1 beta gate (defense-in-depth at the authoritative mint): never
+        # mint a consent token for an un-admitted owner when invites are required.
+        # Covers a flag flipped ON after this enrollment was already pending (the
+        # enroll_request gate only saw the flag's state at request time).
+        if self._invite_required() and not self.invites.is_admitted(req.owner):
+            raise _opaque_error(403, "an invitation code is required for the beta")
+        self.pending_enrollments.pop(code, None)
         # req.agent_name was already sanitized + guarded at request time.
         self._register_agent(req.agent_name)
         return self._mint_consent(

@@ -153,6 +153,105 @@ def test_gate_off_by_default_existing_enroll_unaffected(tmp_path):
         assert r.status_code == 200  # not gated when the flag is off
 
 
+def _gateway_capture(tmp_path: Path):
+    """A gateway whose notify_owner records every (owner, code) it would send, so
+    a test can both drive /enroll/confirm and assert NO code was sent on a
+    fail-fast rejection."""
+    sent: list[tuple[str, str]] = []
+    gw = ArenaGateway(
+        authority=ConsentAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: sent.append((owner, code)),
+        session_authority=SessionAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        admin_authority=AdminAuthority(token_hash_hex=_ADMIN_HASH),
+    )
+    return gw, sent
+
+
+def test_email_oob_request_is_invite_gated_and_sends_no_code(tmp_path, monkeypatch):
+    """The legacy email-OOB path also mints a consent token (at /enroll/confirm),
+    so it must be invite-gated too — else ARENA_INVITE_REQUIRED is bypassable by
+    self-serving through request→confirm. An un-admitted owner is rejected BEFORE
+    any OOB code is generated/sent."""
+    monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        r = c.post(
+            "/enroll/request",
+            json={
+                "owner": "mallory@x.com",
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+            },
+        )
+        assert r.status_code == 403
+        assert sent == []  # fail-fast: no OOB code ever sent to an un-invited owner
+
+
+def test_email_oob_path_works_for_admitted_owner(tmp_path, monkeypatch):
+    """An owner who has redeemed an invite can still use the email-OOB path."""
+    monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 1}, headers=_admin()).json()["codes"][0]
+        assert (
+            c.post(
+                "/enroll/redeem-invite",
+                json={"invite_code": code},
+                headers=_sess(gw, "alice@x.com"),
+            ).status_code
+            == 200
+        )
+        r = c.post(
+            "/enroll/request",
+            json={"owner": "alice@x.com", "agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+        )
+        assert r.status_code == 200
+        assert len(sent) == 1 and sent[0][0] == "alice@x.com"
+        oob_code = sent[0][1]
+        r = c.post(f"/enroll/confirm/{oob_code}")
+        assert r.status_code == 200 and "token" in r.json()
+
+
+def test_email_oob_confirm_gated_when_flag_flips_after_pending(tmp_path, monkeypatch):
+    """Defense-in-depth: a flag flipped ON after an enrollment was already pending
+    must still be blocked at the authoritative mint (enroll_confirm), and the
+    rejected confirm must NOT consume the pending code (peek-not-pop)."""
+    monkeypatch.delenv("ARENA_INVITE_REQUIRED", raising=False)
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        # flag OFF at request time → pending created + code sent
+        r = c.post(
+            "/enroll/request",
+            json={"owner": "alice@x.com", "agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+        )
+        assert r.status_code == 200 and len(sent) == 1
+        oob_code = sent[0][1]
+        # operator flips the beta gate ON before the human confirms
+        monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+        # confirm now 403s (owner not admitted) and the pending code is NOT consumed
+        assert c.post(f"/enroll/confirm/{oob_code}").status_code == 403
+        # admit the owner, then the SAME pending code confirms
+        admit = c.post("/admin/mint-invites", json={"count": 1}, headers=_admin()).json()["codes"][
+            0
+        ]
+        assert (
+            c.post(
+                "/enroll/redeem-invite",
+                json={"invite_code": admit},
+                headers=_sess(gw, "alice@x.com"),
+            ).status_code
+            == 200
+        )
+        r = c.post(f"/enroll/confirm/{oob_code}")
+        assert r.status_code == 200 and "token" in r.json()
+
+
 def test_redemption_survives_restart_via_replay(tmp_path):
     """invite_grant + invite_redeem events rehydrate admission on a fresh gateway."""
     gw = _gateway(tmp_path)
