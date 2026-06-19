@@ -34,35 +34,54 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from adx_showdown.harness import BattleHarness, seed_harness
 from adx_showdown.selfplay.baselines import HELD_OUT_BASELINES, baseline_names
 from adx_showdown.selfplay.fitness import FitnessVector, multi_dim_fitness
 
 # Components this scaffold still mocks (owned by other lanes). Surfaced in
-# DONE_JSON so a reader knows exactly what is real vs synthetic.
+# DONE_JSON so a reader knows exactly what is real vs synthetic. The A2 genome
+# (Contract 1) has LANDED, so it is real here — only the runner (A1) and the
+# evolve step (Lane B) remain mocked.
 MOCKED_COMPONENTS = [
-    "genome(A2/Contract1, adx-cli-7)",
     "runner(A1/Contract2, adx-cli-7)",
     "evolve(LaneB/Contract4, bene-core)",
 ]
-REAL_COMPONENTS = ["fitness(A3/Contract3, adx-core)"]
+REAL_COMPONENTS = [
+    "genome(A2/Contract1, adx_showdown.harness)",
+    "fitness(A3/Contract3, adx-core)",
+]
+
+
+def _params(harness: BattleHarness | dict[str, Any]) -> dict[str, Any]:
+    """The param dict of a harness, accepting the real ``BattleHarness`` model
+    or its dict form."""
+    if isinstance(harness, BattleHarness):
+        return dict(harness.params)
+    return dict(harness.get("params", {}))
+
+
+def _harness_id(harness: BattleHarness | dict[str, Any]) -> str:
+    return harness.harness_id if isinstance(harness, BattleHarness) else harness["harness_id"]
+
+
+def _strength(harness: BattleHarness | dict[str, Any]) -> float:
+    """Map a (real Contract-1) BattleHarness to a synthetic 0..1 win-rate dial
+    for the mock runner: the base comes from the genome's own ``aggression``
+    param (so the REAL genome fields drive the scaffold), and ``_mock_strength``
+    — a scaffold-only knob the mock evolve adds — climbs on top. Both vanish when
+    A1's real runner replaces ``_mock_run_vs_baselines``."""
+    p = _params(harness)
+    try:
+        base = 0.4 + 0.2 * float(p.get("aggression", 0.5))  # 0.5 @0.5 … 0.6 @1.0
+    except (TypeError, ValueError):
+        base = 0.5
+    bump = float(p.get("_mock_strength", 0.0) or 0.0)
+    return max(0.0, min(1.0, base + bump))
 
 
 # --------------------------------------------------------------------------- #
 # Mock seams — replace each with the real lane import as it lands.
 # --------------------------------------------------------------------------- #
-
-
-def _mock_seed_harness() -> dict[str, Any]:
-    """Mock of Contract-1 BattleHarness (Lane A2). ``_mock_strength`` is the only
-    scaffold-specific knob — a 0..1 dial the mock runner maps to win-rate; it
-    vanishes when A2's real genome + A1's real runner land."""
-    return {
-        "harness_id": "seed-h0",
-        "system_prompt": "Play to win; pick the move that most improves your position.",
-        "move_selection_strategy": "type_aware",
-        "tool_policy": {"allow_switch": True, "lookahead_depth": 1},
-        "params": {"aggression": 0.5, "_mock_strength": 0.5},
-    }
 
 
 def _det_unit(*parts: Any) -> float:
@@ -74,14 +93,15 @@ def _det_unit(*parts: Any) -> float:
 
 
 def _mock_run_vs_baselines(
-    harness: dict[str, Any], run_seed: int, n_battles: int
+    harness: BattleHarness | dict[str, Any], run_seed: int, n_battles: int
 ) -> list[dict[str, Any]]:
-    """Mock of Contract-2: run ``harness`` vs every held-out baseline, return one
-    BattleResult per matchup. DETERMINISTIC given (harness strength, baseline,
-    run_seed). Outcomes are SYNTHETIC — clean legal play (no forfeits/illegal),
-    realistic turn counts — until A1's real runner replaces this.
+    """Mock of Contract-2: run the (real) ``harness`` vs every held-out baseline,
+    return one BattleResult per matchup. DETERMINISTIC given (harness strength,
+    baseline, run_seed). Outcomes are SYNTHETIC — clean legal play (no forfeits/
+    illegal), realistic turn counts — until A1's real runner replaces this.
     """
-    strength = float(harness.get("params", {}).get("_mock_strength", 0.5))
+    strength = _strength(harness)
+    hid = _harness_id(harness)
     results: list[dict[str, Any]] = []
     names = baseline_names()
     # Map each baseline to a difficulty in [0,1] by its order (weakest first).
@@ -90,14 +110,14 @@ def _mock_run_vs_baselines(
         # logistic win prob: stronger harness + weaker opponent → more wins.
         p = 1.0 / (1.0 + math.exp(-6.0 * (strength - difficulty)))
         # Deterministic per-battle wins (no RNG module — hash-seeded jitter).
-        jitter = (_det_unit(harness["harness_id"], name, run_seed) - 0.5) * 0.1
+        jitter = (_det_unit(hid, name, run_seed) - 0.5) * 0.1
         wins = max(0, min(n_battles, round(n_battles * (p + jitter))))
         turns = n_battles * 11  # ~11 turns/battle, comfortably under target
         results.append(
             {
                 "winner": "a" if wins * 2 >= n_battles else "b",
                 "battles": [],
-                "trace_path": f"/tmp/selfplay/{harness['harness_id']}_vs_{name}_{run_seed}.json",
+                "trace_path": f"/tmp/selfplay/{hid}_vs_{name}_{run_seed}.json",
                 "raw_dims": {
                     "opponent_baseline": name,
                     "n_battles": n_battles,
@@ -117,15 +137,30 @@ def _mock_run_vs_baselines(
 class EvolveResult:
     """Mock of Contract-4's return: best harness + lineage + kill-gate report."""
 
-    best: dict[str, Any]
+    best: BattleHarness
     lineage: list[dict[str, Any]]
     killgate_report: dict[str, Any]
     gens_completed: int
     battles_played: int = 0
 
 
+def _mutate(harness: BattleHarness, *, gen: int, run_seed: int) -> BattleHarness:
+    """Scaffold stand-in for bene's genome mutation: bump the ``_mock_strength``
+    knob (the win-rate dial) on a copy of the REAL BattleHarness, re-validated
+    through the Contract-1 model so the candidate is always a legal genome.
+    Lane B replaces this with real ``system_prompt``/``params`` perturbation."""
+    data = harness.model_dump()
+    data["harness_id"] = f"gen{gen}-{run_seed}"
+    bump = 0.12 * (1.0 - _det_unit("bump", gen, run_seed) * 0.3)
+    data["params"] = {
+        **data.get("params", {}),
+        "_mock_strength": min(1.0, float(data.get("params", {}).get("_mock_strength", 0.0)) + bump),
+    }
+    return BattleHarness.model_validate(data)
+
+
 def _mock_evolve(
-    seed_harness: dict[str, Any],
+    seed: BattleHarness,
     fitness_fn: Any,
     n_gen: int,
     run_seed: int,
@@ -133,32 +168,29 @@ def _mock_evolve(
     n_battles: int,
     margin_pp: float,
 ) -> EvolveResult:
-    """Mock of Contract-4 evolve (Lane B). Each generation perturbs
-    ``_mock_strength`` upward and keeps the candidate only if its REAL Lane-A3
-    fitness beats the incumbent's win_rate — so the loop already optimizes the
-    production objective; only the battle outcomes are synthetic.
+    """Mock of Contract-4 evolve (Lane B). Each generation mutates the REAL
+    BattleHarness genome and keeps the candidate only if its REAL Lane-A3 fitness
+    beats the incumbent's win_rate — so the loop already optimizes the production
+    objective on the production genome; only the battle outcomes are synthetic.
 
     The KILL-GATE is real logic: the final best is accepted only if it beats the
     SEED on held-out by ``margin_pp``; a non-improving run is REJECTED (this is
     what makes the gate non-vacuous — verified by a dedicated test)."""
-    seed_fit = fitness_fn(seed_harness)
-    incumbent = seed_harness
+    seed_fit = fitness_fn(seed)
+    incumbent = seed
     incumbent_fit = seed_fit
     lineage: list[dict[str, Any]] = []
     battles = len(baseline_names()) * n_battles  # the seed's own evaluation
 
     for gen in range(1, max(1, n_gen) + 1):
-        cand = json.loads(json.dumps(incumbent))  # deep copy
-        cand["harness_id"] = f"gen{gen}-{run_seed}"
-        bump = 0.12 * (1.0 - _det_unit("bump", gen, run_seed) * 0.3)
-        cand["params"]["_mock_strength"] = min(1.0, float(cand["params"]["_mock_strength"]) + bump)
+        cand = _mutate(incumbent, gen=gen, run_seed=run_seed)
         cand_fit = fitness_fn(cand)
         battles += len(baseline_names()) * n_battles
         improved = cand_fit["win_rate"] > incumbent_fit["win_rate"]
         lineage.append(
             {
                 "gen": gen,
-                "harness_id": cand["harness_id"],
+                "harness_id": cand.harness_id,
                 "win_rate": cand_fit["win_rate"],
                 "kept": improved,
             }
@@ -238,17 +270,18 @@ def run_e2e(
 ) -> E2EReport:
     """Drive one end-to-end scaffold run and return the report.
 
-    Uses the REAL Lane-A3 ``multi_dim_fitness`` as the evolution objective;
-    everything else is a labeled mock. Asserts the run is non-vacuous
-    (battles_played > 0 ∧ gens_completed > 0)."""
-    seed_harness = _mock_seed_harness()
+    Uses the REAL Lane-A2 ``seed_harness`` genome + the REAL Lane-A3
+    ``multi_dim_fitness`` as the evolution objective; the runner + evolve are
+    labeled mocks. Asserts the run is non-vacuous (battles_played > 0 ∧
+    gens_completed > 0)."""
+    seed = seed_harness()  # real Contract-1 H0
 
-    def fitness_of(h: dict[str, Any]) -> FitnessVector:
+    def fitness_of(h: BattleHarness | dict[str, Any]) -> FitnessVector:
         return multi_dim_fitness(_mock_run_vs_baselines(h, run_seed, n_battles))
 
-    seed_fitness = fitness_of(seed_harness)
+    seed_fitness = fitness_of(seed)
     evolved = _mock_evolve(
-        seed_harness, fitness_of, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp
+        seed, fitness_of, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp
     )
     best_fitness = fitness_of(evolved.best)
     uplift_pp = (best_fitness["win_rate"] - seed_fitness["win_rate"]) * 100.0

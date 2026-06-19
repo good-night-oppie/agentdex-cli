@@ -12,11 +12,11 @@ import json
 import subprocess
 import sys
 
+from adx_showdown.harness import BattleHarness, seed_harness
 from adx_showdown.selfplay.e2e_driver import (
     MOCKED_COMPONENTS,
     _mock_evolve,
     _mock_run_vs_baselines,
-    _mock_seed_harness,
     main,
     run_e2e,
 )
@@ -66,11 +66,20 @@ def test_mocked_components_honestly_disclosed():
     done = run_e2e().to_done_json()
     # the scaffold must NOT claim the unlanded lanes are real
     assert done["mocked_components"] == MOCKED_COMPONENTS
-    assert any("genome" in m for m in done["mocked_components"])
     assert any("runner" in m for m in done["mocked_components"])
     assert any("evolve" in m for m in done["mocked_components"])
-    # fitness is the one real component
+    # genome (A2) + fitness (A3) have landed → both real, neither mocked
+    assert not any("genome" in m for m in done["mocked_components"])
+    assert any("genome" in r and "A2" in r for r in done["real_components"])
     assert any("fitness" in r and "A3" in r for r in done["real_components"])
+
+
+def test_seed_is_the_real_contract1_genome():
+    report = run_e2e(run_seed=42, n_gen=2, n_battles=30)
+    # the report's seed_fitness must equal the REAL seed_harness() run through
+    # the real A3 fitness — i.e. C2 is wired onto the landed Contract-1 genome.
+    assert report.seed_fitness == multi_dim_fitness(_mock_run_vs_baselines(seed_harness(), 42, 30))
+    assert isinstance(seed_harness(), BattleHarness)
 
 
 # ---- real fitness drives the loop ----
@@ -80,8 +89,7 @@ def test_fitness_in_report_is_the_real_a3_function():
     """seed_fitness in the report must equal multi_dim_fitness applied to the
     seed's mock battles — i.e. the driver uses the REAL A3 fitness, not a stub."""
     report = run_e2e(run_seed=42, n_gen=1, n_battles=30)
-    seed = _mock_seed_harness()
-    expected = multi_dim_fitness(_mock_run_vs_baselines(seed, 42, 30))
+    expected = multi_dim_fitness(_mock_run_vs_baselines(seed_harness(), 42, 30))
     assert report.seed_fitness == expected
 
 
@@ -116,15 +124,17 @@ def test_killgate_rejects_non_improving_run():
 
 
 def test_mock_evolve_keeps_only_improvements():
-    seed = _mock_seed_harness()
+    seed = seed_harness()
 
     def fit(h):
         return multi_dim_fitness(_mock_run_vs_baselines(h, 1, 30))
 
     res = _mock_evolve(seed, fit, n_gen=3, run_seed=1, n_battles=30, margin_pp=10.0)
-    # every kept lineage entry strictly improved win_rate over its predecessor
+    assert isinstance(res.best, BattleHarness)  # best is the real genome type
+    # every kept lineage entry strictly improved win_rate over the seed
+    seed_win = fit(seed)["win_rate"]
     kept = [e for e in res.lineage if e["kept"]]
-    assert all(e["win_rate"] > seed_win for seed_win in [fit(seed)["win_rate"]] for e in kept)
+    assert all(e["win_rate"] > seed_win for e in kept)
     assert res.gens_completed == 3
 
 
@@ -140,7 +150,7 @@ def test_run_is_deterministic_in_run_seed():
 def test_seed_threads_into_battle_traces():
     # the run_seed must reach the (mock) battle layer — trace paths encode it, so
     # two seeds produce distinguishable, reproducible-per-seed run records.
-    seed = _mock_seed_harness()
+    seed = seed_harness()
     r1 = _mock_run_vs_baselines(seed, 1, 30)
     r2 = _mock_run_vs_baselines(seed, 2, 30)
     assert r1[0]["trace_path"] != r2[0]["trace_path"]
