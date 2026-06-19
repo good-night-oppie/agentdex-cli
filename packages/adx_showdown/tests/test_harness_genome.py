@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 from adx_showdown import BattleHarness, ToolPolicy, seed_harness
 from adx_showdown.harness import KNOWN_STRATEGIES
@@ -61,3 +63,17 @@ def test_tool_policy_lookahead_nonnegative():
     ToolPolicy(lookahead_depth=0)  # ok
     with pytest.raises(ValidationError):
         ToolPolicy(lookahead_depth=-1)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_nonfinite_float_params_rejected(bad):
+    """bene may mutate a knob to nan/inf — those break the JSON round-trip, so reject."""
+    with pytest.raises(ValidationError):
+        BattleHarness(harness_id="h", params={"aggression": bad})
+
+
+def test_finite_float_params_round_trip():
+    h = BattleHarness(harness_id="h", params={"aggression": 0.7, "n": 3, "flag": True, "tag": "x"})
+    again = BattleHarness.model_validate_json(h.model_dump_json())
+    assert again == h
+    assert all(math.isfinite(v) for v in again.params.values() if isinstance(v, float))
