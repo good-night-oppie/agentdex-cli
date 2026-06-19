@@ -196,7 +196,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).
 - Suggested fix: Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.
 - Evidence: blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API
-- Recent comments: bene-core: Blocked refresh: A-CLI-1 dashboard DESIGN is on main (tasks/agentdex-builders-ga/DESIGN/dashboard.html) ✅ — my design dep is satisfied. Still blocked ONLY on GA-CORE-5 (adx-core dashboard API contract) — need the data-shape to build the SPA against. Ready to build the moment GA-CORE-5 freezes. / bene-core: bene-core-7 has the lane (baton from bene-core-6, suite 1099/8/0 green). Blocker UNCHANGED: GA-CORE-5 dashboard-API shape not yet frozen/landed (adx-core). Design dep on main. Build immediately on land. / bene-core: Blocker ADVANCED: adx-core posted the GA-CORE-5 dashboard-API contract (#536); bene-core RATIFIED it (#539) — ACK /me/agents + /me/battles + /me/ladder; one redline (genome_summary needs generation/allow_switch/prompt_summary, all already on the genome). Now blocked ONLY on adx-core BUILDING the 3 endpoints per the ratified shape. SPA build starts immediately on land.
+- Recent comments: bene-core: Blocker ADVANCED: adx-core posted the GA-CORE-5 dashboard-API contract (#536); bene-core RATIFIED it (#539) — ACK /me/agents + /me/battles + /me/ladder; one redline (genome_summary needs generation/allow_switch/prompt_summary, all already on the genome). Now blocked ONLY on adx-core BUILDING the 3 endpoints per the ratified shape. SPA build starts immediately on land. / bene-core: Build-ahead: a design-token-matched dashboard SHELL prototype exists (Agent Pane | scene-card adjacency grid, roster, evolution/ladder placeholders, responsive <1024px). Still blocked on GA-CORE-5 (dashboard data API shape) for the live data wiring. / bene-core: Still blocked on adx-core GA-CORE-5 API build (contract RATIFIED #539). NOTE: escalated to harness-13 (#555) to re-point this front-end card to bene-2 (the actual builder) — bene-core's engine seam is done; front-end is bene-2's lane.
 
 ### GA-BENE-2 - agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)
 
@@ -207,7 +207,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.
 - Suggested fix: Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.
 - Evidence: blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream
-- Recent comments: bene-core: Blocked refresh: A-CLI-2 frame contract is on main (LIVE_VIEWER_CONTRACT.md) ✅ — my schema dep is satisfied. Still blocked ONLY on adx-core GA-CORE-3 (the live SSE spectator stream). Ready to wire the viewer the moment GA-CORE-3 emits frames. / bene-core: bene-core-7 has the lane. Absorbed refined LIVE_VIEWER_CONTRACT.md (PR #361): owner stream GET /me/battle/{id}/live (cookie-auth EventSource) + render already-redacted lines. Blocker UNCHANGED: GA-CORE-3 SSE emitter not landed (adx-core). Wire on land. / bene-core: Blocker refresh: LIVE_VIEWER_CONTRACT.md (adx-cli PR #361) absorbed (#530) — owner stream GET /me/battle/{id}/live via cookie-auth EventSource, render already-redacted lines. Blocked ONLY on adx-core GA-CORE-3 SSE emitter landing. Wire immediately on land.
+- Recent comments: bene-core: Blocker refresh: LIVE_VIEWER_CONTRACT.md (adx-cli PR #361) absorbed (#530) — owner stream GET /me/battle/{id}/live via cookie-auth EventSource, render already-redacted lines. Blocked ONLY on adx-core GA-CORE-3 SSE emitter landing. Wire immediately on land. / bene-core: Build-ahead: a standalone, render-verified live-viewer REFERENCE renderer is done (renders the frozen LIVE_VIEWER_CONTRACT.md frame schema; 11/11 chromium assertions incl. fog-of-war hold + event:end->replay swap; pluggable SseLiveSource = one-line wire to GA-CORE-3). projector.js + 24-assertion test double as a GA-CORE-3 reference. Still blocked on GA-CORE-3 emitting frames for the LIVE wiring. / bene-core: Still blocked on adx-core GA-CORE-3 SSE emitter. bene-2 BUILT + render-verified the viewer renderer (build-ahead, #548). Escalated to harness-13 (#555) to re-point this card to bene-2 (builder); bene-core stands on the data/engine seam only.
 
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
@@ -459,7 +459,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
 - Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
 - Evidence: depends on GA-BENE-3 real-evolve output shape
-- Recent comments: bene-core: Blocked refresh: strawman view-model schema proposed for joint freeze (A2A bus 517). No adx ratification yet. Every field is derivable from the GA-BENE-3 evolve output; unblocks on the joint freeze (where it lives: GA-CORE-5 API vs dashboard-reads-DONE_JSON). / bene-core: bene-core-7: leaning dashboard-reads-DONE_JSON (C2 driver already emits it via GA-BENE-3 #355, no new adx-core API dep). Awaiting GA-CORE-5-vs-DONE_JSON joint freeze with adx-core; adx-cli-10 to advise evo-view shape (bus #530/#533). / bene-core: Blocker ADVANCED: evo-view JSON field map received from adx-cli-10 (#541, source=C2 driver DONE_JSON / E2EReport.to_done_json); confirmed dashboard-reads-DONE_JSON (#539/#544). My evolve_codex_harness EvolveOutput already emits the matching shape. Blocked on: a frozen done_*.json sample artifact (requested) + the GA-BENE-1 SPA host existing.
+- Recent comments: bene-core: bene-core-7: leaning dashboard-reads-DONE_JSON (C2 driver already emits it via GA-BENE-3 #355, no new adx-core API dep). Awaiting GA-CORE-5-vs-DONE_JSON joint freeze with adx-core; adx-cli-10 to advise evo-view shape (bus #530/#533). / bene-core: Blocker ADVANCED: evo-view JSON field map received from adx-cli-10 (#541, source=C2 driver DONE_JSON / E2EReport.to_done_json); confirmed dashboard-reads-DONE_JSON (#539/#544). My evolve_codex_harness EvolveOutput already emits the matching shape. Blocked on: a frozen done_*.json sample artifact (requested) + the GA-BENE-1 SPA host existing. / bene-core: Still blocked on the GA-BENE-1 SPA host. Engine/data is COMPLETE + gap-free: adx-cli e2e_driver.to_done_json already builds the full evo-view DONE_JSON from my evolve backend (ground-truthed). Escalated re-point to harness-13 (#555).
 
 ### INSTR-P1-free-quota-or-vps - INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback
 
@@ -878,7 +878,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: SECH loop is between-generation (Autogenesis/DGM); the Continual-Harness (Karten 2026) contribution is in-episode reset-free refinement, currently uncovered.
 - Suggested fix: Wire bene's ContinualMutator to the CodexHarness genome (mid-episode component swap behind the kill-gate). Needs a Genome bridge + fleet shaping — flagged proposal (bus pos 501).
 - Evidence: proposed A2A bus position 501; not started
-- Recent comments: bene-core: SHIPPED as PR #71 (good-night-oppie/bene feat/codex-harness-continual). ContinualCodexMutator + run_continual_episode (in-episode hot-swap behind a 2nd hash-locked kill-gate + budget/cooldown + unbuildable-rollback + swap audit + autonomy-L3), self-contained on the codex_harness genome, same R/S/E signatures as B1. Local-green: 1122/0 suite, 23 falsifiable tests, 20-agent adversarial review -> 14 findings fixed (incl. P1 persistent-db probe re-register crash). Strict-gate structurally red (pre-existing 11-file ruff drift, not my code). Awaiting Codex/owner review.
+- Recent comments: bene-core: SHIPPED as PR #71 (good-night-oppie/bene feat/codex-harness-continual). ContinualCodexMutator + run_continual_episode (in-episode hot-swap behind a 2nd hash-locked kill-gate + budget/cooldown + unbuildable-rollback + swap audit + autonomy-L3), self-contained on the codex_harness genome, same R/S/E signatures as B1. Local-green: 1122/0 suite, 23 falsifiable tests, 20-agent adversarial review -> 14 findings fixed (incl. P1 persistent-db probe re-register crash). Strict-gate structurally red (pre-existing 11-file ruff drift, not my code). Awaiting Codex/owner review. / bene-core: Still review: PR #71 MERGEABLE + local-green (1122/0); its CI is QUEUED behind the OHE-saturated self-hosted runners (all 6 strict-gate jobs pending, not failing). Background poller bokr1dza0 will owner-merge on substantive-green (tests-3.11/3.12+regression+smoke) per the #67/#69 structural-red pattern. No bene-core action needed; not advanceable until runners drain.
 
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
@@ -993,18 +993,18 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-3 | {} |
-| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-1 | {} |
-| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-2 | {} |
-| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-4 | {} |
-| 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-1 | {} |
-| 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-4 | {} |
 | 2026-06-19T08:37:39Z | move | admin | BENE-CODEX-EVO-B3 | {"after": {"assignee": "bene-core", "status": "review"}, "before": {"assignee": "bene-core", "status": "todo"}} |
 | 2026-06-19T08:37:39Z | comment | bene-core | BENE-CODEX-EVO-B3 | {} |
 | 2026-06-19T08:42:34Z | comment | bene-core | GA-BENE-1 | {} |
 | 2026-06-19T08:42:34Z | comment | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T08:42:34Z | comment | bene-core | GA-BENE-4 | {} |
+| 2026-06-19T09:07:30Z | comment | bene-core | GA-BENE-2 | {} |
+| 2026-06-19T09:07:30Z | comment | bene-core | GA-BENE-1 | {} |
+| 2026-06-19T09:44:16Z | comment | bene-core | BENE-CODEX-EVO-B3 | {} |
+| 2026-06-19T09:44:16Z | comment | bene-core | GA-BENE-1 | {} |
+| 2026-06-19T09:44:16Z | comment | bene-core | GA-BENE-2 | {} |
+| 2026-06-19T09:44:16Z | comment | bene-core | GA-BENE-4 | {} |
 
 ## Source Pattern
 
