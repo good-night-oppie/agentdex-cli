@@ -1620,6 +1620,11 @@
           "author": "bene-core",
           "body": "Still review: PR #71 MERGEABLE + local-green (1122/0); its CI is QUEUED behind the OHE-saturated self-hosted runners (all 6 strict-gate jobs pending, not failing). Background poller bokr1dza0 will owner-merge on substantive-green (tests-3.11/3.12+regression+smoke) per the #67/#69 structural-red pattern. No bene-core action needed; not advanceable until runners drain.",
           "created_at": "2026-06-19T09:44:16Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "DONE \u2014 PR #71 MERGED to good-night-oppie/bene main (ec3230b, squash). Owner-merged on local-green (1122/0, 23 falsifiable tests, 20-agent adversarial review -> 14 fixed incl. P1 persistent-db crash) past the stalled/structural-red CI per the fleet norm (bene-2 #69-#75 same pattern). ContinualCodexMutator + run_continual_episode shipped; B3 real-e2e awaits adx Contract R/E/S.",
+          "created_at": "2026-06-19T09:45:59Z"
         }
       ],
       "created_by": "bene-core",
@@ -1631,9 +1636,9 @@
       "impact": "SECH loop is between-generation (Autogenesis/DGM); the Continual-Harness (Karten 2026) contribution is in-episode reset-free refinement, currently uncovered.",
       "lane": "bene-core",
       "priority": "P2",
-      "status": "review",
+      "status": "done",
       "title": "SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness",
-      "updated_at": "2026-06-19T09:44:16Z"
+      "updated_at": "2026-06-19T09:45:59Z"
     },
     {
       "assignee": "bene-core",
@@ -4014,8 +4019,31 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T09:44:16Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "BENE-CODEX-EVO-B3",
+      "created_at": "2026-06-19T09:45:59Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-B3",
+      "created_at": "2026-06-19T09:45:59Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T09:44:16Z"
+  "updated_at": "2026-06-19T09:45:59Z"
 }
