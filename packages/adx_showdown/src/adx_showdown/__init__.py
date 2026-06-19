@@ -10,6 +10,8 @@ Surface:
   stream into one queryable :class:`~adx_showdown.client.BattleState`.
 - :mod:`adx_showdown.sim` — lockstep battle driver + inputLog re-simulation (A2).
 - :mod:`adx_showdown.teams` — curated CI-validated gen9 OU starter pack (F3).
+- :mod:`adx_showdown.harness` — BattleHarness genome (self-play meta-harness
+  Contract 1): the unit bene mutates; resolved to a sim Policy by A1.
 """
 
 from adx_showdown.client import (
@@ -18,6 +20,12 @@ from adx_showdown.client import (
     SideState,
     reduce,
     reduce_lines,
+)
+from adx_showdown.harness import (
+    KNOWN_STRATEGIES,
+    BattleHarness,
+    ToolPolicy,
+    seed_harness,
 )
 from adx_showdown.lineproto import (
     MESSAGE_TYPES,
@@ -41,11 +49,15 @@ from adx_showdown.sim import (
 )
 
 __all__ = [
+    "KNOWN_STRATEGIES",
     "MESSAGE_TYPES",
     "NONDETERMINISTIC_TYPES",
     "BattleClient",
+    "BattleHarness",
     "BattleResult",
     "BattleState",
+    "ToolPolicy",
+    "seed_harness",
     "PokemonIdent",
     "SideState",
     "reduce",
