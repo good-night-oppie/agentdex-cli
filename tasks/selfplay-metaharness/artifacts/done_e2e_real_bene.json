@@ -1,6 +1,7 @@
 {
     "DONE_JSON": true,
     "negative_control": false,
+    "harness_mutation": "positive_control: the first bene mutant is replaced with a hand-built max_damage harness (guarantees a runner-realizable uplift exists)",
     "real_components": [
         "A1.run_vs_baselines",
         "A3.multi_dim_fitness",
@@ -10,14 +11,14 @@
     "seed": {
         "id": "H0-seed-random",
         "strategy": "random",
-        "win_rate": 0.167
+        "win_rate": 0.292
     },
     "best": {
-        "id": "01KVETCWQ06DD58EY7ECPKSFSW",
+        "id": "01KVEVVPTF09BDCT6DP4GK5GC6",
         "strategy": "max_damage",
-        "win_rate": 0.667
+        "win_rate": 0.542
     },
-    "win_rate_uplift_pp": 50.0,
+    "win_rate_uplift_pp": 25.0,
     "killgate_report": {
         "verdict": "ACCEPT",
         "probe": "battle_harness_evolution_killgate",
@@ -25,7 +26,7 @@
         "gate_results": [
             {
                 "name": "battles_played_gt0",
-                "value": 6.0,
+                "value": 24.0,
                 "passed": true,
                 "killed": false
             },
@@ -37,21 +38,22 @@
             },
             {
                 "name": "win_rate_uplift",
-                "value": 0.5,
+                "value": 0.24999999999999994,
                 "passed": true,
                 "killed": false
             }
         ],
-        "best_harness_id": "01KVETCWQ06DD58EY7ECPKSFSW",
+        "best_harness_id": "01KVEVVPTF09BDCT6DP4GK5GC6",
         "seed_harness_id": "H0-seed-random",
-        "seed_win_rate": 0.16666666666666666,
-        "best_win_rate": 0.6666666666666666,
-        "uplift": 0.5,
+        "seed_win_rate": 0.2916666666666667,
+        "best_win_rate": 0.5416666666666666,
+        "uplift": 0.24999999999999994,
         "gens_completed": 1,
-        "battles_played": 6
+        "battles_played": 24
     },
     "gens_completed": 1,
-    "battles_played": 12,
+    "candidates_evaluated": 3,
+    "battles_played": 72,
     "anti_vacuous": {
         "battles_played_gt_0": true,
         "gens_gt_0": true
