@@ -1446,6 +1446,51 @@
       "status": "todo",
       "title": "codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)",
       "updated_at": "2026-06-18T16:46:17Z"
+    },
+    {
+      "id": "BENE-BATTLE-B1",
+      "title": "Lane B: evolve_battle_harness Contract-4 entrypoint (bene)",
+      "status": "done",
+      "owner": "bene-core",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "notes": "PR #62 open https://github.com/good-night-oppie/bene/pull/62; mock_fitness built-in; swap to real multi_dim_fitness when Lane A3 lands"
+    },
+    {
+      "id": "BENE-BATTLE-B2",
+      "title": "Lane B: Pareto evaluator wired to Contract-3 5-dim fitness",
+      "status": "done",
+      "owner": "bene-core",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "notes": "Uses compute_pareto; all 5 dims covered; bundled in PR #62"
+    },
+    {
+      "id": "BENE-BATTLE-B3",
+      "title": "Lane B: hash-locked kill-gate probe (win_rate_uplift + anti-vacuous)",
+      "status": "done",
+      "owner": "bene-core",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "notes": "3 gates frozen; tamper=LockTamperError; bundled in PR #62"
+    },
+    {
+      "id": "BENE-BATTLE-B4",
+      "title": "Lane B: SharedLog lineage + run_seed reproducibility",
+      "status": "done",
+      "owner": "bene-core",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "notes": "write_lineage() -> type=evolution on fleet bus; bundled in PR #62"
+    },
+    {
+      "id": "BENE-BATTLE-INTEGRATE",
+      "title": "Lane B \u2192 A3 integration: swap mock_fitness for real multi_dim_fitness",
+      "status": "blocked",
+      "owner": "bene-core",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "notes": "Blocked on Lane A3 (multi_dim_fitness) from adx-cli-7"
     }
   ],
   "events": [
