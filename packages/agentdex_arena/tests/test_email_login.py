@@ -11,7 +11,12 @@ from pathlib import Path
 
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority, _normalize_owner
-from agentdex_arena.gateway import ArenaGateway, create_app
+from agentdex_arena.gateway import (
+    EMAIL_LOGIN_TTL_SEC,
+    MAX_PENDING_EMAIL_LOGINS,
+    ArenaGateway,
+    create_app,
+)
 from agentdex_arena.session import SessionAuthority
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
@@ -108,3 +113,41 @@ def test_start_is_uniform_for_any_email(tmp_path):
         assert a.status_code == b.status_code == 200
         assert a.json() == b.json()  # indistinguishable
         assert {o for o, _ in sent} == {"known@x.com", "stranger@y.com"}
+
+
+def test_login_code_ttl_is_within_contract(tmp_path):
+    """US-1.3 AC1: the one-time code must expire in ≤10 min."""
+    assert EMAIL_LOGIN_TTL_SEC <= 600.0
+    gw, sent = _gateway(tmp_path)
+    with _client(gw) as c:
+        c.post("/auth/email/start", json={"email": "a@b.com"})
+        code = sent[0][1]
+        _email, expires_at = gw.pending_email_logins[code]
+        assert expires_at - gw.now() <= 600.0 + 1.0  # issued with a ≤10-min TTL
+
+
+def test_resend_cooldown_no_duplicate_send(tmp_path):
+    """A rapid re-request for the same email is a no-op SEND (delivery-spam guard) —
+    same uniform response, but notify_owner fires only once."""
+    gw, sent = _gateway(tmp_path)
+    with _client(gw) as c:
+        r1 = c.post("/auth/email/start", json={"email": "a@b.com"})
+        r2 = c.post("/auth/email/start", json={"email": "A@B.com"})  # same normalized owner
+        assert r1.status_code == r2.status_code == 200 and r1.json() == r2.json()
+    assert len(sent) == 1  # cooldown suppressed the second delivery
+    assert len(gw.pending_email_logins) == 1  # one live code per email
+
+
+def test_global_cap_rejects_abusive_burst(tmp_path):
+    """A cross-email burst beyond the hard cap is rejected (429) rather than growing
+    the pending map / spamming the channel unboundedly."""
+    gw, sent = _gateway(tmp_path)
+    now = gw.now()
+    # fill to the cap with distinct, non-expired, far-future codes (no cooldown/dedup hit)
+    gw.pending_email_logins = {
+        f"code{i}": (f"u{i}@x.com", now + 600.0) for i in range(MAX_PENDING_EMAIL_LOGINS)
+    }
+    with _client(gw) as c:
+        r = c.post("/auth/email/start", json={"email": "overflow@x.com"})
+    assert r.status_code == 429
+    assert sent == []  # no delivery on the rejected request
