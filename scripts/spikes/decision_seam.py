@@ -36,7 +36,13 @@ class MaxBasePowerPlayer(Player):
         return self.choose_random_move(battle)
 
 
-async def main() -> None:
+async def main() -> int:
+    """Run the spike; return a shell exit code (0 pass, 1 regression).
+
+    This script IS the Phase-1 proof that win-rate is an eval signal, so a
+    sub-threshold result must surface as a non-zero exit — otherwise a smoke/CI
+    wrapper records a failed threshold as success.
+    """
     n = int(os.environ.get("ADX_SPIKE_N", "10"))
     heuristic = MaxBasePowerPlayer(
         account_configuration=AccountConfiguration("adx-maxbp", None),
@@ -55,12 +61,15 @@ async def main() -> None:
     print(
         f"[spike2] MaxBasePower vs Random over {n}: won {heuristic.n_won_battles} (win-rate {wr:.0%})"
     )
+    if wr > 0.5:
+        print("[spike2] OK — decision seam works; win-rate is a usable eval signal")
+        return 0
     print(
-        "[spike2] OK — decision seam works; win-rate is a usable eval signal"
-        if wr > 0.5
-        else "[spike2] heuristic did not dominate (variance — raise ADX_SPIKE_N)"
+        f"[spike2] FAIL — heuristic did not dominate (win-rate {wr:.0%} <= 50%); "
+        "raise ADX_SPIKE_N if this is variance, else the decision seam regressed"
     )
+    return 1
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(asyncio.run(main()))
