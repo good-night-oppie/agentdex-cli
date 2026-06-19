@@ -39,6 +39,17 @@ class _Battle:
         self.force_switch = force_switch
 
 
+class _ToolPolicy:
+    def __init__(self, allow_switch=True):
+        self.allow_switch = allow_switch
+
+
+class _PolicyHarness:
+    def __init__(self, allow_switch=True):
+        self.tool_policy = _ToolPolicy(allow_switch)
+        self.system_prompt = ""
+
+
 # ---- the codex move seam ----
 
 
@@ -176,6 +187,46 @@ def test_illegal_id_matching_neither_move_nor_switch_is_counted():
     )
     assert calls == [1]
     assert chosen is battle.available_moves[0]  # substitutes a legal action
+
+
+# ---- tool_policy.allow_switch gating (PR #348 review #3440344820) ----
+
+
+def test_voluntary_switch_dropped_when_allow_switch_false():
+    """A genome with allow_switch=False must NOT be able to voluntarily switch: the
+    switch is not in the action space, so naming it is counted illegal + substituted."""
+    battle = _Battle([_Move("ember", 40)], switches=[_Switch("blastoise")])
+    ctx = codex_context(battle, allow_switch=False)
+    assert ctx["available_switches"] == []  # voluntary switch not offered
+    calls = []
+    chosen = select_codex_move(
+        harness=_PolicyHarness(allow_switch=False),
+        battle=battle,
+        decide=lambda h, c: "blastoise",  # tries to voluntarily switch
+        on_illegal=lambda: calls.append(1),
+    )
+    assert calls == [1]  # rejected as illegal
+    assert chosen is battle.available_moves[0]  # substituted a legal move
+
+
+def test_voluntary_switch_allowed_when_allow_switch_true():
+    blastoise = _Switch("blastoise")
+    battle = _Battle([_Move("ember", 40)], switches=[blastoise])
+    chosen = select_codex_move(
+        harness=_PolicyHarness(allow_switch=True),
+        battle=battle,
+        decide=lambda h, c: "blastoise",
+    )
+    assert chosen is blastoise
+
+
+def test_forced_switch_allowed_even_when_allow_switch_false():
+    """A forced switch (KO: no moves) is always legal — allow_switch only governs
+    VOLUNTARY switches."""
+    venusaur = _Switch("venusaur")
+    battle = _Battle([], force_switch=True, switches=[venusaur])
+    chosen = select_codex_move(harness=_PolicyHarness(allow_switch=False), battle=battle)
+    assert chosen is venusaur
 
 
 # ---- PS-gated end-to-end: codex (llm_freeform) drives moves vs a baseline ----
