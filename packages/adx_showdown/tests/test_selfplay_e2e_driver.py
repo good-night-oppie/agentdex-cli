@@ -163,6 +163,28 @@ def test_mock_evolve_keeps_improvements_and_returns_results():
     assert res.gens_completed == 3
 
 
+# ---- full-vector (Pareto) keep, not win_rate alone ----
+
+
+def test_evolve_rejects_winrate_gain_that_sacrifices_a_guard_dim():
+    from adx_showdown.selfplay.e2e_driver import _is_pareto_improvement
+
+    base = {
+        "win_rate": 0.5,
+        "elo": 1000.0,
+        "move_legibility": 1.0,
+        "no_forfeit_exploit": 1.0,
+        "turn_efficiency": 1.0,
+    }
+    # higher win_rate bought by tanking an anti-reward-hack guard dim → REJECTED
+    hacked = {**base, "win_rate": 0.7, "no_forfeit_exploit": 0.6}
+    assert _is_pareto_improvement(hacked, base) is False
+    # higher win_rate with every guard dim held → kept
+    assert _is_pareto_improvement({**base, "win_rate": 0.7}, base) is True
+    # no win_rate gain → never kept (even if a guard improves)
+    assert _is_pareto_improvement({**base, "move_legibility": 1.0}, base) is False
+
+
 # ---- strategy-ladder mutation (real-backend uplift seam) ----
 
 
