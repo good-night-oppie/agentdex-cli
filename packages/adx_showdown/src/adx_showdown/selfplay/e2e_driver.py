@@ -487,9 +487,17 @@ def _real_evolve(
     cache: dict[str, tuple[list[dict[str, Any]], FitnessVector]] = {}
 
     def bene_fitness_fn(bh: Any) -> Any:
-        canon = from_bene_genome(bh.to_dict())
-        results, fit = eval_fn(canon)
-        cache[bh.harness_id] = (results, fit)
+        # Reuse the cached (results, fitness) when bene re-scores a harness it already
+        # evaluated (it re-measures the best at the end) — re-running would waste
+        # battles and, with the live pokeenv runner, draw fresh stochastic samples.
+        # Mirrors the cache in e2e_selfplay_metaharness.py (PR #355 review).
+        cached = cache.get(bh.harness_id)
+        if cached is not None:
+            results, fit = cached
+        else:
+            canon = from_bene_genome(bh.to_dict())
+            results, fit = eval_fn(canon)
+            cache[bh.harness_id] = (results, fit)
         return bene_fitness_cls(
             win_rate=fit["win_rate"],
             elo=fit["elo"],
@@ -520,7 +528,13 @@ def _real_evolve(
 
     killgate = dict(out.killgate_report)
     # bene reports verdict ACCEPT/REJECT/VOID; the driver's `ok` reads .get("passed").
-    killgate["passed"] = killgate.get("verdict") == "ACCEPT"
+    # Honor the caller's --margin-pp: bene's hash-locked gate uses a fixed 10pp
+    # threshold, so `passed` requires bene's ACCEPT AND that the selection uplift clears
+    # the (possibly stricter) user margin — otherwise the real backend would silently
+    # ignore --margin-pp that the mock backend honors (PR #355 review). uplift is a
+    # fraction in [0,1]; margin_pp is percentage points.
+    uplift_pp = float(killgate.get("uplift", 0.0)) * 100.0
+    killgate["passed"] = killgate.get("verdict") == "ACCEPT" and uplift_pp >= margin_pp
 
     lineage = [
         asdict(g) if hasattr(g, "__dataclass_fields__") else dict(g)
