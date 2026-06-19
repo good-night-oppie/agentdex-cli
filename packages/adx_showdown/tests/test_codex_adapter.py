@@ -15,6 +15,7 @@ import socket
 import pytest
 from adx_showdown.selfplay.codex_adapter import (
     CODEX_STRATEGIES,
+    _allow_switch,
     codex_context,
     select_codex_move,
 )
@@ -227,6 +228,52 @@ def test_forced_switch_allowed_even_when_allow_switch_false():
     battle = _Battle([], force_switch=True, switches=[venusaur])
     chosen = select_codex_move(harness=_PolicyHarness(allow_switch=False), battle=battle)
     assert chosen is venusaur
+
+
+# ---- allow_switch hardening (PR #350 review) ----
+
+
+def test_allow_switch_reads_dict_wire_form():
+    """#3440401892: the Contract-1 dict/wire harness must be honored — getattr on a
+    dict silently returned the default True, defeating the gate."""
+    assert _allow_switch({"tool_policy": {"allow_switch": False}}) is False
+    assert _allow_switch({"tool_policy": {"allow_switch": True}}) is True
+    assert _allow_switch({"tool_policy": {}}) is True  # unset → default allow
+    assert _allow_switch({}) is True
+    assert _allow_switch(None) is True
+
+
+def test_voluntary_switch_dropped_for_dict_harness_with_allow_switch_false():
+    battle = _Battle([_Move("ember", 40)], switches=[_Switch("blastoise")])
+    calls = []
+    chosen = select_codex_move(
+        harness={"tool_policy": {"allow_switch": False}},  # wire form
+        battle=battle,
+        decide=lambda h, c: "blastoise",
+        on_illegal=lambda: calls.append(1),
+    )
+    assert calls == [1]  # the wire-form policy gate now fires
+    assert chosen is battle.available_moves[0]
+
+
+def test_no_move_non_forced_turn_still_gates_voluntary_switch():
+    """#3440401897: a no-move turn that is NOT a forced switch (force_switch=False)
+    is a VOLUNTARY switch opportunity — allow_switch=False must still drop it, rather
+    than treating every no-move turn as a mandatory KO switch."""
+    battle = _Battle([], force_switch=False, switches=[_Switch("blastoise")])
+    ctx = codex_context(battle, allow_switch=False)
+    assert ctx["available_switches"] == []  # not offered — it's voluntary, not forced
+    # nothing the policy allows is legal → defer to the caller's (policy-aware) fallback
+    assert select_codex_move(harness=_PolicyHarness(allow_switch=False), battle=battle) is None
+
+
+def test_no_move_forced_switch_keeps_switches():
+    """The same no-move turn WITH force_switch=True is mandatory → switches kept."""
+    blastoise = _Switch("blastoise")
+    battle = _Battle([], force_switch=True, switches=[blastoise])
+    ctx = codex_context(battle, allow_switch=False)
+    assert ctx["available_switches"] == [{"species": "blastoise"}]
+    assert select_codex_move(harness=_PolicyHarness(allow_switch=False), battle=battle) is blastoise
 
 
 # ---- PS-gated end-to-end: codex (llm_freeform) drives moves vs a baseline ----

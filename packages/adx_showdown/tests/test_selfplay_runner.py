@@ -13,8 +13,41 @@ from adx_showdown.selfplay.fitness import multi_dim_fitness
 from adx_showdown.selfplay.runner import (
     SelfPlayResult,
     _aggregate,
+    _filter_switch_orders,
     run_selfplay_battle,
 )
+
+
+class _Order:
+    """A duck-typed poke-env BattleOrder: only ``.message`` matters for filtering."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+
+def test_filter_switch_orders_drops_only_switches_when_excluded():
+    """#3440401899: the codex-abstention fallback must honor allow_switch — a switch
+    order (``/choose switch ...``) is dropped, a move (``/choose move ...``) is kept,
+    and a move named like a switch (Switcheroo) is NOT mis-dropped."""
+    orders = [
+        _Order("/choose move switcheroo"),
+        _Order("/choose switch blastoise"),
+        _Order("/choose move ember"),
+    ]
+    kept = _filter_switch_orders(orders, exclude_switches=True)
+    assert [o.message for o in kept] == ["/choose move switcheroo", "/choose move ember"]
+
+
+def test_filter_switch_orders_passthrough_when_not_excluded():
+    orders = [_Order("/choose switch blastoise"), _Order("/choose move ember")]
+    assert _filter_switch_orders(orders, exclude_switches=False) is orders
+
+
+def test_filter_switch_orders_never_empties_a_forced_switch():
+    """If every order is a switch (a true forced switch) keep them — never deadlock."""
+    orders = [_Order("/choose switch a"), _Order("/choose switch b")]
+    assert _filter_switch_orders(orders, exclude_switches=True) == orders
+
 
 # --- the exact raw_dims keys A3's fitness + the C2 driver mock agree on ---
 _CONTRACT_RAW_DIMS = {
