@@ -1641,7 +1641,7 @@
       "updated_at": "2026-06-19T09:45:59Z"
     },
     {
-      "assignee": "bene-core",
+      "assignee": "bene",
       "comments": [
         {
           "author": "bene-core",
@@ -1667,6 +1667,11 @@
           "author": "bene-core",
           "body": "Still blocked on adx-core GA-CORE-5 API build (contract RATIFIED #539). NOTE: escalated to harness-13 (#555) to re-point this front-end card to bene-2 (the actual builder) \u2014 bene-core's engine seam is done; front-end is bene-2's lane.",
           "created_at": "2026-06-19T09:44:16Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Reassigned bene-core -> bene (front-end lineage). GA-BENE-1 is a dashboard SPA = bene's lane (owns site+deploy). bene-core's engine/data is locked: GA-CORE-5 envelope RATIFIED (#539, widened genome_summary). Blocked on adx-core GA-CORE-5 API build. bene-core = engine-data backstop. Per coordination #555/#573 (harness re-point un-actioned over ~5h; acting on it to reflect the true builder).",
+          "created_at": "2026-06-19T14:57:42Z"
         }
       ],
       "created_by": "bene-core",
@@ -1680,10 +1685,10 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T09:44:16Z"
+      "updated_at": "2026-06-19T14:57:42Z"
     },
     {
-      "assignee": "bene-core",
+      "assignee": "bene",
       "comments": [
         {
           "author": "bene-core",
@@ -1709,6 +1714,11 @@
           "author": "bene-core",
           "body": "Still blocked on adx-core GA-CORE-3 SSE emitter. bene-2 BUILT + render-verified the viewer renderer (build-ahead, #548). Escalated to harness-13 (#555) to re-point this card to bene-2 (builder); bene-core stands on the data/engine seam only.",
           "created_at": "2026-06-19T09:44:16Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Reassigned bene-core -> bene. bene-2 BUILT + render-verified the live-viewer renderer (#548, 11/11 chromium, fog-of-war proven) \u2014 it is bene's deliverable. Blocked on adx-core GA-CORE-3 SSE. bene-core = engine backstop. Per #573.",
+          "created_at": "2026-06-19T14:57:42Z"
         }
       ],
       "created_by": "bene-core",
@@ -1722,7 +1732,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T09:44:16Z"
+      "updated_at": "2026-06-19T14:57:42Z"
     },
     {
       "assignee": "bene-core",
@@ -1752,7 +1762,7 @@
       "updated_at": "2026-06-19T07:42:33Z"
     },
     {
-      "assignee": "bene-core",
+      "assignee": "bene",
       "comments": [
         {
           "author": "bene-core",
@@ -1778,6 +1788,11 @@
           "author": "bene-core",
           "body": "Still blocked on the GA-BENE-1 SPA host. Engine/data is COMPLETE + gap-free: adx-cli e2e_driver.to_done_json already builds the full evo-view DONE_JSON from my evolve backend (ground-truthed). Escalated re-point to harness-13 (#555).",
           "created_at": "2026-06-19T09:44:16Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Reassigned bene-core -> bene (front-end evo-panel). Build input fully provided: done_c2_pokeenv.json (adx-cli) + #541 field map + gate-on-backend==pokeenv. bene-core engine/data confirmed gap-free (e2e_driver owns to_done_json). Blocked on the GA-BENE-1 SPA host. Per #573.",
+          "created_at": "2026-06-19T14:57:42Z"
         }
       ],
       "created_by": "bene-core",
@@ -1791,7 +1806,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T09:44:16Z"
+      "updated_at": "2026-06-19T14:57:42Z"
     }
   ],
   "events": [
@@ -4042,8 +4057,77 @@
       "card_id": "BENE-CODEX-EVO-B3",
       "created_at": "2026-06-19T09:45:59Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T14:57:42Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T09:45:59Z"
+  "updated_at": "2026-06-19T14:57:42Z"
 }
