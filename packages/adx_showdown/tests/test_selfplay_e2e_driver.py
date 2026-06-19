@@ -132,8 +132,39 @@ def test_ok_requires_ci_excludes_zero():
 
 def test_anti_vacuous_counts_positive():
     r = run_e2e(run_seed=7, n_gen=2, n_battles=30)
-    assert r.battles_played == (1 + 2) * 3 * 30  # (seed + 2 gens) × 3 baselines × n
+    # (seed + 2 gens) evolve battles + (seed + best) fresh re-measure battles,
+    # × 3 baselines × 30 each
+    assert r.battles_played == ((1 + 2) + 2) * 3 * 30
     assert r.gens_completed == 2
+
+
+def test_ok_requires_min_30_battles_per_matchup():
+    # DONE #3 demands the uplift CI hold over >=30 battles/matchup; below the bar
+    # ok must be False even if everything else passes.
+    r = run_e2e(run_seed=42, n_gen=3, n_battles=20, margin_pp=5.0)
+    assert r.n_battles_per_matchup == 20
+    assert r.ok is False
+
+
+def test_seed_strategy_is_recorded_and_classified():
+    canonical = run_e2e(run_seed=42, n_gen=1, n_battles=200).to_done_json()
+    assert canonical["seed_strategy"] == "canonical-H0"
+    assert canonical["canonical_seed"] is True
+    override = run_e2e(run_seed=42, n_gen=1, n_battles=200, seed_strategy="random").to_done_json()
+    assert override["seed_strategy"] == "random"
+    assert override["canonical_seed"] is False
+
+
+def test_injected_runner_is_not_classified_as_real():
+    # A wrapped/custom runner through the public seam must NOT claim a real PS run.
+    def wrapped(h, run_seed, n_battles):
+        return _mock_run_vs_baselines(h, run_seed, n_battles)
+
+    done = run_e2e(run_seed=42, n_gen=1, n_battles=200, runner_fn=wrapped).to_done_json()
+    assert done["backend"] == "custom"
+    assert done["scaffold"] is True
+    assert not any("poke-env vs PS server" in r for r in done["real_components"])
+    assert any("INJECTED custom runner" in m for m in done["mocked_components"])
 
 
 def test_seed_is_the_real_contract1_genome():
