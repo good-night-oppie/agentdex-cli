@@ -3073,6 +3073,13 @@ def create_app(
         await gw._expire_if_stale(session)
         if session.ended is not None:
             return {"status": "ended", **session.ended}
+        if session.forfeiting:
+            # A concurrent caller is mid-forfeit (awaiting sidecar stop / _finish behind
+            # the rated finish lock) and session.ended is not set YET. Treat the in-flight
+            # timeout as terminal-in-progress — a transient 409 the client retries (it then
+            # gets the ended receipt) — instead of rendering a stale ``your_move`` for a
+            # battle that is already timing out (PR #378 review 3443735244).
+            raise _opaque_error(409, "battle is finishing (timed out)")
         if session.pending is None or session.last_state is None:
             raise _opaque_error(409, "no pending state (battle not yet stepped)")
         return gw._render(session, session.last_state)
@@ -3099,6 +3106,12 @@ def create_app(
         await gw._expire_if_stale(session)
         if session.ended is not None:
             return {"status": "ended", **session.ended}
+        if session.forfeiting:
+            # Concurrent in-flight forfeit (timeout) — do NOT attempt a sidecar step that
+            # would race the ``stop``; return a transient 409 the client retries, by which
+            # point session.ended carries the terminal timeout receipt (PR #378 review
+            # 3443735244).
+            raise _opaque_error(409, "battle is finishing (timed out)")
         if session.pending is None:
             raise _opaque_error(409, "no pending request")
         choices = legal_choices(session.pending)
