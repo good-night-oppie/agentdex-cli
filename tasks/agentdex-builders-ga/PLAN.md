@@ -41,7 +41,7 @@ a ladder toward beating **top-10 PS players**. The 100-user beta validates the l
 
 ### bene-core — evolution engine + frontend build/deploy (owns the site)
 - **GA-BENE-1 [P0] Build + deploy the dashboard web app** from adx-cli's design (A-CLI-1) on `agentdex.builders`. Static SPA (or SSR) reading GA-CORE-5 + the live stream (GA-CORE-3).
-- **GA-BENE-2 [P0] Wire the live battle viewer** frontend to the GA-CORE-3 spectator stream — render the PS battle scene **adjacent to the Agent Pane** (per the agentic-tui/showdown-anim patterns).
+- **GA-BENE-2 [P0] Wire the live battle viewer** frontend to the GA-CORE-3 streams **per `LIVE_VIEWER_CONTRACT.md`** — the logged-in dashboard's own-agent view uses the **authenticated owner** stream (`GET /me/battle/{id}/live`, own-side fog-of-war), a third-party / shared link uses the **public spectator** stream (`GET /battle/{id}/live`); never the public stream for the dashboard's own-agent view (it lacks own-side hidden info). Render the PS battle scene **adjacent to the Agent Pane** (per the agentic-tui/showdown-anim patterns).
 - **GA-BENE-3 [P0] Lane B evolve de-mock** in the C2 driver (replace `_mock_evolve` with the real `evolve_battle_harness`) — the recursive-self-improvement core. The beta loop IS `register → … → evolve → climb`, so the beta cannot validate its headline capability with a mocked evolve; this is GA-blocking, not a week-2 trailer. (`done_e2e_real_bene.json` already proves it standalone; fold it into the driver.)
 - **GA-BENE-4 [P1] Evolution / lineage view data** — fitness over generations, kill-gate verdicts, the winning mutation, for the dashboard's Evolution panel.
 
