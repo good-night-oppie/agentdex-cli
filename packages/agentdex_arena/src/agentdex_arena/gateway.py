@@ -455,6 +455,12 @@ class EnrollRequest(BaseModel):
     owner: str = Field(min_length=3, max_length=120)
     agent_name: str = Field(min_length=1, max_length=64)
     agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
+    # GA-CORE-1: an optional beta invite code. Only consulted when
+    # ARENA_INVITE_REQUIRED=1 (else ignored). Carried through to /enroll/confirm,
+    # where it is redeemed AFTER the OOB code proves the caller controls `owner` —
+    # so the email-OOB path is invite-capable for documented clients without a
+    # separate session-login/redeem step.
+    invite_code: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("owner")
     @classmethod
@@ -820,17 +826,13 @@ class ArenaGateway:
         return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
 
     def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
-        # GA-CORE-1 beta gate: the legacy email-OOB path also mints a consent
-        # token (at /enroll/confirm, via _mint_consent), so it must be invite-
-        # gated too — otherwise ARENA_INVITE_REQUIRED is bypassable by self-
-        # serving through request→confirm and never presenting an invite. Fail
-        # fast BEFORE generating/sending the OOB code so an un-admitted owner
-        # never receives one. Optional-at-boot (flag unset → open enroll). The
-        # owner is client-supplied here, but admission is keyed on the normalized
-        # owner an invite was redeemed for (a session-authed act), so a client
-        # cannot self-admit by naming an arbitrary owner.
-        if self._invite_required() and not self.invites.is_admitted(req.owner):
-            raise _opaque_error(403, "an invitation code is required for the beta")
+        # GA-CORE-1: the email-OOB invite gate is enforced at /enroll/confirm (the
+        # authoritative _mint_consent site), NOT here. This request stays UNIFORM
+        # regardless of the owner's admission state — an admission-dependent
+        # response here would let an unauthenticated caller enumerate which emails
+        # are in the beta (PR #362 review). The optional invite_code is carried on
+        # the pending so confirm can redeem it once the OOB code proves the caller
+        # controls `owner`.
         code = secrets.token_urlsafe(16)
         agent_name = self._guard_reserved_name(req.agent_name)
         # Request-time fail-fast on a taken name (the authoritative register is at
@@ -842,6 +844,7 @@ class ArenaGateway:
             owner=req.owner,
             agent_name=agent_name,
             agent_pubkey_hex=req.agent_pubkey_hex,
+            invite_code=req.invite_code,  # carried to confirm for invite-mode redemption
         )
         self.pending_enrollments[code] = clean
         # the code goes to the OWNER out-of-band — never into this response
@@ -853,16 +856,22 @@ class ArenaGateway:
 
     def enroll_confirm(self, code: str) -> dict[str, Any]:
         # Peek (not pop) first so a rejected confirm does not consume the pending
-        # code — the caller can re-confirm once admitted.
+        # code — the caller can re-confirm (e.g. after redeeming an invite).
         req = self.pending_enrollments.get(code)
         if req is None:
             raise _opaque_error(404, "unknown/expired enrollment code")
-        # GA-CORE-1 beta gate (defense-in-depth at the authoritative mint): never
-        # mint a consent token for an un-admitted owner when invites are required.
-        # Covers a flag flipped ON after this enrollment was already pending (the
-        # enroll_request gate only saw the flag's state at request time).
+        # GA-CORE-1 beta gate at the authoritative mint. Receiving the OOB `code`
+        # proves the caller controls `req.owner`, so the invite is redeemed here
+        # and bound to a VERIFIED owner (never a client-supplied one). Already-
+        # admitted owners (e.g. a 2nd agent, or a session-side redeem) pass without
+        # burning a code. Optional-at-boot: flag unset → open enroll, unchanged.
         if self._invite_required() and not self.invites.is_admitted(req.owner):
-            raise _opaque_error(403, "an invitation code is required for the beta")
+            try:
+                if req.invite_code is None:
+                    raise InviteError("an invitation code is required for the beta")
+                self._redeem_invite_for_owner(req.invite_code, req.owner)
+            except InviteError as e:
+                raise _opaque_error(403, e) from None
         self.pending_enrollments.pop(code, None)
         # req.agent_name was already sanitized + guarded at request time.
         self._register_agent(req.agent_name)
@@ -920,21 +929,32 @@ class ArenaGateway:
             codes.append(code)
         return codes
 
-    def redeem_invite(self, claims: SessionClaims, code: str) -> dict[str, Any]:
-        """A logged-in human redeems an invite code, admitting their owner to the
-        beta. Idempotent for an already-admitted owner (no code burned — survives
-        token rotation / re-enrollment). The ``invite_redeem`` event is written-ahead
-        BEFORE the in-memory admission (Class-A), so a replay can never disagree."""
-        owner_key = _normalize_owner(claims.owner)
+    def _redeem_invite_for_owner(self, code: str, owner: str) -> str:
+        """Class-A write-then-log invite redemption for a VERIFIED owner; returns
+        the normalized owner key. Shared by the session path (/enroll/redeem-invite,
+        owner = session's verified email) and the email-OOB path (/enroll/confirm,
+        owner verified by possession of the OOB code).
+
+        Idempotent for an already-admitted owner (no code burned — survives token
+        rotation / re-enrollment / a 2nd agent). Raises ``InviteError`` on an
+        unknown/used code. The ``invite_redeem`` event (HASH only, never the
+        plaintext code) is appended BEFORE the in-memory admission, so a crash can
+        never admit an owner the durable log does not record, and a replay agrees."""
+        owner_key = _normalize_owner(owner)
         if self.invites.is_admitted(owner_key):
-            return {"ok": True, "admitted": True, "owner": owner_key}  # already in, no code burned
+            return owner_key  # already in — re-redeem is a no-op, no code burned
         if not self.invites.redeemable(code):
             raise InviteError("invite code is invalid or already used")
-        # write-ahead the redemption (HASH only — never the plaintext code), THEN
-        # apply it to the in-memory store.
         code_hash = hash_invite_code(code)
         self.events.append("invite_redeem", {"code_hash": code_hash, "owner": owner_key})
         self.invites.redeem_hash(code_hash, owner_key)
+        return owner_key
+
+    def redeem_invite(self, claims: SessionClaims, code: str) -> dict[str, Any]:
+        """A logged-in human redeems an invite code, admitting their owner to the
+        beta. Idempotent for an already-admitted owner (no code burned — survives
+        token rotation / re-enrollment)."""
+        owner_key = self._redeem_invite_for_owner(code, claims.owner)
         return {"ok": True, "admitted": True, "owner": owner_key}
 
     def account_quota(self, claims: SessionClaims) -> dict[str, Any]:
