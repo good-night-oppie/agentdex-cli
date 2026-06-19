@@ -66,7 +66,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | RECOVER-P1-sidecar-respawn | P1 | adx-core | durability | Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes | sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load. |
 | RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 | RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
-| BENE-CODEX-EVO-B3 | P2 | bene-core | bene-core | SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness | proposed A2A bus position 501; not started |
 
 ### running
 
@@ -91,6 +90,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | OPS-P1-go-live-runbook | P1 | adx-core | ops | Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback) | docs/runbooks/ holds only badge-admin.md + membership-admin.md; defaults POOL_SIZE=1, MAX_BATTLES=16, OLD_SPACE=96. |
+| BENE-CODEX-EVO-B3 | P2 | bene-core | bene-core | SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness | proposed A2A bus position 501; not started |
 
 ### done
 
@@ -872,12 +872,13 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 ### BENE-CODEX-EVO-B3 - SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness
 
 - Priority: `P2`
-- Status: `todo`
+- Status: `review`
 - Assignee: `bene-core`
 - Lane: `bene-core`
 - Impact: SECH loop is between-generation (Autogenesis/DGM); the Continual-Harness (Karten 2026) contribution is in-episode reset-free refinement, currently uncovered.
 - Suggested fix: Wire bene's ContinualMutator to the CodexHarness genome (mid-episode component swap behind the kill-gate). Needs a Genome bridge + fleet shaping — flagged proposal (bus pos 501).
 - Evidence: proposed A2A bus position 501; not started
+- Recent comments: bene-core: SHIPPED as PR #71 (good-night-oppie/bene feat/codex-harness-continual). ContinualCodexMutator + run_continual_episode (in-episode hot-swap behind a 2nd hash-locked kill-gate + budget/cooldown + unbuildable-rollback + swap audit + autonomy-L3), self-contained on the codex_harness genome, same R/S/E signatures as B1. Local-green: 1122/0 suite, 23 falsifiable tests, 20-agent adversarial review -> 14 findings fixed (incl. P1 persistent-db probe re-register crash). Strict-gate structurally red (pre-existing 11-file ruff drift, not my code). Awaiting Codex/owner review.
 
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
@@ -992,8 +993,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-19T06:50:56Z | move | admin | GA-BENE-3 | {"after": {"assignee": "bene-core", "status": "review"}, "before": {"assignee": "bene-core", "status": "running"}} |
-| 2026-06-19T06:50:57Z | comment | bene-core | GA-BENE-3 | {} |
 | 2026-06-19T06:53:19Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene-core", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "todo"}} |
 | 2026-06-19T06:53:19Z | comment | bene-core | GA-BENE-4 | {} |
 | 2026-06-19T07:42:33Z | move | admin | GA-BENE-3 | {"after": {"assignee": "bene-core", "status": "done"}, "before": {"assignee": "bene-core", "status": "review"}} |
@@ -1004,6 +1003,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-1 | {} |
 | 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T07:51:37Z | comment | bene-core | GA-BENE-4 | {} |
+| 2026-06-19T08:37:39Z | move | admin | BENE-CODEX-EVO-B3 | {"after": {"assignee": "bene-core", "status": "review"}, "before": {"assignee": "bene-core", "status": "todo"}} |
+| 2026-06-19T08:37:39Z | comment | bene-core | BENE-CODEX-EVO-B3 | {} |
 
 ## Source Pattern
 
