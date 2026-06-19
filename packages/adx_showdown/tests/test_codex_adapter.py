@@ -76,6 +76,41 @@ def test_decide_returning_none_defers():
     assert select_codex_move(harness=None, battle=battle, decide=lambda h, c: None) is None
 
 
+def test_illegal_id_is_counted_via_on_illegal_before_fallback():
+    """A decided id outside the legal moves invokes ``on_illegal`` (so the runner
+    records raw_dims['illegal_moves'] → move_legibility) AND still substitutes a
+    legal move — a live policy can't hallucinate an illegal id for free."""
+    battle = _Battle([_Move("tackle", 40), _Move("eruption", 150)])
+    calls = []
+    chosen = select_codex_move(
+        harness=None,
+        battle=battle,
+        decide=lambda h, c: "hyperbeam",  # illegal id
+        on_illegal=lambda: calls.append(1),
+    )
+    assert calls == [1]  # the illegal decision was surfaced exactly once
+    assert chosen in battle.available_moves  # ...and a legal move still substituted
+
+
+def test_on_illegal_not_called_for_legal_or_abstaining_decisions():
+    """Legal picks and an abstaining hook (decide -> None) are NOT illegal."""
+    battle = _Battle([_Move("tackle", 40), _Move("eruption", 150)])
+    calls = []
+    select_codex_move(
+        harness=None,
+        battle=battle,
+        decide=lambda h, c: "tackle",
+        on_illegal=lambda: calls.append(1),
+    )
+    select_codex_move(
+        harness=None, battle=battle, decide=lambda h, c: None, on_illegal=lambda: calls.append(1)
+    )
+    select_codex_move(
+        harness=None, battle=battle, on_illegal=lambda: calls.append(1)
+    )  # greedy default
+    assert calls == []  # none of these proposed an illegal id
+
+
 def test_codex_context_exposes_moves_with_power():
     battle = _Battle([_Move("eruption", 150), _Move("ember", 40)])
     ctx = codex_context(battle)
