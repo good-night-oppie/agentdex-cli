@@ -62,6 +62,14 @@ def _short_user(*parts: Any) -> str:
     return f"adx{h}"  # 3 + 12 = 15 chars
 
 
+def _seeded_index(modulo: int, *parts: Any) -> int:
+    """A deterministic index in ``[0, modulo)`` from ``parts`` via a stable hash
+    (blake2b — NOT the PYTHONHASHSEED-salted builtin ``hash``), so a ``random``
+    policy is reproducible across processes from the same ``rng_seed``."""
+    digest = hashlib.blake2b("|".join(str(p) for p in parts).encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big") % modulo
+
+
 def _server_config(host: str | None = None, port: str | None = None) -> Any:
     from poke_env import ServerConfiguration
 
@@ -81,11 +89,18 @@ def make_harness_player(
 ) -> Any:
     """Build the live poke-env ``Player`` for a harness (lazy poke-env import).
 
-    Strategy realization: ``random`` == poke-env ``RandomPlayer`` (choose_random_
-    move) and ``max_damage`` == the ``MaxBasePowerPlayer`` decision seam, so a
+    Strategy realization: ``random`` picks a uniformly-random legal order and
+    ``max_damage`` == the ``MaxBasePowerPlayer`` decision seam, so a
     baseline-as-harness reproduces the baseline. Other known strategies fall back
     to max_damage for now (richer fidelity + ``llm_freeform`` codex deferral are
     follow-ups); ``total_moves`` / ``illegal_moves`` are tracked for raw_dims.
+
+    ``rng_seed`` makes the ``random`` policy reproducible: every random choice is
+    drawn deterministically from ``(rng_seed, battle_tag, turn)`` instead of
+    poke-env's unseeded ``choose_random_move``, so two evaluations with the same
+    ``rng_seed`` make the same moves. Keying on the battle's identity/turn (not a
+    per-player counter) keeps it stable regardless of call order across the
+    player's concurrent battles.
     """
     from poke_env.player import Player
 
@@ -99,17 +114,28 @@ def make_harness_player(
             self.total_moves = 0
             self.illegal_moves = 0
 
+        def _seeded_order(self, battle: Any) -> Any:
+            """A reproducible random legal choice keyed on ``rng_seed`` + the
+            battle's identity/turn, replacing poke-env's unseeded
+            ``choose_random_move``."""
+            avail = list(getattr(battle, "available_moves", None) or [])
+            avail += list(getattr(battle, "available_switches", None) or [])
+            if not avail:  # nothing legal to choose (forced pass / struggle)
+                return self.choose_random_move(battle)
+            idx = _seeded_index(
+                len(avail), rng_seed, getattr(battle, "battle_tag", ""), getattr(battle, "turn", 0)
+            )
+            return self.create_order(avail[idx])
+
         def choose_move(self, battle: Any) -> Any:
             self.total_moves += 1
             moves = list(getattr(battle, "available_moves", None) or [])
-            if not moves:
-                return self.choose_random_move(battle)
-            if self.strategy == "random":
-                return self.choose_random_move(battle)
+            if self.strategy == "random" or not moves:
+                return self._seeded_order(battle)
             # max_damage and every other (non-llm) strategy: highest base power.
             best = max_base_power_choice(moves)
             if best is None:
-                return self.choose_random_move(battle)
+                return self._seeded_order(battle)
             return self.create_order(best)
 
     return HarnessPlayer(
