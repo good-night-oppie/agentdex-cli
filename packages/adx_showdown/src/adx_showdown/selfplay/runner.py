@@ -97,14 +97,14 @@ def _filter_switch_orders(orders: list[Any], *, exclude_switches: bool) -> list[
     """Drop voluntary switch orders from a poke-env ``valid_orders`` list when the
     genome forbids switching. A switch order's Showdown message is ``/choose switch
     <name>`` (a move is ``/choose move <id>``, so a move named e.g. Switcheroo is NOT
-    matched). Never returns empty when the input was non-empty — if every order is a
-    switch (a true forced switch), keep them so the player never deadlocks."""
+    matched). When exclusion is requested, switches are removed unconditionally — even
+    if that leaves an empty list: the caller only excludes on a VOLUNTARY (non-forced)
+    turn, so "every order is a switch" must NOT be treated as a forced switch and
+    restored (forced switches are routed by the caller via ``force_switch``). The
+    empty case is handled by ``_seeded_order``'s last-resort ``choose_random_move``."""
     if not exclude_switches:
         return orders
-    non_switch = [
-        o for o in orders if not str(getattr(o, "message", "")).startswith("/choose switch")
-    ]
-    return non_switch or orders
+    return [o for o in orders if not str(getattr(o, "message", "")).startswith("/choose switch")]
 
 
 def _resolve_codex_decide() -> Any:
