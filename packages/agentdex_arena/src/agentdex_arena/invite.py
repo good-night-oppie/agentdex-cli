@@ -22,6 +22,7 @@ log does not record.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 
 from agentdex_arena.consent import _normalize_owner
@@ -42,6 +43,20 @@ def new_invite_code() -> str:
     return secrets.token_hex(_CODE_NBYTES)
 
 
+def hash_invite_code(code: str) -> str:
+    """The durable key for an invite code: its SHA-256 hex digest.
+
+    The plaintext code is a bearer secret — anyone holding an unredeemed code can
+    claim a beta seat — so ONLY this hash is ever written to the durable event log
+    (mirrors AdminAuthority persisting ``token_hash_hex``, never the admin token;
+    and the fleet secrets-discipline rule that a secret value must not land
+    anywhere a log/snapshot can persist it). Redemption hashes the presented
+    plaintext and looks the slot up by hash."""
+    if not isinstance(code, str) or not code.strip():
+        raise ValueError("invite code required")
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
 class InviteStore:
     """In-memory invite maps, hydrated from the EventLog at boot.
 
@@ -50,26 +65,48 @@ class InviteStore:
     """
 
     def __init__(self) -> None:
-        self._codes: dict[str, str | None] = {}  # code -> redeemer owner (None = unused)
+        # code_hash -> redeemer owner (None = minted but unredeemed). The PLAINTEXT
+        # code is never stored — only its hash (see hash_invite_code).
+        self._codes: dict[str, str | None] = {}
         self._admitted: set[str] = set()  # normalized owners holding a redeemed invite
 
-    # ---- mint ----
+    # ---- hash-keyed core (the event log carries only the hash, so replay folds
+    #      directly through these; the plaintext convenience wrappers below hash) --
+
+    def grant_hash(self, code_hash: str) -> None:
+        """Register a minted code by its hash (idempotent — re-granting an existing
+        hash on replay leaves its redemption state untouched)."""
+        if not isinstance(code_hash, str) or not code_hash:
+            raise ValueError("invite code_hash required")
+        self._codes.setdefault(code_hash, None)
+
+    def is_redeemable_hash(self, code_hash: str) -> bool:
+        """A code (by hash) that exists and has not been redeemed yet."""
+        return self._codes.get(code_hash, "used") is None
+
+    def redeem_hash(self, code_hash: str, owner: str) -> str:
+        """Redeem the code identified by ``code_hash`` for ``owner``; see redeem()."""
+        owner_key = _normalize_owner(owner)
+        if owner_key in self._admitted:
+            return owner_key  # already in — re-redeem is a no-op, no code burned
+        if self._codes.get(code_hash, "used") is not None:
+            raise InviteError("invite code is invalid or already used")
+        self._codes[code_hash] = owner_key
+        self._admitted.add(owner_key)
+        return owner_key
+
+    # ---- plaintext convenience (live mint/redeem + unit tests) ----
 
     def mint(self, code: str) -> None:
-        """Register an unused invite code (idempotent on replay — re-minting an
-        existing code leaves its redemption state untouched)."""
-        if not isinstance(code, str) or not code.strip():
-            raise ValueError("invite code required")
-        self._codes.setdefault(code, None)
+        """Register an unused invite code (hashes then delegates to grant_hash)."""
+        self.grant_hash(hash_invite_code(code))
 
     def exists(self, code: str) -> bool:
-        return code in self._codes
+        return hash_invite_code(code) in self._codes
 
     def redeemable(self, code: str) -> bool:
         """A code that exists and has not been redeemed yet."""
-        return self._codes.get(code, "used") is None
-
-    # ---- redeem ----
+        return self.is_redeemable_hash(hash_invite_code(code))
 
     def redeem(self, code: str, owner: str) -> str:
         """Redeem ``code`` for ``owner``; returns the normalized owner key.
@@ -80,18 +117,10 @@ class InviteStore:
           the owner is admitted.
         - Else (unknown or already-used code, owner not yet admitted) → ``InviteError``.
 
-        Raises ``ValueError`` (from ``_normalize_owner``) on a malformed owner; the
-        caller appends the durable event only after this returns, so a bad value
-        reserves nothing.
+        Raises ``ValueError`` on a malformed owner / code; the caller appends the
+        durable event only after this returns, so a bad value reserves nothing.
         """
-        owner_key = _normalize_owner(owner)
-        if owner_key in self._admitted:
-            return owner_key  # already in — re-redeem is a no-op, no code burned
-        if self._codes.get(code, "used") is not None:
-            raise InviteError("invite code is invalid or already used")
-        self._codes[code] = owner_key
-        self._admitted.add(owner_key)
-        return owner_key
+        return self.redeem_hash(hash_invite_code(code), owner)
 
     def is_admitted(self, owner: str) -> bool:
         """Whether this owner holds a redeemed invite (the beta gate)."""
@@ -109,4 +138,4 @@ class InviteStore:
         return {"minted": minted, "redeemed": redeemed, "remaining": minted - redeemed}
 
 
-__all__ = ["InviteStore", "InviteError", "new_invite_code"]
+__all__ = ["InviteStore", "InviteError", "new_invite_code", "hash_invite_code"]

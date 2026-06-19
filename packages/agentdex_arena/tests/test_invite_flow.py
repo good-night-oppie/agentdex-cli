@@ -271,3 +271,38 @@ def test_redemption_survives_restart_via_replay(tmp_path):
     )
     assert gw2.invites.is_admitted("alice@x.com") is True
     assert gw2.invites.redeemable(code) is False
+
+
+def test_invite_codes_are_hashed_in_event_log(tmp_path):
+    """The plaintext invite code is a bearer secret (an unredeemed code = a
+    claimable beta seat), so ONLY sha256(code) is written to the durable log —
+    on BOTH the mint (invite_grant) and the redeem (invite_redeem)."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 1}, headers=_admin()).json()["codes"][0]
+        c.post(
+            "/enroll/redeem-invite", json={"invite_code": code}, headers=_sess(gw, "alice@x.com")
+        )
+    raw = (tmp_path / "events.jsonl").read_text()
+    assert code not in raw  # the plaintext code never lands in the durable log
+    assert hashlib.sha256(code.encode()).hexdigest() in raw  # only its hash does
+
+
+def test_legacy_plaintext_code_event_replays(tmp_path):
+    """Migration-safe: an invite_grant/invite_redeem written in the pre-hashing
+    schema (plaintext ``code``) still rehydrates — replay hashes the legacy code so
+    the in-memory slot matches what a freshly-hashed redeem would look up."""
+    gw = _gateway(tmp_path)
+    gw.events.append("invite_grant", {"code": "legacy-1", "actor_hash": "op"})
+    gw.events.append("invite_redeem", {"code": "legacy-1", "owner": "alice@x.com"})
+    # a fresh gateway replays the legacy-format events file
+    gw2 = ArenaGateway(
+        authority=gw.authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena2",
+        notify_owner=lambda owner, code: None,
+        session_authority=gw.session_auth,
+        admin_authority=AdminAuthority(token_hash_hex=_ADMIN_HASH),
+    )
+    assert gw2.invites.is_admitted("alice@x.com") is True
+    assert gw2.invites.redeemable("legacy-1") is False  # plaintext lookup hashes + matches

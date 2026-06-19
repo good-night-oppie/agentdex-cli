@@ -81,7 +81,12 @@ from agentdex_arena.consent import (
     _normalize_owner,
 )
 from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
-from agentdex_arena.invite import InviteError, InviteStore, new_invite_code
+from agentdex_arena.invite import (
+    InviteError,
+    InviteStore,
+    hash_invite_code,
+    new_invite_code,
+)
 from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
@@ -688,22 +693,37 @@ class ArenaGateway:
                         raise ValueError("account_enroll agent_name missing/non-string")
                     self.accounts.add_agent(owner_raw, agent_name)
                 elif etype == "invite_grant":
-                    # GA-CORE-1: rehydrate a minted invite code (idempotent).
-                    code = payload.get("code")
-                    if not isinstance(code, str) or not code:
-                        raise ValueError("invite_grant code missing/non-string")
-                    self.invites.mint(code)
+                    # GA-CORE-1: rehydrate a minted invite by its hash (idempotent).
+                    # Tolerate a legacy plaintext "code" payload by hashing it
+                    # (migration-safe for any log written before codes were hashed).
+                    code_hash = payload.get("code_hash")
+                    if (
+                        code_hash is None
+                        and isinstance(payload.get("code"), str)
+                        and payload["code"]
+                    ):
+                        code_hash = hash_invite_code(payload["code"])
+                    if not isinstance(code_hash, str) or not code_hash:
+                        raise ValueError("invite_grant code_hash missing/non-string")
+                    self.invites.grant_hash(code_hash)
                 elif etype == "invite_redeem":
                     # GA-CORE-1: rehydrate a redemption so an admitted owner stays
-                    # admitted across restarts (and a used code stays used).
-                    code = payload.get("code")
+                    # admitted across restarts (and a used code stays used). Same
+                    # legacy plaintext fallback as invite_grant.
+                    code_hash = payload.get("code_hash")
+                    if (
+                        code_hash is None
+                        and isinstance(payload.get("code"), str)
+                        and payload["code"]
+                    ):
+                        code_hash = hash_invite_code(payload["code"])
                     owner_raw = payload.get("owner")
-                    if not isinstance(code, str) or not code:
-                        raise ValueError("invite_redeem code missing/non-string")
+                    if not isinstance(code_hash, str) or not code_hash:
+                        raise ValueError("invite_redeem code_hash missing/non-string")
                     if not isinstance(owner_raw, str) or not owner_raw:
                         raise ValueError("invite_redeem owner missing/non-string")
-                    self.invites.mint(code)  # ensure the code exists before redeem
-                    self.invites.redeem(code, owner_raw)
+                    self.invites.grant_hash(code_hash)  # ensure the code exists before redeem
+                    self.invites.redeem_hash(code_hash, owner_raw)
             except Exception:
                 log.warning(
                     "skipping malformed event during replay: type=%r seq=%r",
@@ -892,8 +912,11 @@ class ArenaGateway:
         codes: list[str] = []
         for _ in range(count):
             code = new_invite_code()
-            self.events.append("invite_grant", {"code": code, "actor_hash": actor_hash})
-            self.invites.mint(code)
+            # Only the HASH is logged — the plaintext code is a seat-claiming secret
+            # and is returned ONCE to the authed operator, never persisted.
+            code_hash = hash_invite_code(code)
+            self.events.append("invite_grant", {"code_hash": code_hash, "actor_hash": actor_hash})
+            self.invites.grant_hash(code_hash)
             codes.append(code)
         return codes
 
@@ -907,9 +930,11 @@ class ArenaGateway:
             return {"ok": True, "admitted": True, "owner": owner_key}  # already in, no code burned
         if not self.invites.redeemable(code):
             raise InviteError("invite code is invalid or already used")
-        # write-ahead the redemption, THEN apply it to the in-memory store
-        self.events.append("invite_redeem", {"code": code, "owner": owner_key})
-        self.invites.redeem(code, owner_key)
+        # write-ahead the redemption (HASH only — never the plaintext code), THEN
+        # apply it to the in-memory store.
+        code_hash = hash_invite_code(code)
+        self.events.append("invite_redeem", {"code_hash": code_hash, "owner": owner_key})
+        self.invites.redeem_hash(code_hash, owner_key)
         return {"ok": True, "admitted": True, "owner": owner_key}
 
     def account_quota(self, claims: SessionClaims) -> dict[str, Any]:
