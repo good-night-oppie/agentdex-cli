@@ -1,0 +1,137 @@
+"""L1 — the LIVE codex move hook (SECH SPEC / Contract 5; ADR-0014).
+
+This is the ``codex_adapter.DecideFn`` that plugs the REAL openai/codex CLI into the
+self-play move seam (#343 wired the seam with ``decide=None`` → greedy; this adds the
+live codex behind it). Given a ``BattleHarness`` (whose ``system_prompt`` IS the
+evolving policy ``p``) + the JSON ``codex_context`` turn view, it asks codex to choose
+a legal move id. bene evolving the harness therefore changes how codex plays — the ACT
+step of the self-evolving-codex-harness loop (tasks/codex-harness-evolution/SPEC.md).
+
+Design rails:
+- The subprocess + the codex CLI live HERE, NOT in the pure ``codex_adapter`` — that
+  module stays import-safe + unit-testable.
+- FAIL-SAFE: any failure (codex missing, timeout, bad output, illegal move) returns
+  None, so the adapter falls back to a random legal order; codex NEVER crashes a battle.
+- The codex invocation is INJECTABLE (``run=``) so unit tests never shell out; a gated
+  live smoke exercises the real CLI.
+- Enabled in the runner by ``ADX_CODEX_LIVE=1`` (default = deterministic greedy, so
+  tests + offline runs are unchanged).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tempfile
+from collections.abc import Callable, Mapping
+from typing import Any
+
+# (prompt, json_schema, timeout_sec) -> the structured object codex returned.
+CodexRunFn = Callable[[str, "dict[str, Any]", float], "dict[str, Any]"]
+
+_DEFAULT_TIMEOUT_SEC = float(os.environ.get("ADX_CODEX_TIMEOUT_SEC", "60") or "60")
+
+# The schema codex's last message must conform to (--output-schema). OpenAI strict
+# structured output requires EVERY property to be listed in ``required`` (else the
+# request 400s with invalid_json_schema), so both keys are required.
+_MOVE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "move_id": {"type": "string"},
+        "rationale": {"type": "string"},
+    },
+    "required": ["move_id", "rationale"],
+    "additionalProperties": False,
+}
+
+
+def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) -> str:
+    """The per-turn prompt. The harness's ``system_prompt`` is prepended verbatim — it
+    IS codex's policy ``p`` (the thing bene evolves) — so a refined harness changes the
+    move choice. Only legal moves are offered, so codex cannot pick an illegal one."""
+    policy = str(getattr(harness, "system_prompt", "") or "").strip()
+    moves = ctx.get("available_moves") or []
+    move_lines = ", ".join(f"{m.get('id')} (power {m.get('base_power', 0)})" for m in moves)
+    species = ctx.get("active_species") or "your active Pokemon"
+    hp = float(ctx.get("active_hp_fraction") or 0.0)
+    header = policy + "\n\n" if policy else ""
+    return (
+        f"{header}You are choosing exactly ONE move in a Pokemon Showdown singles battle.\n"
+        f"Active: {species} at {hp:.0%} HP.\n"
+        f"Legal moves (id: base power): {move_lines}.\n"
+        f"Pick the single best move id from: {', '.join(legal_ids)}.\n"
+        'Reply ONLY with JSON {"move_id": "<one of the legal ids>", "rationale": "<=12 words"}.'
+    )
+
+
+def _parse_last_json(text: str) -> dict[str, Any]:
+    """Best-effort: the last balanced ``{...}`` block in ``text``, parsed as JSON."""
+    depth, start, last = 0, -1, ""
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start >= 0:
+                last = text[start : i + 1]
+    return json.loads(last) if last else {}
+
+
+def _run_codex_cli(prompt: str, schema: dict[str, Any], timeout: float) -> dict[str, Any]:
+    """Invoke the real codex CLI once for a structured move choice. Honors
+    ``ADX_CODEX_BIN`` (default ``codex``) + ``ADX_CODEX_HOME`` (default ``~/gh/codex`` =
+    the fork). Uses ``--output-schema`` for a schema-conforming last message."""
+    codex_bin = os.environ.get("ADX_CODEX_BIN", "codex")
+    codex_home = os.environ.get("ADX_CODEX_HOME", os.path.expanduser("~/gh/codex"))
+    with tempfile.TemporaryDirectory() as td:
+        schema_path = os.path.join(td, "schema.json")
+        out_path = os.path.join(td, "last.txt")
+        with open(schema_path, "w") as f:
+            json.dump(schema, f)
+        proc = subprocess.run(
+            [
+                codex_bin,
+                "exec",
+                "--dangerously-bypass-approvals-and-sandbox",
+                "--skip-git-repo-check",
+                "--output-schema",
+                schema_path,
+                "--output-last-message",
+                out_path,
+                prompt,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=codex_home if os.path.isdir(codex_home) else None,
+        )
+        if os.path.exists(out_path):
+            text = open(out_path).read().strip()
+            if text:
+                return _parse_last_json(text)
+        return _parse_last_json(proc.stdout)
+
+
+def codex_decide(
+    harness: Any, ctx: Mapping[str, Any], *, run: CodexRunFn | None = None
+) -> str | None:
+    """A ``codex_adapter.DecideFn``: ask the live codex CLI for a legal move id, or
+    None on ANY failure (the adapter then falls back to a random legal order). ``run``
+    is injectable so unit tests never shell out."""
+    avail = list(ctx.get("available_moves") or [])
+    legal_ids = [str(m.get("id") or "") for m in avail if m.get("id")]
+    if not legal_ids:
+        return None
+    runner = run or _run_codex_cli
+    try:
+        result = runner(_build_prompt(harness, ctx, legal_ids), _MOVE_SCHEMA, _DEFAULT_TIMEOUT_SEC)
+        move_id = str((result or {}).get("move_id", "")).strip()
+    except Exception:
+        return None  # codex missing / timeout / bad output — never crash a battle
+    return move_id if move_id in legal_ids else None
+
+
+__all__ = ["codex_decide", "CodexRunFn"]

@@ -70,6 +70,18 @@ def _seeded_index(modulo: int, *parts: Any) -> int:
     return int.from_bytes(digest, "big") % modulo
 
 
+def _resolve_codex_decide() -> Any:
+    """The live-codex ``DecideFn`` when ``ADX_CODEX_LIVE=1`` (codex picks each move via
+    the real CLI, driven by the harness prompt), else ``None`` → the adapter's
+    deterministic greedy default. Lazy import keeps the subprocess/codex module out of
+    the default + test + poke-env-free path."""
+    if os.environ.get("ADX_CODEX_LIVE") != "1":
+        return None
+    from adx_showdown.selfplay.codex_decide import codex_decide
+
+    return codex_decide
+
+
 def _server_config(host: str | None = None, port: str | None = None) -> Any:
     from poke_env import ServerConfiguration
 
@@ -142,7 +154,7 @@ def make_harness_player(
             if self.strategy in ("llm_freeform", "codex"):
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
-                chosen = select_codex_move(h, battle)
+                chosen = select_codex_move(h, battle, decide=_resolve_codex_decide())
                 if chosen is not None:
                     return self.create_order(chosen)
                 return self._seeded_order(battle)
