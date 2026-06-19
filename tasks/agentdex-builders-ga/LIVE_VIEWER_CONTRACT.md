@@ -12,13 +12,20 @@ hidden state):
 
 - **Public spectator** — `GET /battle/{battle_id}/live` — **SSE**, **no auth**, emits the
   **spectator projection ONLY**: public HP percent, no hidden info, **no rating** (the
-  `side` field is always `"spectator"`). This is the route the dashboard's open viewer and
-  third-party spectators use. Mirrors `/replay`'s public posture.
+  `side` field is always `"spectator"`). This is the route for **third-party / open
+  spectating** (e.g. a shared battle link). Mirrors `/replay`'s public posture.
 - **Owner side** — `GET /me/battle/{battle_id}/live` (or `…/live?side=mine`) — **SSE,
-  requires a session token** (the same `SessionAuthority` token as `/account/*`). Emits the
-  owner's `p1`/`p2` per-side frames WITH their own hidden info (full-HP `|split|` lines).
-  The server verifies the token's owner actually owns a side of this battle before
-  upgrading from the spectator projection; a mismatch falls back to spectator-only.
+  authenticated**. Emits the owner's `p1`/`p2` per-side frame WITH their own hidden info
+  (their own `|split|` private lines). The server verifies the token's owner actually owns a
+  side of this battle before upgrading from the spectator projection; a mismatch falls back
+  to spectator-only. **The logged-in dashboard's own-agent view (US-2.1 / US-3.1 fog-of-war)
+  MUST use THIS endpoint, not the public one** (review #3440779169) — the public stream has
+  no hidden info and would fail the own-side fog-of-war requirement.
+  - **Browser auth carrier (review #3440779176):** a native `EventSource` cannot set an
+    `Authorization: Bearer` header, so the owner stream authenticates via an **HTTP-only
+    session cookie** (set at login, `SameSite=Strict`) — OR GA-BENE-2 uses a **fetch-based SSE
+    client** (`fetch` + `ReadableStream`) that attaches the Bearer header. Freeze one before
+    GA-CORE-3 build; the cookie path is preferred (works with native `EventSource`).
 
 - Backpressure: a client connecting mid-battle first gets the buffered frames `[0..now]`
   (its own projection), then streams live.
@@ -42,22 +49,31 @@ hidden state):
 ```
 
 ## Fog-of-war + meta redaction (load-bearing — the determinism trilogy)
-- The server emits **per-side** frames: a `side="p1"` stream (owner endpoint only) redacts
-  p2's hidden info (`|split|p1` lines) exactly as PS does. The public spectator stream gets
-  the public projection only (`side="spectator"`).
+- The server emits **per-side** frames. `|split|pX` is the **private next line for side pX**,
+  followed by its public twin. So on a **`side="p1"` owner** stream (review #3440779183):
+  **KEEP `|split|p1`** (p1's OWN hidden HP — the owner is allowed to see it) and **drop
+  `|split|p2`** (the opponent-private line) + its public twin's hidden half. Mirror for
+  `side="p2"`. The **public spectator** stream keeps only the public twins (no `|split|` privates).
 - **`lines` must be the REDACTED line set, not the raw runner preamble** (review
   #3440679575): before emitting on the **public** stream the server strips/redacts every
-  rating-bearing or hidden meta line — notably `|player|SIDE|NAME|AVATAR|RATING` (drop the
-  `RATING` field; per `docs/references/2026-06-17-arena-line-protocol.md:208`), `|teampreview`
-  hidden sets, and the `|split|<owner>` private halves. Forwarding raw `lines` would satisfy
-  the schema while leaking a rating, so redaction is a hard requirement, not advisory.
+  rating-bearing or hidden meta line — `|teampreview` hidden sets, both `|split|` privates, and
+  the rating on `|player|` lines. **Redact a rating by BLANKING the value while keeping the
+  positional delimiters** (review #3440779172): `|player|p1|Alpha||1500` → `|player|p1|Alpha||`
+  (the empty AVATAR field is preserved; `SIDE|NAME|AVATAR|RATING` stays parseable per
+  `docs/references/2026-06-17-arena-line-protocol.md:208`), **or** drop the whole `|player|`
+  meta line — never delete just the RATING field positionally (that shifts the slots and
+  misparses). Forwarding raw `lines` would satisfy the schema while leaking a rating, so
+  redaction is a hard requirement, not advisory.
 - `|t:|` timestamp lines are **stripped before any hash** (replay/live must hash-match).
-- The scene's `hp_frac` is the **public** HP fraction (never exact HP of the opponent), and
+- The scene's `hp_frac` is the **public** HP fraction (the opponent's exact HP is never shown
+  on either stream; the owner sees only their OWN exact HP via their `|split|`), and
   `scene.*.name` / `rating` never carry a ladder rating on the public stream.
 
 ## Renderer requirements (GA-BENE-2)
 - The battle scene mounts **adjacent to the Agent Pane** (side-by-side at ≥1024px; stacked
-  below on mobile). Selecting a live agent in the roster opens its stream in the scene.
+  below on mobile). Selecting one of **MY** live agents opens the **owner** stream
+  (`/me/battle/{id}/live`, authenticated, own-side fog-of-war); a third-party / shared link
+  opens the **public spectator** stream — never the public stream for the dashboard's own-agent view.
 - ≤2s end-to-end lag (AC3); render incrementally per `seq` (never wait for battle end).
 - On `event: end`, swap to the replay control bound to the same scene component (US-3.2),
   so live + replay share one renderer.
