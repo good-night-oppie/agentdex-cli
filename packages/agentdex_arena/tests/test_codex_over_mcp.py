@@ -70,6 +70,60 @@ async def test_malformed_codex_genome_rejected(tmp_path):
         await selfplay_battle(token, {"harness_id": ""}, _BASELINE, seed=1, n_battles=2)
 
 
+# ---- #483: per-owner selfplay concurrency rail (no PS server needed) ----
+
+
+@pytest.mark.asyncio
+async def test_concurrency_rail_rejects_when_owner_at_cap(tmp_path, monkeypatch):
+    """A leaked battle token cannot spawn unbounded concurrent PS battles: when
+    the owner already holds ARENA_MAX_BATTLES_PER_OWNER in-flight slots, the next
+    selfplay call is rejected BEFORE any battle runs (no PS server reached)."""
+    from agentdex_arena.consent import _normalize_owner
+
+    monkeypatch.setenv("ARENA_MAX_BATTLES_PER_OWNER", "3")
+    gw = _gateway(tmp_path)
+    init_mcp(gw, lambda: None)
+    token = _battle_token(gw)
+    owner = _normalize_owner("eddie@oppie.xyz")
+    gw._owner_inflight[owner] = 3  # owner already at the cap
+
+    with pytest.raises(ValueError, match="too many concurrent"):
+        await selfplay_battle(token, _CODEX, _BASELINE, seed=1, n_battles=2)
+    assert gw._owner_inflight[owner] == 3  # the rejected call took no slot
+
+
+@pytest.mark.asyncio
+async def test_concurrency_rail_releases_slot_after_failure(tmp_path, monkeypatch):
+    """The reserved slot is released in a finally even when the battle fails, so a
+    failed self-play call never leaks a slot.
+
+    Hermetic: stub ``run_selfplay_battle`` to raise AFTER the reservation rather
+    than relying on the absence of a PS server. Otherwise, in an environment that
+    happens to have the ``selfplay`` extra + a live PS server (e.g. the real-bene
+    e2e box), the call would SUCCEED and ``pytest.raises`` would fail even though
+    the slot-release logic is correct (PR #356 review, P2)."""
+    from agentdex_arena.consent import _normalize_owner
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("battle failed")
+
+    # selfplay_battle does a function-local ``from adx_showdown.selfplay import
+    # run_selfplay_battle``, so patch the attribute on the source module — the
+    # local import re-fetches the patched callable at call time.
+    monkeypatch.setattr("adx_showdown.selfplay.run_selfplay_battle", _boom)
+
+    gw = _gateway(tmp_path)
+    init_mcp(gw, lambda: None)
+    token = _battle_token(gw)
+    owner = _normalize_owner("eddie@oppie.xyz")
+    gw._owner_inflight[owner] = 1  # one other call in flight
+
+    # the stubbed battle raises → opaque error, but the slot must still release
+    with pytest.raises(ValueError, match="arena error"):
+        await selfplay_battle(token, _CODEX, _BASELINE, seed=1, n_battles=2)
+    assert gw._owner_inflight[owner] == 1  # back to the pre-call count (no leak)
+
+
 # ---- PS-gated: codex actually drives moves through the MCP tool ----
 
 
