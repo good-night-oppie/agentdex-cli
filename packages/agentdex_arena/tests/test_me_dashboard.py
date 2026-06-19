@@ -301,3 +301,92 @@ def test_me_battles_empty_for_fresh_account(tmp_path):
             "live": [],
             "recent": [],
         }
+
+
+def test_me_battles_includes_forks(tmp_path):
+    """A battle_fork carries only parent_battle_id/fork_turn (no visitor/opponent/
+    lane); me_battles inherits them from the parent so the fork's battle_end is scoped
+    to the owner instead of silently dropped (PR #370 review)."""
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OWNER, "oppie")
+    # parent battle names the visitor
+    gw.events.append(
+        "battle_begin",
+        {
+            "tenant_id": "tok",
+            "battle_id": "par",
+            "lane": "sandbox",
+            "visitor": "oppie",
+            "opponent": "anchor",
+        },
+    )
+    gw.events.append(
+        "battle_end",
+        {
+            "tenant_id": "tok",
+            "battle_id": "par",
+            "lane": "sandbox",
+            "winner": "oppie",
+            "turns": 4,
+            "input_log_blake2b16": "e" * 32,
+        },
+    )
+    # a fork of par — NO visitor/opponent/lane on the fork event
+    gw.events.append(
+        "battle_fork",
+        {"tenant_id": "tok", "battle_id": "frk", "parent_battle_id": "par", "fork_turn": 2},
+    )
+    gw.events.append(
+        "battle_end",
+        {
+            "tenant_id": "tok",
+            "battle_id": "frk",
+            "winner": "oppie",
+            "turns": 6,
+            "input_log_blake2b16": "f" * 32,
+        },
+    )
+    with _client(gw) as c:
+        recent = c.get("/me/battles", headers=_auth(gw)).json()["recent"]
+    by_id = {r["battle_id"]: r for r in recent}
+    assert set(by_id) == {"par", "frk"}  # the fork is no longer dropped
+    assert by_id["frk"]["agent_name"] == "oppie"  # visitor inherited from the parent
+    assert by_id["frk"]["lane"] == "sandbox"
+    assert by_id["frk"]["replay"] == "/replay/frk"
+
+
+def test_me_agents_excludes_quarantined_from_wl(tmp_path):
+    """A quarantined battle is dropped from the public rating/games by
+    recompute_ladder; me_agents must exclude it from W/L too, else /me/agents
+    diverges from /ladder for a disputed account (PR #370 review)."""
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OWNER, "oppie")
+    gw.events.append("register", {"name": "oppie", "frozen": False})
+    gw.events.append("register", {"name": "rival", "frozen": False})
+    gw.events.append(
+        "period",
+        {
+            "events": [
+                {
+                    "battle_id": "clean",
+                    "p1": "oppie",
+                    "p2": "rival",
+                    "winner": "oppie",
+                    "input_log_blake2b16": "1" * 32,
+                },
+                {
+                    "battle_id": "dirty",
+                    "p1": "oppie",
+                    "p2": "rival",
+                    "winner": "oppie",
+                    "input_log_blake2b16": "2" * 32,
+                },
+            ]
+        },
+    )
+    gw.events.append("quarantine", {"battle_id": "dirty", "reason": "collusion"})
+    with _client(gw) as c:
+        [row] = c.get("/me/agents", headers=_auth(gw)).json()["agents"]
+    # only the clean battle counts — consistent with the authoritative ladder
+    assert row["wins"] == 1 and row["losses"] == 0 and row["ties"] == 0
+    assert row["games"] == 1

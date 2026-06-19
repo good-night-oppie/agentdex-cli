@@ -1000,10 +1000,22 @@ class ArenaGateway:
         # (gym/anchor) battles are not counted here — rated W/L only.
         wl: dict[str, dict[str, int]] = {n: {"wins": 0, "losses": 0, "ties": 0} for n in names}
         if have_log and nameset:
+            # Quarantined battles are dropped from the public rating/games by
+            # recompute_ladder (it pre-scans ``quarantine`` rows); mirror that here so
+            # the dashboard W/L can never diverge from /ladder for a disputed/colluding
+            # account (PR #370 review). quarantine + period both carry battle_id.
+            quarantined: set[str] = set()
+            for ev in self.events.iter_events():
+                if ev.get("type") == "quarantine":
+                    qbid = (ev.get("payload") or {}).get("battle_id")
+                    if qbid:
+                        quarantined.add(qbid)
             for ev in self.events.iter_events():
                 if ev.get("type") != "period":
                     continue
                 for rev in (ev.get("payload") or {}).get("events") or []:
+                    if rev.get("battle_id") in quarantined:
+                        continue  # excluded from the authoritative ladder → exclude from W/L too
                     winner = rev.get("winner")
                     for n in (rev.get("p1"), rev.get("p2")):
                         if n not in nameset:
@@ -1058,12 +1070,20 @@ class ArenaGateway:
                 bid = payload.get("battle_id")
                 if not bid:
                     continue
-                if etype in ("battle_begin", "battle_fork"):
+                if etype == "battle_begin":
                     begun[bid] = {
                         "visitor": payload.get("visitor"),
                         "opponent": payload.get("opponent"),
                         "lane": payload.get("lane"),
                     }
+                elif etype == "battle_fork":
+                    # battle_fork carries only parent_battle_id/fork_turn (no
+                    # visitor/opponent/lane) — inherit the parent's metadata so the
+                    # fork's later battle_end is scoped to the owner instead of
+                    # silently dropped (PR #370 review). Forks are sandbox-only.
+                    base = dict(begun.get(payload.get("parent_battle_id"), {}))
+                    base.setdefault("lane", "sandbox")
+                    begun[bid] = base
                 elif etype == "battle_end":
                     meta = begun.get(bid)
                     if meta is None or meta.get("visitor") not in names:
