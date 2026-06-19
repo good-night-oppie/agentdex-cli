@@ -29,7 +29,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from adx_showdown.harness import BattleHarness
+from adx_showdown.harness import BattleHarness, from_bene_genome
 from adx_showdown.selfplay.baselines import (
     baseline_names,
     build_baseline,
@@ -104,7 +104,7 @@ def make_harness_player(
     """
     from poke_env.player import Player
 
-    h = harness if isinstance(harness, BattleHarness) else BattleHarness.model_validate(harness)
+    h = from_bene_genome(harness)
 
     class HarnessPlayer(Player):
         strategy = h.move_selection_strategy
@@ -258,16 +258,8 @@ async def run_selfplay_battle(
     ``opponent_baseline`` labels harness_b for A3's Elo lookup (defaults to
     harness_b's id). Reproducible-in-distribution via seeded usernames.
     """
-    a = (
-        harness_a
-        if isinstance(harness_a, BattleHarness)
-        else BattleHarness.model_validate(harness_a)
-    )
-    b = (
-        harness_b
-        if isinstance(harness_b, BattleHarness)
-        else BattleHarness.model_validate(harness_b)
-    )
+    a = from_bene_genome(harness_a)
+    b = from_bene_genome(harness_b)
     from poke_env import AccountConfiguration
 
     server = server or _server_config()
@@ -309,7 +301,7 @@ async def run_vs_baselines(
     """
     from poke_env import AccountConfiguration
 
-    h = harness if isinstance(harness, BattleHarness) else BattleHarness.model_validate(harness)
+    h = from_bene_genome(harness)
     server = server or _server_config()
     results: list[dict[str, Any]] = []
     for i, name in enumerate(baseline_names()):

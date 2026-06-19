@@ -14,6 +14,8 @@ without pulling the battle engine. `run_selfplay_battle` (A1) resolves
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -101,3 +103,34 @@ def seed_harness() -> BattleHarness:
         tool_policy=ToolPolicy(allow_switch=True, lookahead_depth=1),
         params={"aggression": 1.0, "switch_threshold_hp": 0.25, "risk_tolerance": 0.5},
     )
+
+
+# --------------------------------------------------------------------------- #
+# Cross-repo Contract-1 seam.
+#
+# Two genome implementations exist by design: THIS validated pydantic model is
+# the **canonical Contract-1 type** — it owns the schema + the validation that IS
+# the contract (non-empty id, finite params, ``extra="forbid"``). bene's
+# ``bene.kernel.battle.genome.BattleHarness`` is a plain dataclass bene mutates.
+# The two stay decoupled (neither repo imports the other), so the JSON dict is the
+# wire between them. These named adapters ARE that seam: every crossing goes
+# through the canonical model, so a bene-side field drift surfaces as a
+# ``ValidationError`` at the boundary instead of a mystery failure inside a
+# battle (SPEC Contract 1 / ADR-0014 "reconcile then").
+# --------------------------------------------------------------------------- #
+
+
+def from_bene_genome(data: BattleHarness | Mapping[str, Any]) -> BattleHarness:
+    """Adapt a bene Contract-1 genome dict (``bene.kernel.battle.genome.
+    BattleHarness.to_dict()``) into the canonical, validated genome. Accepts an
+    already-canonical ``BattleHarness`` unchanged. Raises ``pydantic.Validation
+    Error`` if bene's shape ever drifts from the contract."""
+    if isinstance(data, BattleHarness):
+        return data
+    return BattleHarness.model_validate(dict(data))
+
+
+def to_bene_genome(harness: BattleHarness) -> dict[str, Any]:
+    """Adapt the canonical genome back into the plain JSON dict shape bene's
+    ``BattleHarness.from_dict`` consumes (``tool_policy`` flattened to a dict)."""
+    return harness.model_dump()
