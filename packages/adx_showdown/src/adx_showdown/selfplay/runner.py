@@ -97,14 +97,31 @@ def _filter_switch_orders(orders: list[Any], *, exclude_switches: bool) -> list[
     """Drop voluntary switch orders from a poke-env ``valid_orders`` list when the
     genome forbids switching. A switch order's Showdown message is ``/choose switch
     <name>`` (a move is ``/choose move <id>``, so a move named e.g. Switcheroo is NOT
-    matched). When exclusion is requested, switches are removed unconditionally — even
-    if that leaves an empty list: the caller only excludes on a VOLUNTARY (non-forced)
-    turn, so "every order is a switch" must NOT be treated as a forced switch and
-    restored (forced switches are routed by the caller via ``force_switch``). The
-    empty case is handled by ``_seeded_order``'s last-resort ``choose_random_move``."""
+    matched). Exclusion is unconditional — it may return an empty list; ``_fallback_orders``
+    then decides what the seeded fallback picks over."""
     if not exclude_switches:
         return orders
     return [o for o in orders if not str(getattr(o, "message", "")).startswith("/choose switch")]
+
+
+def _fallback_orders(all_orders: list[Any], filtered: list[Any]) -> list[Any] | None:
+    """The order set the seeded fallback picks over (or ``None`` → defer to poke-env's
+    ``choose_random_move``).
+
+    ``allow_switch`` gates only VOLUNTARY switches — a switch is voluntary iff a non-switch
+    legal action exists this turn. So:
+    - ``filtered`` non-empty → a non-switch action exists → pick over the policy-allowed set.
+    - ``filtered`` empty but ``all_orders`` non-empty → the ONLY legal actions were switches,
+      so switching is FORCED BY CIRCUMSTANCE (not a policy choice). Showdown requires a legal
+      order and every legal order is a switch, so suppressing it is impossible — pick over
+      ``all_orders`` (a deterministic seeded switch), NOT pretend the gate can be honored.
+    - both empty → genuinely nothing legal (forced pass / struggle) → ``None``.
+    """
+    if filtered:
+        return filtered
+    if all_orders:
+        return all_orders
+    return None
 
 
 def _resolve_codex_decide() -> Any:
@@ -179,25 +196,16 @@ def make_harness_player(
             keys the pick on ``rng_seed`` + the turn + the legal options' stable
             Showdown command strings (NOT the server-assigned ``battle_tag``), so
             an identical decision context yields the same choice regardless of run
-            or call order across concurrent battles. ``exclude_switches`` drops
-            voluntary switch orders so a codex-abstention fallback honors the genome's
-            ``allow_switch`` instead of sneaking a switch back in."""
-            orders = _filter_switch_orders(
-                list(getattr(battle, "valid_orders", None) or []), exclude_switches=exclude_switches
+            or call order across concurrent battles. ``exclude_switches`` drops voluntary
+            switch orders so a codex-abstention fallback honors the genome's ``allow_switch``;
+            see :func:`_fallback_orders` for the forced-by-circumstance (only-switches-legal)
+            case, where a switch is unavoidable and therefore permitted."""
+            all_orders = list(getattr(battle, "valid_orders", None) or [])
+            orders = _fallback_orders(
+                all_orders, _filter_switch_orders(all_orders, exclude_switches=exclude_switches)
             )
-            if not orders:
-                # Nothing legal survived. If we deliberately EXCLUDED switches (a
-                # voluntary, non-forced no-move turn under allow_switch=false) and
-                # only switches were legal, do NOT re-sample valid_orders via
-                # ``choose_random_move`` — that reintroduces the very switch the policy
-                # forbids. Defer to showdown's own default ("/choose default") so OUR
-                # code never picks a policy-forbidden switch. The non-excluding paths
-                # (random / max_damage forced switch) keep the seeded random fallback.
-                return (
-                    self.choose_default_move()
-                    if exclude_switches
-                    else self.choose_random_move(battle)
-                )
+            if orders is None:  # genuinely nothing legal (forced pass / struggle)
+                return self.choose_random_move(battle)
             key = "|".join(str(o) for o in orders)
             idx = _seeded_index(len(orders), rng_seed, getattr(battle, "turn", 0), key)
             return orders[idx]
