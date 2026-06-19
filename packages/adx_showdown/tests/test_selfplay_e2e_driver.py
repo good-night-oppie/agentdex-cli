@@ -6,9 +6,11 @@ poke-env backend is exercised by the committed artifact run, not unit tests."""
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
+import pytest
 from adx_showdown.harness import BattleHarness, seed_harness
 from adx_showdown.selfplay.baselines import baseline_names
 from adx_showdown.selfplay.e2e_driver import (
@@ -347,6 +349,47 @@ def test_main_writes_artifact(tmp_path, capsys):
     payload = json.loads(artifact.read_text())
     assert payload["lane"] == "C2"
     assert "win_rate_uplift_ci95_pp" in payload
+
+
+# --------------------------------------------------------------------------- #
+# GA-BENE-3: the REAL evolve backend (bene's evolve_battle_harness). Gated on
+# BENE_LANEB (bene is not a workspace dep); uses the MOCK runner so it needs no
+# PS server — only that bene is importable. The full poke-env real-stack proof
+# lives in test_e2e_selfplay_metaharness.py + done_e2e_real_bene.json.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.skipif(
+    not os.environ.get("BENE_LANEB"),
+    reason="real evolve backend needs BENE_LANEB pointing at a bene checkout",
+)
+def test_real_evolve_backend_runs_bene_and_attributes_components():
+    lane = os.environ["BENE_LANEB"]
+    if lane not in sys.path:
+        sys.path.insert(0, lane)
+    pytest.importorskip("bene.kernel.battle")
+
+    report = run_e2e(
+        run_seed=42, n_gen=2, n_battles=30, seed_strategy="random", evolve_backend="real"
+    )
+    done = report.to_done_json()
+
+    # The real bene evolver is attributed as REAL, and evolve is no longer mocked.
+    assert any("bene.evolve_battle_harness" in c for c in done["real_components"])
+    assert not any("evolve" in m for m in done["mocked_components"])
+    # A real, hash-locked kill-gate verdict + non-vacuous counters.
+    assert done["killgate"]["verdict"] in {"ACCEPT", "REJECT", "VOID"}
+    assert done["gens_completed"] == 2
+    assert done["battles_played"] > 0
+    # The runner is still the mock here, so this is NOT a real uplift claim.
+    assert done["backend"] == "mock"
+
+
+def test_mock_is_the_default_evolve_backend():
+    """evolve_backend defaults to mock so CI (no bene) stays green + deterministic."""
+    report = run_e2e(run_seed=42, n_gen=1, n_battles=30, seed_strategy="random")
+    done = report.to_done_json()
+    assert any("evolve(LaneB/Contract4, bene-core)" in m for m in done["mocked_components"])
 
 
 def test_module_runs_as_script():
