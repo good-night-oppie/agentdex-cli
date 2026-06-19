@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.gateway import ArenaGateway, BattleSession, create_app
@@ -228,3 +229,30 @@ def test_owner_stream_503_when_session_auth_unconfigured(tmp_path):
     gw.sessions["b1"] = sess
     with _client(gw) as c:
         assert c.get("/me/battle/b1/live").status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_finish_reclaims_frame_buffer(tmp_path):
+    """GA-CORE-3 retention ('drop on replay-commit'): _finish clears session.frames
+    so the omniscient buffer (~hundreds of KB, up to 10 MiB per battle) is not held
+    forever on the lingering finished session. A viewer connecting post-end follows
+    the terminal event: end to /replay/<id> (the durable post-hoc surface)."""
+    gw = _gateway(tmp_path)
+    sess = BattleSession(
+        battle_id="b_reclaim",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0, 1, 2, 3],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    gw.sessions[sess.battle_id] = sess
+
+    await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
+
+    assert sess.ended is not None  # battle committed (receipt published)
+    assert sess.frames == []  # buffer reclaimed on replay-commit (no per-battle leak)

@@ -1933,6 +1933,15 @@ class ArenaGateway:
         if rating_block is not None:
             receipt["rating"] = rating_block
         session.ended = receipt
+        # GA-CORE-3: drop the live frame buffer on replay-commit (the contract's
+        # retention rule). The omniscient protocol_log buffer is ~hundreds of KB and
+        # up to MAX_PROTOCOL_BYTES (10 MiB) per battle; finished sessions LINGER in
+        # self.sessions forever (so /state can serve the receipt), so without this the
+        # buffer accumulates per-battle for the gateway's life → unbounded heap on a
+        # busy day. A viewer connecting after the battle ends follows the terminal
+        # ``event: end`` to /replay/<id> (the durable post-hoc surface), so the live
+        # buffer is dead weight once the receipt is published.
+        session.frames = []
         # Durably persist the replay record (ADX-P0-001 residual). self.replays is
         # in-memory only — reset to {} on boot — so without this an honest
         # receipt's /replay/<id> (and /fork, /dispute) 404s for EVERY battle from a
