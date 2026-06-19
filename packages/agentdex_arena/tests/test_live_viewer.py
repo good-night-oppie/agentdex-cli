@@ -21,7 +21,13 @@ from pathlib import Path
 import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_owner
-from agentdex_arena.gateway import ArenaGateway, BattleSession, _sse_battle_stream, create_app
+from agentdex_arena.gateway import (
+    ArenaGateway,
+    BattleSession,
+    _BattleSseResponse,
+    _sse_battle_stream,
+    create_app,
+)
 from agentdex_arena.session import SessionAuthority
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
@@ -620,14 +626,12 @@ def test_state_and_choose_409_during_inflight_forfeit(tmp_path, caplog):
 
 @pytest.mark.asyncio
 async def test_stream_generator_does_not_register_viewer_lazily(tmp_path):
-    """The viewer count is registered by the route HANDLER (before the StreamingResponse),
-    NOT lazily inside _sse_battle_stream — closing the connect-startup window where a
-    winning /choose could finish + clear the buffer before the generator first advances
-    (PR #380 review 3443769189). Merely constructing the stream generator must not touch
-    live_viewers; only the handler increments and only the generator's finally decrements.
-    Together with test_finished_stream_reclaims_buffer_on_last_viewer_exit (which asserts
-    the count rebalances to exactly 0 after a full stream — impossible unless the handler
-    supplied the matching increment), this pins the increment to the handler."""
+    """The stream generator is refcount-free.
+
+    _BattleSseResponse registers before the route returns, then releases in the response
+    lifecycle. The generator must not own the count because unstarted async generators do
+    not run finally blocks (PR #382 review 3443841196).
+    """
     gw = _gateway(tmp_path)
     sess = BattleSession(
         battle_id="b_gen",
@@ -646,6 +650,57 @@ async def test_stream_generator_does_not_register_viewer_lazily(tmp_path):
     assert sess.live_viewers == 0  # not incremented by the generator
     await gen.aclose()  # tidy the un-started generator (no finally runs — body never began)
     assert sess.live_viewers == 0
+
+
+@pytest.mark.asyncio
+async def test_sse_response_releases_viewer_when_generator_never_starts(tmp_path):
+    """A client can disconnect after the route returns but before StreamingResponse
+    advances the generator. The response lifecycle must still balance the early
+    registration and reclaim a finished battle's buffer (PR #382 review 3443841196)."""
+    gw = _gateway(tmp_path)
+    sess = BattleSession(
+        battle_id="b_unstarted",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.ended = {"status": "ended", "battle_id": sess.battle_id}
+    sess.frames = [dict(f) for f in _FRAMES]
+    gw.sessions[sess.battle_id] = sess
+
+    class NeverUsedRequest:
+        async def is_disconnected(self):
+            raise AssertionError("generator should not advance")
+
+    gen = _sse_battle_stream(gw, sess, "spectator", NeverUsedRequest(), allow_forfeit=False)
+    response = _BattleSseResponse(
+        sess,
+        gen,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache"},
+    )
+    assert sess.live_viewers == 1
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    async def send(_message):
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await response(
+            {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}},
+            receive,
+            send,
+        )
+
+    assert sess.live_viewers == 0
+    assert sess.frames == []
+    await gen.aclose()
 
 
 @pytest.mark.asyncio
