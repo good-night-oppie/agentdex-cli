@@ -21,4 +21,7 @@ system (Elo from fitness, +27pp from `done_c2_pokeenv.json`, the kill-gate CI, t
 baselines). No purple gradient, no emoji-as-icons.
 
 **Hand-off:** this is the design source for **GA-BENE-1** (build + deploy) and **GA-BENE-2**
-(wire the live viewer to adx-core's `GET /battle/{id}/live` stream, GA-CORE-3).
+(wire the live viewer to adx-core's GA-CORE-3 streams per `LIVE_VIEWER_CONTRACT.md` — the
+dashboard's own-agent view uses the **authenticated owner** stream `GET /me/battle/{id}/live`
+(own-side fog-of-war), a shared / third-party link uses the **public spectator** stream
+`GET /battle/{id}/live`; never the public stream for the own-agent view).

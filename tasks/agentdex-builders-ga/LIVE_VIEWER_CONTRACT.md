@@ -49,11 +49,20 @@ hidden state):
 ```
 
 ## Fog-of-war + meta redaction (load-bearing — the determinism trilogy)
-- The server emits **per-side** frames. `|split|pX` is the **private next line for side pX**,
-  followed by its public twin. So on a **`side="p1"` owner** stream (review #3440779183):
-  **KEEP `|split|p1`** (p1's OWN hidden HP — the owner is allowed to see it) and **drop
-  `|split|p2`** (the opponent-private line) + its public twin's hidden half. Mirror for
-  `side="p2"`. The **public spectator** stream keeps only the public twins (no `|split|` privates).
+- The server emits **per-side** frames. A `|split|pX` block is a **three-line sentinel**: the
+  `|split|pX` marker, then the **private** line for side pX (exact HP), then its **public** twin
+  (percent HP). The `|split|pX` marker is a **control sentinel — it is NEVER emitted into
+  `lines`** ("`|split|` itself is never shown",
+  `docs/references/2026-06-17-arena-line-protocol.md:62`); it is not a renderable HP event, and a
+  stray marker would make a downstream reducer treat `lines` as a two-line secret-share sentinel
+  instead of a clean event stream. For each block the projection **drops the marker** and keeps
+  exactly ONE of the two data lines (review #3440779183 / #3440834887):
+  - **`side="p1"` owner** stream: for the **own** block (`|split|p1`) keep the **private** line
+    (p1's OWN exact HP — the owner is allowed to see it) and drop the public twin; for the
+    **opponent** block (`|split|p2`) keep the **public** twin (opponent HP%) and drop the private
+    line. Mirror for `side="p2"`.
+  - **Public spectator** stream: for **every** block keep only the **public** twin (no `|split|`
+    markers, no privates).
 - **`lines` must be the REDACTED line set, not the raw runner preamble** (review
   #3440679575): before emitting on the **public** stream the server strips/redacts every
   rating-bearing or hidden meta line — `|teampreview` hidden sets, both `|split|` privates, and
