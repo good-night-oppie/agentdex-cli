@@ -247,22 +247,25 @@ def _mutate(harness: BattleHarness, *, gen: int, run_seed: int) -> BattleHarness
     return BattleHarness.model_validate(data)
 
 
-# A3's three anti-reward-hack guard dims. A candidate must not raise win_rate by
-# sacrificing any of them — that is the exact gaming vector multi_dim_fitness
-# exists to catch. Compared with a small float-noise tolerance.
-_GUARD_DIMS = ("move_legibility", "no_forfeit_exploit", "turn_efficiency")
+# Contract-3's other four maximize objectives — everything but win_rate. A
+# candidate must not raise win_rate by regressing any of these: ``elo`` (rewards
+# beating the STRONGER held-out baseline, so a candidate that trades hard-matchup
+# wins for easy ones can lift aggregate win_rate while lowering elo) + the three
+# anti-reward-hack guards. Compared with a small float-noise tolerance.
+_NON_WINRATE_OBJECTIVES = ("elo", "move_legibility", "no_forfeit_exploit", "turn_efficiency")
 _GUARD_TOL = 1e-9
 
 
 def _is_pareto_improvement(cand: FitnessVector, incumbent: FitnessVector) -> bool:
     """Keep a candidate only if it raises ``win_rate`` AND regresses none of A3's
-    anti-reward-hack guard dims — comparing the full Pareto vector, not win_rate
-    alone. Otherwise the scaffold could 'evolve' a best that hacked a guard dim
-    (move_legibility / no_forfeit_exploit / turn_efficiency) down to buy win-rate,
-    which is precisely what A3's multi-dim fitness is there to prevent."""
+    other four Contract-3 dimensions (``elo`` + move_legibility / no_forfeit_exploit
+    / turn_efficiency) — comparing the FULL five-dim Pareto vector, not win_rate
+    alone. Otherwise the scaffold could 'evolve' a best that bought aggregate
+    win-rate by sacrificing elo (winning easy matchups, losing the hard one) or
+    gaming a guard dim down — exactly what A3's multi-dim fitness exists to catch."""
     if cand["win_rate"] <= incumbent["win_rate"]:
         return False
-    return all(cand[d] >= incumbent[d] - _GUARD_TOL for d in _GUARD_DIMS)
+    return all(cand[d] >= incumbent[d] - _GUARD_TOL for d in _NON_WINRATE_OBJECTIVES)
 
 
 def _mock_evolve(
