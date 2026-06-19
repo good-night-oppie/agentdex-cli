@@ -104,10 +104,17 @@ sweeps/_kaos-digests/
 
 # editor / IDE / language server caches
 .serena/
+.cursor/
+.cursorindexingignore
 .vscode/
 .idea/
 *.swp
 *~
+
+# local agent scratch/session artifacts
+.scratch/
+.specstory/
+sweeps/*.lock
 
 # Python build artifacts (anchored — already covered above with /dist /build)
 *.whl
