@@ -155,8 +155,7 @@ def test_gate_off_by_default_existing_enroll_unaffected(tmp_path):
 
 def _gateway_capture(tmp_path: Path):
     """A gateway whose notify_owner records every (owner, code) it would send, so
-    a test can both drive /enroll/confirm and assert NO code was sent on a
-    fail-fast rejection."""
+    a test can drive /enroll/confirm and assert on whether an OOB code was sent."""
     sent: list[tuple[str, str]] = []
     gw = ArenaGateway(
         authority=ConsentAuthority(
@@ -173,24 +172,74 @@ def _gateway_capture(tmp_path: Path):
     return gw, sent
 
 
-def test_email_oob_request_is_invite_gated_and_sends_no_code(tmp_path, monkeypatch):
-    """The legacy email-OOB path also mints a consent token (at /enroll/confirm),
-    so it must be invite-gated too — else ARENA_INVITE_REQUIRED is bypassable by
-    self-serving through request→confirm. An un-admitted owner is rejected BEFORE
-    any OOB code is generated/sent."""
+def test_email_oob_redeems_invite_at_confirm(tmp_path, monkeypatch):
+    """The documented email-OOB flow is invite-capable: a client passes invite_code
+    on /enroll/request, and /enroll/confirm redeems it (binding to the owner the OOB
+    code just proved) and mints the consent token. No session-login step needed."""
+    monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 1}, headers=_admin()).json()["codes"][0]
+        r = c.post(
+            "/enroll/request",
+            json={
+                "owner": "alice@x.com",
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "invite_code": code,
+            },
+        )
+        assert r.status_code == 200 and len(sent) == 1
+        oob_code = sent[0][1]
+        r = c.post(f"/enroll/confirm/{oob_code}")
+        assert r.status_code == 200 and "token" in r.json()
+        # the invite was consumed and the verified owner is admitted
+        assert gw.invites.is_admitted("alice@x.com") is True
+        assert gw.invites.redeemable(code) is False
+
+
+def test_email_oob_confirm_requires_a_valid_invite(tmp_path, monkeypatch):
+    """Under invite-mode, confirming an OOB enrollment that carried NO (or a bad)
+    invite code is rejected at the authoritative mint — no consent token, no
+    bypass. The request itself stays uniform (200 + code sent)."""
     monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
     gw, sent = _gateway_capture(tmp_path)
     with _client(gw) as c:
         r = c.post(
             "/enroll/request",
-            json={
-                "owner": "mallory@x.com",
-                "agent_name": "garchomp",
-                "agent_pubkey_hex": _PUBKEY,
-            },
+            json={"owner": "mallory@x.com", "agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
         )
-        assert r.status_code == 403
-        assert sent == []  # fail-fast: no OOB code ever sent to an un-invited owner
+        assert r.status_code == 200 and len(sent) == 1  # uniform: code IS sent
+        oob_code = sent[0][1]
+        r = c.post(f"/enroll/confirm/{oob_code}")
+        assert r.status_code == 403  # no valid invite → no consent token minted
+        assert gw.invites.is_admitted("mallory@x.com") is False
+
+
+def test_email_oob_request_is_uniform_no_enumeration(tmp_path, monkeypatch):
+    """An unauthenticated /enroll/request must NOT reveal whether an owner is
+    admitted: an admitted owner and an un-admitted owner get the byte-identical
+    pending response, and both have a code sent (PR #362 review — no admitted-set
+    enumeration via this endpoint)."""
+    monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 1}, headers=_admin()).json()["codes"][0]
+        c.post(
+            "/enroll/redeem-invite", json={"invite_code": code}, headers=_sess(gw, "alice@x.com")
+        )
+        admitted = c.post(
+            "/enroll/request",
+            json={"owner": "alice@x.com", "agent_name": "a1", "agent_pubkey_hex": _PUBKEY},
+        )
+        unadmitted = c.post(
+            "/enroll/request",
+            json={"owner": "nobody@x.com", "agent_name": "a2", "agent_pubkey_hex": _PUBKEY},
+        )
+        assert admitted.status_code == unadmitted.status_code == 200
+        assert admitted.json() == unadmitted.json()  # indistinguishable response
+        # both owners had an OOB code sent (no admission-dependent behavior)
+        assert {o for o, _ in sent} == {"alice@x.com", "nobody@x.com"}
 
 
 def test_email_oob_path_works_for_admitted_owner(tmp_path, monkeypatch):
