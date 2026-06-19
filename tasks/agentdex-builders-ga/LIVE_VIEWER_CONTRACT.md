@@ -27,8 +27,12 @@ hidden state):
 - **Owner side** — `GET /me/battle/{battle_id}/live` (or `…/live?side=mine`) — **SSE,
   authenticated**. Emits the owner's `p1`/`p2` per-side frame WITH their own hidden info
   (their own `|split|` private lines). The server verifies the token's owner actually owns a
-  side of this battle before upgrading from the spectator projection; a mismatch falls back
-  to spectator-only. **The logged-in dashboard's own-agent view (US-2.1 / US-3.1 fog-of-war)
+  side of this battle (the account→agent join, OR the verified owner `battle_begin` stamped on
+  the session — so email/OOB-enrolled owners, who get a battle token but no AccountStore row,
+  are not locked out). **A mismatch returns an opaque `403`** (DECIDED, GA-CORE-3 #581 / #584):
+  not silently downgraded to the spectator projection — a 403 keeps the not-found/not-yours
+  cases indistinguishable (D7 anti-enumeration) and a non-owner who wants the public view can
+  call the public endpoint explicitly. **The logged-in dashboard's own-agent view (US-2.1 / US-3.1 fog-of-war)
   MUST use THIS endpoint, not the public one** (review #3440779169) — the public stream has
   no hidden info and would fail the own-side fog-of-war requirement.
   - **Browser auth carrier (review #3440779176):** a native `EventSource` cannot set an
