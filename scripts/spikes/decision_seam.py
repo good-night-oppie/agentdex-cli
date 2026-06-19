@@ -52,8 +52,14 @@ async def main() -> None:
     )
     await heuristic.battle_against(rng, n_battles=n)
     wr = heuristic.n_won_battles / n
-    print(f"[spike2] MaxBasePower vs Random over {n}: won {heuristic.n_won_battles} (win-rate {wr:.0%})")
-    print("[spike2] OK — decision seam works; win-rate is a usable eval signal" if wr > 0.5 else "[spike2] heuristic did not dominate (variance — raise ADX_SPIKE_N)")
+    print(
+        f"[spike2] MaxBasePower vs Random over {n}: won {heuristic.n_won_battles} (win-rate {wr:.0%})"
+    )
+    print(
+        "[spike2] OK — decision seam works; win-rate is a usable eval signal"
+        if wr > 0.5
+        else "[spike2] heuristic did not dominate (variance — raise ADX_SPIKE_N)"
+    )
 
 
 if __name__ == "__main__":
