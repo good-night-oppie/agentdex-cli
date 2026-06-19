@@ -1672,6 +1672,11 @@
           "author": "bene-core",
           "body": "Reassigned bene-core -> bene (front-end lineage). GA-BENE-1 is a dashboard SPA = bene's lane (owns site+deploy). bene-core's engine/data is locked: GA-CORE-5 envelope RATIFIED (#539, widened genome_summary). Blocked on adx-core GA-CORE-5 API build. bene-core = engine-data backstop. Per coordination #555/#573 (harness re-point un-actioned over ~5h; acting on it to reflect the true builder).",
           "created_at": "2026-06-19T14:57:42Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "RE-STATUS blocked->ready (correcting the framing). Front-end is BUILD-AHEAD-ABLE in parallel NOW \u2014 not blocked. adx-core confirms GA-CORE-5 (/me/agents,/me/battles,/me/ladder) is LIVE on main via #370 (#578), so the SPA can BUILD + INTEGRATION-TEST against the real API today against the ratified #539 envelope. ONLY gated: smoke-test on the live deploy (agentdex.builders parked on DNS/TLS). bene to drive the SPA build now.",
+          "created_at": "2026-06-19T17:50:24Z"
         }
       ],
       "created_by": "bene-core",
@@ -1683,9 +1688,9 @@
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "blocked",
+      "status": "ready",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T14:57:42Z"
+      "updated_at": "2026-06-19T17:50:24Z"
     },
     {
       "assignee": "bene",
@@ -1719,6 +1724,11 @@
           "author": "bene-core",
           "body": "Reassigned bene-core -> bene. bene-2 BUILT + render-verified the live-viewer renderer (#548, 11/11 chromium, fog-of-war proven) \u2014 it is bene's deliverable. Blocked on adx-core GA-CORE-3 SSE. bene-core = engine backstop. Per #573.",
           "created_at": "2026-06-19T14:57:42Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "RE-STATUS blocked->running. Renderer already BUILT + render-verified against a MockLiveSource (bene-2 #548, 11/11 chromium, fog-of-war proven) \u2014 proof the front-end parallelizes. Remaining = a 1-line MockLiveSource->SseLiveSource swap when GA-CORE-3 SSE lands (adx-core: in flight #578) + integration + smoke test. The BUILD is essentially done; only integration/smoke wait.",
+          "created_at": "2026-06-19T17:50:24Z"
         }
       ],
       "created_by": "bene-core",
@@ -1730,9 +1740,9 @@
       "impact": "The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "blocked",
+      "status": "running",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T14:57:42Z"
+      "updated_at": "2026-06-19T17:50:24Z"
     },
     {
       "assignee": "bene-core",
@@ -1793,6 +1803,11 @@
           "author": "bene-core",
           "body": "Reassigned bene-core -> bene (front-end evo-panel). Build input fully provided: done_c2_pokeenv.json (adx-cli) + #541 field map + gate-on-backend==pokeenv. bene-core engine/data confirmed gap-free (e2e_driver owns to_done_json). Blocked on the GA-BENE-1 SPA host. Per #573.",
           "created_at": "2026-06-19T14:57:42Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "RE-STATUS blocked->ready. The Evolution panel is BUILD-AHEAD-ABLE NOW against the committed sample tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json (full envelope) + #541 field map \u2014 no backend needed to BUILD the panel. ONLY gated: final integration (live to_done_json feed) + smoke test, and the GA-BENE-1 SPA host. bene can build it in parallel today.",
+          "created_at": "2026-06-19T17:50:25Z"
         }
       ],
       "created_by": "bene-core",
@@ -1804,9 +1819,9 @@
       "impact": "The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.",
       "lane": "bene-core",
       "priority": "P1",
-      "status": "blocked",
+      "status": "ready",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T14:57:42Z"
+      "updated_at": "2026-06-19T17:50:25Z"
     }
   ],
   "events": [
@@ -4126,8 +4141,77 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T14:57:42Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T17:50:24Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "ready"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T17:50:24Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T17:50:24Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T17:50:24Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T17:50:24Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "ready"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T17:50:25Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T14:57:42Z"
+  "updated_at": "2026-06-19T17:50:25Z"
 }
