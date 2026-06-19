@@ -14,9 +14,10 @@ from typing import Any, Literal
 
 from adx_showdown.protocol import legal_choices, sanitize_name
 from agentdex_engine.modules.arena import recompute_ladder
+from fastapi import HTTPException
 from mcp.server.fastmcp import FastMCP
 
-from agentdex_arena.consent import ConsentError
+from agentdex_arena.consent import ConsentError, _normalize_owner
 from agentdex_arena.gateway import INTERRUPTED_RESTART_MSG, ArenaGateway
 from agentdex_arena.offered_seeds import offer_seeds
 
@@ -458,15 +459,33 @@ async def selfplay_battle(
     The opponent label in the result is DERIVED from ``harness_b`` (never caller-
     supplied), so a run cannot be mislabeled as having beaten an anchored held-out
     baseline to inflate the fitness / kill-gate.
+
+    Self-play is free EVAL (no quota debit) BUT a leaked battle token must not be
+    able to spawn unbounded concurrent PS battles and starve the shared pool. So
+    one in-flight slot per NORMALIZED owner is reserved here — reusing the SAME
+    per-owner concurrency admission rated battles use (ADR-0012 §7,
+    ``_reserve_owner_slot``), capped at ``ARENA_MAX_BATTLES_PER_OWNER`` — and
+    released in a finally. This is an availability rail (finite battle slots), not
+    a quota/economics meter and not a PoP/protocol change: a leaked token can still
+    run free eval, just not monopolize the server (#483).
     """
     gw = _get_gateway()
-    _verify_token_opaque(gw, token, scope="battle")
+    claims = _verify_token_opaque(gw, token, scope="battle")
     # A malformed genome is the driving agent's own (actionable) input, not an
     # anti-enumeration surface — surface a clear message, not an opaque ref.
     try:
         a, b, n = _validate_selfplay_args(harness_a, harness_b, n_battles)
     except Exception as e:
         raise ValueError(f"invalid self-play harness genome: {e}") from None
+
+    # Reserve synchronously BEFORE the first await (so concurrent calls from one
+    # owner can't burst past the cap); a 429 is the caller's actionable signal.
+    owner_norm = _normalize_owner(claims.owner)
+    try:
+        gw._reserve_owner_slot(owner_norm)
+    except HTTPException as e:
+        raise ValueError(str(e.detail)) from None
+
     from adx_showdown.selfplay import run_selfplay_battle
 
     try:
@@ -475,4 +494,6 @@ async def selfplay_battle(
         )
     except Exception as e:  # PS-server / poke-env failure
         raise _opaque_mcp_error("selfplay_battle", e) from None
+    finally:
+        gw._release_owner_slot(owner_norm)
     return result.model_dump()
