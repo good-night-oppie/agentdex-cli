@@ -36,17 +36,42 @@ CODEX_STRATEGIES: frozenset[str] = frozenset({"llm_freeform", "codex"})
 DecideFn = Callable[[Any, dict[str, Any]], "str | None"]
 
 
-def codex_context(battle: Any) -> dict[str, Any]:
+def _allow_switch(harness: Any) -> bool:
+    """Whether the genome's Contract-1 ``ToolPolicy`` permits a VOLUNTARY switch
+    (default ``True`` when unset / duck-typed). A FORCED switch (no legal move after
+    a KO) is always allowed regardless — the player must switch."""
+    tp = getattr(harness, "tool_policy", None)
+    if tp is None:
+        return True
+    val = getattr(tp, "allow_switch", True)
+    return True if val is None else bool(val)
+
+
+def _legal_switches(harness: Any, battle: Any, moves: list[Any]) -> list[Any]:
+    """The switch targets the policy may pick this turn: always the forced-switch set
+    (no legal move), but VOLUNTARY switches (a move is also legal) only when the
+    genome's ``tool_policy.allow_switch`` is set — so a switch-disabled experiment
+    cannot switch as soon as codex names one (Contract-1 ToolPolicy)."""
+    switches = list(getattr(battle, "available_switches", None) or [])
+    if moves and not _allow_switch(harness):
+        return []
+    return switches
+
+
+def codex_context(battle: Any, *, allow_switch: bool = True) -> dict[str, Any]:
     """The JSON-able view of the current turn handed to codex (the harness's
     decision context). Pure: reads only duck-typed battle attributes, no LLM, no
     network — so the same structure feeds a live codex over MCP and the tests.
 
     ``available_moves`` carries each legal move's id + base_power; ``available_switches``
     carries each legal switch target's species (so the policy can choose a switch —
-    on a forced switch after a KO there are NO moves, only switches). The rest is
-    light situational state."""
+    on a forced switch after a KO there are NO moves, only switches). ``allow_switch``
+    drops VOLUNTARY switches (when a move is also legal) so the prompt never offers a
+    switch the genome's ToolPolicy forbids. The rest is light situational state."""
     moves = list(getattr(battle, "available_moves", None) or [])
     switches = list(getattr(battle, "available_switches", None) or [])
+    if moves and not allow_switch:
+        switches = []  # voluntary switch disallowed by tool_policy
     active = getattr(battle, "active_pokemon", None)
     return {
         "available_moves": [
@@ -101,12 +126,15 @@ def select_codex_move(
     an illegal id every turn while ``move_legibility`` stayed a perfect 1.0) before
     falling back to the first legal action (defensive — a live LLM still cannot force
     an illegal order through this seam). An abstaining hook (``decide`` returns
-    ``None``) is NOT counted illegal."""
+    ``None``) is NOT counted illegal. VOLUNTARY switches are offered only when the
+    genome's ``tool_policy.allow_switch`` permits them; a forced switch is always
+    legal."""
     moves = list(getattr(battle, "available_moves", None) or [])
-    switches = list(getattr(battle, "available_switches", None) or [])
+    allow_switch = _allow_switch(harness)
+    switches = _legal_switches(harness, battle, moves)
     if not moves and not switches:
         return None  # nothing legal (forced pass / struggle) → caller's random fallback
-    ctx = codex_context(battle)
+    ctx = codex_context(battle, allow_switch=allow_switch)
     chooser = decide or _greedy_decide
     chosen_id = chooser(harness, ctx)
     if chosen_id is None:
