@@ -390,3 +390,72 @@ def test_me_agents_excludes_quarantined_from_wl(tmp_path):
     # only the clean battle counts — consistent with the authoritative ladder
     assert row["wins"] == 1 and row["losses"] == 0 and row["ties"] == 0
     assert row["games"] == 1
+
+
+def test_me_agent_team_and_genome_endpoints(tmp_path):
+    import hashlib
+    import json
+    from agentdex_arena.consent import _normalize_owner
+
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OWNER, "oppie")
+
+    gw.events.append(
+        "battle_begin",
+        {
+            "tenant_id": "tok",
+            "battle_id": "b_team",
+            "lane": "rated",
+            "visitor": "oppie",
+            "opponent": "scout",
+            "team_hash": "dummy_team_hash",
+        },
+    )
+    gw.events.append(
+        "battle_end",
+        {
+            "tenant_id": "tok",
+            "battle_id": "b_team",
+            "lane": "rated",
+            "winner": "oppie",
+            "turns": 5,
+            "input_log_blake2b16": "a" * 32,
+        },
+    )
+
+    owner_norm = _normalize_owner(_OWNER)
+    owner_dir = hashlib.blake2b(owner_norm.encode("utf-8"), digest_size=8).hexdigest()
+    team_dir = tmp_path / "arena" / "teams" / owner_dir
+    team_dir.mkdir(parents=True, exist_ok=True)
+    team_file = team_dir / "dummy_team_hash.json"
+    team_file.write_text(json.dumps({"team_packed": "packed_payload_here"}))
+
+    with _client(gw) as c:
+        # GET /me/agents/oppie/team
+        resp_team = c.get("/me/agents/oppie/team", headers=_auth(gw))
+        assert resp_team.status_code == 200
+        data_team = resp_team.json()
+        assert data_team["agent_name"] == "oppie"
+        assert data_team["team_hash"] == "dummy_team_hash"
+        assert data_team["team_packed"] == "packed_payload_here"
+        assert data_team["genome_hash"] == "dummy_team_hash"
+        assert data_team["genome_packed"] == "packed_payload_here"
+
+        # GET /me/agents/oppie/genome
+        resp_genome = c.get("/me/agents/oppie/genome", headers=_auth(gw))
+        assert resp_genome.status_code == 200
+        data_genome = resp_genome.json()
+        assert data_genome["agent_name"] == "oppie"
+        assert data_genome["team_hash"] == "dummy_team_hash"
+        assert data_genome["team_packed"] == "packed_payload_here"
+        assert data_genome["genome_hash"] == "dummy_team_hash"
+        assert data_genome["genome_packed"] == "packed_payload_here"
+
+        # Check authorization failure cases
+        assert c.get("/me/agents/oppie/team").status_code == 401
+        assert c.get("/me/agents/oppie/genome").status_code == 401
+
+        # Check someone else's agent / non-existent agent
+        assert c.get("/me/agents/rival/team", headers=_auth(gw)).status_code == 403
+        assert c.get("/me/agents/rival/genome", headers=_auth(gw)).status_code == 403
+
