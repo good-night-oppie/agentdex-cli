@@ -1,0 +1,19 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-19-genome-hud-plan.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Mount API Endpoints in gateway.py",
+      "status": "pending",
+      "description": "**Goal:** Register /me/agents/{agent_name}/team and /me/agents/{agent_name}/genome route handlers in FastAPI.\n\n**Files:**\n- Modify: packages/agentdex_arena/src/agentdex_arena/gateway.py\n\n**Acceptance Criteria:**\n- GET /me/agents/{agent_name}/team returns the correct team/build identity payload.\n- GET /me/agents/{agent_name}/genome acts as an alias to /me/agents/{agent_name}/team and returns compatible alias keys (genome_hash, genome_packed).\n\n**Verify:** pytest packages/agentdex_arena/tests/test_me_dashboard.py\n\n```json:metadata\n{\"files\": [\"packages/agentdex_arena/src/agentdex_arena/gateway.py\"], \"verifyCommand\": \"pytest packages/agentdex_arena/tests/test_me_dashboard.py\", \"acceptanceCriteria\": [\"GET /me/agents/{agent_name}/team works\", \"GET /me/agents/{agent_name}/genome works\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Implement Unit Tests in test_me_dashboard.py",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add test cases checking basic endpoints, mixed window flagging, quarantine retro-eligibility, and best-effort capture on error.\n\n**Files:**\n- Modify: packages/agentdex_arena/tests/test_me_dashboard.py\n\n**Acceptance Criteria:**\n- Test details endpoint works for both /team and /genome.\n- Test mixed_window flags true when multiple team hashes or uncaptured battles are registered.\n- Test quarantine exclusion properly disregards quarantined battles.\n- Test best-effort capture on error.\n\n**Verify:** pytest packages/agentdex_arena/tests/test_me_dashboard.py\n\n```json:metadata\n{\"files\": [\"packages/agentdex_arena/tests/test_me_dashboard.py\"], \"verifyCommand\": \"pytest packages/agentdex_arena/tests/test_me_dashboard.py\", \"acceptanceCriteria\": [\"Basic team/genome detail tests pass\", \"Mixed window tests pass\", \"Quarantine tests pass\", \"Capture failure test passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-19T23:30:52Z"
+}

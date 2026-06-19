@@ -67,6 +67,9 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [agents/build/AGENTS.md](agents/build/AGENTS.md) — build / test / lint commands
 - [agents/debug/AGENTS.md](agents/debug/AGENTS.md) — failure modes + log locations
 - [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy + escalation
+- [Genome HUD design](docs/superpowers/specs/2026-06-19-genome-hud-design.md) — specs for the genome-HUD dashboard features
+- [Genome HUD plan](docs/superpowers/plans/2026-06-19-genome-hud-plan.md) — Task list and execution roadmap
+
 
 ## Context
 
