@@ -12,6 +12,15 @@ dependencies = [
   "agentdex-engine",
 ]
 
+[project.optional-dependencies]
+# The live self-play runner (adx_showdown.selfplay.runner) + the held-out
+# baselines + the arena.selfplay_battle MCP path drive a Pokémon Showdown server
+# through poke-env. It is an OPTIONAL extra, NOT a hard dependency, on purpose:
+# the genome/fitness modules import-guard poke-env so they stay importable
+# without it; only the live battle path needs it. Install with:
+#   uv sync --extra selfplay      (or:  pip install "adx-showdown[selfplay]")
+selfplay = ["poke-env>=0.15"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/adx_showdown"]
 
