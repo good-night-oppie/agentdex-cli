@@ -18,3 +18,17 @@ Lane A's runner (A1) + genome (A2), owned by adx-cli-7, land alongside as
 the Contract-2 ``BattleResult`` as a plain dict, so it carries no hard
 dependency on those unlanded modules.
 """
+
+from adx_showdown.selfplay.runner import (
+    SelfPlayResult,
+    make_harness_player,
+    run_selfplay_battle,
+    run_vs_baselines,
+)
+
+__all__ = [
+    "SelfPlayResult",
+    "make_harness_player",
+    "run_selfplay_battle",
+    "run_vs_baselines",
+]
