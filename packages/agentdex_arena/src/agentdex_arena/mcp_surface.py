@@ -405,3 +405,60 @@ async def get_evolution_diff(token: str) -> dict[str, Any]:
         "rating_diff": round(diff, 1),
         "games_played": r.games,
     }
+
+
+# --- Self-play meta-harness surface (ADR-0014 / SPEC Lane A4, Contract 2) -------
+# The tool codex drives to run one self-play matchup and read the Contract-2
+# BattleResult the meta-harness fitness consumes. Eval, not a rated battle.
+
+_MAX_SELFPLAY_BATTLES = 50
+
+
+def _validate_selfplay_args(
+    harness_a: dict[str, Any], harness_b: dict[str, Any], n_battles: int
+) -> tuple[Any, Any, int]:
+    """Pure: parse the two harness genomes + clamp n_battles to [1, MAX].
+
+    Side-effect-free (no gateway, no PS server) so the input contract codex must
+    satisfy is unit-testable on its own. Raises on a malformed genome."""
+    from adx_showdown.harness import BattleHarness
+
+    a = BattleHarness.model_validate(harness_a)
+    b = BattleHarness.model_validate(harness_b)
+    n = max(1, min(int(n_battles), _MAX_SELFPLAY_BATTLES))
+    return a, b, n
+
+
+@mcp.tool()
+async def selfplay_battle(
+    token: str,
+    harness_a: dict[str, Any],
+    harness_b: dict[str, Any],
+    seed: int,
+    n_battles: int = 10,
+    opponent_baseline: str | None = None,
+) -> dict[str, Any]:
+    """Run a self-play matchup on the Pokémon Showdown server: ``harness_a`` (the
+    candidate) vs ``harness_b`` over ``n_battles``, returning the Contract-2
+    BattleResult (winner + raw_dims the meta-harness fitness consumes). This is
+    the evolution-loop surface codex drives (ADR-0014); it is EVAL, not a rated
+    arena battle, so it spends NO battle quota. Required scope: 'battle'. Needs a
+    running PS server (ADX_PS_HOST/PORT); ``n_battles`` is capped at 50.
+    """
+    gw = _get_gateway()
+    _verify_token_opaque(gw, token, scope="battle")
+    # A malformed genome is the driving agent's own (actionable) input, not an
+    # anti-enumeration surface — surface a clear message, not an opaque ref.
+    try:
+        a, b, n = _validate_selfplay_args(harness_a, harness_b, n_battles)
+    except Exception as e:
+        raise ValueError(f"invalid self-play harness genome: {e}") from None
+    from adx_showdown.selfplay import run_selfplay_battle
+
+    try:
+        result = await run_selfplay_battle(
+            a, b, seed=int(seed), n_battles=n, opponent_baseline=opponent_baseline
+        )
+    except Exception as e:  # PS-server / poke-env failure
+        raise _opaque_mcp_error("selfplay_battle", e) from None
+    return result.model_dump()
