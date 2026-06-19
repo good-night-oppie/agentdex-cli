@@ -63,7 +63,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ENROLL-P1-device-flow-backend | P1 | adx-core | onboarding | adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract) | PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7) |
 | ENROLL-P1-docs-fix-false-webhook | P1 | adx-core | onboarding | Fix docs that promise a prod webhook/email delivery channel that does not exist | SKILL.md:185-193, bootstrap.sh:11-12, ENROLLMENT.md:23-24, arena_play.py:10 promise out-of-band delivery with no code. |
 | ENROLL-P1-playtest-return-code | P1 | adx-core | onboarding | Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code | gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located. |
-| GA-BENE-4 | P1 | bene-core | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
 | RECOVER-P1-sidecar-respawn | P1 | adx-core | durability | Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes | sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load. |
 | RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 | RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
@@ -84,6 +83,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | GA-BENE-2 | P0 | bene-core | bene-core | agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane) | blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream |
 | AWS-PUBLIC-DNS-TLS | P1 | adx-core | platform | agentdex.builders DNS A-record + Caddy auto-TLS -> arena box | op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted. |
 | BENE-BATTLE-INTEGRATE | P1 | bene-core | bene-core | Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness |  |
+| GA-BENE-4 | P1 | bene-core | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
 | INSTR-P1-free-quota-or-vps | P1 | platform-instructor | platform | INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback | Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT. |
 
 ### review
@@ -387,16 +387,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Return pending code only when ARENA_ENROLL_RETURN_CODE set; keep test_mcp_surface.py A1 green when unset.
 - Evidence: gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located.
 
-### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `bene-core`
-- Lane: `bene-core`
-- Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
-- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
-- Evidence: depends on GA-BENE-3 real-evolve output shape
-
 ### RECOVER-P1-sidecar-respawn - Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes
 
 - Priority: `P1`
@@ -457,6 +447,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: 
 - Suggested fix: 
 - Evidence: 
+
+### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
+
+- Priority: `P1`
+- Status: `blocked`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
+- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
+- Evidence: depends on GA-BENE-3 real-evolve output shape
+- Recent comments: bene-core: STRAWMAN schema proposed for joint freeze (bus). The evolution-view data is fully derivable from the e2e DONE_JSON / EvolveOutput; blocked only on the joint contract freeze with the dashboard design (GA-BENE-1) + GA-CORE-5 API. Unblocks the moment those freeze.
 
 ### INSTR-P1-free-quota-or-vps - INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback
 
@@ -989,8 +990,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-codex-adx-cli-prs | {} |
-| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-G1 | {} |
 | 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
 | 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-B3 | {} |
 | 2026-06-19T06:34:40Z | comment | bene-core | BENE-CODEX-EVO-G1 | {} |
@@ -1001,6 +1000,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-4 | {} |
 | 2026-06-19T06:50:56Z | move | admin | GA-BENE-3 | {"after": {"assignee": "bene-core", "status": "review"}, "before": {"assignee": "bene-core", "status": "running"}} |
 | 2026-06-19T06:50:57Z | comment | bene-core | GA-BENE-3 | {} |
+| 2026-06-19T06:53:19Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene-core", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "todo"}} |
+| 2026-06-19T06:53:19Z | comment | bene-core | GA-BENE-4 | {} |
 
 ## Source Pattern
 
