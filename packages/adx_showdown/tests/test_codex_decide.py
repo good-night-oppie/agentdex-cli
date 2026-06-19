@@ -50,9 +50,35 @@ def test_codex_decide_returns_the_chosen_legal_move():
     assert out == "thunderbolt"
 
 
-def test_codex_decide_rejects_an_illegal_pick():
+def test_codex_decide_passes_an_illegal_pick_through_for_the_adapter_to_gate():
+    """codex_decide does NOT swallow an illegal pick — it returns codex's proposed id
+    so the adapter (select_codex_move) can COUNT it as illegal and substitute a legal
+    order. Pre-filtering to None here would mask live illegal choices as abstentions
+    (review #3440261654)."""
     ctx = _ctx([_Move("thunderbolt", 90)])
-    assert codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "hyperbeam"}) is None
+    assert (
+        codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "hyperbeam"}) == "hyperbeam"
+    )
+
+
+def test_live_illegal_choice_is_counted_through_the_adapter():
+    """End-to-end: a live codex CLI that returns an illegal id must increment the
+    illegal counter (not be silently treated as an abstention)."""
+    moves = [_Move("thunderbolt", 90)]
+    calls = []
+    chosen = select_codex_move(
+        _Harness(),
+        _Battle(moves),
+        decide=lambda h, c: codex_decide(h, c, run=lambda p, s, t: {"move_id": "hyperbeam"}),
+        on_illegal=lambda: calls.append(1),
+    )
+    assert calls == [1]  # the live illegal choice WAS counted
+    assert chosen is moves[0]  # ...and a legal move substituted
+
+
+def test_codex_decide_abstains_on_a_blank_pick():
+    ctx = _ctx([_Move("thunderbolt", 90)])
+    assert codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "  "}) is None
 
 
 def test_codex_decide_is_failsafe_on_error():
@@ -88,8 +114,8 @@ def test_codex_decide_on_forced_switch_offers_only_switches():
     ctx = _ctx([], switches=[_Switch("venusaur"), _Switch("snorlax")])
     out = codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "snorlax"})
     assert out == "snorlax"
-    # an off-roster pick is still rejected (fail-safe → None → random legal order)
-    assert codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "mewtwo"}) is None
+    # an off-roster pick is passed through for the adapter to gate + count (not masked)
+    assert codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "mewtwo"}) == "mewtwo"
 
 
 def test_prompt_offers_legal_switches():
