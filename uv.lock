@@ -53,11 +53,18 @@ dependencies = [
     { name = "pydantic" },
 ]
 
+[package.optional-dependencies]
+selfplay = [
+    { name = "poke-env" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
+    { name = "poke-env", marker = "extra == 'selfplay'", specifier = ">=0.15" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
+provides-extras = ["selfplay"]
 
 [[package]]
 name = "agentdex-arena"
@@ -95,10 +102,13 @@ dependencies = [
     { name = "agentdex-engine" },
     { name = "agentdex-observe" },
     { name = "agentdex-plugin" },
+    { name = "cryptography" },
     { name = "helios-client" },
     { name = "hermes-agent" },
+    { name = "httpx" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "rich" },
 ]
 
 [package.metadata]
@@ -107,10 +117,13 @@ requires-dist = [
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "agentdex-observe", editable = "packages/agentdex_observe" },
     { name = "agentdex-plugin", editable = "packages/agentdex_plugin" },
+    { name = "cryptography", specifier = ">=42.0" },
     { name = "helios-client", editable = "packages/helios_client" },
     { name = "hermes-agent", specifier = ">=0.15.1" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.31" },
+    { name = "rich", specifier = ">=13.0" },
 ]
 
 [[package]]
@@ -543,6 +556,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -728,6 +750,15 @@ wheels = [
 ]
 
 [[package]]
+name = "farama-notifications"
+version = "0.0.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/91/14397890dde30adc4bee6462158933806207bc5dd10d7b4d09d5c33845cf/farama_notifications-0.0.6.tar.gz", hash = "sha256:b19acac4bb41d76e59e03394b5dd165f4761c86fa327f56307a35cbee3b60158", size = 2517, upload-time = "2026-04-24T08:43:57.603Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/f0/21f81892e4ed10f4ec3ef2e7cf8635fb76e7c0907c55d0da66be50094760/farama_notifications-0.0.6-py3-none-any.whl", hash = "sha256:f84839188efa1ce5bb361c2a84881b2dc2c0d0d7fb661ff00421820170930935", size = 2897, upload-time = "2026-04-24T08:43:56.785Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.136.3"
 source = { registry = "https://pypi.org/simple" }
@@ -818,6 +849,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e6/b4/77abbe35078be39718a46cd49caf16bceb35662f97a34101dca28aa98e47/greenlet-3.5.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:089fff7a6ce8d9316d1f65ebc00273a56be258c1725b32b94de90a3a979557e1", size = 1635602, upload-time = "2026-05-20T13:14:36.344Z" },
     { url = "https://files.pythonhosted.org/packages/37/f7/129f27ca700845b8ee8ca88ce7f43435a1239c2eddb7677fc938822762cf/greenlet-3.5.1-cp313-cp313-win_amd64.whl", hash = "sha256:110a1ca7b49b014b097f6078272c3f4ed31af45b254de5228b79adba879f6af9", size = 238683, upload-time = "2026-05-20T13:11:50.57Z" },
     { url = "https://files.pythonhosted.org/packages/6d/5c/a485a36e87df8d8fd0632ee01511244f5156a20ed3746cc6599340326395/greenlet-3.5.1-cp313-cp313-win_arm64.whl", hash = "sha256:f16ba1efc0715b680a18b8123d90dad887c6112ae3555b4b5c32c149540c6b4e", size = 235499, upload-time = "2026-05-20T13:12:42.028Z" },
+]
+
+[[package]]
+name = "gymnasium"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cloudpickle" },
+    { name = "farama-notifications" },
+    { name = "numpy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/ff/14b6880d703dfaca204490979d3254ccd280c99550798993319902873658/gymnasium-1.3.0.tar.gz", hash = "sha256:6939e86e835d6b71b6ba6bfd360487420876deafc79bfb7bacba83a7c446bcf3", size = 830646, upload-time = "2026-04-22T13:47:14.155Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/73/fda6a25f3beeb5e49d74330b44092b9e5a547395ccd478d1103ddcbff1fc/gymnasium-1.3.0-py3-none-any.whl", hash = "sha256:6b8c159a8540dcbcb221722d7efda24d78ebbcbc3bd2ea1c2611aa2a34471fc2", size = 953904, upload-time = "2026-04-22T13:47:12.13Z" },
 ]
 
 [[package]]
@@ -1677,6 +1723,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pettingzoo"
+version = "1.26.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gymnasium" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/df/a6/b92fbff8dc3aabc0fcbd9ad26073b36161f96ab3bb8fa96ee1f907ea8431/pettingzoo-1.26.1.tar.gz", hash = "sha256:1bae0c7d3c51bf032f2e2abb589b211feec786de76cbbff87f8189ad51649820", size = 695464, upload-time = "2026-04-27T00:38:40.162Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/da/89907ebf66f435ad36395ec25af4a79e5f9a58821314811f33649959162d/pettingzoo-1.26.1-py3-none-any.whl", hash = "sha256:f4715dde696bf159d68bb1d3f764ff5083eb7e0cc32ac31a748e81ae530181dd", size = 805499, upload-time = "2026-04-27T00:38:38.377Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1711,6 +1770,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "poke-env"
+version = "0.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gymnasium" },
+    { name = "numpy" },
+    { name = "orjson" },
+    { name = "pettingzoo" },
+    { name = "requests" },
+    { name = "tabulate" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ab/bc/f1977f42261f45e185402d7ea06741bbeb24791b1f7a79902bcf6853f4eb/poke_env-0.15.0.tar.gz", hash = "sha256:15ed408dd48885d9d589dfda3616ace329a38682992af9b283bf3309b2fce486", size = 1249874, upload-time = "2026-04-14T20:57:09.291Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/2e/2825f5b79354a0440a87debb6fda9921950224771167d077d811801dcf99/poke_env-0.15.0-py3-none-any.whl", hash = "sha256:6d2d60f95f93e36a40f8f4af9bb7440b4bd068def9859d4c53b2ac57ae202b11", size = 1374722, upload-time = "2026-04-14T20:57:07.228Z" },
 ]
 
 [[package]]
@@ -2472,6 +2549,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/25/44/ec35f1b6e83094b997da438a02c8c9b0ade2b1e84cfc48bd4656780760a6/starlette-1.2.1.tar.gz", hash = "sha256:9b9b5ebb992e67d6093741e63c2f59e4f6fff986f81163c087867bd7b924b3f6", size = 2701854, upload-time = "2026-05-31T01:07:51.847Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/54/196d0c1db10af76baa4f64894448505d60d3cdf70ef92cbb35f46a4e4c71/starlette-1.2.1-py3-none-any.whl", hash = "sha256:4de0082d08c8f6764a85a54cf1120d6939507a19905c7768acad2a9f875d2b89", size = 73350, upload-time = "2026-05-31T01:07:50.09Z" },
+]
+
+[[package]]
+name = "tabulate"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/58/8c37dea7bbf769b20d58e7ace7e5edfe65b849442b00ffcdd56be88697c6/tabulate-0.10.0.tar.gz", hash = "sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d", size = 91754, upload-time = "2026-03-04T18:55:34.402Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl", hash = "sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3", size = 39814, upload-time = "2026-03-04T18:55:31.284Z" },
 ]
 
 [[package]]
