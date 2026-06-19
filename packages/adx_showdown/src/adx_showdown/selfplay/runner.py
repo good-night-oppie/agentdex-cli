@@ -185,8 +185,19 @@ def make_harness_player(
             orders = _filter_switch_orders(
                 list(getattr(battle, "valid_orders", None) or []), exclude_switches=exclude_switches
             )
-            if not orders:  # nothing legal to choose (forced pass / struggle)
-                return self.choose_random_move(battle)
+            if not orders:
+                # Nothing legal survived. If we deliberately EXCLUDED switches (a
+                # voluntary, non-forced no-move turn under allow_switch=false) and
+                # only switches were legal, do NOT re-sample valid_orders via
+                # ``choose_random_move`` — that reintroduces the very switch the policy
+                # forbids. Defer to showdown's own default ("/choose default") so OUR
+                # code never picks a policy-forbidden switch. The non-excluding paths
+                # (random / max_damage forced switch) keep the seeded random fallback.
+                return (
+                    self.choose_default_move()
+                    if exclude_switches
+                    else self.choose_random_move(battle)
+                )
             key = "|".join(str(o) for o in orders)
             idx = _seeded_index(len(orders), rng_seed, getattr(battle, "turn", 0), key)
             return orders[idx]
