@@ -96,11 +96,11 @@ def make_harness_player(
     follow-ups); ``total_moves`` / ``illegal_moves`` are tracked for raw_dims.
 
     ``rng_seed`` makes the ``random`` policy reproducible: every random choice is
-    drawn deterministically from ``(rng_seed, battle_tag, turn)`` instead of
-    poke-env's unseeded ``choose_random_move``, so two evaluations with the same
-    ``rng_seed`` make the same moves. Keying on the battle's identity/turn (not a
-    per-player counter) keeps it stable regardless of call order across the
-    player's concurrent battles.
+    drawn deterministically from ``(rng_seed, turn, the legal-order set)`` instead
+    of poke-env's unseeded ``choose_random_move``, so the same decision context
+    always yields the same move. Keying on the legal options themselves (not the
+    server-assigned ``battle_tag``) keeps it stable across runs + independent of
+    call order across the player's concurrent battles.
     """
     from poke_env.player import Player
 
@@ -115,17 +115,20 @@ def make_harness_player(
             self.illegal_moves = 0
 
         def _seeded_order(self, battle: Any) -> Any:
-            """A reproducible random legal choice keyed on ``rng_seed`` + the
-            battle's identity/turn, replacing poke-env's unseeded
-            ``choose_random_move``."""
-            avail = list(getattr(battle, "available_moves", None) or [])
-            avail += list(getattr(battle, "available_switches", None) or [])
-            if not avail:  # nothing legal to choose (forced pass / struggle)
+            """A reproducible random legal choice, replacing poke-env's unseeded
+            ``choose_random_move``. Draws from poke-env's FULL legal order set
+            (``battle.valid_orders`` — moves incl. tera / dynamax / mega / Z +
+            switches, not just ``available_moves`` + ``available_switches``) and
+            keys the pick on ``rng_seed`` + the turn + the legal options' stable
+            Showdown command strings (NOT the server-assigned ``battle_tag``), so
+            an identical decision context yields the same choice regardless of run
+            or call order across concurrent battles."""
+            orders = list(getattr(battle, "valid_orders", None) or [])
+            if not orders:  # nothing legal to choose (forced pass / struggle)
                 return self.choose_random_move(battle)
-            idx = _seeded_index(
-                len(avail), rng_seed, getattr(battle, "battle_tag", ""), getattr(battle, "turn", 0)
-            )
-            return self.create_order(avail[idx])
+            key = "|".join(str(o) for o in orders)
+            idx = _seeded_index(len(orders), rng_seed, getattr(battle, "turn", 0), key)
+            return orders[idx]
 
         def choose_move(self, battle: Any) -> Any:
             self.total_moves += 1
