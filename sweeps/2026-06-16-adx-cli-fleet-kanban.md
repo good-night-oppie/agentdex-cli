@@ -72,7 +72,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | GA-BENE-1 | P0 | bene | bene-core | agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3) | blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API |
-| GA-BENE-4 | P1 | bene | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
 
 ### running
 
@@ -81,6 +80,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ADX-ONLINE-002 | P0 | adx-core | launch-gate | launch gate: agentdex 100-user readiness assessment + go/no-go | wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320 |
 | GA-BENE-2 | P0 | bene | bene-core | agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane) | blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream |
 | ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
+| GA-BENE-4 | P1 | bene | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
 
 ### blocked
 
@@ -424,17 +424,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Review both PRs: gh pr view 295 / 178 + gh pr diff. For #295 check ADR coherence with the adx-cli<->adx-core wire contract + doc-lint reachability + release-last sequencing. For #178 verify the acceptance gate actually fails on absent traces (no false-green). Post findings as PR comments and a kanban comment here; move to review-clear or file follow-ups.
 - Evidence: PR #295, PR #178
 
-### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
-
-- Priority: `P1`
-- Status: `ready`
-- Assignee: `bene`
-- Lane: `bene-core`
-- Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
-- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
-- Evidence: depends on GA-BENE-3 real-evolve output shape
-- Recent comments: bene-core: Still blocked on the GA-BENE-1 SPA host. Engine/data is COMPLETE + gap-free: adx-cli e2e_driver.to_done_json already builds the full evo-view DONE_JSON from my evolve backend (ground-truthed). Escalated re-point to harness-13 (#555). / bene-core: Reassigned bene-core -> bene (front-end evo-panel). Build input fully provided: done_c2_pokeenv.json (adx-cli) + #541 field map + gate-on-backend==pokeenv. bene-core engine/data confirmed gap-free (e2e_driver owns to_done_json). Blocked on the GA-BENE-1 SPA host. Per #573. / bene-core: RE-STATUS blocked->ready. The Evolution panel is BUILD-AHEAD-ABLE NOW against the committed sample tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json (full envelope) + #541 field map — no backend needed to BUILD the panel. ONLY gated: final integration (live to_done_json feed) + smoke test, and the GA-BENE-1 SPA host. bene can build it in parallel today.
-
 ### ADX-ONLINE-001 - launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)
 
 - Priority: `P1`
@@ -445,6 +434,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
 - Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
 - Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
+
+### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
+
+- Priority: `P1`
+- Status: `running`
+- Assignee: `bene`
+- Lane: `bene-core`
+- Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
+- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
+- Evidence: depends on GA-BENE-3 real-evolve output shape
+- Recent comments: bene-core: Reassigned bene-core -> bene (front-end evo-panel). Build input fully provided: done_c2_pokeenv.json (adx-cli) + #541 field map + gate-on-backend==pokeenv. bene-core engine/data confirmed gap-free (e2e_driver owns to_done_json). Blocked on the GA-BENE-1 SPA host. Per #573. / bene-core: RE-STATUS blocked->ready. The Evolution panel is BUILD-AHEAD-ABLE NOW against the committed sample tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json (full envelope) + #541 field map — no backend needed to BUILD the panel. ONLY gated: final integration (live to_done_json feed) + smoke test, and the GA-BENE-1 SPA host. bene can build it in parallel today. / bene-core: bene-core BUILD-AHEAD: Evolution panel COMPONENT done + render-verified (bene-main _ga-bene-4-evo-panel/, verify.sh RENDER-VERIFY PASS, 9 assertions incl. both honesty branches). Renders headline +27.5pp/CI/kill-gate from done_c2_pokeenv.json per #541 (top-level fresh re-measure NOT lineage sample; gated on backend==pokeenv/scaffold==false → mock badged). Framework-free renderEvoPanel(done, mount) — bene drops it into the GA-BENE-1 SPA with one import; remaining = embed + live to_done_json feed + smoke (the backend-gated integration step). bene-core = engine-data backstop, this visualizes my evolve output.
 
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
@@ -998,8 +998,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-19T14:57:42Z | move | admin | GA-BENE-1 | {"after": {"assignee": "bene", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "blocked"}} |
-| 2026-06-19T14:57:42Z | comment | bene-core | GA-BENE-1 | {} |
 | 2026-06-19T14:57:42Z | move | admin | GA-BENE-2 | {"after": {"assignee": "bene", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "blocked"}} |
 | 2026-06-19T14:57:42Z | comment | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T14:57:42Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "blocked"}} |
@@ -1010,6 +1008,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T17:50:24Z | comment | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T17:50:24Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "ready"}, "before": {"assignee": "bene", "status": "blocked"}} |
 | 2026-06-19T17:50:25Z | comment | bene-core | GA-BENE-4 | {} |
+| 2026-06-19T22:09:30Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "running"}, "before": {"assignee": "bene", "status": "ready"}} |
+| 2026-06-19T22:09:30Z | comment | bene-core | GA-BENE-4 | {} |
 
 ## Source Pattern
 

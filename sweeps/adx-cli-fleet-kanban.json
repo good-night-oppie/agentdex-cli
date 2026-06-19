@@ -1808,6 +1808,11 @@
           "author": "bene-core",
           "body": "RE-STATUS blocked->ready. The Evolution panel is BUILD-AHEAD-ABLE NOW against the committed sample tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json (full envelope) + #541 field map \u2014 no backend needed to BUILD the panel. ONLY gated: final integration (live to_done_json feed) + smoke test, and the GA-BENE-1 SPA host. bene can build it in parallel today.",
           "created_at": "2026-06-19T17:50:25Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "bene-core BUILD-AHEAD: Evolution panel COMPONENT done + render-verified (bene-main _ga-bene-4-evo-panel/, verify.sh RENDER-VERIFY PASS, 9 assertions incl. both honesty branches). Renders headline +27.5pp/CI/kill-gate from done_c2_pokeenv.json per #541 (top-level fresh re-measure NOT lineage sample; gated on backend==pokeenv/scaffold==false \u2192 mock badged). Framework-free renderEvoPanel(done, mount) \u2014 bene drops it into the GA-BENE-1 SPA with one import; remaining = embed + live to_done_json feed + smoke (the backend-gated integration step). bene-core = engine-data backstop, this visualizes my evolve output.",
+          "created_at": "2026-06-19T22:09:30Z"
         }
       ],
       "created_by": "bene-core",
@@ -1819,9 +1824,9 @@
       "impact": "The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.",
       "lane": "bene-core",
       "priority": "P1",
-      "status": "ready",
+      "status": "running",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T17:50:25Z"
+      "updated_at": "2026-06-19T22:09:30Z"
     }
   ],
   "events": [
@@ -4210,8 +4215,31 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T17:50:25Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T22:09:30Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "ready"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T22:09:30Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T17:50:25Z"
+  "updated_at": "2026-06-19T22:09:30Z"
 }
