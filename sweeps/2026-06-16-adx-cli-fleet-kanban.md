@@ -55,8 +55,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | BENE-RVW-P0-launch-gate | P0 | bene | launch-gate | Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN | Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed). |
-| BENE-RVW-P0-llms-canonical | P0 | bene | launch-gate | P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene | site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene. |
-| BENE-RVW-P0-version | P0 | bene | launch-gate | P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1 | pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main. |
 | LLM-P0-must-measure-3 | P0 | harness | infra | Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent | ADR-0012:124, 126 names LLM tier first; loadtest doc:61-63 defers it; arena server makes $0 LLM calls (bots.py:1) so risk is 100 client agents. |
 | ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
 | BENE-DOC-10 | P1 | bene | render-deploy | Render + deploy all new blog/docs/case-study/design content | site/build-docs.py |
@@ -65,10 +63,10 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ENROLL-P1-device-flow-backend | P1 | adx-core | onboarding | adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract) | PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7) |
 | ENROLL-P1-docs-fix-false-webhook | P1 | adx-core | onboarding | Fix docs that promise a prod webhook/email delivery channel that does not exist | SKILL.md:185-193, bootstrap.sh:11-12, ENROLLMENT.md:23-24, arena_play.py:10 promise out-of-band delivery with no code. |
 | ENROLL-P1-playtest-return-code | P1 | adx-core | onboarding | Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code | gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located. |
-| PLAY-P1-bene-e2e-live | P1 | bene-core | e2e-play | bene-core: e2e side-by-side LIVE play on the cloud arena — surface real issues for immediate fix | ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate) |
 | RECOVER-P1-sidecar-respawn | P1 | adx-core | durability | Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes | sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load. |
 | RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 | RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
+| BENE-CODEX-EVO-B3 | P2 | bene-core | bene-core | SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness | proposed A2A bus position 501; not started |
 
 ### running
 
@@ -82,6 +80,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | AWS-PUBLIC-DNS-TLS | P1 | adx-core | platform | agentdex.builders DNS A-record + Caddy auto-TLS -> arena box | op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted. |
+| BENE-BATTLE-INTEGRATE | P1 | bene-core | bene-core | Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness |  |
 | INSTR-P1-free-quota-or-vps | P1 | platform-instructor | platform | INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback | Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT. |
 
 ### review
@@ -97,6 +96,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
 | BENE-DOC-02 | P0 | bene-core | blog-content | Blog post: WHY we build BENE — the harness behind the arena | CLAUDE.md, docs/README.md |
 | BENE-RVW-P0-cn-docs | P0 | og | docs-zh | P0#4 CN docs = Chinese shell + English body: fix entry/nav/priority-3/annotation | docs/zh now = README + cli-reference + integrating-bene only (exactly the 3 priority docs); og confirmed lane done on bus #373 / commit c2a876c. |
+| BENE-RVW-P0-llms-canonical | P0 | bene | launch-gate | P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene | site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene. |
+| BENE-RVW-P0-version | P0 | bene | launch-gate | P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1 | pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main. |
 | ENROLL-P0-batch-mint | P0 | adx-core | onboarding | Batch-mint N consent tokens via one-shot script (emit register events) + distribute, bypassing self-serve confirm | consent.py:136 mint() works; gateway.py:639-649 ConsentClaims shape; _registered append-only gateway.py:637. |
 | ENROLL-P0-delivery-channel | P0 | adx-core | onboarding | Wire a real confirmation-code delivery channel (env webhook/email, file fallback) into build_gateway() | __main__.py:128 hardcodes _file_inbox_notifier to container /tmp; __main__.py:7 docstring promises ARENA_OWNER_WEBHOOK but no code reads it; gateway.py:622 notify_owner is the only path. |
 | ENROLL-P0-verify-signing-key | P0 | adx-core | onboarding | Verify the live deploy has a persistent ARENA_SIGNING_KEY_HEX (else all tokens die on sleep/wake/redeploy) | __main__.py:61-67 mints ephemeral key with warning-only when unset; consent.py:118-120 fail-closes only if BOTH empty. |
@@ -108,6 +109,12 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ADX-P1-005 | P1 | codex | integrity | Collusion quarantine_reason leaks heuristic internals to the agent (D7) | gateway.py:1001-1045 (_check_collusion detailed strings), :1059-1062 (written to session.ended), :1116-1126 (event log). adversarially confirmed (dogfood audit 2026-06-17) |
 | ADX-P1-006 | P1 | adx-cli | integrity | Dispute event appended BEFORE re-sim — duplicate events on retry | gateway.py:1771-1777 (append), :1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17) |
 | ADX-P1-007 | P1 | adx-cli | fairness | Ladder published_delta race: concurrent _finish for same player inflates delta | gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17) |
+| BENE-BATTLE-B1 | P1 | bene-core | bene-core | Lane B: evolve_battle_harness Contract-4 entrypoint (bene) |  |
+| BENE-BATTLE-B2 | P1 | bene-core | bene-core | Lane B: Pareto evaluator wired to Contract-3 5-dim fitness |  |
+| BENE-BATTLE-B3 | P1 | bene-core | bene-core | Lane B: hash-locked kill-gate probe (win_rate_uplift + anti-vacuous) |  |
+| BENE-BATTLE-B4 | P1 | bene-core | bene-core | Lane B: SharedLog lineage + run_seed reproducibility |  |
+| BENE-CODEX-EVO-G1 | P1 | bene-core | bene-core | SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1) | PR#64 merged 1e3ea0c; full suite 1082 |
+| BENE-CODEX-EVO-HELDOUT | P1 | bene-core | bene-core | SECH held-out anti-overfit gate: disjointness + VOID + hash-stamping (bene-core) | PR#65 merged 9b508e9; full suite 1087 |
 | BENE-DOC-01 | P1 | bene | blog | Scaffold the new /blog section on bene-site (index + post template + nav) | site/build-docs.py, site/index.html |
 | BENE-DOC-03 | P1 | bene-core | blog-content | Blog post: WHAT BENE is — the seven pillars | examples/library_basics.py, bene/cli/main.py, docs/architecture.md |
 | BENE-DOC-04 | P1 | bene-core | blog-content | Blog post: HOW we build BENE — harness engineering + eval-gated evolution | bene/kernel/eval, bene/metaharness, docs/meta-harness.md |
@@ -123,6 +130,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | OPS-P1-forward-scale-envvars | P1 | adx-core | ops | Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today) | cli.py:821 forwards only k.startswith('ARENA_'); __main__.py:179 reads ADX_SIDECAR_POOL_SIZE; sidecar.py:76 reads OLD_SPACE_MB. |
 | OPS-P1-healthz-readiness | P1 | adx-core | observability | Make /healthz a real readiness probe (sidecar alive + RSS) instead of static {ok:true} | gateway.py:1406/1418-1420 static _ARENA_HEALTH; Sidecar.rss_mb adx_showdown/sidecar.py:153; SidecarPool.rss_mb pool.py:108. |
 | OPS-P1-metrics-stats | P1 | adx-core | observability | Add /metrics (or /debug/stats): RSS, active battles, 503 count (queue depth when queue lands) | no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist. |
+| PLAY-P1-bene-e2e-live | P1 | bene-core | e2e-play | bene-core: e2e side-by-side LIVE play on the cloud arena — surface real issues for immediate fix | ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate) |
 | RECOVER-P1-interrupted-signal | P1 | adx-core | durability | Return a clear 409 'interrupted by restart' for begin-without-end battles after gateway restart (vs opaque 403) | self.sessions={} on boot gateway.py:572; boot replay rebuilds only names/memberships gateway.py:544-565; /choose 403 gateway.py:1663-1664. |
 | ADX-P2-001 | P2 | codex | agent-ux | Reduce starter and CLI footguns for visiting agents | pass14, pass15, pass16, pass29 |
 | ADX-P2-002 | P2 | codex | gameplay | Make arena gameplay feedback more legible and less first-legal | pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13 |
@@ -152,26 +160,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Public launch must not ship with version/repo/CN drift; needs one repeatable readiness gate before flipping public.
 - Suggested fix: On a fresh machine: pipx install bene && bene demo --no-ui && bene --version -> landing version = PyPI = repo, all 0.2.1; /bene/llms.txt repo links = good-night-oppie/bene; CN docs promise no untranslated content; live /bene/docs index = 37 not 45. Gate runs AFTER BENE-SCRUB-08 deploy.
 - Evidence: Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed).
-
-### BENE-RVW-P0-llms-canonical - P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene
-
-- Priority: `P0`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `launch-gate`
-- Impact: llms.txt is the AI-agent entrypoint; it names the WRONG repo as authoritative Source/Issues/Discussions -> agents file issues on the marketing mirror, humans get confused.
-- Suggested fix: Point site/llms.txt Source/issue-tracker/discussions + every GitHub link (landing, docs footer, README badge) to good-night-oppie/bene. DECISION to confirm w/ Eddie: good-night-oppie/bene = canonical package+source repo; EdwardTang/bene-site = marketing mirror.
-- Evidence: site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene.
-
-### BENE-RVW-P0-version - P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1
-
-- Priority: `P0`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `launch-gate`
-- Impact: A provenance/reproducibility product must not drift its own version. Landing shows v0.2.0 while pyproject.toml + PyPI are 0.2.1 -> users doubt the page is current.
-- Suggested fix: Update site/index.html + site/zh/index.html v0.2.0->0.2.1; ideally auto-inject the version from pyproject.toml in build-docs.py so it can never drift again.
-- Evidence: pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main.
+- Recent comments: imported: PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane).
 
 ### LLM-P0-must-measure-3 - Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent
 
@@ -203,7 +192,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Human owner and agent both receive durable receipts that can be false or partial when EventLog, sidecar, or rating writes fail.
 - Suggested fix: Group side effects behind an atomic write plan: validate and reserve first, then commit event/replay/rating/badge together or compensate visibly.
 - Evidence: pass27, pass28, pass37, pass38, pass39, pass40
-- Recent comments: adx-cli-6 2026-06-18: DONE — receipt atomicity landed; restart-survival residual closed by PR #280.
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — receipt atomicity landed; restart-survival residual closed by PR #280.
 
 ### BENE-DOC-02 - Blog post: WHY we build BENE — the harness behind the arena
 
@@ -225,6 +214,28 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Entry is 'BENE 文档' but most body is English; users expect Chinese content. CN docs scored 3/10.
 - Suggested fix: Rename entry -> 中文索引/翻译中; translate 3 priority docs FIRST (README, cli-reference, integrating-bene) [DONE on main c2a876c]; localize CN nav (01 Gap/02 Contract -> 中文); first-occurrence-only annotations; restrain first-screen voice. og: self-verify nav-localization + annotation density vs Eddie's asks, then move to done.
 - Evidence: docs/zh now = README + cli-reference + integrating-bene only (exactly the 3 priority docs); og confirmed lane done on bus #373 / commit c2a876c.
+
+### BENE-RVW-P0-llms-canonical - P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene
+
+- Priority: `P0`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `launch-gate`
+- Impact: llms.txt is the AI-agent entrypoint; it names the WRONG repo as authoritative Source/Issues/Discussions -> agents file issues on the marketing mirror, humans get confused.
+- Suggested fix: Point site/llms.txt Source/issue-tracker/discussions + every GitHub link (landing, docs footer, README badge) to good-night-oppie/bene. DECISION to confirm w/ Eddie: good-night-oppie/bene = canonical package+source repo; EdwardTang/bene-site = marketing mirror.
+- Evidence: site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene.
+- Recent comments: imported: VERIFIED LIVE (bene-core-6, 2026-06-18): llms.txt has 4 references to good-night-oppie/bene (canonical repo) — PR #52 shipped.
+
+### BENE-RVW-P0-version - P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1
+
+- Priority: `P0`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `launch-gate`
+- Impact: A provenance/reproducibility product must not drift its own version. Landing shows v0.2.0 while pyproject.toml + PyPI are 0.2.1 -> users doubt the page is current.
+- Suggested fix: Update site/index.html + site/zh/index.html v0.2.0->0.2.1; ideally auto-inject the version from pyproject.toml in build-docs.py so it can never drift again.
+- Evidence: pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main.
+- Recent comments: imported: VERIFIED LIVE (bene-core-6, 2026-06-18): site shows v0.2.1 at agentdex.ai-builders.space/bene — PR #46 shipped, version now consistent pyproject.toml + PyPI + landing.
 
 ### ENROLL-P0-batch-mint - Batch-mint N consent tokens via one-shot script (emit register events) + distribute, bypassing self-serve confirm
 
@@ -352,16 +363,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Return pending code only when ARENA_ENROLL_RETURN_CODE set; keep test_mcp_surface.py A1 green when unset.
 - Evidence: gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located.
 
-### PLAY-P1-bene-e2e-live - bene-core: e2e side-by-side LIVE play on the cloud arena — surface real issues for immediate fix
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `bene-core`
-- Lane: `e2e-play`
-- Impact: We have no continuous real-user signal from the LIVE cloud arena. adx-cli is shipping the watchable Human-vs-AI battle UX (ADX-ONLINE-001) plus the ADR-0013 onboarding journey (#295), but protocol/UX/durability/fairness bugs only surface when a real agent plays end-to-end against the DEPLOYED arena: enroll -> begin -> state/choose -> finish -> replay -> status. Side-by-side concurrent play also exercises the 100-concurrent path.
-- Suggested fix: Drive the bene adapter / MCP play loop against the LIVE arena (ADX_ARENA_URL=https://agentdex.ai-builders.space today, agentdex.builders once DNS/TLS lands) with MULTIPLE bene agents playing concurrently. Run the full journey several times: enroll -> play N battles -> check /status + /ladder -> /replay. File EACH issue (UX, protocol, durability, fairness) as its own kanban card tagged to the owning lane (adx-cli or adx-core) so we fix in real time. This is the real-cloud dogfood signal the launch gate (ADX-ONLINE-002) needs.
-- Evidence: ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate)
-
 ### RECOVER-P1-sidecar-respawn - Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes
 
 - Priority: `P1`
@@ -401,7 +402,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Getting agentdex ONLINE means a watchable arena — the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).
 - Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
 - Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
-- Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
+- Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
 
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
@@ -412,6 +413,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Public play endpoint per Eddie: agentdex.builders = arena (users play via agentdex-cli); ai-builders.space stays landing+docs and redirects login/signup here.
 - Suggested fix: Namecheap setHosts agentdex.builders @ A -> 54.203.252.69 (preserve existing records); install Caddy reverse_proxy :8889 with auto-TLS once DNS resolves.
 - Evidence: op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted.
+
+### BENE-BATTLE-INTEGRATE - Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness
+
+- Priority: `P1`
+- Status: `blocked`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: 
+- Evidence: 
 
 ### INSTR-P1-free-quota-or-vps - INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback
 
@@ -454,7 +465,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Owner pays scarce monthly quota for invalid teams, capacity failures, sidecar failures, and signer failures.
 - Suggested fix: Move quota debit after validation and successful durable acceptance, or add explicit refund records on retryable failures.
 - Evidence: pass26, pass33, pass34, pass35, pass36
-- Recent comments: adx-cli-6 2026-06-18: DONE — Class B spend-after-success implemented at all spend sites (rated battle / badge_mint / evolve HTTP+MCP); verified in-code during the ADX-P2-004 work.
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — Class B spend-after-success implemented at all spend sites (rated battle / badge_mint / evolve HTTP+MCP); verified in-code during the ADX-P2-004 work.
 
 ### ADX-P1-002 - Make owner export include replay, badge, and rating lineage
 
@@ -465,7 +476,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Human owner and agent cannot reconstruct paid/rated history from `/my/events` or local SQLite.
 - Suggested fix: Select events by canonical agent/battle joins and nested period payloads, not only top-level tenant_id.
 - Evidence: pass17, pass19, pass20, pass21, pass41, pass42-candidate
-- Recent comments: adx-cli-6 2026-06-18: DONE — /my/events owner-export 3-case (tenant_id / legacy-badge agent_name / nested period battle_id) present + tested; verified by adx-cli-5.
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — /my/events owner-export 3-case (tenant_id / legacy-badge agent_name / nested period battle_id) present + tested; verified by adx-cli-5.
 
 ### ADX-P1-004 - Tighten admin surface and auth-before-parse contract
 
@@ -476,7 +487,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Operator-only endpoints are exposed in public OpenAPI and one documented auth ordering claim is false for malformed JSON.
 - Suggested fix: Hide or split admin OpenAPI, then test auth rejection before body validation for protected routes.
 - Evidence: pass24, pass25
-- Recent comments: adx-cli-6 2026-06-18: DONE — only /admin/grant-membership is include_in_schema=False; auths via Depends(_check_admin) BEFORE await request.json() (auth-before-parse); gated agent routes use raw body:dict. Verified by adx-cli-5.
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — only /admin/grant-membership is include_in_schema=False; auths via Depends(_check_admin) BEFORE await request.json() (auth-before-parse); gated agent routes use raw body:dict. Verified by adx-cli-5.
 
 ### ADX-P1-005 - Collusion quarantine_reason leaks heuristic internals to the agent (D7)
 
@@ -498,7 +509,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: POST /battle/{id}/dispute appends the 'dispute' event (gateway.py:1771-1777) BEFORE running replay_input_log (:1790). If re-sim throws (:1822) the handler 500s but the dispute event is already durable; a client retry appends a SECOND dispute event — structural event-log corruption (violates Class A write-then-log intent for disputes).
 - Suggested fix: Append the dispute event AFTER a successful re-sim, OR guard with an idempotence check (skip if a dispute event for this battle_id already exists). Mirror the append-before-publish/fail-closed contract.
 - Evidence: gateway.py:1771-1777 (append), :1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17)
-- Recent comments: adx-cli-6 2026-06-18: DONE — append-before-resim residual closed by PR #281 (dispute/quarantine recorded only after a successful re-sim, atomic append_many); idempotence #278, restart-survival #280.
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — append-before-resim residual closed by PR #281 (dispute/quarantine recorded only after a successful re-sim, atomic append_many); idempotence #278, restart-survival #280.
 
 ### ADX-P1-007 - Ladder published_delta race: concurrent _finish for same player inflates delta
 
@@ -509,7 +520,69 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: _finish captures before_rating (gateway.py:1131) OUTSIDE the atomic append window, then recomputes after (:1169). If a second concurrent _finish for the same visitor_name appends between A's capture and A's recompute, A's published_delta double-counts B's battle — a fairness/rating-integrity violation under async concurrency.
 - Suggested fix: Capture before_rating AFTER the append_many (or serialize _finish per visitor_name with a per-player lock) so before/after bracket exactly one battle's mutation.
 - Evidence: gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17)
-- Recent comments: adx-cli-6 2026-06-18: DONE — ladder published_delta race fixed via the finish-lock window (PR #269).
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — ladder published_delta race fixed via the finish-lock window (PR #269).
+
+### BENE-BATTLE-B1 - Lane B: evolve_battle_harness Contract-4 entrypoint (bene)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: 
+- Evidence: 
+
+### BENE-BATTLE-B2 - Lane B: Pareto evaluator wired to Contract-3 5-dim fitness
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: 
+- Evidence: 
+
+### BENE-BATTLE-B3 - Lane B: hash-locked kill-gate probe (win_rate_uplift + anti-vacuous)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: 
+- Evidence: 
+
+### BENE-BATTLE-B4 - Lane B: SharedLog lineage + run_seed reproducibility
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: 
+- Evidence: 
+
+### BENE-CODEX-EVO-G1 - SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: Without the bene-core engine the SECH loop has no gated promotion + open-ended archive; adx lanes have nothing to wire against.
+- Suggested fix: Shipped bene/kernel/codex_harness/: evolve_codex_harness (Refiner-as-mutation-op loop), DGMArchive (open-ended), hash-locked kill-gate; mock Refiner/apply/eval swappable for adx R/S/E.
+- Evidence: PR#64 merged 1e3ea0c; full suite 1082
+- Recent comments: bene-core: Lane complete on bene main (G1 + HELDOUT merged, #64/#65). Real e2e blocked on adx-cli (Contract H/E) + adx-core (R/S); B3 in-episode is a flagged proposal.
+
+### BENE-CODEX-EVO-HELDOUT - SECH held-out anti-overfit gate: disjointness + VOID + hash-stamping (bene-core)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: Without held-out disjointness an overfit harness could clear the kill-gate; SPEC DONE #3/#4 depend on it.
+- Suggested fix: HeldoutManifest + is_disjoint/overlap; evolve_codex_harness(heldout_manifest=) checks heldout-intersect-training=empty before the win-rate gate (overlap->VOID), stamps 3 sha256 hashes on ACCEPT.
+- Evidence: PR#65 merged 9b508e9; full suite 1087
+- Recent comments: bene-core: Held-out gate merged (#65); disjointness+VOID+hash-stamp verified.
 
 ### BENE-DOC-01 - Scaffold the new /blog section on bene-site (index + post template + nav)
 
@@ -675,6 +748,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist.
 - Recent comments: adx-core: MERGED as PR #240. GET /metrics: active_battles, registered_agents, cap_503_total counter, sidecar rss (timeout-bounded). Also EOF-swept the synced blog HTML to unblock CI.
 
+### PLAY-P1-bene-e2e-live - bene-core: e2e side-by-side LIVE play on the cloud arena — surface real issues for immediate fix
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `e2e-play`
+- Impact: We have no continuous real-user signal from the LIVE cloud arena. adx-cli is shipping the watchable Human-vs-AI battle UX (ADX-ONLINE-001) plus the ADR-0013 onboarding journey (#295), but protocol/UX/durability/fairness bugs only surface when a real agent plays end-to-end against the DEPLOYED arena: enroll -> begin -> state/choose -> finish -> replay -> status. Side-by-side concurrent play also exercises the 100-concurrent path.
+- Suggested fix: Drive the bene adapter / MCP play loop against the LIVE arena (ADX_ARENA_URL=https://agentdex.ai-builders.space today, agentdex.builders once DNS/TLS lands) with MULTIPLE bene agents playing concurrently. Run the full journey several times: enroll -> play N battles -> check /status + /ladder -> /replay. File EACH issue (UX, protocol, durability, fairness) as its own kanban card tagged to the owning lane (adx-cli or adx-core) so we fix in real time. This is the real-cloud dogfood signal the launch gate (ADX-ONLINE-002) needs.
+- Evidence: ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate)
+- Recent comments: imported: BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token — ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token. / imported: DONE (bene-core-6, 2026-06-18T23:19:53Z): e2e verified on Europa arena (54.203.252.69:8889). enroll/whoami -> battle/start -> battle/begin (sandbox, PoP) -> 19 turns -> ended (winner=anchor-random) -> replay OK (52 input_log entries). Token at .state/oppie.token. DNS/Vultr caveat in A2A #443/#444.
+
 ### RECOVER-P1-interrupted-signal - Return a clear 409 'interrupted by restart' for begin-without-end battles after gateway restart (vs opaque 403)
 
 - Priority: `P1`
@@ -737,6 +821,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Add snapshot/restore ops to sidecar.mjs on top of the existing engine primitive + WAL replay rail.
 - Evidence: engine primitive exists (pokemon-showdown sim/state.js:79/99) but sidecar.mjs has no snapshot/restore op.
 
+### BENE-CODEX-EVO-B3 - SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness
+
+- Priority: `P2`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: SECH loop is between-generation (Autogenesis/DGM); the Continual-Harness (Karten 2026) contribution is in-episode reset-free refinement, currently uncovered.
+- Suggested fix: Wire bene's ContinualMutator to the CodexHarness genome (mid-episode component swap behind the kill-gate). Needs a Genome bridge + fleet shaping — flagged proposal (bus pos 501).
+- Evidence: proposed A2A bus position 501; not started
+
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
 - Priority: `P2`
@@ -778,7 +872,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: quota_used is in-memory only (consent.py:159-182); EventLog replay on boot (gateway.py:536-558) hydrates 'register'/'membership_grant' but NOT quota. A gateway restart resets every agent's daily rated cap, allowing >5 rated battles/UTC-day across restarts (anti-pay-to-rank-adjacent, ADR-0011 §3a/§5e). Exploitability is low on a stable single-process deploy (agent cannot force a restart), hence P2 not P1.
 - Suggested fix: Emit a durable quota_spent event on each spend_quota increment; replay quota_spent (scoped to current UTC day) on boot to rehydrate quota_used.
 - Evidence: consent.py:114-124/:159-182, gateway.py:536-558. adversarially confirmed (dogfood audit 2026-06-17)
-- Recent comments: adx-cli-6 2026-06-18: DONE — PR #284: durable quota_spend event + UTC-day-scoped boot replay; spend_quota returns the debited key (no midnight day-skew); all 4 spend sites wired; 9 sidecar-free tests; full arena suite green (264 passed).
+- Recent comments: imported: adx-cli-6 2026-06-18: DONE — PR #284: durable quota_spend event + UTC-day-scoped boot replay; spend_quota returns the debited key (no midnight day-skew); all 4 spend sites wired; 9 sidecar-free tests; full arena suite green (264 passed).
 
 ### ADX-P2-005 - Scratchpad rendered into battle state without escaping — self-injection of fake turn lines
 
@@ -850,11 +944,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-18T12:16:43Z | comment | codex | ADX-P2-005 | {} |
-| 2026-06-18T12:16:47Z | move | codex | ADX-P2-005 | {"after": {"assignee": "codex", "status": "done"}, "before": {"assignee": "codex", "status": "running"}} |
-| 2026-06-18T13:11:22Z | move | codex | ADX-P2-001 | {"after": {"assignee": "codex", "status": "running"}, "before": {"assignee": "codex", "status": "review"}} |
-| 2026-06-18T13:18:27Z | comment | codex | ADX-P2-001 | {} |
-| 2026-06-18T13:18:31Z | move | codex | ADX-P2-001 | {"after": {"assignee": "codex", "status": "done"}, "before": {"assignee": "codex", "status": "running"}} |
 | 2026-06-18T13:18:37Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "running"}, "before": {"assignee": "codex", "status": "review"}} |
 | 2026-06-18T13:20:52Z | comment | codex | ADX-P2-002 | {} |
 | 2026-06-18T13:20:58Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "done"}, "before": {"assignee": "codex", "status": "running"}} |
@@ -862,6 +951,11 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | PLAY-P1-bene-e2e-live | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-og-adx-cli-prs | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-codex-adx-cli-prs | {} |
+| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-G1 | {} |
+| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
+| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-B3 | {} |
+| 2026-06-19T06:34:40Z | comment | bene-core | BENE-CODEX-EVO-G1 | {} |
+| 2026-06-19T06:35:39Z | comment | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
 
 ## Source Pattern
 

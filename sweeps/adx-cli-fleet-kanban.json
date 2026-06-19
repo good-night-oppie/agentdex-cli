@@ -13,7 +13,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 receipt atomicity landed; restart-survival residual closed by PR #280."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 receipt atomicity landed; restart-survival residual closed by PR #280.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -36,7 +40,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 Class B spend-after-success implemented at all spend sites (rated battle / badge_mint / evolve HTTP+MCP); verified in-code during the ADX-P2-004 work."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 Class B spend-after-success implemented at all spend sites (rated battle / badge_mint / evolve HTTP+MCP); verified in-code during the ADX-P2-004 work.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -58,7 +66,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 /my/events owner-export 3-case (tenant_id / legacy-badge agent_name / nested period battle_id) present + tested; verified by adx-cli-5."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 /my/events owner-export 3-case (tenant_id / legacy-badge agent_name / nested period battle_id) present + tested; verified by adx-cli-5.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -98,7 +110,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 only /admin/grant-membership is include_in_schema=False; auths via Depends(_check_admin) BEFORE await request.json() (auth-before-parse); gated agent routes use raw body:dict. Verified by adx-cli-5."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 only /admin/grant-membership is include_in_schema=False; auths via Depends(_check_admin) BEFORE await request.json() (auth-before-parse); gated agent routes use raw body:dict. Verified by adx-cli-5.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -240,7 +256,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 append-before-resim residual closed by PR #281 (dispute/quarantine recorded only after a successful re-sim, atomic append_many); idempotence #278, restart-survival #280."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 append-before-resim residual closed by PR #281 (dispute/quarantine recorded only after a successful re-sim, atomic append_many); idempotence #278, restart-survival #280.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -259,7 +279,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 ladder published_delta race fixed via the finish-lock window (PR #269)."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 ladder published_delta race fixed via the finish-lock window (PR #269).",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -279,7 +303,11 @@
     {
       "assignee": "adx-cli",
       "comments": [
-        "adx-cli-6 2026-06-18: DONE \u2014 PR #284: durable quota_spend event + UTC-day-scoped boot replay; spend_quota returns the debited key (no midnight day-skew); all 4 spend sites wired; 9 sidecar-free tests; full arena suite green (264 passed)."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: DONE \u2014 PR #284: durable quota_spend event + UTC-day-scoped boot replay; spend_quota returns the debited key (no midnight day-skew); all 4 spend sites wired; 9 sidecar-free tests; full arena suite green (264 passed).",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "codex",
       "evidence": [
@@ -348,7 +376,11 @@
           "body": "Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 \u2014 fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay.",
           "created_at": "2026-06-17T23:07:54Z"
         },
-        "adx-cli-6 2026-06-18: launch scope SHIPPED \u2014 typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate)."
+        {
+          "author": "imported",
+          "body": "adx-cli-6 2026-06-18: launch scope SHIPPED \u2014 typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "adx-cli",
       "evidence": [
@@ -1240,7 +1272,11 @@
     {
       "assignee": "bene",
       "comments": [
-        "VERIFIED LIVE (bene-core-6, 2026-06-18): site shows v0.2.1 at agentdex.ai-builders.space/bene \u2014 PR #46 shipped, version now consistent pyproject.toml + PyPI + landing."
+        {
+          "author": "imported",
+          "body": "VERIFIED LIVE (bene-core-6, 2026-06-18): site shows v0.2.1 at agentdex.ai-builders.space/bene \u2014 PR #46 shipped, version now consistent pyproject.toml + PyPI + landing.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "bene-core",
       "evidence": [
@@ -1258,7 +1294,11 @@
     {
       "assignee": "bene",
       "comments": [
-        "VERIFIED LIVE (bene-core-6, 2026-06-18): llms.txt has 4 references to good-night-oppie/bene (canonical repo) \u2014 PR #52 shipped."
+        {
+          "author": "imported",
+          "body": "VERIFIED LIVE (bene-core-6, 2026-06-18): llms.txt has 4 references to good-night-oppie/bene (canonical repo) \u2014 PR #52 shipped.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "bene-core",
       "evidence": [
@@ -1362,7 +1402,11 @@
     {
       "assignee": "bene",
       "comments": [
-        "PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane)."
+        {
+          "author": "imported",
+          "body": "PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane).",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "bene-core",
       "evidence": [
@@ -1397,8 +1441,16 @@
     {
       "assignee": "bene-core",
       "comments": [
-        "BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token \u2014 ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token.",
-        "DONE (bene-core-6, 2026-06-18T23:19:53Z): e2e verified on Europa arena (54.203.252.69:8889). enroll/whoami -> battle/start -> battle/begin (sandbox, PoP) -> 19 turns -> ended (winner=anchor-random) -> replay OK (52 input_log entries). Token at .state/oppie.token. DNS/Vultr caveat in A2A #443/#444."
+        {
+          "author": "imported",
+          "body": "BLOCKED (bene-core-6, 2026-06-18): Cannot mint oppie token \u2014 ARENA_SIGNING_KEY_HEX only on Koyeb container; SSH to 45.63.66.158 (Vultr) times out; op read rate-limited. Escalated to harness (#438). Enrollment gate requires token.",
+          "created_at": "2026-06-18T00:00:00Z"
+        },
+        {
+          "author": "imported",
+          "body": "DONE (bene-core-6, 2026-06-18T23:19:53Z): e2e verified on Europa arena (54.203.252.69:8889). enroll/whoami -> battle/start -> battle/begin (sandbox, PoP) -> 19 turns -> ended (winner=anchor-random) -> replay OK (52 input_log entries). Token at .state/oppie.token. DNS/Vultr caveat in A2A #443/#444.",
+          "created_at": "2026-06-18T00:00:00Z"
+        }
       ],
       "created_by": "adx-cli-7",
       "evidence": [
@@ -1449,6 +1501,7 @@
     },
     {
       "assignee": "bene-core",
+      "comments": [],
       "created": "2026-06-19",
       "id": "BENE-BATTLE-B1",
       "lane": "bene-core",
@@ -1461,6 +1514,7 @@
     },
     {
       "assignee": "bene-core",
+      "comments": [],
       "created": "2026-06-19",
       "id": "BENE-BATTLE-B2",
       "lane": "bene-core",
@@ -1473,6 +1527,7 @@
     },
     {
       "assignee": "bene-core",
+      "comments": [],
       "created": "2026-06-19",
       "id": "BENE-BATTLE-B3",
       "lane": "bene-core",
@@ -1485,6 +1540,7 @@
     },
     {
       "assignee": "bene-core",
+      "comments": [],
       "created": "2026-06-19",
       "id": "BENE-BATTLE-B4",
       "lane": "bene-core",
@@ -1497,6 +1553,7 @@
     },
     {
       "assignee": "bene-core",
+      "comments": [],
       "created": "2026-06-19",
       "id": "BENE-BATTLE-INTEGRATE",
       "lane": "bene-core",
@@ -1509,7 +1566,13 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Lane complete on bene main (G1 + HELDOUT merged, #64/#65). Real e2e blocked on adx-cli (Contract H/E) + adx-core (R/S); B3 in-episode is a flagged proposal.",
+          "created_at": "2026-06-19T06:34:40Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "PR#64 merged 1e3ea0c; full suite 1082"
@@ -1521,11 +1584,17 @@
       "priority": "P1",
       "status": "done",
       "title": "SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1)",
-      "updated_at": "2026-06-19T04:58:36Z"
+      "updated_at": "2026-06-19T06:34:40Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Held-out gate merged (#65); disjointness+VOID+hash-stamp verified.",
+          "created_at": "2026-06-19T06:35:39Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "PR#65 merged 9b508e9; full suite 1087"
@@ -1537,7 +1606,7 @@
       "priority": "P1",
       "status": "done",
       "title": "SECH held-out anti-overfit gate: disjointness + VOID + hash-stamping (bene-core)",
-      "updated_at": "2026-06-19T04:58:36Z"
+      "updated_at": "2026-06-19T06:35:39Z"
     },
     {
       "assignee": "bene-core",
@@ -3542,8 +3611,22 @@
       "card_id": "BENE-CODEX-EVO-B3",
       "created_at": "2026-06-19T04:58:36Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-G1",
+      "created_at": "2026-06-19T06:34:40Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-HELDOUT",
+      "created_at": "2026-06-19T06:35:39Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T04:58:36Z"
+  "updated_at": "2026-06-19T06:35:39Z"
 }
