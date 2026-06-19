@@ -13,6 +13,7 @@ from adx_showdown.selfplay.fitness import multi_dim_fitness
 from adx_showdown.selfplay.runner import (
     SelfPlayResult,
     _aggregate,
+    _fallback_orders,
     _filter_switch_orders,
     run_selfplay_battle,
 )
@@ -23,6 +24,26 @@ class _Order:
 
     def __init__(self, message: str) -> None:
         self.message = message
+
+
+def test_fallback_orders_prefers_the_policy_allowed_set():
+    """A non-switch action exists → the seeded fallback picks over the filtered set."""
+    all_orders = [_Order("/choose move ember"), _Order("/choose switch a")]
+    filtered = [_Order("/choose move ember")]
+    assert _fallback_orders(all_orders, filtered) is filtered
+
+
+def test_fallback_orders_forced_by_circumstance_when_only_switches():
+    """#3440746022: allow_switch gates only VOLUNTARY switches. When the ONLY legal
+    actions are switches (filtered is empty but valid_orders is not), the switch is forced
+    by circumstance — Showdown requires a legal order and every legal order is a switch, so
+    it's unavoidable: pick over all valid_orders rather than pretend the gate can be met."""
+    all_orders = [_Order("/choose switch a"), _Order("/choose switch b")]
+    assert _fallback_orders(all_orders, []) is all_orders
+
+
+def test_fallback_orders_none_when_genuinely_nothing_legal():
+    assert _fallback_orders([], []) is None
 
 
 def test_filter_switch_orders_drops_only_switches_when_excluded():
