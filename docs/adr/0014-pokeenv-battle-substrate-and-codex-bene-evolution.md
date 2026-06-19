@@ -188,12 +188,18 @@ the codex self-play loop ships without waiting on it.
   genome/fitness modules import-guard it so they load without poke-env; only the
   live runner/baselines need the server-facing client. Reproduce Phase 1 from a
   clean checkout:
-  1. install poke-env: `uv sync --extra selfplay` (or, ad-hoc,
-     `uv pip install "poke-env>=0.15"` — quote the constraint so the shell does
-     not read `>=` as a redirect);
-  2. materialize + boot the PS server: `npm ci` in `packages/adx_showdown`
-     (`node_modules/` is gitignored), then `scripts/adx_ps_server.sh`;
-  3. run `scripts/spikes/*.py` or the `adx_showdown.selfplay` tests against it.
+  1. install poke-env: `uv sync --package adx-showdown --extra selfplay` (the extra
+     is on the `adx-showdown` workspace member, not the root project; or, ad-hoc,
+     `uv pip install "poke-env>=0.15"` — quote the constraint so the shell does not
+     read `>=` as a redirect);
+  2. materialize + boot the PS server **in a second terminal** (the launcher
+     `exec`s the server in the foreground and does not return): `npm ci` in
+     `packages/adx_showdown` (`node_modules/` is gitignored), then
+     `scripts/adx_ps_server.sh &` (or run it in another terminal);
+  3. back in the first terminal, run the spikes through Python (the scripts have no
+     shebang / exec bit): `.venv/bin/python scripts/spikes/two_random_players.py`
+     and `.venv/bin/python scripts/spikes/decision_seam.py`, or the
+     `adx_showdown.selfplay` tests, against the running server.
 - **Box access:** SSH to `54.203.252.69` currently fails (`Permission denied
   (publickey)`); the key `~/.ssh/ssh-ed25519-agentdex-arena-europa` is a valid
   ed25519 key but the username is unknown. adx-core owns the infra — either a
