@@ -915,7 +915,14 @@ class ArenaGateway:
     def mint_invites(self, count: int, *, actor_hash: str) -> list[str]:
         """Operator-only: mint ``count`` fresh single-use invite codes. Each code's
         ``invite_grant`` is appended to the durable log BEFORE it is returned, so a
-        code an operator sees is always one a fresh replay will honor (Class-A)."""
+        code an operator sees is always one a fresh replay will honor (Class-A).
+
+        No-burn on a partial failure: if an ``append`` fails mid-batch (e.g. a full
+        runtime volume), the codes committed so far are RETURNED rather than lost to
+        a propagating exception — otherwise those seats would be durably minted but
+        the operator would never see their plaintext, silently burning part of the
+        batch (PR #360 review). Every returned code is durably committed; a short
+        return (< count) signals the operator to mint the remainder."""
         if not isinstance(count, int) or not (1 <= count <= 1000):
             raise ValueError("count must be an int in [1, 1000]")
         codes: list[str] = []
@@ -924,7 +931,20 @@ class ArenaGateway:
             # Only the HASH is logged — the plaintext code is a seat-claiming secret
             # and is returned ONCE to the authed operator, never persisted.
             code_hash = hash_invite_code(code)
-            self.events.append("invite_grant", {"code_hash": code_hash, "actor_hash": actor_hash})
+            try:
+                self.events.append(
+                    "invite_grant", {"code_hash": code_hash, "actor_hash": actor_hash}
+                )
+            except Exception:
+                # The grant did NOT commit → this code is not a minted seat; stop
+                # and return the codes that DID commit (no seat is burned unseen).
+                log.warning(
+                    "invite_grant append failed after %d/%d codes; returning the committed codes",
+                    len(codes),
+                    count,
+                    exc_info=True,
+                )
+                break
             self.invites.grant_hash(code_hash)
             codes.append(code)
         return codes
@@ -2282,6 +2302,16 @@ def create_app(
             raise _opaque_error(422, e) from None
         codes = gateway.mint_invites(req.count, actor_hash=actor_hash)
         return {"ok": True, "count": len(codes), "codes": codes, "stats": gateway.invites.stats()}
+
+    @app.get("/admin/invites", include_in_schema=False)
+    async def list_invites(actor_hash: str = Depends(_check_admin)) -> dict:
+        """Operator-only (GA-CORE-1): the redemption-status listing for reconciling
+        a distributed batch (which seats are claimed / outstanding) without reading
+        events.jsonl by hand (PR #360 review). Same operator-only posture as the
+        mint route — out of OpenAPI, X-Admin-Token via Depends. Returns aggregate
+        stats + per-code {code_hash, redeemed_by}; the plaintext code is never
+        retrievable again (only the hash is stored)."""
+        return {"ok": True, "stats": gateway.invites.stats(), "invites": gateway.invites.listing()}
 
     @app.post("/enroll/request")
     async def enroll_request(req: EnrollRequest) -> dict:
