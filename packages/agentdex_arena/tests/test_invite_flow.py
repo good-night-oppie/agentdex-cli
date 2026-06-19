@@ -355,3 +355,50 @@ def test_legacy_plaintext_code_event_replays(tmp_path):
     )
     assert gw2.invites.is_admitted("alice@x.com") is True
     assert gw2.invites.redeemable("legacy-1") is False  # plaintext lookup hashes + matches
+
+
+def test_admin_invites_listing(tmp_path):
+    """Operators can audit which seats are redeemed without reading events.jsonl —
+    GET /admin/invites returns stats + per-code {code_hash, redeemed_by}, never the
+    plaintext code. Operator-only (403 without the admin token)."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        codes = c.post("/admin/mint-invites", json={"count": 3}, headers=_admin()).json()["codes"]
+        c.post(
+            "/enroll/redeem-invite",
+            json={"invite_code": codes[0]},
+            headers=_sess(gw, "alice@x.com"),
+        )
+        assert c.get("/admin/invites").status_code == 403  # operator-only
+        r = c.get("/admin/invites", headers=_admin())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["stats"] == {"minted": 3, "redeemed": 1, "remaining": 2}
+        assert len(body["invites"]) == 3
+        redeemed = [i for i in body["invites"] if i["redeemed_by"] is not None]
+        assert len(redeemed) == 1 and redeemed[0]["redeemed_by"] == "alice@x.com"
+        for code in codes:  # the plaintext codes never appear in the listing (only hashes)
+            assert code not in r.text
+
+
+def test_mint_is_no_burn_on_partial_append_failure(tmp_path, monkeypatch):
+    """A mid-batch append failure RETURNS the codes already committed rather than
+    losing them to a propagating exception — so no durably-minted seat is burned
+    unseen by the operator (PR #360 review)."""
+    gw = _gateway(tmp_path)
+    real_append = gw.events.append
+    calls = {"n": 0}
+
+    def flaky_append(etype, payload):
+        if etype == "invite_grant":
+            calls["n"] += 1
+            if calls["n"] == 3:  # the 3rd grant's durable write fails
+                raise OSError("disk full")
+        return real_append(etype, payload)
+
+    monkeypatch.setattr(gw.events, "append", flaky_append)
+    codes = gw.mint_invites(5, actor_hash="op")
+    assert len(codes) == 2  # only the 2 that committed before the 3rd failed
+    for c in codes:  # every returned code is durably committed + redeemable
+        assert gw.invites.redeemable(c) is True
+    assert gw.invites.stats()["minted"] == 2  # no phantom/uncommitted seat

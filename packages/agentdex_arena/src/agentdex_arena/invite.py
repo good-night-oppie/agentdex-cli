@@ -137,5 +137,17 @@ class InviteStore:
         minted = len(self._codes)
         return {"minted": minted, "redeemed": redeemed, "remaining": minted - redeemed}
 
+    def listing(self) -> list[dict[str, str | None]]:
+        """Per-code redemption status for the operator audit/reconcile surface:
+        ``[{"code_hash": <hash>, "redeemed_by": <owner>|None}, ...]``, sorted by
+        hash for a stable diff. Exposes only the HASH (never the plaintext code,
+        which is gone after mint) plus the redeemer owner — enough to reconcile a
+        distributed batch (an operator who kept the plaintext can hash + match)
+        and to see outstanding/unused seats, without re-leaking the secret."""
+        return [
+            {"code_hash": code_hash, "redeemed_by": owner}
+            for code_hash, owner in sorted(self._codes.items())
+        ]
+
 
 __all__ = ["InviteStore", "InviteError", "new_invite_code", "hash_invite_code"]
