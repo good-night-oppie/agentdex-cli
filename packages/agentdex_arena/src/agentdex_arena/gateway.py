@@ -974,6 +974,114 @@ class ArenaGateway:
         names = self.accounts.agents_for(claims.owner)
         return self.authority.account_quota_report(claims.owner, names)
 
+    # ---------- GA-CORE-5: dashboard data API (session-authed, owner-scoped) ----------
+
+    def me_ladder(self, claims: SessionClaims) -> dict[str, Any]:
+        """GA-CORE-5: the owner-scoped slice of the SAME ladder ``/ladder`` serves
+        (US-5.1, "my agents highlighted") — identical rating source, just filtered to
+        the caller's agents. Read-only; it never recomputes a private rating, so a
+        ``/me`` view can never diverge from the public ladder (anti-pay-to-rank)."""
+        names = set(self.accounts.agents_for(claims.owner))
+        entrants = self.ladder_public()["entrants"]
+        return {"entrants": {n: e for n, e in entrants.items() if n in names}}
+
+    def me_agents(self, claims: SessionClaims) -> dict[str, Any]:
+        """GA-CORE-5: the dashboard roster (US-2.1) — the owner's agents with their
+        ladder rating, rated W/L, badges, and a live/idle flag. ``genome_summary`` is
+        ``None`` until per-agent genome persistence lands (the arena stores no genome
+        server-side today — GA-CORE-5 follow-up). Read-only: never debits quota, never
+        feeds ``recompute_ladder`` (same anti-pay-to-rank posture as ``account_quota``)."""
+        names = self.accounts.agents_for(claims.owner)  # already sorted
+        nameset = set(names)
+        have_log = self.events.path.is_file()
+        ladder = recompute_ladder(self.events.path) if have_log else None
+        # Single pass over the durable log for RATED W/L: only ``period`` events name
+        # the agents (p1/p2/winner). ``battle_end`` carries no agent_name, so sandbox
+        # (gym/anchor) battles are not counted here — rated W/L only.
+        wl: dict[str, dict[str, int]] = {n: {"wins": 0, "losses": 0, "ties": 0} for n in names}
+        if have_log and nameset:
+            for ev in self.events.iter_events():
+                if ev.get("type") != "period":
+                    continue
+                for rev in (ev.get("payload") or {}).get("events") or []:
+                    winner = rev.get("winner")
+                    for n in (rev.get("p1"), rev.get("p2")):
+                        if n not in nameset:
+                            continue
+                        if winner == n:
+                            wl[n]["wins"] += 1
+                        elif winner == "":
+                            wl[n]["ties"] += 1
+                        else:
+                            wl[n]["losses"] += 1
+        # live = an unfinished session for one of the owner's agents in THIS process
+        # (finished sessions linger in self.sessions, so ``ended is None`` is the gate).
+        live_names = {s.visitor_name for s in self.sessions.values() if s.ended is None} & nameset
+        agents: list[dict[str, Any]] = []
+        for n in names:
+            r = ladder.entrants.get(n, Rating()) if ladder is not None else Rating()
+            agents.append(
+                {
+                    "agent_name": n,
+                    "rating": round(r.rating, 1),
+                    "rd": round(r.rd, 1),
+                    "games": r.games,
+                    "wins": wl[n]["wins"],
+                    "losses": wl[n]["losses"],
+                    "ties": wl[n]["ties"],
+                    "badges": ladder.badges.get(n, []) if ladder is not None else [],
+                    "live": n in live_names,
+                    "genome_summary": None,
+                }
+            )
+        return {"owner": claims.owner, "agents": agents}
+
+    def me_battles(self, claims: SessionClaims, *, recent_limit: int = 50) -> dict[str, Any]:
+        """GA-CORE-5: the owner's battles (US-2.1) — LIVE battle ids (in-flight in THIS
+        process; the handles the live viewer GA-CORE-3 subscribes to) + RECENT finished
+        battles from the durable log (survives restart; each resolves to ``/replay/{id}``).
+        Read-only. ``battle_end`` carries no agent_name, so a finished battle is paired
+        with its ``battle_begin``/``battle_fork`` ``visitor`` to scope it to the owner."""
+        names = set(self.accounts.agents_for(claims.owner))
+        owner_norm = _normalize_owner(claims.owner)
+        live = [
+            s.battle_id
+            for s in self.sessions.values()
+            if s.ended is None and (s.owner == owner_norm or s.visitor_name in names)
+        ]
+        recent: list[dict[str, Any]] = []
+        if self.events.path.is_file() and names:
+            begun: dict[str, dict[str, Any]] = {}
+            for ev in self.events.iter_events():
+                etype = ev.get("type")
+                payload = ev.get("payload") or {}
+                bid = payload.get("battle_id")
+                if not bid:
+                    continue
+                if etype in ("battle_begin", "battle_fork"):
+                    begun[bid] = {
+                        "visitor": payload.get("visitor"),
+                        "opponent": payload.get("opponent"),
+                        "lane": payload.get("lane"),
+                    }
+                elif etype == "battle_end":
+                    meta = begun.get(bid)
+                    if meta is None or meta.get("visitor") not in names:
+                        continue
+                    recent.append(
+                        {
+                            "battle_id": bid,
+                            "agent_name": meta.get("visitor"),
+                            "opponent": meta.get("opponent"),
+                            "lane": payload.get("lane") or meta.get("lane"),
+                            "winner": payload.get("winner"),
+                            "turns": payload.get("turns"),
+                            "replay": f"/replay/{bid}",
+                        }
+                    )
+        recent.reverse()  # newest first (iter_events yields in append order)
+        return {"owner": claims.owner, "live": live, "recent": recent[:recent_limit]}
+
     # ---------- battle flow ----------
 
     def battle_start(self, token: str) -> dict[str, Any]:
@@ -2429,6 +2537,43 @@ def create_app(
         except SessionError as e:
             raise _opaque_error(403, e) from None
         return gateway.account_quota(claims)
+
+    def _require_session(authorization: str | None) -> SessionClaims:
+        """Shared session-auth guard for the GA-CORE-5 ``/me/*`` dashboard reads:
+        503 when session auth is unconfigured, 401 on a missing/non-Bearer header,
+        403 on a bad/expired session. Factors the inline block ``/account/quota`` uses
+        so the three free dashboard reads stay byte-identical on the auth posture."""
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer session token required")
+        token = authorization[len("Bearer ") :]
+        try:
+            return gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+
+    @app.get("/me/agents")
+    async def me_agents(authorization: str | None = Header(default=None)) -> dict:
+        """GA-CORE-5: session-authed dashboard roster (US-2.1) — the owner's agents
+        with ladder rating, rated W/L, badges, and a live/idle flag. Free read (no
+        membership, no quota); 503 if session auth is unconfigured, 401/403 on a
+        missing/bad session."""
+        return gateway.me_agents(_require_session(authorization))
+
+    @app.get("/me/battles")
+    async def me_battles(authorization: str | None = Header(default=None)) -> dict:
+        """GA-CORE-5: session-authed list of the owner's LIVE + RECENT battles
+        (US-2.1). Live ids are the GA-CORE-3 live-viewer handles; recent battles
+        resolve to ``/replay/{id}``. Free read."""
+        return gateway.me_battles(_require_session(authorization))
+
+    @app.get("/me/ladder")
+    async def me_ladder(authorization: str | None = Header(default=None)) -> dict:
+        """GA-CORE-5: session-authed owner-scoped slice of the public ``/ladder``
+        (US-5.1, "my agents highlighted") — same rating source as ``/ladder``, just
+        filtered to the caller's agents. Free read."""
+        return gateway.me_ladder(_require_session(authorization))
 
     @app.post("/team/draft")
     async def team_draft(body: dict) -> dict:
