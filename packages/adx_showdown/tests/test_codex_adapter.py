@@ -26,9 +26,15 @@ class _Move:
         self.base_power = base_power
 
 
+class _Switch:
+    def __init__(self, species: str):
+        self.species = species
+
+
 class _Battle:
-    def __init__(self, moves, force_switch=False):
+    def __init__(self, moves, force_switch=False, switches=None):
         self.available_moves = moves
+        self.available_switches = switches or []
         self.active_pokemon = None
         self.force_switch = force_switch
 
@@ -119,6 +125,57 @@ def test_codex_context_exposes_moves_with_power():
         {"id": "ember", "base_power": 40},
     ]
     assert "force_switch" in ctx and "active_hp_fraction" in ctx
+
+
+# ---- switch action space (PR #343 review #3440104476) ----
+
+
+def test_codex_context_exposes_available_switches():
+    battle = _Battle([_Move("ember", 40)], switches=[_Switch("blastoise"), _Switch("venusaur")])
+    ctx = codex_context(battle)
+    assert ctx["available_switches"] == [{"species": "blastoise"}, {"species": "venusaur"}]
+
+
+def test_decide_can_choose_a_switch_by_species():
+    """A switch-aware policy can pick a switch target by species — the order returned
+    is the poke-env switch object (create_order makes it a switch)."""
+    blastoise = _Switch("blastoise")
+    battle = _Battle([_Move("ember", 40)], switches=[blastoise])
+    chosen = select_codex_move(harness=None, battle=battle, decide=lambda h, c: "blastoise")
+    assert chosen is blastoise
+
+
+def test_forced_switch_greedy_picks_the_first_switch():
+    """On a forced switch (KO: no moves, only switches) the greedy default chooses a
+    switch instead of returning None → the runner's random fallback."""
+    venusaur = _Switch("venusaur")
+    battle = _Battle([], force_switch=True, switches=[venusaur, _Switch("snorlax")])
+    chosen = select_codex_move(harness=None, battle=battle)  # greedy default
+    assert chosen is venusaur
+
+
+def test_forced_switch_live_policy_can_pick_a_switch():
+    snorlax = _Switch("snorlax")
+    battle = _Battle([], force_switch=True, switches=[_Switch("venusaur"), snorlax])
+    chosen = select_codex_move(harness=None, battle=battle, decide=lambda h, c: "snorlax")
+    assert chosen is snorlax
+
+
+def test_no_moves_and_no_switches_returns_none():
+    assert select_codex_move(harness=None, battle=_Battle([], switches=[])) is None
+
+
+def test_illegal_id_matching_neither_move_nor_switch_is_counted():
+    battle = _Battle([_Move("ember", 40)], switches=[_Switch("blastoise")])
+    calls = []
+    chosen = select_codex_move(
+        harness=None,
+        battle=battle,
+        decide=lambda h, c: "charizard",  # neither a legal move id nor a legal switch
+        on_illegal=lambda: calls.append(1),
+    )
+    assert calls == [1]
+    assert chosen is battle.available_moves[0]  # substitutes a legal action
 
 
 # ---- PS-gated end-to-end: codex (llm_freeform) drives moves vs a baseline ----

@@ -63,18 +63,24 @@ _MOVE_SCHEMA: dict[str, Any] = {
 def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) -> str:
     """The per-turn prompt. The harness's ``system_prompt`` is prepended verbatim — it
     IS codex's policy ``p`` (the thing bene evolves) — so a refined harness changes the
-    move choice. Only legal moves are offered, so codex cannot pick an illegal one."""
+    choice. Only legal actions (moves + switch species) are offered, so codex cannot
+    pick an illegal one; on a forced switch only the switch targets are legal."""
     policy = str(getattr(harness, "system_prompt", "") or "").strip()
     moves = ctx.get("available_moves") or []
+    switches = ctx.get("available_switches") or []
     move_lines = ", ".join(f"{m.get('id')} (power {m.get('base_power', 0)})" for m in moves)
+    switch_lines = ", ".join(str(s.get("species") or "") for s in switches)
     species = ctx.get("active_species") or "your active Pokemon"
     hp = float(ctx.get("active_hp_fraction") or 0.0)
     header = policy + "\n\n" if policy else ""
+    moves_line = f"Legal moves (id: base power): {move_lines}.\n" if moves else ""
+    switch_line = f"Legal switches (species): {switch_lines}.\n" if switches else ""
     return (
-        f"{header}You are choosing exactly ONE move in a Pokemon Showdown singles battle.\n"
+        f"{header}You are choosing exactly ONE action in a Pokemon Showdown singles battle.\n"
         f"Active: {species} at {hp:.0%} HP.\n"
-        f"Legal moves (id: base power): {move_lines}.\n"
-        f"Pick the single best move id from: {', '.join(legal_ids)}.\n"
+        f"{moves_line}{switch_line}"
+        f"Pick the single best action id (a move id or a switch species) from: "
+        f"{', '.join(legal_ids)}.\n"
         'Reply ONLY with JSON {"move_id": "<one of the legal ids>", "rationale": "<=12 words"}.'
     )
 
@@ -132,11 +138,13 @@ def _run_codex_cli(prompt: str, schema: dict[str, Any], timeout: float) -> dict[
 def codex_decide(
     harness: Any, ctx: Mapping[str, Any], *, run: CodexRunFn | None = None
 ) -> str | None:
-    """A ``codex_adapter.DecideFn``: ask the live codex CLI for a legal move id, or
-    None on ANY failure (the adapter then falls back to a random legal order). ``run``
-    is injectable so unit tests never shell out."""
-    avail = list(ctx.get("available_moves") or [])
-    legal_ids = [str(m.get("id") or "") for m in avail if m.get("id")]
+    """A ``codex_adapter.DecideFn``: ask the live codex CLI for a legal action id (a
+    move id or a switch species), or None on ANY failure (the adapter then falls back
+    to a random legal order). ``run`` is injectable so unit tests never shell out."""
+    moves = list(ctx.get("available_moves") or [])
+    switches = list(ctx.get("available_switches") or [])
+    legal_ids = [str(m.get("id") or "") for m in moves if m.get("id")]
+    legal_ids += [str(s.get("species") or "") for s in switches if s.get("species")]
     if not legal_ids:
         return None
     runner = run or _run_codex_cli
