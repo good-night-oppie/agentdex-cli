@@ -34,15 +34,15 @@ a ladder toward beating **top-10 PS players**. The 100-user beta validates the l
 ### adx-core — backend + auth + infra (heaviest backend lift)
 - **GA-CORE-1 [P0] Invitation-code primitive.** `mint_invites(n)` → 100 one-time codes; `POST /enroll/account` + `/auth/device/poll` accept + redeem an `invite_code` (one-time, normalized-owner binding, write-then-log Class-A). Admin-only mint. Reuses the event-replay pattern (`invite_grant` / `invite_redeem`).
 - **GA-CORE-2 [P0] Email magic-link login.** `POST /auth/email/start` (send signed one-time link/code) + `/auth/email/verify` → mints a `SessionAuthority` token (owner = verified email). Reuse `device_flow.py`'s injectable-transport + off-loop pattern; reuse the `/enroll/confirm` delivery channel (`ARENA_OWNER_WEBHOOK` + file fallback).
-- **GA-CORE-3 [P0] Live spectator stream (wire contract owner).** `GET /battle/{id}/live` (SSE) and/or `GET /spectate/{agent}` → emits the same fog-of-war line-protocol frames the runner produces, turn-by-turn, while the battle is in flight. Public-by-design like `/replay` (no rating leak). **Freeze the frame schema with adx-cli (A-CLI-2) before building.**
+- **GA-CORE-3 [P0] Live spectator stream (wire contract owner).** TWO endpoints per `LIVE_VIEWER_CONTRACT.md`: a public **spectator** SSE (`GET /battle/{id}/live`, no auth, public projection only, rating/meta redacted) AND an **authenticated owner** SSE (`GET /me/battle/{id}/live`, session token, full own-side frames). A public anonymous stream must NOT carry owner-only hidden state. **Freeze the frame schema with adx-cli (A-CLI-2) before building.**
 - **GA-CORE-4 [P0, operator-assisted] Boot gates.** Register the agentdex GitHub OAuth app → `GITHUB_OAUTH_CLIENT_ID`(+`_SECRET`); mint `ARENA_SESSION_SIGNING_KEY_HEX`; provision a multi-core box + DNS/TLS for `agentdex.builders`. (Operator = Eddie; adx-core scripts it.)
-- **GA-CORE-5 [P1] Dashboard data API.** `GET /me/agents` (roster + genome summary + rating + W/L), `GET /me/battles` (recent + live ids), owner-scoped ladder slice — the reads the dashboard renders.
+- **GA-CORE-5 [P0] Dashboard data API.** `GET /me/agents` (roster + genome summary + rating + W/L), `GET /me/battles` (recent + live ids), owner-scoped ladder slice — the reads the dashboard renders. **GA-blocking:** GA-BENE-1's P0 frontend cannot show the roster (US-2.1) / battle list / highlighted ladder (US-5.1) without these, so this rises to P0 alongside the dashboard it feeds.
 - **GA-CORE-6 [P1] Capacity finish.** RECOVER-P1-sidecar-respawn + LADDER-P1-incremental-cached (already on board; **coordinate with adx-cli ADX-P1-007**).
 
 ### bene-core — evolution engine + frontend build/deploy (owns the site)
 - **GA-BENE-1 [P0] Build + deploy the dashboard web app** from adx-cli's design (A-CLI-1) on `agentdex.builders`. Static SPA (or SSR) reading GA-CORE-5 + the live stream (GA-CORE-3).
 - **GA-BENE-2 [P0] Wire the live battle viewer** frontend to the GA-CORE-3 spectator stream — render the PS battle scene **adjacent to the Agent Pane** (per the agentic-tui/showdown-anim patterns).
-- **GA-BENE-3 [P1] Lane B evolve de-mock** in the C2 driver (replace `_mock_evolve` with the real `evolve_battle_harness`) — the recursive-self-improvement core. (`done_e2e_real_bene.json` already proves it standalone; fold it into the driver.)
+- **GA-BENE-3 [P0] Lane B evolve de-mock** in the C2 driver (replace `_mock_evolve` with the real `evolve_battle_harness`) — the recursive-self-improvement core. The beta loop IS `register → … → evolve → climb`, so the beta cannot validate its headline capability with a mocked evolve; this is GA-blocking, not a week-2 trailer. (`done_e2e_real_bene.json` already proves it standalone; fold it into the driver.)
 - **GA-BENE-4 [P1] Evolution / lineage view data** — fitness over generations, kill-gate verdicts, the winning mutation, for the dashboard's Evolution panel.
 
 ### adx-cli — design + UX wire-contract + correctness + client (me)
@@ -66,8 +66,12 @@ evolve de-mock (GA-BENE-3) ──► evolution view (GA-BENE-4) ──► climb
 ```
 
 **Go/No-Go for the beta:** invite-gated register + (GitHub|email) login + dashboard with a
-**live** battle viewer adjacent to the Agent Pane + ladder, on a provisioned box at
-`agentdex.builders`. Evolution view + de-mock can trail into week-2 of the beta.
+**live** battle viewer adjacent to the Agent Pane + ladder + a **real (de-mocked) evolve**
+that runs a generation end-to-end, on a provisioned box at `agentdex.builders`. The beta
+loop is `register → configure → watch live → evolve → climb`, so a **real GA-BENE-3 evolve
+is GA-blocking** — the beta exists to validate recursive self-improvement and can't do that
+on a mocked evolve. Only the richer **evolution-lineage *view*** (GA-BENE-4 charts) may trail
+into week-2; the evolve *capability* itself ships at GA.
 
 ## Coordination protocol
 - All cards land on the fleet board (`sweeps/adx-cli-fleet-kanban.json`, board `adx-cli-global-feedback`) via `tools/agent_senses/fleet_kanban.py`; every move broadcast on the A2A bus (proposal #312).
