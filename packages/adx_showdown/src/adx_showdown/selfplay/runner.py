@@ -104,24 +104,34 @@ def _filter_switch_orders(orders: list[Any], *, exclude_switches: bool) -> list[
     return [o for o in orders if not str(getattr(o, "message", "")).startswith("/choose switch")]
 
 
-def _fallback_orders(all_orders: list[Any], filtered: list[Any]) -> list[Any] | None:
-    """The order set the seeded fallback picks over (or ``None`` → defer to poke-env's
-    ``choose_random_move``).
-
-    ``allow_switch`` gates only VOLUNTARY switches — a switch is voluntary iff a non-switch
-    legal action exists this turn. So:
-    - ``filtered`` non-empty → a non-switch action exists → pick over the policy-allowed set.
-    - ``filtered`` empty but ``all_orders`` non-empty → the ONLY legal actions were switches,
-      so switching is FORCED BY CIRCUMSTANCE (not a policy choice). Showdown requires a legal
-      order and every legal order is a switch, so suppressing it is impossible — pick over
-      ``all_orders`` (a deterministic seeded switch), NOT pretend the gate can be honored.
-    - both empty → genuinely nothing legal (forced pass / struggle) → ``None``.
+def _fallback_orders(filtered: list[Any]) -> list[Any] | None:
+    """The policy-allowed order set the seeded fallback samples over, or ``None`` when no
+    policy-allowed order survived. ``filtered`` already has voluntary switch orders removed
+    when the genome forbids them (see :func:`_filter_switch_orders`), so:
+    - ``filtered`` non-empty → a policy-allowed action exists → sample over it.
+    - ``filtered`` empty → ``None``; :meth:`_seeded_order` then defers WITHOUT re-restoring
+      the excluded switches. It must NOT fall back to the raw ``valid_orders`` here: that
+      would reintroduce the very VOLUNTARY switch the gate forbids (review #3440820025;
+      PR #353/#354). A genuine FORCED switch never excludes — it is routed via
+      ``force_switch`` so its switches stay in ``filtered`` and are sampled above — so the
+      gate applies only to voluntary switches (reconciles review #3440746022, which is
+      satisfied by the ``force_switch`` route, not by restoring excluded switches here).
     """
-    if filtered:
-        return filtered
-    if all_orders:
-        return all_orders
-    return None
+    return filtered or None
+
+
+def _defer_to_default(
+    all_orders: list[Any], filtered: list[Any], *, exclude_switches: bool
+) -> bool:
+    """Whether the seeded fallback must defer to Showdown's ``/choose default`` instead of
+    poke-env's ``choose_random_move``. ``True`` iff voluntary switches were excluded, none
+    survived, yet the only legal orders were switches: re-sampling ``valid_orders`` (what
+    ``choose_random_move`` does) would reintroduce the forbidden voluntary switch, so we let
+    Showdown pick its own default and OUR policy never deliberately selects a policy-
+    forbidden switch (PR #353/#354; review #3440820025). A forced switch never excludes, so
+    it never defers here; genuinely-nothing-legal (``all_orders`` empty) falls through to
+    the random fallback (forced pass / struggle)."""
+    return exclude_switches and not filtered and bool(all_orders)
 
 
 def _resolve_codex_decide() -> Any:
@@ -197,14 +207,22 @@ def make_harness_player(
             Showdown command strings (NOT the server-assigned ``battle_tag``), so
             an identical decision context yields the same choice regardless of run
             or call order across concurrent battles. ``exclude_switches`` drops voluntary
-            switch orders so a codex-abstention fallback honors the genome's ``allow_switch``;
-            see :func:`_fallback_orders` for the forced-by-circumstance (only-switches-legal)
-            case, where a switch is unavoidable and therefore permitted."""
+            switch orders so a codex-abstention fallback honors the genome's ``allow_switch``.
+            When that leaves no policy-allowed order but only switches were legal, defer to
+            Showdown's ``/choose default`` rather than re-sampling the excluded switch
+            (PR #353/#354): a genuine forced switch is routed via ``force_switch`` and keeps
+            its switches, so the gate applies only to VOLUNTARY switches."""
             all_orders = list(getattr(battle, "valid_orders", None) or [])
-            orders = _fallback_orders(
-                all_orders, _filter_switch_orders(all_orders, exclude_switches=exclude_switches)
-            )
-            if orders is None:  # genuinely nothing legal (forced pass / struggle)
+            filtered = _filter_switch_orders(all_orders, exclude_switches=exclude_switches)
+            orders = _fallback_orders(filtered)
+            if orders is None:
+                # No policy-allowed order survived. If voluntary switches were excluded and
+                # only switches were legal, defer to Showdown's own default so OUR policy
+                # never picks the forbidden voluntary switch — re-sampling valid_orders via
+                # choose_random_move would reintroduce it. Otherwise nothing at all is legal
+                # (forced pass / struggle) → poke-env's random fallback.
+                if _defer_to_default(all_orders, filtered, exclude_switches=exclude_switches):
+                    return self.choose_default_move()
                 return self.choose_random_move(battle)
             key = "|".join(str(o) for o in orders)
             idx = _seeded_index(len(orders), rng_seed, getattr(battle, "turn", 0), key)

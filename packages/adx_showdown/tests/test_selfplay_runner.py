@@ -13,6 +13,7 @@ from adx_showdown.selfplay.fitness import multi_dim_fitness
 from adx_showdown.selfplay.runner import (
     SelfPlayResult,
     _aggregate,
+    _defer_to_default,
     _fallback_orders,
     _filter_switch_orders,
     run_selfplay_battle,
@@ -27,23 +28,52 @@ class _Order:
 
 
 def test_fallback_orders_prefers_the_policy_allowed_set():
-    """A non-switch action exists → the seeded fallback picks over the filtered set."""
-    all_orders = [_Order("/choose move ember"), _Order("/choose switch a")]
+    """A policy-allowed action survived → the seeded fallback samples over the filtered set."""
     filtered = [_Order("/choose move ember")]
-    assert _fallback_orders(all_orders, filtered) is filtered
+    assert _fallback_orders(filtered) is filtered
 
 
-def test_fallback_orders_forced_by_circumstance_when_only_switches():
-    """#3440746022: allow_switch gates only VOLUNTARY switches. When the ONLY legal
-    actions are switches (filtered is empty but valid_orders is not), the switch is forced
-    by circumstance — Showdown requires a legal order and every legal order is a switch, so
-    it's unavoidable: pick over all valid_orders rather than pretend the gate can be met."""
-    all_orders = [_Order("/choose switch a"), _Order("/choose switch b")]
-    assert _fallback_orders(all_orders, []) is all_orders
+def test_fallback_orders_none_when_no_policy_allowed_order_survived():
+    """#3440820025: when the genome excluded voluntary switches and nothing survived,
+    _fallback_orders returns None — it does NOT restore the excluded switches by falling
+    back to valid_orders (that would reintroduce the very switch the gate forbids; PR
+    #353/#354). _seeded_order then defers (see _defer_to_default), it never re-samples here."""
+    assert _fallback_orders([]) is None
 
 
-def test_fallback_orders_none_when_genuinely_nothing_legal():
-    assert _fallback_orders([], []) is None
+def test_defer_to_default_only_when_excluded_switch_is_the_only_legal_order():
+    """#3440820025: the seeded fallback defers to Showdown's /choose default (instead of
+    choose_random_move, which re-samples valid_orders) EXACTLY when voluntary switches were
+    excluded, none survived, yet only switches were legal — so OUR policy never deliberately
+    picks the forbidden voluntary switch."""
+    switches = [_Order("/choose switch a"), _Order("/choose switch b")]
+    # excluded + only switches legal (filtered empty) → defer to default
+    assert _defer_to_default(switches, [], exclude_switches=True) is True
+
+
+def test_defer_to_default_false_when_a_policy_allowed_move_survived():
+    """A non-switch survived → there is no forbidden-switch dilemma → no defer (the seeded
+    pick over `filtered` handles it; this branch is not even reached)."""
+    all_orders = [_Order("/choose move ember"), _Order("/choose switch a")]
+    assert (
+        _defer_to_default(all_orders, [_Order("/choose move ember")], exclude_switches=True)
+        is False
+    )
+
+
+def test_defer_to_default_false_for_a_forced_switch_or_random_policy():
+    """A forced switch (and the random policy) never excludes, so exclude_switches=False and
+    the only-switches set is sampled normally — no defer, the switch IS played. This is how
+    review #3440746022's forced-by-circumstance case stays satisfied without restoring
+    excluded switches."""
+    switches = [_Order("/choose switch a"), _Order("/choose switch b")]
+    assert _defer_to_default(switches, switches, exclude_switches=False) is False
+
+
+def test_defer_to_default_false_when_genuinely_nothing_legal():
+    """Nothing legal at all (valid_orders empty) → fall through to the random fallback
+    (forced pass / struggle), not the /choose default deferral."""
+    assert _defer_to_default([], [], exclude_switches=True) is False
 
 
 def test_filter_switch_orders_drops_only_switches_when_excluded():
@@ -67,8 +97,9 @@ def test_filter_switch_orders_passthrough_when_not_excluded():
 def test_filter_switch_orders_does_not_restore_switches_when_excluded():
     """#3440654824: exclusion is unconditional — an all-switch list returns EMPTY, it is
     NOT restored. The caller only excludes on a voluntary (non-forced) turn, so "every
-    order is a switch" must not be inferred as a forced switch; _seeded_order's
-    choose_random_move handles the genuine only-switches-legal corner."""
+    order is a switch" must not be inferred as a forced switch; _seeded_order then defers to
+    Showdown's /choose default (see _defer_to_default), never re-sampling the excluded
+    switch, for the genuine only-switches-legal corner."""
     orders = [_Order("/choose switch a"), _Order("/choose switch b")]
     assert _filter_switch_orders(orders, exclude_switches=True) == []
 
