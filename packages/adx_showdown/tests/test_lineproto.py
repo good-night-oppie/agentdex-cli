@@ -392,5 +392,32 @@ def test_project_frame_handles_truncated_split_block():
     assert out_owner == ["|-damage|p1a: X|10/100"]
 
 
+def test_project_frame_drops_request_lines_for_every_side():
+    """GA-CORE-3 leak fix: |request| carries a side's FULL private team (exact HP +
+    movesets for every mon). It must NEVER reach any viewer — left in, it would leak the
+    opponent's whole team right beside the correctly-redacted |split| HP twin. The owner
+    sees their own exact HP via the kept |split|pX private line, not via |request|."""
+    req = (
+        '|request|{"side":{"id":"p2","pokemon":['
+        '{"ident":"p2: Rotom","condition":"88/250","moves":["voltswitch"]},'
+        '{"ident":"p2: Ferrothorn","condition":"330/330","moves":["spikes"]}]}}'
+    )
+    for side in ("p1", "p2", "spectator"):
+        out = project_frame([req, "|move|p1a: X|Tackle|p2a: Y"], side=side)
+        assert out == ["|move|p1a: X|Tackle|p2a: Y"]
+        assert not any(ln.startswith("|request|") for ln in out)
+        assert not any("88/250" in ln or "330/330" in ln or "voltswitch" in ln for ln in out)
+
+
+def test_project_frame_drops_error_lines_for_every_side():
+    """|error| is rejected-choice control-plane feedback (e.g. trap state), never a
+    renderable event — dropped for every side."""
+    for side in ("p1", "p2", "spectator"):
+        out = project_frame(
+            ["|error|p1|[Unavailable choice] Garchomp is trapped", "|turn|3"], side=side
+        )
+        assert out == ["|turn|3"]
+
+
 def line_type_local(line: str) -> str:
     return line[1:].split("|", 1)[0] if line.startswith("|") else line
