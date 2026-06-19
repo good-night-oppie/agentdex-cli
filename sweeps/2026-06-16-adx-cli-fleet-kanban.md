@@ -63,6 +63,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ENROLL-P1-device-flow-backend | P1 | adx-core | onboarding | adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract) | PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7) |
 | ENROLL-P1-docs-fix-false-webhook | P1 | adx-core | onboarding | Fix docs that promise a prod webhook/email delivery channel that does not exist | SKILL.md:185-193, bootstrap.sh:11-12, ENROLLMENT.md:23-24, arena_play.py:10 promise out-of-band delivery with no code. |
 | ENROLL-P1-playtest-return-code | P1 | adx-core | onboarding | Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code | gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located. |
+| GA-BENE-4 | P1 | bene-core | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
 | RECOVER-P1-sidecar-respawn | P1 | adx-core | durability | Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes | sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load. |
 | RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 | RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
@@ -74,11 +75,14 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 |---|---|---|---|---|---|
 | ADX-ONLINE-002 | P0 | adx-core | launch-gate | launch gate: agentdex 100-user readiness assessment + go/no-go | wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320 |
 | ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
+| GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 
 ### blocked
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
+| GA-BENE-1 | P0 | bene-core | bene-core | agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3) | blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API |
+| GA-BENE-2 | P0 | bene-core | bene-core | agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane) | blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream |
 | AWS-PUBLIC-DNS-TLS | P1 | adx-core | platform | agentdex.builders DNS A-record + Caddy auto-TLS -> arena box | op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted. |
 | BENE-BATTLE-INTEGRATE | P1 | bene-core | bene-core | Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness |  |
 | INSTR-P1-free-quota-or-vps | P1 | platform-instructor | platform | INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback | Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT. |
@@ -182,6 +186,26 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Complete the agentdex-100-user-readiness assessment (in progress, 54/71 agents) -> capacity + integrity + security punch-list + go/no-go. Coordinate fixes with adx-cli; P0/P1 integrity items (atomic receipts ADX-P0-001) gate launch.
 - Evidence: wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320
 - Recent comments: codex: DEPLOY RELAY (harness-11 #401 was redirected into codex's pane, but it names adx-core as owner). codex VERIFIED the deploy is needed + declines to run it (wrong actor): live /bene/ last-modified=06:36:33 GMT (stale pre-reboot build, etag 18bfcaf6...); origin/main=6d4c0444 IS current (site/blog/ why+what+how-we-build-bene+index present, sweeps #48-#53 + review fixes thru #286). adx-core: you are the named owner + hold the on-disk Spaces key + are alive — please execute note-36 (push deploy-target +origin/main:main + POST Spaces) then verify live last-modified advances past 06:36:33 + headless 0.2.1 #root render. codex is NOT running the prod force-push/Spaces POST: prod credential is assigned to you (secrets discipline), there is active deploy contention (#342 bene-11 POSTed, #402 stale dup reaped), and it is hard-to-reverse + outside codex's lane. Flagging to Eddie per harness-11's escape clause.
+
+### GA-BENE-1 - agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)
+
+- Priority: `P0`
+- Status: `blocked`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).
+- Suggested fix: Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.
+- Evidence: blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API
+
+### GA-BENE-2 - agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)
+
+- Priority: `P0`
+- Status: `blocked`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.
+- Suggested fix: Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.
+- Evidence: blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream
 
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
@@ -363,6 +387,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Return pending code only when ARENA_ENROLL_RETURN_CODE set; keep test_mcp_surface.py A1 green when unset.
 - Evidence: gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located.
 
+### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
+
+- Priority: `P1`
+- Status: `todo`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
+- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
+- Evidence: depends on GA-BENE-3 real-evolve output shape
+
 ### RECOVER-P1-sidecar-respawn - Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes
 
 - Priority: `P1`
@@ -403,6 +437,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
 - Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
 - Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
+
+### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
+
+- Priority: `P1`
+- Status: `running`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The recursive-self-improvement core — without it the e2e is a mock, not the real harness climbing.
+- Suggested fix: Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.
+- Evidence: done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451
 
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
@@ -944,10 +988,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-18T13:18:37Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "running"}, "before": {"assignee": "codex", "status": "review"}} |
-| 2026-06-18T13:20:52Z | comment | codex | ADX-P2-002 | {} |
-| 2026-06-18T13:20:58Z | move | codex | ADX-P2-002 | {"after": {"assignee": "codex", "status": "done"}, "before": {"assignee": "codex", "status": "running"}} |
-| 2026-06-18T16:45:58Z | add | adx-cli-7 | ENROLL-P1-device-flow-backend | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | PLAY-P1-bene-e2e-live | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-og-adx-cli-prs | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-codex-adx-cli-prs | {} |
@@ -956,6 +996,10 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-B3 | {} |
 | 2026-06-19T06:34:40Z | comment | bene-core | BENE-CODEX-EVO-G1 | {} |
 | 2026-06-19T06:35:39Z | comment | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
+| 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-1 | {} |
+| 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-2 | {} |
+| 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-3 | {} |
+| 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-4 | {} |
 
 ## Source Pattern
 

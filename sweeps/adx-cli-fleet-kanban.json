@@ -1623,6 +1623,70 @@
       "status": "todo",
       "title": "SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness",
       "updated_at": "2026-06-19T04:58:36Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API"
+      ],
+      "fix": "Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.",
+      "id": "GA-BENE-1",
+      "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
+      "lane": "bene-core",
+      "priority": "P0",
+      "status": "blocked",
+      "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
+      "updated_at": "2026-06-19T06:38:40Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream"
+      ],
+      "fix": "Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.",
+      "id": "GA-BENE-2",
+      "impact": "The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.",
+      "lane": "bene-core",
+      "priority": "P0",
+      "status": "blocked",
+      "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
+      "updated_at": "2026-06-19T06:38:40Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451"
+      ],
+      "fix": "Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.",
+      "id": "GA-BENE-3",
+      "impact": "The recursive-self-improvement core \u2014 without it the e2e is a mock, not the real harness climbing.",
+      "lane": "bene-core",
+      "priority": "P1",
+      "status": "running",
+      "title": "Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver",
+      "updated_at": "2026-06-19T06:38:40Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "depends on GA-BENE-3 real-evolve output shape"
+      ],
+      "fix": "Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.",
+      "id": "GA-BENE-4",
+      "impact": "The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.",
+      "lane": "bene-core",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
+      "updated_at": "2026-06-19T06:38:40Z"
     }
   ],
   "events": [
@@ -3625,8 +3689,36 @@
       "card_id": "BENE-CODEX-EVO-HELDOUT",
       "created_at": "2026-06-19T06:35:39Z",
       "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T06:38:40Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T06:38:40Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-3",
+      "created_at": "2026-06-19T06:38:40Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T06:38:40Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T06:35:39Z"
+  "updated_at": "2026-06-19T06:38:40Z"
 }
