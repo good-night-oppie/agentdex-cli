@@ -135,6 +135,17 @@ def make_harness_player(
             moves = list(getattr(battle, "available_moves", None) or [])
             if self.strategy == "random" or not moves:
                 return self._seeded_order(battle)
+            # codex move seam (Contract 5): llm_freeform / codex strategies route
+            # each turn's decision to the C1 adapter, so codex drives moves
+            # through the selfplay_battle MCP tool (SPEC DONE #1). Lazy import
+            # keeps the non-codex path + poke-env-free callers untouched.
+            if self.strategy in ("llm_freeform", "codex"):
+                from adx_showdown.selfplay.codex_adapter import select_codex_move
+
+                chosen = select_codex_move(h, battle)
+                if chosen is not None:
+                    return self.create_order(chosen)
+                return self._seeded_order(battle)
             # max_damage and every other (non-llm) strategy: highest base power.
             best = max_base_power_choice(moves)
             if best is None:

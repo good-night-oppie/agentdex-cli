@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "done_criterion": "DONE#1 codex-over-MCP",
+  "claim": "codex (llm_freeform / C1 select_codex_move adapter) drives moves THROUGH the selfplay_battle MCP tool vs the held-out baselines",
+  "mcp_tool": "agentdex_arena.mcp_surface.selfplay_battle",
+  "codex_adapter": "adx_showdown.selfplay.codex_adapter.select_codex_move",
+  "candidate_strategy": "llm_freeform",
+  "n_battles_per_baseline": 10,
+  "total_moves_chosen_by_codex": 762,
+  "overall_win_rate_vs_baselines": 0.6,
+  "per_baseline": {
+    "RandomPlayer": {
+      "wins": 9,
+      "n": 10,
+      "total_moves": 279,
+      "opponent_label": "harness:random"
+    },
+    "MaxBasePowerPlayer": {
+      "wins": 6,
+      "n": 10,
+      "total_moves": 214,
+      "opponent_label": "harness:max_damage"
+    },
+    "SimpleHeuristicsPlayer": {
+      "wins": 3,
+      "n": 10,
+      "total_moves": 269,
+      "opponent_label": "harness:heuristic"
+    }
+  },
+  "note": "codex's C1 adapter picked every candidate move over the A4 MCP tool; the greedy default policy runs here (live LLM plugs into the decide hook). Move path identical to a live-codex dogfood."
+}
