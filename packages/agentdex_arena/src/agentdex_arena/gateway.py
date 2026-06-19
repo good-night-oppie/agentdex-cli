@@ -395,6 +395,24 @@ def _choice_label(choice: str, pending: Any) -> str:
     return choice
 
 
+def _sse_evict_grace_sec() -> float:
+    """Seconds to retain a finished battle's live frame buffer before it may be reclaimed.
+
+    Parsed DEFENSIVELY because this is read on the battle-commit path (``_finish``): a
+    malformed operator value (e.g. ``ARENA_SSE_EVICT_GRACE_SEC=30s``) must NOT raise a
+    ValueError out of ``_finish`` — that would jump the queue ahead of the durable
+    replay-artifact write and silently 404 every battle's /replay,/fork,/dispute after a
+    restart, and 500 the winning /choose. A bad/negative value falls back to 30s.
+    """
+    raw = os.environ.get("ARENA_SSE_EVICT_GRACE_SEC", "30")
+    try:
+        grace = float(raw)
+    except (TypeError, ValueError):
+        log.warning("invalid ARENA_SSE_EVICT_GRACE_SEC=%r; falling back to 30s", raw)
+        return 30.0
+    return grace if grace >= 0 else 30.0
+
+
 @dataclass
 class BattleSession:
     battle_id: str
@@ -457,6 +475,13 @@ class BattleSession:
     # ``{"seq": int, "turn": int, "raw_lines": list[str]}``.
     frames: list[dict[str, Any]] = field(default_factory=list)
     frame_seq: int = 0
+    # When set (at finish), the wall-clock after which the live frame buffer may be
+    # reclaimed. _finish defers the clear by a grace window instead of wiping ``frames``
+    # immediately, so a viewer connected at finish drains the decisive final frames + the
+    # terminal ``event: end`` before the buffer is freed (PR #374 review: an immediate
+    # clear raced an active SSE stream and dropped the winning turn). Reclaimed lazily by
+    # ``_expire_if_stale`` once past this deadline.
+    frames_evict_after: float | None = None
 
 
 class EnrollRequest(BaseModel):
@@ -1596,6 +1621,19 @@ class ArenaGateway:
             raise
 
     async def _expire_if_stale(self, session: BattleSession) -> None:
+        # GA-CORE-3: reclaim a FINISHED battle's live frame buffer once its grace window
+        # has passed (set in _finish). A viewer connected at finish drains the decisive
+        # final frames + the terminal event:end well within the grace, so this lazy clear
+        # frees the ~hundreds-of-KB (up to 10 MiB) buffer without the PR #374 race that an
+        # immediate clear caused. /state, /choose, and the SSE poll loop all drive this.
+        if (
+            session.ended is not None
+            and session.frames
+            and session.frames_evict_after is not None
+            and self.now() >= session.frames_evict_after
+        ):
+            session.frames = []
+            return
         # Skip while a shielded finish is outstanding (session.finish_task set):
         # the battle already reached a terminal state and is being recorded in the
         # background, so forfeiting it here would queue a second _finish that
@@ -1626,6 +1664,9 @@ class ArenaGateway:
                     "inputLog": input_log,
                     "keyLines": [],
                 },
+                # Abandoned battle — no active viewer to race, so reclaim the live frame
+                # buffer immediately instead of deferring it to a touch that never comes.
+                defer_frame_evict=False,
             )
             if session.ended is not None:
                 session.ended["forfeit"] = "turn budget exceeded"
@@ -1836,7 +1877,9 @@ class ArenaGateway:
 
         return None
 
-    async def _finish(self, session: BattleSession, end: dict[str, Any]) -> dict[str, Any]:
+    async def _finish(
+        self, session: BattleSession, end: dict[str, Any], *, defer_frame_evict: bool = True
+    ) -> dict[str, Any]:
         winner = sanitize_name(end.get("winner") or "")
         input_log = list(end.get("inputLog") or [])
         log_digest = hashlib.blake2b("\n".join(input_log).encode(), digest_size=16).hexdigest()
@@ -2037,8 +2080,21 @@ class ArenaGateway:
         # buffer accumulates per-battle for the gateway's life → unbounded heap on a
         # busy day. A viewer connecting after the battle ends follows the terminal
         # ``event: end`` to /replay/<id> (the durable post-hoc surface), so the live
-        # buffer is dead weight once the receipt is published.
-        session.frames = []
+        # buffer is dead weight once the receipt is published. On the /choose winning-move
+        # path (defer_frame_evict=True) DEFER the clear by a grace window rather than wiping
+        # it here: a viewer already mid-stream when the winning /choose lands must drain the
+        # final (decisive) frames + the terminal event:end first — an immediate clear raced
+        # active streams and dropped the winning turn (PR #374 review); _expire_if_stale
+        # reclaims it once past the deadline. On the FORFEIT/abandoned path
+        # (defer_frame_evict=False) clear immediately: that battle timed out precisely
+        # because nobody was touching it, so there is no active SSE viewer to race — and
+        # deferring there would leak the buffer of a session nothing ever touches again
+        # (the reclaim is purely touch-driven; the gateway is SLEEPING-tolerant by design
+        # with no background reaper, so an un-re-touched deferred buffer is never freed).
+        if defer_frame_evict:
+            session.frames_evict_after = self.now() + _sse_evict_grace_sec()
+        else:
+            session.frames = []
         # Durably persist the replay record (ADX-P0-001 residual). self.replays is
         # in-memory only — reset to {} on boot — so without this an honest
         # receipt's /replay/<id> (and /fork, /dispute) 404s for EVERY battle from a
@@ -2291,6 +2347,12 @@ async def _sse_battle_stream(
     while True:
         if await request.is_disconnected():
             return
+        # Drive the gateway's stale-expiry so an ABANDONED battle (idle past
+        # turn_budget_s, never touched again by /state or /choose) is forfeited → ended →
+        # this loop emits the terminal event:end instead of polling forever (PR #373
+        # review); it also reclaims a finished battle's frame buffer once past its grace.
+        # Cheap no-op when neither is due.
+        await gateway._expire_if_stale(session)
         frames = session.frames
         while sent < len(frames):
             fr = frames[sent]
@@ -2833,7 +2895,17 @@ def create_app(
         caller does not own (D7 — collapses not-found + not-yours)."""
         claims = _require_session(authorization)
         session = gateway.sessions.get(battle_id)
-        if session is None or session.visitor_name not in gateway.accounts.agents_for(claims.owner):
+        # Ownership: the session owns the agent that started the battle (account-enroll
+        # records the account->agent join), OR the verified owner matches the owner
+        # battle_begin stamped on the session — the email/OOB enroll path mints a battle
+        # token + sets session.owner but does NOT add the agent to AccountStore, so the
+        # owner-match fallback keeps those owners' fog-of-war stream working (mirrors the
+        # me_battles owner test) (PR #373 review). Opaque 403 collapses not-found/not-yours.
+        owner_norm = _normalize_owner(claims.owner)
+        if session is None or (
+            session.visitor_name not in gateway.accounts.agents_for(claims.owner)
+            and session.owner != owner_norm
+        ):
             raise _opaque_error(403, "not your battle")
         return StreamingResponse(
             _sse_battle_stream(gateway, session, session.visitor_side, request),

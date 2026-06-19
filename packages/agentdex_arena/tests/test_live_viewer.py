@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 from adx_showdown.sidecar import Sidecar
-from agentdex_arena.consent import ConsentAuthority
+from agentdex_arena.consent import ConsentAuthority, _normalize_owner
 from agentdex_arena.gateway import ArenaGateway, BattleSession, create_app
 from agentdex_arena.session import SessionAuthority
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -213,6 +213,71 @@ def test_owner_stream_403_for_another_owners_battle(tmp_path):
     assert r.status_code == 403
 
 
+def test_owner_stream_allows_oob_owner_via_session_owner_match(tmp_path):
+    """The email/OOB-enroll path mints a battle token + stamps session.owner but does
+    NOT add the agent to AccountStore (no account->agent join). The owner-match
+    fallback (PR #373) keeps that owner's fog-of-war stream working — without it an
+    OOB-enrolled owner is locked out of their OWN live battle. The owner still sees
+    own exact HP while the opponent's exact HP stays hidden (the projection is
+    unchanged — only the ownership gate gained the fallback)."""
+    gw = _gateway(tmp_path)
+    sess = BattleSession(
+        battle_id="b_oob",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="rated",
+        opponent="anchor",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.owner = _normalize_owner(_OWNER)  # OOB enroll stamps the normalized owner
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    sess.ended = {"status": "ended"}  # makes the SSE stream finite
+    gw.sessions[sess.battle_id] = sess
+    # Precondition: the agent is deliberately NOT in the account store (the OOB path
+    # has no account->agent row) — so only the session.owner match can authorize.
+    assert sess.visitor_name not in gw.accounts.agents_for(_OWNER)
+    with _client(gw) as c:
+        r = c.get(f"/me/battle/{sess.battle_id}/live", headers=_auth(gw, _OWNER))
+    assert r.status_code == 200
+    frames, saw_end = _parse_sse(r.text)
+    assert saw_end is True
+    assert frames[0]["side"] == "p1"
+    all_lines = [ln for fr in frames for ln in fr["lines"]]
+    assert any("176/298" in ln for ln in all_lines)  # owner SEES own exact HP
+    assert not any("88/250" in ln for ln in all_lines)  # opponent exact HP still hidden
+
+
+def test_owner_stream_403_for_oob_owner_mismatch(tmp_path):
+    """The session.owner fallback must NOT widen access: a different verified owner
+    whose email does not match session.owner (and who owns no joined agent for this
+    battle) still gets the opaque 403 — the fallback authorizes the stamped owner
+    only, not any authenticated caller (anti fog-of-war-leak)."""
+    gw = _gateway(tmp_path)
+    sess = BattleSession(
+        battle_id="b_oob2",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="rated",
+        opponent="anchor",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.owner = _normalize_owner(_OWNER)  # battle belongs to _OWNER (OOB)
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    sess.ended = {"status": "ended"}
+    gw.sessions[sess.battle_id] = sess
+    with _client(gw) as c:
+        r = c.get(f"/me/battle/{sess.battle_id}/live", headers=_auth(gw, _OTHER))
+    assert r.status_code == 403
+
+
 def test_owner_stream_503_when_session_auth_unconfigured(tmp_path):
     gw = _gateway(tmp_path, with_session=False)
     sess = BattleSession(
@@ -232,12 +297,16 @@ def test_owner_stream_503_when_session_auth_unconfigured(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_finish_reclaims_frame_buffer(tmp_path):
-    """GA-CORE-3 retention ('drop on replay-commit'): _finish clears session.frames
-    so the omniscient buffer (~hundreds of KB, up to 10 MiB per battle) is not held
-    forever on the lingering finished session. A viewer connecting post-end follows
-    the terminal event: end to /replay/<id> (the durable post-hoc surface)."""
+async def test_finish_defers_frame_buffer_eviction_then_reclaims(tmp_path):
+    """GA-CORE-3 retention: _finish must NOT wipe session.frames immediately — an
+    immediate clear raced an active SSE stream and dropped the winning (final) turn
+    (PR #374 review). Instead it stamps frames_evict_after = now + grace so a viewer
+    mid-stream at finish drains the decisive final frames + the terminal event:end
+    first; _expire_if_stale then reclaims the ~hundreds-of-KB (up to 10 MiB) buffer
+    lazily once past the deadline (driven by /state, /choose, or the SSE poll loop)."""
     gw = _gateway(tmp_path)
+    clock = {"t": 1_000.0}
+    gw.now = lambda: clock["t"]  # deterministic clock for the grace window
     sess = BattleSession(
         battle_id="b_reclaim",
         claims_token_id="tok",
@@ -255,4 +324,90 @@ async def test_finish_reclaims_frame_buffer(tmp_path):
     await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
 
     assert sess.ended is not None  # battle committed (receipt published)
-    assert sess.frames == []  # buffer reclaimed on replay-commit (no per-battle leak)
+    # DEFERRED: buffer retained so a viewer mid-stream still drains the final frames.
+    assert sess.frames != []  # NOT wiped at finish (PR #374 dropped-winning-turn race)
+    assert sess.frames_evict_after is not None  # eviction deadline stamped
+
+    # Within the grace window: _expire_if_stale is a no-op, buffer retained.
+    clock["t"] = sess.frames_evict_after - 0.001
+    await gw._expire_if_stale(sess)
+    assert sess.frames != []
+
+    # Past the deadline: lazy reclaim frees the buffer (no per-battle heap leak).
+    clock["t"] = sess.frames_evict_after + 0.001
+    await gw._expire_if_stale(sess)
+    assert sess.frames == []  # buffer reclaimed once past the grace deadline
+
+
+@pytest.mark.asyncio
+async def test_forfeit_clears_frame_buffer_immediately_not_deferred(tmp_path):
+    """The forfeit/abandoned path clears the live frame buffer IMMEDIATELY, NOT via the
+    grace deferral. An abandoned battle timed out precisely because nobody was touching
+    it, so there is no active SSE viewer to race — and the reclaim is purely touch-driven
+    (the gateway is SLEEPING-tolerant with no background reaper), so deferring there would
+    leak the buffer of a session nothing ever touches again. This restores the pre-PR#374
+    immediate-clear behavior on the no-viewer path while keeping the deferral only for the
+    /choose winning-move path."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 5_000.0}
+    gw.now = lambda: clock["t"]
+    sess = BattleSession(
+        battle_id="b_forfeit",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0, 1],
+        sidecar=None,  # skip the sidecar 'stop' request on the forfeit path
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    sess.last_touch = clock["t"]
+    gw.sessions[sess.battle_id] = sess
+
+    # Not yet stale: no forfeit, buffer retained.
+    await gw._expire_if_stale(sess)
+    assert sess.ended is None
+    assert sess.frames != []
+
+    # Idle past the turn budget: abandoned -> forfeit fires.
+    clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+    await gw._expire_if_stale(sess)
+    assert sess.ended is not None  # forfeited
+    assert sess.ended.get("forfeit") == "turn budget exceeded"
+    assert sess.frames == []  # buffer reclaimed IMMEDIATELY on the no-viewer path
+    assert sess.frames_evict_after is None  # deferral deadline NOT stamped on forfeit
+
+
+@pytest.mark.asyncio
+async def test_finish_tolerates_malformed_evict_grace_env(tmp_path, monkeypatch):
+    """A malformed ARENA_SSE_EVICT_GRACE_SEC must NOT raise out of the battle-commit path
+    (_finish): the parse sits ahead of the durable replay-artifact write, so a ValueError
+    there would 404 every battle's /replay,/fork,/dispute after a restart and 500 the
+    winning /choose. It falls back to 30s; the battle still commits and the buffer is
+    still deferred to the (now safe) deadline."""
+    monkeypatch.setenv("ARENA_SSE_EVICT_GRACE_SEC", "not-a-number")
+    gw = _gateway(tmp_path)
+    clock = {"t": 2_000.0}
+    gw.now = lambda: clock["t"]
+    sess = BattleSession(
+        battle_id="b_badenv",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    gw.sessions[sess.battle_id] = sess
+
+    receipt = await gw._finish(sess, {"winner": "oppie", "turns": 3, "inputLog": ["l1"]})
+
+    assert receipt is not None  # _finish ran to completion (past the artifact write)
+    assert sess.ended is not None  # battle committed despite the malformed env
+    assert sess.frames_evict_after == 2_030.0  # fell back to the 30s default deadline
