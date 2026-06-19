@@ -66,16 +66,6 @@ SPLIT_TYPE = "split"
 #: excluded from any determinism hash (digest P1-c verify path).
 NONDETERMINISTIC_TYPES: frozenset[str] = frozenset({TIMESTAMP_TYPE})
 
-#: ``sideupdate`` CONTROL lines the sidecar folds into the omniscient protocol log
-#: (``sidecar.mjs`` captureProtocol): ``|request|`` — a player's full team-state JSON
-#: (exact HP + species + movesets for EVERY mon on that side) — and ``|error|`` —
-#: rejected-choice feedback. They are per-player control-plane lines, never renderable
-#: battle events, and ``|request|`` is the single largest hidden-info channel. They are
-#: the ONLY non-``|split|`` private channels in the capture, so a live-viewer projection
-#: (:func:`project_frame`) DROPS them for EVERY side — otherwise the opponent's whole
-#: private team leaks right beside the correctly-redacted ``|split|`` HP twin.
-SIDEUPDATE_PRIVATE_TYPES: frozenset[str] = frozenset({"request", "error"})
-
 #: agentdex's ADDED minor — not emitted by Showdown. Carries the trainer-agent's
 #: rationale on the same ordered timeline as its move (digest §3, P1-d). Listed
 #: here so the tier table + renderers treat it as a first-class minor.
@@ -489,19 +479,23 @@ def project_frame(lines: list[str], *, side: str) -> list[str]:
       (``|split|pX`` where ``pX == side``) and the PUBLIC twin for the OPPONENT block;
     - a ``"spectator"`` keeps only the PUBLIC twin of every block.
 
-    Non-split lines pass through, with three redactions that keep the stream honest:
-    ``|t:|`` wall-clock lines are stripped (``NONDETERMINISTIC_TYPES``); the per-player
-    ``sideupdate`` control lines ``|request|`` / ``|error|`` are **dropped for every
-    side** (``SIDEUPDATE_PRIVATE_TYPES``) — ``|request|`` carries a player's FULL private
-    team (exact HP + movesets for every mon), so leaving it in would undo the ``|split|``
-    redaction sitting right beside it (the owner sees their own exact HP via the kept
-    ``|split|pX`` private line, NOT via ``|request|``); and a
-    ``|player|SIDE|NAME|AVATAR|RATING`` line has its RATING **blanked** (positional
-    delimiters preserved, so ``SIDE|NAME|AVATAR|RATING`` stays parseable) on any view
-    that does not own that side — i.e. always for a spectator, and for the OPPONENT's
-    ``|player|`` on an owner stream — so a ladder rating never leaks. A bare ``|split|``
-    marker can therefore never appear in the projected lines, and the opponent's exact
-    HP / team / rating never reach a viewer that should only see the public projection.
+    Non-split lines: ``|t:|`` wall-clock lines are stripped; a
+    ``|player|SIDE|NAME|AVATAR|RATING`` line has its RATING **blanked** (delimiters
+    preserved, so ``SIDE|NAME|AVATAR|RATING`` stays parseable) on any view that does not
+    own that side — always for a spectator, the OPPONENT's ``|player|`` on an owner
+    stream — so a ladder rating never leaks; and — **deny-by-default** — EVERY OTHER
+    ``Tier.META`` ``"hidden"`` line is DROPPED for every side. That secret/control-meta
+    set includes ``|request|`` (a side's FULL private team JSON — exact HP + movesets),
+    ``|error|``, ``|seed|`` (PRNG echo → RNG re-derivation), ``|poke|`` /
+    ``|teampreview|`` / ``|updatepoke|`` (team reveal), ``|badge|``, ``|rated|`` … AND any
+    NEW hidden meta type added later, so the projector can never silently leak a future
+    hidden channel (an allowlist of *redacted* types is unsound; this denies by default).
+    Public battle EVENTS (``|move|`` / ``|-damage|`` / ``|switch|`` / ``|turn|`` /
+    ``|faint|`` …) are ``Tier.MAJOR`` / ``Tier.MINOR``, never META-hidden, so they pass
+    through untouched. A bare ``|split|`` marker, the opponent's exact HP / team / rating,
+    and the battle seed therefore never reach a viewer that should only see the public
+    projection. (The owner sees their OWN exact HP via the kept ``|split|pX`` private
+    line, not via ``|request|``.)
     """
     out: list[str] = []
     i = 0
@@ -510,12 +504,6 @@ def project_frame(lines: list[str], *, side: str) -> list[str]:
         ln = lines[i]
         lt = line_type(ln)
         if lt in NONDETERMINISTIC_TYPES:  # |t:| wall clock — never emitted
-            i += 1
-            continue
-        if lt in SIDEUPDATE_PRIVATE_TYPES:
-            # |request| (a side's full private team-state JSON) / |error| (rejected-choice
-            # feedback) — per-player control-plane lines, never renderable, and |request|
-            # would leak the opponent's entire team. Dropped for EVERY side.
             i += 1
             continue
         if lt == SPLIT_TYPE:
@@ -537,6 +525,16 @@ def project_frame(lines: list[str], *, side: str) -> list[str]:
                 parts[5] = ""  # blank the rating value, keep the positional delimiters
                 ln = "|".join(parts)
             out.append(ln)
+            i += 1
+            continue
+        spec = MESSAGE_TYPES.get(lt)
+        if spec is not None and spec.tier is Tier.META and spec.lane == "hidden":
+            # DENY-BY-DEFAULT: every other META "hidden" line is control/secret meta,
+            # never a renderable event — |request| (full team JSON), |error|, |seed|
+            # (PRNG echo), |poke|/|teampreview|/|updatepoke| (team reveal), |badge|,
+            # |rated|, … + any FUTURE hidden type. Dropped for every side so a new
+            # hidden channel can't silently leak. Public battle EVENTS are Tier.MAJOR/
+            # MINOR (never META-hidden), so they fall through to the append below.
             i += 1
             continue
         out.append(ln)
