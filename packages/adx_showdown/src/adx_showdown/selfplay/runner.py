@@ -171,37 +171,49 @@ async def _run_matchup(
     opponent_baseline: str,
     trace_tag: str,
 ) -> SelfPlayResult:
-    """Run ``n_battles`` of player_a (candidate) vs player_b; fold into Contract-2."""
-    await player_a.battle_against(player_b, n_battles=n_battles)
+    """Run ``n_battles`` of player_a (candidate) vs player_b; fold into Contract-2.
 
-    battles: list[dict[str, Any]] = []
-    total_turns = 0
-    for tag, battle in player_a.battles.items():
-        turn = int(getattr(battle, "turn", 0) or 0)
-        total_turns += turn
-        won = getattr(battle, "won", None)
-        battles.append({"tag": tag, "won_a": won, "turns": turn})
+    Closes both players' websockets in a ``finally`` so connections do NOT
+    accumulate across the many matchups of an evolution run — left open, a local
+    ``--no-security`` PS server starts rejecting logins ("Expected <user> to be
+    logged in") once enough sockets pile up. Cleanup is best-effort."""
+    try:
+        await player_a.battle_against(player_b, n_battles=n_battles)
 
-    wins_a = player_a.n_won_battles
-    wins_b = player_a.n_lost_battles
-    draws = player_a.n_tied_battles
-    winner, raw_dims = _aggregate(
-        wins_a=wins_a,
-        wins_b=wins_b,
-        draws=draws,
-        n_battles=n_battles,
-        total_turns=total_turns,
-        total_moves=int(getattr(player_a, "total_moves", 0)),
-        illegal_moves=int(getattr(player_a, "illegal_moves", 0)),
-        forfeits=0,  # HarnessPlayers never forfeit; codex/llm path refines this
-        opponent_baseline=opponent_baseline,
-    )
-    return SelfPlayResult(
-        winner=winner,
-        battles=battles,
-        trace_path=_write_trace(trace_tag, battles),
-        raw_dims=raw_dims,
-    )
+        battles: list[dict[str, Any]] = []
+        total_turns = 0
+        for tag, battle in player_a.battles.items():
+            turn = int(getattr(battle, "turn", 0) or 0)
+            total_turns += turn
+            won = getattr(battle, "won", None)
+            battles.append({"tag": tag, "won_a": won, "turns": turn})
+
+        wins_a = player_a.n_won_battles
+        wins_b = player_a.n_lost_battles
+        draws = player_a.n_tied_battles
+        winner, raw_dims = _aggregate(
+            wins_a=wins_a,
+            wins_b=wins_b,
+            draws=draws,
+            n_battles=n_battles,
+            total_turns=total_turns,
+            total_moves=int(getattr(player_a, "total_moves", 0)),
+            illegal_moves=int(getattr(player_a, "illegal_moves", 0)),
+            forfeits=0,  # HarnessPlayers never forfeit; codex/llm path refines this
+            opponent_baseline=opponent_baseline,
+        )
+        return SelfPlayResult(
+            winner=winner,
+            battles=battles,
+            trace_path=_write_trace(trace_tag, battles),
+            raw_dims=raw_dims,
+        )
+    finally:
+        for p in (player_a, player_b):
+            try:
+                await p.ps_client.stop_listening()
+            except Exception:  # noqa: BLE001 - cleanup is best-effort
+                pass
 
 
 async def run_selfplay_battle(
