@@ -83,7 +83,7 @@ The poke-env `self_play.html` example trains one shared policy with PPO
 structure** — an agent battles copies/variants of itself, both perspectives count,
 win-rate is the signal — but **replace the RL optimizer with meta-harness
 evolution**: the "learning step" is a code/prompt/strategy mutation, not a
-gradient update. The **agent is openai/codex** (`~/gh/codex`, `codex exec --auto`),
+gradient update. The **agent is openai/codex** (`~/gh/codex`, `codex exec --dangerously-bypass-approvals-and-sandbox`),
 which drives the loop *through agentdex-cli's CLI/MCP surface* (D8): it runs a
 self-play match, reads the battle report + win-rate, proposes a mutated
 `choose_move` policy / prompt / harness, and re-plays. agentdex-cli supplies the
@@ -154,7 +154,7 @@ loop is green.
   verbs/tools codex calls: run a self-play match, fetch the report/win-rate, run
   one evolution iteration (mutate → battle → Pareto → BENE gate), read the
   champion + lineage. Wire into the existing Hermes `agentdex` MCP toolset.
-- **Phase 7 — codex auto-drive runs the loop end-to-end.** `codex exec --auto`
+- **Phase 7 — codex auto-drive runs the loop end-to-end.** `codex exec --dangerously-bypass-approvals-and-sandbox`
   over "raise win-rate vs the incumbent via mutation", driving agentdex-cli's
   MCP/CLI; `finish_success` hard-gated on a BENE ACCEPT verdict; promoted
   champions recorded with engram/KAOS lineage. Then deploy the PS server to
