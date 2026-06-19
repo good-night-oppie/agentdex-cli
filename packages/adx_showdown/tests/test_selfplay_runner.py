@@ -98,6 +98,19 @@ def test_a1_output_feeds_a3_fitness():
     assert fit["no_forfeit_exploit"] == 1.0  # zero forfeits → no exploit penalty
 
 
+def test_seeded_index_is_deterministic_and_in_range():
+    from adx_showdown.selfplay.runner import _seeded_index
+
+    # same key → same index, stable across processes (blake2b, not the salted hash)
+    assert _seeded_index(5, 42, "battle-1", 3) == _seeded_index(5, 42, "battle-1", 3)
+    # always within [0, modulo)
+    for n in (1, 2, 7, 13):
+        for turn in range(20):
+            assert 0 <= _seeded_index(n, 99, "battle-x", turn) < n
+    # the random policy actually varies with rng_seed (not a constant)
+    assert len({_seeded_index(8, s, "battle-1", 1) for s in range(16)}) > 1
+
+
 def _ps_server_up() -> bool:
     try:
         import poke_env  # noqa: F401
