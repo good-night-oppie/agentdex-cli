@@ -179,9 +179,12 @@ def test_evolve_rejects_winrate_gain_that_sacrifices_a_guard_dim():
     # higher win_rate bought by tanking an anti-reward-hack guard dim → REJECTED
     hacked = {**base, "win_rate": 0.7, "no_forfeit_exploit": 0.6}
     assert _is_pareto_improvement(hacked, base) is False
-    # higher win_rate with every guard dim held → kept
+    # higher AGGREGATE win_rate but lower elo (won easy matchups, lost the hard
+    # one) → REJECTED (elo is a Contract-3 maximize dim too)
+    assert _is_pareto_improvement({**base, "win_rate": 0.7, "elo": 950.0}, base) is False
+    # higher win_rate with every other Pareto dim held → kept
     assert _is_pareto_improvement({**base, "win_rate": 0.7}, base) is True
-    # no win_rate gain → never kept (even if a guard improves)
+    # no win_rate gain → never kept (even if a dim improves)
     assert _is_pareto_improvement({**base, "move_legibility": 1.0}, base) is False
 
 
