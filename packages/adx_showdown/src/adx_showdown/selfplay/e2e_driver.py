@@ -106,8 +106,7 @@ def pokeenv_runner(
 
 def _det_unit(*parts: Any) -> float:
     """Deterministic value in [0,1) from the parts — the MOCK runner's stand-in
-    for battle RNG, so a given (harness, baseline, run_seed) always yields the
-    same outcome."""
+    for battle RNG, so a given set of parts always yields the same outcome."""
     h = hashlib.sha256("|".join(str(p) for p in parts).encode()).hexdigest()
     return int(h[:8], 16) / 0xFFFFFFFF
 
@@ -125,7 +124,12 @@ def _mock_run_vs_baselines(
     for i, name in enumerate(names):
         difficulty = i / max(1, len(names) - 1)  # 0.0, 0.5, 1.0
         p = 1.0 / (1.0 + math.exp(-6.0 * (strength - difficulty)))
-        jitter = (_det_unit(hid, name, run_seed) - 0.5) * 0.1
+        # Battle noise is a property of the (baseline, run_seed) schedule, NOT the
+        # harness identity. Seeding it on hid would let a rename-only / metadata
+        # mutation shift win-rate and clear the kill-gate from ID noise rather than
+        # a real policy change; keeping it id-independent also makes the jitter
+        # cancel between seed and candidate, so the measured uplift is pure policy.
+        jitter = (_det_unit(name, run_seed) - 0.5) * 0.1
         wins = max(0, min(n_battles, round(n_battles * (p + jitter))))
         turns = n_battles * 11
         results.append(

@@ -202,6 +202,18 @@ def test_mock_run_is_deterministic_in_run_seed():
     assert a == b
 
 
+def test_mock_battle_noise_is_independent_of_harness_id():
+    # A rename-only / metadata-only mutation (identical policy, different
+    # harness_id) must NOT change the measured outcome — else the scaffold could
+    # attribute uplift to ID-dependent jitter and clear the kill-gate from noise.
+    base = seed_harness().model_dump()
+    alpha = {**base, "harness_id": "alpha"}
+    renamed = {**base, "harness_id": "alpha-renamed"}
+    wins_alpha = [r["raw_dims"]["wins_a"] for r in _mock_run_vs_baselines(alpha, 42, 200)]
+    wins_renamed = [r["raw_dims"]["wins_a"] for r in _mock_run_vs_baselines(renamed, 42, 200)]
+    assert wins_alpha == wins_renamed
+
+
 # ---- CLI ----
 
 
