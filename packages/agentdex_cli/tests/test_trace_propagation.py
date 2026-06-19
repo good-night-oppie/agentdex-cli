@@ -81,7 +81,11 @@ def test_orchestrator_to_gateway_trace_round_trip():
         assert "X-Langfuse-Trace-Id" in headers
         # Simulate gateway-side ingestion
         propagated = set_trace_context_from_headers(headers)
-        # The pass/fail of `propagated` IS the R3 spike outcome; both paths are
-        # honest. False here means we fall back to per-baseline-root traces
-        # (documented in phase-4-r3-spike-outcome.md).
-        assert isinstance(propagated, bool)
+        # ADX-P1-003: when this LIVE round-trip runs (Langfuse configured, init True,
+        # the trace header present), re-parenting MUST succeed — a False here means
+        # observability is silently broken, so acceptance must FAIL, not pass on a
+        # vacuous isinstance(bool) check. The per-baseline-root fallback stays the
+        # honest path for the DEGRADED case, but that is the SKIPPED branch (no
+        # LANGFUSE_PUBLIC_KEY) gated above + documented in phase-4-r3-spike-outcome.md;
+        # it is not reachable once we have asserted init_langfuse() is True.
+        assert propagated is True, "Trace propagation failed — traces would be absent."
