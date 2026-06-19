@@ -18,6 +18,7 @@ from adx_showdown.lineproto import (
     is_section_break,
     parse_line,
     parse_stream,
+    project_frame,
     tier_of,
 )
 
@@ -320,3 +321,76 @@ def test_event_is_frozen_and_strict():
         pass
     else:
         raise AssertionError("ProtocolEvent should be frozen")
+
+
+# --------------------------------------------------------------------------- #
+# project_frame — GA-CORE-3 per-side live-viewer projection (LIVE_VIEWER_CONTRACT).
+# A |split|pX block (verbatim PS shape): marker, then pX-private (exact HP), then the
+# public twin (percent HP).
+# --------------------------------------------------------------------------- #
+
+_SPLIT_BLOCK = [
+    "|split|p1",
+    "|-damage|p1a: Garchomp|176/298",  # private: p1's exact HP
+    "|-damage|p1a: Garchomp|60/100",  # public twin: percent HP
+]
+
+
+def test_project_frame_owner_keeps_own_private_drops_marker_and_public():
+    out = project_frame(_SPLIT_BLOCK, side="p1")
+    assert out == ["|-damage|p1a: Garchomp|176/298"]
+    assert all(line_type_local(ln) != "split" for ln in out)
+
+
+def test_project_frame_owner_keeps_opponent_public_drops_private():
+    block = [
+        "|split|p2",
+        "|-damage|p2a: Rotom|41/123",  # opponent (p2) private exact HP — must NOT leak
+        "|-damage|p2a: Rotom|34/100",  # public twin
+    ]
+    out = project_frame(block, side="p1")
+    assert out == ["|-damage|p2a: Rotom|34/100"]  # p1 sees only the opponent's public HP%
+
+
+def test_project_frame_spectator_keeps_only_public_twins():
+    out = project_frame(_SPLIT_BLOCK, side="spectator")
+    assert out == ["|-damage|p1a: Garchomp|60/100"]
+
+
+def test_project_frame_never_emits_the_split_marker():
+    for side in ("p1", "p2", "spectator"):
+        out = project_frame(_SPLIT_BLOCK, side=side)
+        assert not any(ln.startswith("|split|") for ln in out)
+
+
+def test_project_frame_strips_timestamp_lines():
+    out = project_frame(["|t:|1700000000", "|move|p1a: X|Tackle|p2a: Y"], side="spectator")
+    assert out == ["|move|p1a: X|Tackle|p2a: Y"]
+
+
+def test_project_frame_blanks_rating_on_spectator_stream():
+    out = project_frame(["|player|p1|Alpha||1500"], side="spectator")
+    assert out == ["|player|p1|Alpha||"]  # rating blanked, delimiters preserved
+
+
+def test_project_frame_owner_keeps_own_rating_blanks_opponent():
+    lines = ["|player|p1|Alpha||1500", "|player|p2|Bravo||1820"]
+    out = project_frame(lines, side="p1")
+    assert out == ["|player|p1|Alpha||1500", "|player|p2|Bravo||"]
+
+
+def test_project_frame_passes_through_ordinary_lines():
+    lines = ["|move|p1a: X|Tackle|p2a: Y", "|-damage|p2a: Y|80/100"]
+    assert project_frame(lines, side="spectator") == lines
+
+
+def test_project_frame_handles_truncated_split_block():
+    # a marker with only the private line (no public twin) must not crash
+    out = project_frame(["|split|p1", "|-damage|p1a: X|10/100"], side="spectator")
+    assert out == []  # spectator wanted the (missing) public twin -> nothing kept
+    out_owner = project_frame(["|split|p1", "|-damage|p1a: X|10/100"], side="p1")
+    assert out_owner == ["|-damage|p1a: X|10/100"]
+
+
+def line_type_local(line: str) -> str:
+    return line[1:].split("|", 1)[0] if line.startswith("|") else line

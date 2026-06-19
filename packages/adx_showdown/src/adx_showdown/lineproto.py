@@ -41,14 +41,14 @@ and non-ident effect kwargs (``[from] item: Life Orb``) stay verbatim.
 from __future__ import annotations
 
 import re
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.protocol import sanitize_name
 
 
-class Tier(str, Enum):
+class Tier(StrEnum):
     """Render-lane tier derived from the hyphen-prefix convention."""
 
     MAJOR = "major"
@@ -461,3 +461,63 @@ def strip_nondeterministic(lines: list[str]) -> list[str]:
     so the stripped logs MUST be byte-identical.
     """
     return [ln for ln in lines if line_type(ln) not in NONDETERMINISTIC_TYPES]
+
+
+def project_frame(lines: list[str], *, side: str) -> list[str]:
+    """Project an omniscient PS protocol delta to ONE viewer's perspective, per the
+    live-viewer contract (``tasks/agentdex-builders-ga/LIVE_VIEWER_CONTRACT.md``).
+
+    ``side`` is the owner's side (``"p1"`` / ``"p2"``) or ``"spectator"``.
+
+    A ``|split|pX`` block is a **three-line sentinel**: the ``|split|pX`` marker, then
+    pX's PRIVATE line (exact HP, e.g. ``176/298``), then its PUBLIC twin (percent HP,
+    e.g. ``60/100``). For every block the marker is **DROPPED** (it is a control
+    sentinel, never a renderable line — ``|split|`` itself is never shown) and exactly
+    ONE data line is kept:
+
+    - the owner of side ``pX`` keeps the PRIVATE line for its OWN block
+      (``|split|pX`` where ``pX == side``) and the PUBLIC twin for the OPPONENT block;
+    - a ``"spectator"`` keeps only the PUBLIC twin of every block.
+
+    Non-split lines pass through, with two redactions that keep the stream honest:
+    ``|t:|`` wall-clock lines are stripped (``NONDETERMINISTIC_TYPES``), and a
+    ``|player|SIDE|NAME|AVATAR|RATING`` line has its RATING **blanked** (positional
+    delimiters preserved, so ``SIDE|NAME|AVATAR|RATING`` stays parseable) on any view
+    that does not own that side — i.e. always for a spectator, and for the OPPONENT's
+    ``|player|`` on an owner stream — so a ladder rating never leaks. A bare ``|split|``
+    marker can therefore never appear in the projected lines, and the opponent's exact
+    HP / rating never reach a viewer that should only see the public projection.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        ln = lines[i]
+        lt = line_type(ln)
+        if lt in NONDETERMINISTIC_TYPES:  # |t:| wall clock — never emitted
+            i += 1
+            continue
+        if lt == SPLIT_TYPE:
+            # ``|split|pX`` then private(pX) then public — drop the marker, keep one.
+            block_side = ln.split("|")[2] if ln.count("|") >= 2 else ""
+            private_ln = lines[i + 1] if i + 1 < n else None
+            public_ln = lines[i + 2] if i + 2 < n else None
+            keep = private_ln if (side != "spectator" and block_side == side) else public_ln
+            if keep is not None:
+                out.append(keep)
+            i += 3  # consume marker + private + public as one block
+            continue
+        if lt == "player":
+            # |player|SIDE|NAME|AVATAR|RATING — blank RATING unless this is the
+            # viewer's OWN side (a spectator owns no side, so it blanks every rating).
+            parts = ln.split("|")
+            player_side = parts[2] if len(parts) > 2 else ""
+            if (side == "spectator" or player_side != side) and len(parts) >= 6:
+                parts[5] = ""  # blank the rating value, keep the positional delimiters
+                ln = "|".join(parts)
+            out.append(ln)
+            i += 1
+            continue
+        out.append(ln)
+        i += 1
+    return out
