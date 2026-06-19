@@ -14,6 +14,16 @@ hidden state):
   **spectator projection ONLY**: public HP percent, no hidden info, **no rating** (the
   `side` field is always `"spectator"`). This is the route for **third-party / open
   spectating** (e.g. a shared battle link). Mirrors `/replay`'s public posture.
+  - **Live-existence is a DELIBERATE public signal (DECIDED, GA-CORE-3 #581).** Unlike
+    `/state` (which collapses not-found/not-yours to one opaque 403 to hide a battle's
+    existence), this endpoint **200s for a live id and 404s otherwise** — i.e. it reveals
+    "this id is actively battling now". That is intended: open/shared-link spectating
+    *is* the feature, and the leak is bounded — a `battle_id` is `lane-{uuid4[:10]}`
+    (~40 unguessable bits, no enumeration), it carries **no owner identity** (ratings
+    blanked, `side="spectator"`, public projection only), so a guesser learns only that
+    some random id is a live battle and may watch its public view. (If per-owner privacy
+    is later required, gate this to owner-opted-public battles so 200/404 stops
+    distinguishing live-owner from unknown — a follow-up, not an MVP blocker.)
 - **Owner side** — `GET /me/battle/{battle_id}/live` (or `…/live?side=mine`) — **SSE,
   authenticated**. Emits the owner's `p1`/`p2` per-side frame WITH their own hidden info
   (their own `|split|` private lines). The server verifies the token's owner actually owns a
@@ -73,6 +83,18 @@ hidden state):
   meta line — never delete just the RATING field positionally (that shifts the slots and
   misparses). Forwarding raw `lines` would satisfy the schema while leaking a rating, so
   redaction is a hard requirement, not advisory.
+- **DENY-BY-DEFAULT for hidden meta (load-bearing, GA-CORE-3 #581 audit).** The projection
+  (`lineproto.project_frame`) DROPS **every** `Tier.META` `"hidden"` line for every side
+  except the three it handles explicitly (`|split|` → resolved, `|t:|` → stripped, `|player|`
+  → rating-blanked). That denied set includes `|request|` (the omniscient `protocol_log`
+  delta carries BOTH sides' `|request|` JSON = a player's FULL private team — exact HP, moves,
+  PP, item, ability), `|error|`, `|seed|` (PRNG echo → RNG re-derivation), `|poke|` /
+  `|teampreview|` / `|updatepoke|` (team reveal), `|badge|`, `|rated|`, **and any NEW hidden
+  meta type added later**. An allow-list of *redacted* types is unsound — a future hidden
+  channel would leak through the catch-all; deny-by-default is the contract. Public battle
+  EVENTS (`|move|` / `|-damage|` / `|switch|` / `|turn|` / `|faint|` …) are `Tier.MAJOR` /
+  `Tier.MINOR`, never META-hidden, so they pass through. The owner sees their OWN exact HP via
+  the kept `|split|pX` private line, never via `|request|`.
 - `|t:|` timestamp lines are **stripped before any hash** (replay/live must hash-match).
 - The scene's `hp_frac` is the **public** HP fraction (the opponent's exact HP is never shown
   on either stream; the owner sees only their OWN exact HP via their `|split|`), and

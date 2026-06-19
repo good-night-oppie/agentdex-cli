@@ -419,5 +419,31 @@ def test_project_frame_drops_error_lines_for_every_side():
         assert out == ["|turn|3"]
 
 
+def test_project_frame_deny_by_default_drops_all_hidden_meta():
+    """GA-CORE-3 hardening (deny-by-default): EVERY Tier.META 'hidden' line is dropped for
+    every side — not just |request|/|error| but also |seed| (PRNG echo → RNG re-derivation),
+    |poke|/|teampreview|/|updatepoke| (team reveal), |badge|, |rated|, … AND any future
+    hidden type — so the projector can never silently leak a new hidden channel. Public
+    EVENTS (Tier.MAJOR/MINOR) pass through unchanged."""
+    hidden = [
+        "|seed|[1,2,3,4]",
+        "|poke|p2|Garchomp, M|item",
+        "|teampreview",
+        "|updatepoke|p2: Garchomp|Garchomp, M",
+        "|rated|",
+        "|badge|p2|gym|gen9|kanto",
+    ]
+    events = [
+        "|move|p1a: X|Tackle|p2a: Y",
+        "|-damage|p2a: Y|80/100",
+        "|turn|3",
+        "|faint|p2a: Y",
+    ]
+    for side in ("p1", "p2", "spectator"):
+        out = project_frame(hidden + events, side=side)
+        assert out == events  # all hidden meta dropped, all public events kept
+        assert not any(ln.startswith(("|seed|", "|poke|", "|teampreview", "|badge|")) for ln in out)
+
+
 def line_type_local(line: str) -> str:
     return line[1:].split("|", 1)[0] if line.startswith("|") else line
