@@ -22,9 +22,15 @@ class _Move:
         self.base_power = base_power
 
 
+class _Switch:
+    def __init__(self, species: str) -> None:
+        self.species = species
+
+
 class _Battle:
-    def __init__(self, moves: list[_Move]) -> None:
+    def __init__(self, moves: list[_Move], switches: list[_Switch] | None = None) -> None:
         self.available_moves = moves
+        self.available_switches = switches or []
         self.active_pokemon = None
         self.force_switch = False
 
@@ -34,8 +40,8 @@ class _Harness:
     params: dict = {}
 
 
-def _ctx(moves: list[_Move]) -> dict:
-    return codex_context(_Battle(moves))
+def _ctx(moves: list[_Move], switches: list[_Switch] | None = None) -> dict:
+    return codex_context(_Battle(moves, switches))
 
 
 def test_codex_decide_returns_the_chosen_legal_move():
@@ -67,6 +73,29 @@ def test_prompt_embeds_the_evolving_policy_and_legal_ids():
     prompt = _build_prompt(_Harness(), ctx, ["surf", "tackle"])
     assert "Prefer super-effective coverage" in prompt  # the harness policy p drives the choice
     assert "surf" in prompt and "tackle" in prompt
+
+
+def test_codex_decide_can_return_a_switch_species():
+    """A live policy can pick a switch — the species is in the legal-id set, so
+    codex_decide accepts it (and the adapter turns it into a switch order)."""
+    ctx = _ctx([_Move("ember", 40)], switches=[_Switch("blastoise")])
+    out = codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "blastoise"})
+    assert out == "blastoise"
+
+
+def test_codex_decide_on_forced_switch_offers_only_switches():
+    """KO → no moves, only switches: the switch species are the legal ids."""
+    ctx = _ctx([], switches=[_Switch("venusaur"), _Switch("snorlax")])
+    out = codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "snorlax"})
+    assert out == "snorlax"
+    # an off-roster pick is still rejected (fail-safe → None → random legal order)
+    assert codex_decide(_Harness(), ctx, run=lambda p, s, t: {"move_id": "mewtwo"}) is None
+
+
+def test_prompt_offers_legal_switches():
+    ctx = _ctx([_Move("ember", 40)], switches=[_Switch("blastoise")])
+    prompt = _build_prompt(_Harness(), ctx, ["ember", "blastoise"])
+    assert "Legal switches" in prompt and "blastoise" in prompt
 
 
 def test_parse_last_json_takes_the_last_block():
