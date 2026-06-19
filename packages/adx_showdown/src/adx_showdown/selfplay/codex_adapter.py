@@ -69,15 +69,25 @@ def _greedy_decide(harness: Any, ctx: dict[str, Any]) -> str | None:
     return max(avail, key=lambda m: m.get("base_power", 0))["id"]
 
 
-def select_codex_move(harness: Any, battle: Any, *, decide: DecideFn | None = None) -> Any | None:
+def select_codex_move(
+    harness: Any,
+    battle: Any,
+    *,
+    decide: DecideFn | None = None,
+    on_illegal: Callable[[], None] | None = None,
+) -> Any | None:
     """Return the poke-env move codex chooses this turn (for ``create_order``),
     or ``None`` when there is no legal move (the caller falls back to a random
     legal order).
 
     ``decide(harness, codex_context) -> move_id`` is the live-codex hook; the
     default is the deterministic greedy policy. A decided id that is not among
-    the legal moves falls back to the first available move (defensive — a live
-    LLM cannot force an illegal move through this seam)."""
+    the legal moves is an ILLEGAL decision: ``on_illegal`` is invoked (so the
+    runner can record it in ``raw_dims["illegal_moves"]`` — otherwise a live
+    policy could hallucinate an illegal id every turn while ``move_legibility``
+    stayed a perfect 1.0) before falling back to the first available move
+    (defensive — a live LLM still cannot force an illegal move through this seam).
+    An abstaining hook (``decide`` returns ``None``) is NOT counted illegal."""
     moves = list(getattr(battle, "available_moves", None) or [])
     if not moves:
         return None
@@ -89,6 +99,8 @@ def select_codex_move(harness: Any, battle: Any, *, decide: DecideFn | None = No
     for m in moves:
         if str(getattr(m, "id", "") or "") == str(move_id):
             return m
+    if on_illegal is not None:
+        on_illegal()
     return moves[0]
 
 

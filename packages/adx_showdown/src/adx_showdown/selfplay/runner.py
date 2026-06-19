@@ -126,6 +126,14 @@ def make_harness_player(
             self.total_moves = 0
             self.illegal_moves = 0
 
+        def _note_illegal(self) -> None:
+            """Record that the codex/LLM policy proposed an id outside the legal
+            moves. Plumbed into ``raw_dims["illegal_moves"]`` → A3's
+            ``move_legibility``, so a policy that hallucinates illegal moves is
+            penalized instead of scoring a free perfect legibility (the seam still
+            substitutes a legal move, so the battle is unaffected)."""
+            self.illegal_moves += 1
+
         def _seeded_order(self, battle: Any) -> Any:
             """A reproducible random legal choice, replacing poke-env's unseeded
             ``choose_random_move``. Draws from poke-env's FULL legal order set
@@ -154,7 +162,9 @@ def make_harness_player(
             if self.strategy in ("llm_freeform", "codex"):
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
-                chosen = select_codex_move(h, battle, decide=_resolve_codex_decide())
+                chosen = select_codex_move(
+                    h, battle, decide=_resolve_codex_decide(), on_illegal=self._note_illegal
+                )
                 if chosen is not None:
                     return self.create_order(chosen)
                 return self._seeded_order(battle)
