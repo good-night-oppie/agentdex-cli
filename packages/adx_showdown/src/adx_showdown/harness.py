@@ -13,7 +13,9 @@ without pulling the battle engine. `run_selfplay_battle` (A1) resolves
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+import math
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Strategies A1's resolver can turn into a concrete sim Policy. `move_selection_
 # strategy` is NOT hard-restricted to this set — bene may explore novel names and
@@ -55,13 +57,29 @@ class BattleHarness(BaseModel):
     ``harness_id`` identifies a genome in the lineage.
     """
 
-    model_config = ConfigDict(extra="forbid", strict=False)
+    # allow_inf_nan=False: a non-finite float knob (nan/inf) is not a valid JSON
+    # scalar and breaks the advertised round-trip once it crosses a persistence /
+    # API boundary — and bene WILL mutate params freely, so reject it at the door.
+    model_config = ConfigDict(extra="forbid", strict=False, allow_inf_nan=False)
 
     harness_id: str = Field(min_length=1)
     system_prompt: str = ""
     move_selection_strategy: str = Field(default="max_damage", min_length=1)
     tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
     params: dict[str, ParamValue] = Field(default_factory=dict)
+
+    @field_validator("params")
+    @classmethod
+    def _params_are_json_finite(cls, v: dict[str, ParamValue]) -> dict[str, ParamValue]:
+        """Reject non-finite float knobs (belt-and-suspenders over allow_inf_nan).
+
+        `bool` is a subclass of `int`; only genuine floats can be nan/inf, so the
+        check is `isinstance(x, float)` — and that also catches a float-typed
+        bene mutation regardless of how the `ParamValue` union coerced it."""
+        for key, val in v.items():
+            if isinstance(val, float) and not math.isfinite(val):
+                raise ValueError(f"param {key!r} is non-finite ({val!r}); not a valid JSON scalar")
+        return v
 
 
 def seed_harness() -> BattleHarness:
