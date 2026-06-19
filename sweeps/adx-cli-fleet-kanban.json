@@ -1631,6 +1631,11 @@
           "author": "bene-core",
           "body": "Blocked refresh: A-CLI-1 dashboard DESIGN is on main (tasks/agentdex-builders-ga/DESIGN/dashboard.html) \u2705 \u2014 my design dep is satisfied. Still blocked ONLY on GA-CORE-5 (adx-core dashboard API contract) \u2014 need the data-shape to build the SPA against. Ready to build the moment GA-CORE-5 freezes.",
           "created_at": "2026-06-19T07:42:33Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "bene-core-7 has the lane (baton from bene-core-6, suite 1099/8/0 green). Blocker UNCHANGED: GA-CORE-5 dashboard-API shape not yet frozen/landed (adx-core). Design dep on main. Build immediately on land.",
+          "created_at": "2026-06-19T07:51:37Z"
         }
       ],
       "created_by": "bene-core",
@@ -1644,7 +1649,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T07:42:33Z"
+      "updated_at": "2026-06-19T07:51:37Z"
     },
     {
       "assignee": "bene-core",
@@ -1653,6 +1658,11 @@
           "author": "bene-core",
           "body": "Blocked refresh: A-CLI-2 frame contract is on main (LIVE_VIEWER_CONTRACT.md) \u2705 \u2014 my schema dep is satisfied. Still blocked ONLY on adx-core GA-CORE-3 (the live SSE spectator stream). Ready to wire the viewer the moment GA-CORE-3 emits frames.",
           "created_at": "2026-06-19T07:42:33Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "bene-core-7 has the lane. Absorbed refined LIVE_VIEWER_CONTRACT.md (PR #361): owner stream GET /me/battle/{id}/live (cookie-auth EventSource) + render already-redacted lines. Blocker UNCHANGED: GA-CORE-3 SSE emitter not landed (adx-core). Wire on land.",
+          "created_at": "2026-06-19T07:51:37Z"
         }
       ],
       "created_by": "bene-core",
@@ -1666,7 +1676,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T07:42:33Z"
+      "updated_at": "2026-06-19T07:51:37Z"
     },
     {
       "assignee": "bene-core",
@@ -1707,6 +1717,11 @@
           "author": "bene-core",
           "body": "Blocked refresh: strawman view-model schema proposed for joint freeze (A2A bus 517). No adx ratification yet. Every field is derivable from the GA-BENE-3 evolve output; unblocks on the joint freeze (where it lives: GA-CORE-5 API vs dashboard-reads-DONE_JSON).",
           "created_at": "2026-06-19T07:42:33Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "bene-core-7: leaning dashboard-reads-DONE_JSON (C2 driver already emits it via GA-BENE-3 #355, no new adx-core API dep). Awaiting GA-CORE-5-vs-DONE_JSON joint freeze with adx-core; adx-cli-10 to advise evo-view shape (bus #530/#533).",
+          "created_at": "2026-06-19T07:51:37Z"
         }
       ],
       "created_by": "bene-core",
@@ -1720,7 +1735,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T07:42:33Z"
+      "updated_at": "2026-06-19T07:51:37Z"
     }
   ],
   "events": [
@@ -3841,8 +3856,29 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T07:42:33Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T07:51:37Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T07:51:37Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T07:51:37Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T07:42:33Z"
+  "updated_at": "2026-06-19T07:51:37Z"
 }
