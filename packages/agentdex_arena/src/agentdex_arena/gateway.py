@@ -464,6 +464,14 @@ class BattleSession:
     # "finishing" marker so _expire_if_stale won't queue a second forfeit finish
     # while one is outstanding. Set in _advance, cleared by its done-callback.
     finish_task: Any = None
+    # Synchronous re-entrancy marker for the stale-FORFEIT path in _expire_if_stale.
+    # finish_task only guards the /choose-driven finish; the forfeit branch has awaits
+    # before _finish completes and does not set it, so two concurrent _expire_if_stale
+    # callers (e.g. the SSE poll loop on two spectators of the same stale battle) could
+    # both append battle_end/period rows → the ladder counts the timeout twice. Set TRUE
+    # synchronously before the first await; the guard skips when it is set (PR #377 review
+    # 3443669247). Reset only if the forfeit fails to commit (ended still None).
+    forfeiting: bool = False
     # Normalized owner — keys the per-owner concurrency cap (ADR-0012 §7). Defaulted
     # so existing constructions (tests, fork) need no change; battle_begin sets it.
     owner: str = ""
@@ -1642,34 +1650,54 @@ class ArenaGateway:
         if (
             session.ended is None
             and session.finish_task is None
+            and not session.forfeiting
             and self.now() - session.last_touch > self.turn_budget_s
         ):
-            input_log = []
-            if session.sidecar is not None:
-                try:
-                    resp = await session.sidecar.request(
-                        "stop",
-                        battle=session.battle_id,
-                        forfeit_side=session.visitor_side,
-                    )
-                    if len(session.visitor_choices) > 0:
-                        input_log = list(resp.get("inputLog") or [])
-                except Exception:  # noqa: BLE001
-                    pass
-            await self._finish(
-                session,
-                {
-                    "winner": session.opponent,
-                    "turns": session.turns,
-                    "inputLog": input_log,
-                    "keyLines": [],
-                },
-                # Abandoned battle — no active viewer to race, so reclaim the live frame
-                # buffer immediately instead of deferring it to a touch that never comes.
-                defer_frame_evict=False,
-            )
-            if session.ended is not None:
-                session.ended["forfeit"] = "turn budget exceeded"
+            # Claim the forfeit SYNCHRONOUSLY before the first await so a second
+            # concurrent caller (another SSE stream polling this same stale battle)
+            # short-circuits the guard above instead of racing a duplicate _finish — two
+            # battle_end/period rows would let the ladder count the timeout twice (PR #377
+            # review 3443669247). asyncio is cooperative, so the guard-check + this set
+            # are atomic (no await between them); the second caller only runs once we
+            # await below, by which point session.forfeiting is already True.
+            session.forfeiting = True
+            try:
+                input_log = []
+                if session.sidecar is not None:
+                    try:
+                        resp = await session.sidecar.request(
+                            "stop",
+                            battle=session.battle_id,
+                            forfeit_side=session.visitor_side,
+                        )
+                        if len(session.visitor_choices) > 0:
+                            input_log = list(resp.get("inputLog") or [])
+                    except Exception:  # noqa: BLE001
+                        pass
+                await self._finish(
+                    session,
+                    {
+                        "winner": session.opponent,
+                        "turns": session.turns,
+                        "inputLog": input_log,
+                        "keyLines": [],
+                    },
+                    # Abandoned battle — no active viewer to race, so reclaim the live
+                    # frame buffer immediately instead of deferring it to a touch that
+                    # never comes.
+                    defer_frame_evict=False,
+                )
+                if session.ended is not None:
+                    session.ended["forfeit"] = "turn budget exceeded"
+            finally:
+                # If the forfeit did NOT commit (e.g. _finish raised before publishing
+                # the receipt), clear the marker so a later touch can RETRY — leaving it
+                # set would wedge the battle un-forfeitable forever. A committed forfeit
+                # leaves session.ended set, and the eviction branch above + the ended
+                # guard make subsequent _expire_if_stale calls a no-op, so keeping the
+                # marker on success is harmless.
+                if session.ended is None:
+                    session.forfeiting = False
 
     async def _advance(
         self, session: BattleSession, state: dict[str, Any], *, visitor_choice: str | None
