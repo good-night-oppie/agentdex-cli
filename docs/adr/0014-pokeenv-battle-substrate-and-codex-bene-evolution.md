@@ -129,9 +129,12 @@ loop is green.
 
 **Spine (critical path to the goal): the codex self-play meta-harness loop.**
 
-- **Phase 1 — substrate + this ADR (VALIDATED).** Local PS server launcher,
-  poke-env workspace dep, `scripts/spikes/` proving battle + the `choose_move`
-  decision seam + win-rate signal.
+- **Phase 1 — substrate + this ADR (VALIDATED).** Local PS server launcher
+  (`scripts/adx_ps_server.sh`); poke-env installed in the dev venv (`uv pip
+  install poke-env>=0.15` — a dev dependency, **not** a declared workspace dep, so
+  the genome/fitness path stays import-safe without it; see §5); and
+  `scripts/spikes/{two_random_players,decision_seam}.py` proving a battle + the
+  `choose_move` decision seam + win-rate signal.
 - **Phase 2 — policies as poke-env Players.** A `Policy`/`Player` abstraction
   (the unit codex mutates): re-home the existing bot policies
   (`max_damage/heuristic/stall/trick_room/hyper_offense/balance`) as
@@ -179,6 +182,14 @@ the codex self-play loop ships without waiting on it.
 
 ## 5. Open items / blockers
 
+- **poke-env not yet a declared dependency:** poke-env (`>=0.15`) is installed
+  ad-hoc in the dev venv — it is **not** in any `pyproject.toml` or `uv.lock`, so a
+  clean `uv sync` does not provide it. Reproduce Phase 1 from a clean checkout
+  with `uv pip install poke-env>=0.15` (or a future `selfplay` optional-dependency
+  extra) before running `scripts/spikes/*.py` or the `adx_showdown.selfplay`
+  tests. Keeping poke-env out of the hard deps is deliberate: the genome/fitness
+  modules import-guard it so they load without poke-env, and only the live
+  runner/baselines need the server-facing client.
 - **Box access:** SSH to `54.203.252.69` currently fails (`Permission denied
   (publickey)`); the key `~/.ssh/ssh-ed25519-agentdex-arena-europa` is a valid
   ed25519 key but the username is unknown. adx-core owns the infra — either a
