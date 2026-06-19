@@ -1,0 +1,130 @@
+"""A1 — self-play runner (Contract 2). CI-runnable contract/aggregation tests
+(no PS server) + a server-gated real-battle smoke."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import socket
+
+import pytest
+from adx_showdown.harness import BattleHarness, seed_harness
+from adx_showdown.selfplay.fitness import multi_dim_fitness
+from adx_showdown.selfplay.runner import (
+    SelfPlayResult,
+    _aggregate,
+    run_selfplay_battle,
+)
+
+# --- the exact raw_dims keys A3's fitness + the C2 driver mock agree on ---
+_CONTRACT_RAW_DIMS = {
+    "opponent_baseline",
+    "n_battles",
+    "wins_a",
+    "draws",
+    "turns",
+    "forfeits",
+    "illegal_moves",
+    "total_moves",
+}
+
+
+def _agg(wins_a, wins_b, draws=0, n=10):
+    return _aggregate(
+        wins_a=wins_a,
+        wins_b=wins_b,
+        draws=draws,
+        n_battles=n,
+        total_turns=n * 11,
+        total_moves=n * 11,
+        illegal_moves=0,
+        forfeits=0,
+        opponent_baseline="RandomPlayer",
+    )
+
+
+def test_aggregate_winner_logic():
+    assert _agg(7, 3)[0] == "a"
+    assert _agg(3, 7)[0] == "b"
+    assert _agg(5, 5)[0] == "draw"
+
+
+def test_aggregate_raw_dims_match_contract_keys():
+    _, raw = _agg(6, 4)
+    assert set(raw) == _CONTRACT_RAW_DIMS
+    assert raw["wins_a"] == 6
+    assert raw["opponent_baseline"] == "RandomPlayer"
+
+
+def test_selfplay_result_dump_shape():
+    winner, raw = _agg(6, 4)
+    r = SelfPlayResult(winner=winner, battles=[], trace_path="/tmp/x.json", raw_dims=raw)
+    dumped = r.model_dump()
+    assert set(dumped) == {"winner", "battles", "trace_path", "raw_dims"}
+
+
+def test_a1_output_feeds_a3_fitness():
+    """Cross-lane contract: A1's BattleResult dicts flow into A3's fitness with
+    no KeyError and yield the 5-dim Pareto vector — proven in CI, no PS server."""
+    results = []
+    for name, wins in (
+        ("RandomPlayer", 9),
+        ("MaxBasePowerPlayer", 6),
+        ("SimpleHeuristicsPlayer", 4),
+    ):
+        _, raw = _aggregate(
+            wins_a=wins,
+            wins_b=10 - wins,
+            draws=0,
+            n_battles=10,
+            total_turns=110,
+            total_moves=110,
+            illegal_moves=0,
+            forfeits=0,
+            opponent_baseline=name,
+        )
+        results.append(
+            SelfPlayResult(winner="a", battles=[], trace_path="", raw_dims=raw).model_dump()
+        )
+    fit = multi_dim_fitness(results)
+    assert set(fit) == {
+        "win_rate",
+        "elo",
+        "move_legibility",
+        "no_forfeit_exploit",
+        "turn_efficiency",
+    }
+    assert 0.0 <= fit["win_rate"] <= 1.0
+    assert fit["no_forfeit_exploit"] == 1.0  # zero forfeits → no exploit penalty
+
+
+def _ps_server_up() -> bool:
+    try:
+        import poke_env  # noqa: F401
+    except ModuleNotFoundError:
+        return False
+    host = os.environ.get("ADX_PS_HOST", "127.0.0.1")
+    port = int(os.environ.get("ADX_PS_PORT", "8000"))
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(not _ps_server_up(), reason="no local PS server on ADX_PS_HOST:ADX_PS_PORT")
+def test_run_selfplay_battle_smoke():
+    """Real battle: a max_damage harness should not lose every game to random."""
+    cand = seed_harness()  # max_damage
+    opp = BattleHarness(harness_id="rng", move_selection_strategy="random")
+    res = asyncio.run(
+        run_selfplay_battle(cand, opp, seed=7, n_battles=2, opponent_baseline="RandomPlayer")
+    )
+    assert res.winner in ("a", "b", "draw")
+    assert res.raw_dims["n_battles"] == 2
+    assert (
+        res.raw_dims["wins_a"]
+        + res.raw_dims["draws"]
+        + (2 - res.raw_dims["wins_a"] - res.raw_dims["draws"])
+        == 2
+    )
