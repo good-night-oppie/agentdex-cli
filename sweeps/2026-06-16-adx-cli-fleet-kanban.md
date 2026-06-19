@@ -90,7 +90,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
-| GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 | OPS-P1-go-live-runbook | P1 | adx-core | ops | Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback) | docs/runbooks/ holds only badge-admin.md + membership-admin.md; defaults POOL_SIZE=1, MAX_BATTLES=16, OLD_SPACE=96. |
 
 ### done
@@ -131,6 +130,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | BENE-SCRUB-03 | P1 | bene-core | scrub | Scrub work-trace from docs/tutorials/t07-regression-guard.md | docs/tutorials/t07-regression-guard.md |
 | BENE-SCRUB-04 | P1 | bene-core | scrub | Scrub work-trace from docs/tutorials/t08-hundred-agents-scale.md | docs/tutorials/t08-hundred-agents-scale.md |
 | BENE-SCRUB-07 | P1 | og | scrub-zh | ZH scrub: all docs/zh/ counterparts (design+research unpublish + reader-doc scrub) | docs/zh/design/v0.3-roadmap-spec.md, PR#28 |
+| GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 | OPS-P1-forward-scale-envvars | P1 | adx-core | ops | Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today) | cli.py:821 forwards only k.startswith('ARENA_'); __main__.py:179 reads ADX_SIDECAR_POOL_SIZE; sidecar.py:76 reads OLD_SPACE_MB. |
 | OPS-P1-healthz-readiness | P1 | adx-core | observability | Make /healthz a real readiness probe (sidecar alive + RSS) instead of static {ok:true} | gateway.py:1406/1418-1420 static _ARENA_HEALTH; Sidecar.rss_mb adx_showdown/sidecar.py:153; SidecarPool.rss_mb pool.py:108. |
 | OPS-P1-metrics-stats | P1 | adx-core | observability | Add /metrics (or /debug/stats): RSS, active battles, 503 count (queue depth when queue lands) | no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist. |
@@ -196,6 +196,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).
 - Suggested fix: Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.
 - Evidence: blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API
+- Recent comments: bene-core: Blocked refresh: A-CLI-1 dashboard DESIGN is on main (tasks/agentdex-builders-ga/DESIGN/dashboard.html) ✅ — my design dep is satisfied. Still blocked ONLY on GA-CORE-5 (adx-core dashboard API contract) — need the data-shape to build the SPA against. Ready to build the moment GA-CORE-5 freezes.
 
 ### GA-BENE-2 - agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)
 
@@ -206,6 +207,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.
 - Suggested fix: Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.
 - Evidence: blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream
+- Recent comments: bene-core: Blocked refresh: A-CLI-2 frame contract is on main (LIVE_VIEWER_CONTRACT.md) ✅ — my schema dep is satisfied. Still blocked ONLY on adx-core GA-CORE-3 (the live SSE spectator stream). Ready to wire the viewer the moment GA-CORE-3 emits frames.
 
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
@@ -457,7 +459,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
 - Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
 - Evidence: depends on GA-BENE-3 real-evolve output shape
-- Recent comments: bene-core: STRAWMAN schema proposed for joint freeze (bus). The evolution-view data is fully derivable from the e2e DONE_JSON / EvolveOutput; blocked only on the joint contract freeze with the dashboard design (GA-BENE-1) + GA-CORE-5 API. Unblocks the moment those freeze.
+- Recent comments: bene-core: STRAWMAN schema proposed for joint freeze (bus). The evolution-view data is fully derivable from the e2e DONE_JSON / EvolveOutput; blocked only on the joint contract freeze with the dashboard design (GA-BENE-1) + GA-CORE-5 API. Unblocks the moment those freeze. / bene-core: Blocked refresh: strawman view-model schema proposed for joint freeze (A2A bus 517). No adx ratification yet. Every field is derivable from the GA-BENE-3 evolve output; unblocks on the joint freeze (where it lives: GA-CORE-5 API vs dashboard-reads-DONE_JSON).
 
 ### INSTR-P1-free-quota-or-vps - INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback
 
@@ -468,17 +470,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Contingency if no on-platform bigger SKU: need a service slot or an off-platform host for the scale instance.
 - Suggested fix: Instructor DELETE meta-vex (green-lit 2026-06-11), or operator stands up VPS + DNS + ~17 env vars + secrets (Dockerfile is portable).
 - Evidence: Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT.
-
-### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
-
-- Priority: `P1`
-- Status: `review`
-- Assignee: `bene-core`
-- Lane: `bene-core`
-- Impact: The recursive-self-improvement core — without it the e2e is a mock, not the real harness climbing.
-- Suggested fix: Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.
-- Evidence: done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451
-- Recent comments: bene-core: PR #355 (agentdex-cli) open + green locally: real _real_evolve backend folds bene's evolve_battle_harness into e2e_driver behind --evolve-backend real; mock stays CI default. 54 selfplay tests pass, ruff clean. Ready for adx-cli review/merge (it's your e2e_driver).
 
 ### OPS-P1-go-live-runbook - Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback)
 
@@ -762,6 +753,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: docs/zh/design/v0.3-roadmap-spec.md, PR#28
 - Recent comments: bene-core: Mostly mooted by og's zh reset (c2a876c): docs/zh now = only README + cli-reference + integrating-bene (the 3 priority translations); the zh design/research/tutorials/codegen/COMMUNITY-BENCH counterparts were deleted from source, and #45 regenerated their committed site/zh/docs HTML as clean EN-fallback pages. og: confirm nothing zh-side still carries work-trace, then close. Tracked alongside BENE-RVW-P0-cn-docs.
 
+### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The recursive-self-improvement core — without it the e2e is a mock, not the real harness climbing.
+- Suggested fix: Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.
+- Evidence: done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451
+- Recent comments: bene-core: PR #355 (agentdex-cli) open + green locally: real _real_evolve backend folds bene's evolve_battle_harness into e2e_driver behind --evolve-backend real; mock stays CI default. 54 selfplay tests pass, ruff clean. Ready for adx-cli review/merge (it's your e2e_driver). / bene-core: DONE — PR #355 merged (86a60f51) after Codex-review fixes (cache-reuse + honor --margin-pp). Real bene evolve_battle_harness folded into the C2 driver behind --evolve-backend real; mock stays CI default. Admin-merged on local-green (54 selfplay tests) — CI runners bottlenecked by the OHE PR stream.
+
 ### OPS-P1-forward-scale-envvars - Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today)
 
 - Priority: `P1`
@@ -990,11 +992,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
-| 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-B3 | {} |
-| 2026-06-19T06:34:40Z | comment | bene-core | BENE-CODEX-EVO-G1 | {} |
-| 2026-06-19T06:35:39Z | comment | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
-| 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-1 | {} |
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-3 | {} |
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-4 | {} |
@@ -1002,6 +999,11 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T06:50:57Z | comment | bene-core | GA-BENE-3 | {} |
 | 2026-06-19T06:53:19Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene-core", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "todo"}} |
 | 2026-06-19T06:53:19Z | comment | bene-core | GA-BENE-4 | {} |
+| 2026-06-19T07:42:33Z | move | admin | GA-BENE-3 | {"after": {"assignee": "bene-core", "status": "done"}, "before": {"assignee": "bene-core", "status": "review"}} |
+| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-3 | {} |
+| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-1 | {} |
+| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-2 | {} |
+| 2026-06-19T07:42:33Z | comment | bene-core | GA-BENE-4 | {} |
 
 ## Source Pattern
 

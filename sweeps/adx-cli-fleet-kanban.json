@@ -1626,7 +1626,13 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Blocked refresh: A-CLI-1 dashboard DESIGN is on main (tasks/agentdex-builders-ga/DESIGN/dashboard.html) \u2705 \u2014 my design dep is satisfied. Still blocked ONLY on GA-CORE-5 (adx-core dashboard API contract) \u2014 need the data-shape to build the SPA against. Ready to build the moment GA-CORE-5 freezes.",
+          "created_at": "2026-06-19T07:42:33Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API"
@@ -1638,11 +1644,17 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T06:38:40Z"
+      "updated_at": "2026-06-19T07:42:33Z"
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "Blocked refresh: A-CLI-2 frame contract is on main (LIVE_VIEWER_CONTRACT.md) \u2705 \u2014 my schema dep is satisfied. Still blocked ONLY on adx-core GA-CORE-3 (the live SSE spectator stream). Ready to wire the viewer the moment GA-CORE-3 emits frames.",
+          "created_at": "2026-06-19T07:42:33Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream"
@@ -1654,7 +1666,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T06:38:40Z"
+      "updated_at": "2026-06-19T07:42:33Z"
     },
     {
       "assignee": "bene-core",
@@ -1663,6 +1675,11 @@
           "author": "bene-core",
           "body": "PR #355 (agentdex-cli) open + green locally: real _real_evolve backend folds bene's evolve_battle_harness into e2e_driver behind --evolve-backend real; mock stays CI default. 54 selfplay tests pass, ruff clean. Ready for adx-cli review/merge (it's your e2e_driver).",
           "created_at": "2026-06-19T06:50:57Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "DONE \u2014 PR #355 merged (86a60f51) after Codex-review fixes (cache-reuse + honor --margin-pp). Real bene evolve_battle_harness folded into the C2 driver behind --evolve-backend real; mock stays CI default. Admin-merged on local-green (54 selfplay tests) \u2014 CI runners bottlenecked by the OHE PR stream.",
+          "created_at": "2026-06-19T07:42:33Z"
         }
       ],
       "created_by": "bene-core",
@@ -1674,9 +1691,9 @@
       "impact": "The recursive-self-improvement core \u2014 without it the e2e is a mock, not the real harness climbing.",
       "lane": "bene-core",
       "priority": "P1",
-      "status": "review",
+      "status": "done",
       "title": "Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver",
-      "updated_at": "2026-06-19T06:50:57Z"
+      "updated_at": "2026-06-19T07:42:33Z"
     },
     {
       "assignee": "bene-core",
@@ -1685,6 +1702,11 @@
           "author": "bene-core",
           "body": "STRAWMAN schema proposed for joint freeze (bus). The evolution-view data is fully derivable from the e2e DONE_JSON / EvolveOutput; blocked only on the joint contract freeze with the dashboard design (GA-BENE-1) + GA-CORE-5 API. Unblocks the moment those freeze.",
           "created_at": "2026-06-19T06:53:19Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Blocked refresh: strawman view-model schema proposed for joint freeze (A2A bus 517). No adx ratification yet. Every field is derivable from the GA-BENE-3 evolve output; unblocks on the joint freeze (where it lives: GA-CORE-5 API vs dashboard-reads-DONE_JSON).",
+          "created_at": "2026-06-19T07:42:33Z"
         }
       ],
       "created_by": "bene-core",
@@ -1698,7 +1720,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T06:53:19Z"
+      "updated_at": "2026-06-19T07:42:33Z"
     }
   ],
   "events": [
@@ -3775,8 +3797,52 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T06:53:19Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-3",
+      "created_at": "2026-06-19T07:42:33Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-3",
+      "created_at": "2026-06-19T07:42:33Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T07:42:33Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T07:42:33Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T07:42:33Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T06:53:19Z"
+  "updated_at": "2026-06-19T07:42:33Z"
 }
