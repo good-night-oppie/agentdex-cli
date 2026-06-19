@@ -494,6 +494,43 @@ class DevicePollRequest(BaseModel):
     device_code: str = Field(min_length=1, max_length=512)
 
 
+# GA-CORE-2: a magic-link login code lives this long before it must be re-requested.
+EMAIL_LOGIN_TTL_SEC = 900.0  # 15 minutes
+
+
+def _validate_contact_address(v: str) -> str:
+    """Reject template placeholders / non-addresses so the arena never onboards a
+    literal ``{EMAIL}`` (playtest G-04). Shared by the enroll + email-login bodies."""
+    if any(c in v for c in "{}<>") or any(c.isspace() for c in v):
+        raise ValueError("must be a contact address, not a placeholder")
+    if "@" not in v or "." not in v.rsplit("@", 1)[-1]:
+        raise ValueError("must be a reachable contact, e.g. name@example.com")
+    return v
+
+
+class EmailLoginStartRequest(BaseModel):
+    """Body of POST /auth/email/start (GA-CORE-2). ``email`` is the human contact a
+    one-time login code is sent to — the self-serve human login that needs NO GitHub
+    OAuth app (the device-flow path is operator-gated on that app)."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    email: str = Field(min_length=3, max_length=120)
+
+    @field_validator("email")
+    @classmethod
+    def _email_is_a_contact(cls, v: str) -> str:
+        return _validate_contact_address(v)
+
+
+class EmailLoginVerifyRequest(BaseModel):
+    """Body of POST /auth/email/verify (GA-CORE-2). ONLY the one-time code — the
+    owner is recovered from the server-side pending map, never client-supplied, so
+    the verified owner cannot be spoofed at verify time."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    code: str = Field(min_length=1, max_length=512)
+
+
 class EnrollAccountRequest(BaseModel):
     """Body of POST /enroll/account (ADR-0013 D3). No `owner` field — the owner
     is the session token's verified email, never client-supplied (that is the
@@ -759,6 +796,10 @@ class ArenaGateway:
         self._owner_inflight: dict[str, int] = {}
         self.cap_503_total = 0  # capacity-shed counter (sidecar pool full) — surfaced on /metrics
         self.pending_enrollments: dict[str, EnrollRequest] = {}
+        # GA-CORE-2: in-flight email magic-link login codes — code -> (email,
+        # expires_at). In-memory + one-time (popped on verify); a restart just makes
+        # the human re-request a code (login codes are short-lived, not durable).
+        self.pending_email_logins: dict[str, tuple[str, float]] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
         self.replays: dict[str, dict[str, Any]] = {}
         self._publication_allowed_override = True
@@ -887,6 +928,62 @@ class ArenaGateway:
         return self._mint_consent(
             req.owner, req.agent_name, req.agent_pubkey_hex, f"web-confirm:{code[:6]}…"
         )
+
+    # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------
+    #
+    # The self-serve HUMAN login that needs NO GitHub OAuth app (that app is the
+    # operator gate on the device-flow path). `start` mails a one-time code; `verify`
+    # exchanges it for a SESSION token (owner = the verified email), exactly like the
+    # device-flow `authorized` branch. The session then drives /enroll/account etc.
+    # (the invite gate, if any, lives there — a session alone grants no battle scope).
+
+    def email_login_start(self, email: str) -> dict[str, Any]:
+        """Mint + deliver a one-time login code to ``email``. Uniform response (never
+        reveals whether the email is registered — any email may request a code, only
+        its owner can read it). Caller (route) 503s when session auth is unconfigured."""
+        # Opportunistically prune expired codes so the in-memory map stays bounded.
+        now = self.now()
+        if self.pending_email_logins:
+            self.pending_email_logins = {
+                c: v for c, v in self.pending_email_logins.items() if v[1] > now
+            }
+        code = secrets.token_urlsafe(24)  # CSPRNG, ~192 bits — unguessable
+        self.pending_email_logins[code] = (email, now + EMAIL_LOGIN_TTL_SEC)
+        # the code goes to the OWNER out-of-band — never into this response
+        self.notify_owner(email, code)
+        return {
+            "status": "pending_email_verification",
+            "detail": "a one-time login code was sent to your email",
+        }
+
+    def email_login_verify(self, code: str) -> dict[str, Any]:
+        """Exchange a one-time login code for a SESSION token. One-time (popped),
+        expiry-checked, and the owner is recovered from the server-side map — never
+        client-supplied — so the verified owner cannot be spoofed. Unknown/expired
+        codes collapse to ONE opaque error (anti-enumeration). Caller (route) 503s
+        when session auth is unconfigured (so ``self.session_auth`` is set here)."""
+        assert self.session_auth is not None  # guarded by the route's 503 check
+        entry = self.pending_email_logins.pop(code, None)  # one-time
+        if entry is None:
+            raise _opaque_error(403, "invalid or expired login code")
+        email, expires_at = entry
+        if self.now() > expires_at:
+            raise _opaque_error(403, "invalid or expired login code")
+        # Email-proven federated identity: the email IS the proof (no GitHub id), so
+        # mark the session's github_id as ``email:<normalized owner>`` and record the
+        # same durable account_link the device-flow path writes (Class-A: append
+        # BEFORE handing out the session, so a returning login resolves identically).
+        owner_norm = _normalize_owner(email)
+        github_id = f"email:{owner_norm}"
+        self.events.append("account_link", {"github_id": github_id, "owner": email})
+        self.accounts.link(github_id, email)
+        token = self.session_auth.mint_session(email, github_id)
+        claims = self.session_auth.verify_session(token)
+        return {
+            "session_token": token,
+            "owner": claims.owner,
+            "expires_at": claims.expires_at,
+        }
 
     def enroll_account(
         self, claims: SessionClaims, agent_name: str, agent_pubkey_hex: str
@@ -2572,6 +2669,35 @@ def create_app(
         # pending / denied / expired — all 200 so the CLI switches on the field,
         # never on a status code (keeps the frozen pending→success shape intact).
         return {"status": result.status}
+
+    # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------
+    #
+    # The self-serve human login that needs NO GitHub OAuth app: /auth/email/start
+    # mails a one-time code; /auth/email/verify exchanges it for a SESSION token
+    # (owner = the verified email). Mirrors the device-flow `authorized` shape. 503
+    # when session auth is unconfigured (ARENA_SESSION_SIGNING_KEY_HEX unset).
+
+    @app.post("/auth/email/start")
+    async def auth_email_start(req: EmailLoginStartRequest) -> dict:
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        try:
+            return gateway.email_login_start(req.email)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(400, e) from None
+
+    @app.post("/auth/email/verify")
+    async def auth_email_verify(req: EmailLoginVerifyRequest) -> dict:
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        try:
+            return gateway.email_login_verify(req.code)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(400, e) from None
 
     @app.post("/enroll/account")
     async def enroll_account(
