@@ -93,10 +93,24 @@ async def test_concurrency_rail_rejects_when_owner_at_cap(tmp_path, monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_concurrency_rail_releases_slot_after_failure(tmp_path):
-    """The reserved slot is released in a finally even when the battle fails (no
-    PS server here), so a failed self-play call never leaks a slot."""
+async def test_concurrency_rail_releases_slot_after_failure(tmp_path, monkeypatch):
+    """The reserved slot is released in a finally even when the battle fails, so a
+    failed self-play call never leaks a slot.
+
+    Hermetic: stub ``run_selfplay_battle`` to raise AFTER the reservation rather
+    than relying on the absence of a PS server. Otherwise, in an environment that
+    happens to have the ``selfplay`` extra + a live PS server (e.g. the real-bene
+    e2e box), the call would SUCCEED and ``pytest.raises`` would fail even though
+    the slot-release logic is correct (PR #356 review, P2)."""
     from agentdex_arena.consent import _normalize_owner
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("battle failed")
+
+    # selfplay_battle does a function-local ``from adx_showdown.selfplay import
+    # run_selfplay_battle``, so patch the attribute on the source module — the
+    # local import re-fetches the patched callable at call time.
+    monkeypatch.setattr("adx_showdown.selfplay.run_selfplay_battle", _boom)
 
     gw = _gateway(tmp_path)
     init_mcp(gw, lambda: None)
@@ -104,7 +118,7 @@ async def test_concurrency_rail_releases_slot_after_failure(tmp_path):
     owner = _normalize_owner("eddie@oppie.xyz")
     gw._owner_inflight[owner] = 1  # one other call in flight
 
-    # run_selfplay_battle has no PS server → opaque error, but the slot must release
+    # the stubbed battle raises → opaque error, but the slot must still release
     with pytest.raises(ValueError, match="arena error"):
         await selfplay_battle(token, _CODEX, _BASELINE, seed=1, n_battles=2)
     assert gw._owner_inflight[owner] == 1  # back to the pre-call count (no leak)
