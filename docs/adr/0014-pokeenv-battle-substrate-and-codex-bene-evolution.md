@@ -182,14 +182,18 @@ the codex self-play loop ships without waiting on it.
 
 ## 5. Open items / blockers
 
-- **poke-env not yet a declared dependency:** poke-env (`>=0.15`) is installed
-  ad-hoc in the dev venv — it is **not** in any `pyproject.toml` or `uv.lock`, so a
-  clean `uv sync` does not provide it. Reproduce Phase 1 from a clean checkout
-  with `uv pip install poke-env>=0.15` (or a future `selfplay` optional-dependency
-  extra) before running `scripts/spikes/*.py` or the `adx_showdown.selfplay`
-  tests. Keeping poke-env out of the hard deps is deliberate: the genome/fitness
-  modules import-guard it so they load without poke-env, and only the live
-  runner/baselines need the server-facing client.
+- **poke-env is an optional extra + the spikes need a running PS server.**
+  poke-env (`>=0.15`) is the `selfplay` optional-dependency extra on `adx-showdown`
+  (declared + locked in PR #332), kept out of the hard deps on purpose — the
+  genome/fitness modules import-guard it so they load without poke-env; only the
+  live runner/baselines need the server-facing client. Reproduce Phase 1 from a
+  clean checkout:
+  1. install poke-env: `uv sync --extra selfplay` (or, ad-hoc,
+     `uv pip install "poke-env>=0.15"` — quote the constraint so the shell does
+     not read `>=` as a redirect);
+  2. materialize + boot the PS server: `npm ci` in `packages/adx_showdown`
+     (`node_modules/` is gitignored), then `scripts/adx_ps_server.sh`;
+  3. run `scripts/spikes/*.py` or the `adx_showdown.selfplay` tests against it.
 - **Box access:** SSH to `54.203.252.69` currently fails (`Permission denied
   (publickey)`); the key `~/.ssh/ssh-ed25519-agentdex-arena-europa` is a valid
   ed25519 key but the username is unknown. adx-core owns the infra — either a
