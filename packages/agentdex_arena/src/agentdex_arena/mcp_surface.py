@@ -136,6 +136,13 @@ async def get_battle_state(token: str, battle_id: str) -> dict[str, Any]:
     if session.ended is not None:
         return {"status": "ended", **session.ended}
 
+    if session.forfeiting:
+        # A concurrent caller is mid-forfeit (timeout) and session.ended is not set YET —
+        # mirror the HTTP /state + /choose terminal-in-progress guard (PR #378): surface a
+        # transient, retriable error instead of a stale your_move (PR #381 review
+        # 3443812751). The agent retries and gets the ended timeout receipt.
+        raise ValueError("battle is finishing (timed out) — retry")
+
     if session.pending is None:
         raise ValueError("No pending request in session")
 
@@ -166,6 +173,13 @@ async def choose_action(token: str, battle_id: str, choice_index: int) -> dict[s
     await gw._expire_if_stale(session)
     if session.ended is not None:
         return {"status": "ended", **session.ended}
+
+    if session.forfeiting:
+        # Concurrent in-flight forfeit (timeout) — do NOT step the sidecar (it would race
+        # the concurrent stop); surface a transient, retriable error mirroring the HTTP
+        # /choose guard (PR #378 / PR #381 review 3443812751). The agent retries and gets
+        # the ended timeout receipt.
+        raise ValueError("battle is finishing (timed out) — retry")
 
     if session.pending is None:
         raise ValueError("No pending request in session")

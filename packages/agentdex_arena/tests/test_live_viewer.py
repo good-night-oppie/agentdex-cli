@@ -642,3 +642,48 @@ async def test_stream_generator_does_not_register_viewer_lazily(tmp_path):
     assert sess.live_viewers == 0  # not incremented by the generator
     await gen.aclose()  # tidy the un-started generator (no finally runs — body never began)
     assert sess.live_viewers == 0
+
+
+@pytest.mark.asyncio
+async def test_mcp_tools_reject_during_inflight_forfeit(tmp_path):
+    """The MCP get_battle_state + choose_action tools mirror the HTTP /state + /choose
+    in-flight-forfeit guard (PR #381 review 3443812751): during a concurrent timeout
+    forfeit (session.forfeiting set, ended not yet committed) they raise a transient,
+    retriable error instead of returning a stale your_move or stepping the sidecar (which
+    would race the concurrent stop)."""
+    from agentdex_arena import mcp_surface
+
+    gw = _gateway(tmp_path)
+    pub = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
+    claims = ConsentClaims(
+        token_id="tok_mcp_inflight",
+        owner=_OWNER,
+        agent_name="oppie",
+        agent_pubkey_hex=pub,
+        scopes=["battle"],
+        issued_at=0.0,
+        expires_at=4.0e12,
+        confirmed_via="test",
+    )
+    token = gw.authority.mint(claims)
+    sess = BattleSession(
+        battle_id="b_mcp_forf",
+        claims_token_id=claims.token_id,
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.forfeiting = True  # a concurrent caller already claimed the forfeit; ended is None
+    gw.sessions[sess.battle_id] = sess
+
+    ctx_token = mcp_surface.current_gateway.set(gw)  # wire the tools to this gateway
+    try:
+        with pytest.raises(ValueError, match="finishing"):
+            await mcp_surface.get_battle_state(token, sess.battle_id)
+        with pytest.raises(ValueError, match="finishing"):
+            await mcp_surface.choose_action(token, sess.battle_id, 1)
+    finally:
+        mcp_surface.current_gateway.reset(ctx_token)
