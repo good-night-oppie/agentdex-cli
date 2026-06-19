@@ -478,3 +478,41 @@ async def test_expire_skips_forfeit_when_already_forfeiting(tmp_path):
     await gw._expire_if_stale(sess)
 
     assert sess.ended is None  # this caller did NOT re-forfeit
+
+
+@pytest.mark.asyncio
+async def test_public_spectator_stream_does_not_forfeit(tmp_path):
+    """allow_forfeit=False (the UNAUTHENTICATED public /battle/{id}/live spectator path)
+    must NOT drive the stale-forfeit commit — a read-only spectator cannot decide when a
+    rated battle is durably committed (PR #377 review 3443669242). An authenticated touch
+    (default allow_forfeit=True) still forfeits the same abandoned battle."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 8_000.0}
+    gw.now = lambda: clock["t"]
+    sess = _stale_session(gw, clock, battle_id="b_spec")
+
+    clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+    await gw._expire_if_stale(sess, allow_forfeit=False)  # public/spectator: reclaim-only
+    assert sess.ended is None  # NOT forfeited by the unauthenticated stream
+    assert sess.forfeiting is False  # never even claimed
+
+    await gw._expire_if_stale(sess)  # authenticated touch (owner/state/choose) DOES forfeit
+    assert sess.ended is not None
+    assert sess.ended.get("forfeit") == "turn budget exceeded"
+
+
+@pytest.mark.asyncio
+async def test_reclaim_runs_even_when_forfeit_disallowed(tmp_path):
+    """allow_forfeit gates ONLY the forfeit branch — the finished-buffer reclaim still runs
+    on a public spectator stream (a finished battle's buffer is freed past its grace
+    regardless of who is watching)."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 3_000.0}
+    gw.now = lambda: clock["t"]
+    sess = _stale_session(gw, clock, battle_id="b_recl")
+    sess.ended = {"status": "ended"}
+    sess.frames_evict_after = clock["t"] + 30.0
+
+    clock["t"] = sess.frames_evict_after + 1.0
+    await gw._expire_if_stale(sess, allow_forfeit=False)
+    assert sess.frames == []  # reclaim still ran under allow_forfeit=False

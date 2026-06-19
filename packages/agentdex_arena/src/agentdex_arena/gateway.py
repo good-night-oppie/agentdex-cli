@@ -1628,7 +1628,7 @@ class ArenaGateway:
                 self.sessions.pop(battle_id, None)
             raise
 
-    async def _expire_if_stale(self, session: BattleSession) -> None:
+    async def _expire_if_stale(self, session: BattleSession, *, allow_forfeit: bool = True) -> None:
         # GA-CORE-3: reclaim a FINISHED battle's live frame buffer once its grace window
         # has passed (set in _finish). A viewer connected at finish drains the decisive
         # final frames + the terminal event:end well within the grace, so this lazy clear
@@ -1648,7 +1648,8 @@ class ArenaGateway:
         # appends a duplicate battle_end and overwrites the real result with a
         # bogus timeout forfeit (PR #289 review 3435535478).
         if (
-            session.ended is None
+            allow_forfeit
+            and session.ended is None
             and session.finish_task is None
             and not session.forfeiting
             and self.now() - session.last_touch > self.turn_budget_s
@@ -2357,7 +2358,12 @@ _SSE_HEADERS = {
 
 
 async def _sse_battle_stream(
-    gateway: ArenaGateway, session: BattleSession, side: str, request: Request
+    gateway: ArenaGateway,
+    session: BattleSession,
+    side: str,
+    request: Request,
+    *,
+    allow_forfeit: bool = True,
 ) -> AsyncIterator[str]:
     """Tail a battle's captured frames as Server-Sent Events, each projected for
     ``side`` (``"p1"`` / ``"p2"`` owner, or ``"spectator"``) per LIVE_VIEWER_CONTRACT.md.
@@ -2369,18 +2375,25 @@ async def _sse_battle_stream(
     disconnects. The battle only advances while its owner drives ``/choose`` (no
     background ticker), so frames arrive at ``/choose`` cadence; the client orders on
     ``seq``.
+
+    ``allow_forfeit`` gates whether THIS stream may drive the stale-FORFEIT commit.
+    True for the authenticated owner stream (it may end its own abandoned battle, like
+    /state would); False for the UNAUTHENTICATED public spectator stream — a read-only
+    spectator must not decide when a rated battle is durably committed (PR #377 review
+    3443669242). Frame-buffer reclamation still runs either way.
     """
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
     while True:
         if await request.is_disconnected():
             return
-        # Drive the gateway's stale-expiry so an ABANDONED battle (idle past
-        # turn_budget_s, never touched again by /state or /choose) is forfeited → ended →
-        # this loop emits the terminal event:end instead of polling forever (PR #373
-        # review); it also reclaims a finished battle's frame buffer once past its grace.
-        # Cheap no-op when neither is due.
-        await gateway._expire_if_stale(session)
+        # Drive the gateway's stale-expiry: reclaim a finished battle's frame buffer once
+        # past its grace, and — on AUTHENTICATED streams only (allow_forfeit) — forfeit an
+        # ABANDONED battle (idle past turn_budget_s) → ended → emit the terminal event:end
+        # instead of polling forever (PR #373). The public spectator stream is reclaim-only
+        # (PR #377 review 3443669242); it ends when an authenticated touch forfeits the
+        # battle or the client disconnects. Cheap no-op when nothing is due.
+        await gateway._expire_if_stale(session, allow_forfeit=allow_forfeit)
         frames = session.frames
         while sent < len(frames):
             fr = frames[sent]
@@ -2902,7 +2915,9 @@ def create_app(
         if session is None:
             raise _opaque_error(404, "no such live battle")
         return StreamingResponse(
-            _sse_battle_stream(gateway, session, "spectator", request),
+            # Reclaim-only: an unauthenticated spectator must NOT drive the forfeit commit
+            # (rating/EventLog writes) of a rated battle (PR #377 review 3443669242).
+            _sse_battle_stream(gateway, session, "spectator", request, allow_forfeit=False),
             media_type="text/event-stream",
             headers=_SSE_HEADERS,
         )
