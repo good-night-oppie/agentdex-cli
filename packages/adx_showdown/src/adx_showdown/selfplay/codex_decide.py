@@ -138,9 +138,16 @@ def _run_codex_cli(prompt: str, schema: dict[str, Any], timeout: float) -> dict[
 def codex_decide(
     harness: Any, ctx: Mapping[str, Any], *, run: CodexRunFn | None = None
 ) -> str | None:
-    """A ``codex_adapter.DecideFn``: ask the live codex CLI for a legal action id (a
-    move id or a switch species), or None on ANY failure (the adapter then falls back
-    to a random legal order). ``run`` is injectable so unit tests never shell out."""
+    """A ``codex_adapter.DecideFn``: ask the live codex CLI for an action id (a move id
+    or a switch species) and return codex's PROPOSED id, or None on abstention / ANY
+    failure (the adapter then falls back to a random legal order). ``run`` is injectable
+    so unit tests never shell out.
+
+    Legality is NOT gated here: ``select_codex_move`` is the single legality gate — it
+    counts an illegal proposal via ``on_illegal`` (→ ``raw_dims["illegal_moves"]`` →
+    ``move_legibility``) and substitutes a legal order. Pre-filtering an illegal id to
+    None here would mask a live illegal choice as an abstention, leaving the legibility
+    guard vacuous for the very path it measures (PR #346 review #3440261654)."""
     moves = list(ctx.get("available_moves") or [])
     switches = list(ctx.get("available_switches") or [])
     legal_ids = [str(m.get("id") or "") for m in moves if m.get("id")]
@@ -153,7 +160,7 @@ def codex_decide(
         move_id = str((result or {}).get("move_id", "")).strip()
     except Exception:
         return None  # codex missing / timeout / bad output — never crash a battle
-    return move_id if move_id in legal_ids else None
+    return move_id or None  # the proposed id (legality is the adapter's gate); blank → abstain
 
 
 __all__ = ["codex_decide", "CodexRunFn"]
