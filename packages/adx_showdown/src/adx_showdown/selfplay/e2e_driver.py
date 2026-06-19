@@ -52,6 +52,11 @@ from adx_showdown.selfplay.fitness import FitnessVector, multi_dim_fitness
 RunnerFn = Callable[[Any, int, int], list[dict[str, Any]]]
 
 _Z95 = 1.959963984540054  # two-sided 95% normal quantile
+_DONE3_MIN_BATTLES = 30  # SPEC DONE #3: the uplift CI must hold over >=30 battles/matchup
+# The selected best is re-measured on FRESH held-out samples (run_seed offset by
+# this) so the uplift CI is computed from data INDEPENDENT of the stochastic
+# samples evolve selected on — not the selection samples themselves.
+_CI_REMEASURE_SEED_OFFSET = 10_000
 
 
 def _params(harness: BattleHarness | dict[str, Any]) -> dict[str, Any]:
@@ -354,6 +359,7 @@ class E2EReport:
     lineage: list[dict[str, Any]]
     held_out_baselines: list[str]
     run_seed: int
+    seed_strategy: str | None
     mocked_components: list[str]
     real_components: list[str]
 
@@ -364,6 +370,10 @@ class E2EReport:
             "lane": "C2",
             "backend": self.backend,
             "scaffold": not real_run,
+            # Disclose the seed: a non-canonical override (e.g. --seed-strategy
+            # random) demonstrates uplift over THAT seed, not the canonical H0.
+            "seed_strategy": self.seed_strategy or "canonical-H0",
+            "canonical_seed": self.seed_strategy is None,
             "battles_played": self.battles_played,
             "gens_completed": self.gens_completed,
             "n_battles_per_matchup": self.n_battles_per_matchup,
@@ -420,7 +430,15 @@ def run_e2e(
     only evolve is mocked. ``ok`` requires non-vacuous (battles>0 ∧ gens>0) AND
     the kill-gate passed AND the uplift's 95% CI excludes 0 (DONE #3)."""
     runner: RunnerFn = runner_fn or _mock_run_vs_baselines
-    real_run = runner is not _mock_run_vs_baselines
+    # Classify the runner EXPLICITLY: only the real pokeenv_runner is a PS-backed
+    # run. A wrapped/injected runner through the public seam must not be able to
+    # claim backend='pokeenv'/real — it is reported as 'custom' (a scaffold).
+    if runner is pokeenv_runner:
+        backend, real_run = "pokeenv", True
+    elif runner is _mock_run_vs_baselines:
+        backend, real_run = "mock", False
+    else:
+        backend, real_run = "custom", False
     seed = _make_seed(seed_strategy)
 
     def eval_fn(h: BattleHarness) -> tuple[list[dict[str, Any]], FitnessVector]:
@@ -428,10 +446,28 @@ def run_e2e(
         return results, multi_dim_fitness(results)
 
     evolved = _mock_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
-    ci = uplift_ci95(evolved.seed_results, evolved.best_results)
 
-    non_vacuous = evolved.battles_played > 0 and evolved.gens_completed > 0
-    ok = non_vacuous and bool(evolved.killgate_report.get("passed")) and bool(ci["excludes_zero"])
+    # Re-measure seed + the SELECTED best on FRESH held-out samples (seeds offset so
+    # the mock's deterministic results — and the live PS battles — are INDEPENDENT
+    # of the stochastic samples evolve selected on). Computing the uplift CI from
+    # the selection samples would let a lucky draw both pick the best AND clear the
+    # CI, overstating the evidence; these battles are counted separately.
+    remeasure_seed = run_seed + _CI_REMEASURE_SEED_OFFSET
+    fresh_seed_results = runner(seed, remeasure_seed, n_battles)
+    fresh_best_results = runner(evolved.best, remeasure_seed + 1, n_battles)
+    ci = uplift_ci95(fresh_seed_results, fresh_best_results)
+    remeasure_battles = (
+        _wins_and_battles(fresh_seed_results)[1] + _wins_and_battles(fresh_best_results)[1]
+    )
+    total_battles = evolved.battles_played + remeasure_battles
+
+    non_vacuous = total_battles > 0 and evolved.gens_completed > 0
+    ok = (
+        non_vacuous
+        and bool(evolved.killgate_report.get("passed"))
+        and bool(ci["excludes_zero"])
+        and n_battles >= _DONE3_MIN_BATTLES  # DONE #3: >=30 battles/matchup
+    )
 
     mocked = ["evolve(LaneB/Contract4, bene-core)"]
     real = [
@@ -440,13 +476,15 @@ def run_e2e(
     ]
     if real_run:
         real.insert(1, "runner(A1/Contract2, poke-env vs PS server)")
+    elif backend == "custom":
+        mocked.insert(0, "runner(A1/Contract2 — INJECTED custom runner, not PS-backed)")
     else:
         mocked.insert(0, "runner(A1/Contract2 — mock synthetic backend)")
 
     return E2EReport(
         ok=ok,
-        backend="pokeenv" if real_run else "mock",
-        battles_played=evolved.battles_played,
+        backend=backend,
+        battles_played=total_battles,
         gens_completed=evolved.gens_completed,
         n_battles_per_matchup=n_battles,
         seed_fitness=evolved.seed_fitness,
@@ -458,6 +496,7 @@ def run_e2e(
         lineage=evolved.lineage,
         held_out_baselines=list(HELD_OUT_BASELINES),
         run_seed=run_seed,
+        seed_strategy=seed_strategy,
         mocked_components=mocked,
         real_components=real,
     )
