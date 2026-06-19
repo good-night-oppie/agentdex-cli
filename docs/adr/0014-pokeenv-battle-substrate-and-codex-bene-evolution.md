@@ -3,7 +3,7 @@ title: "ADR-0014: poke-env battle substrate + Codex/BENE eval-gated evolution"
 status: draft
 owner: "@EdwardTang"
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-19
 type: reference
 scope: docs/adr
 layer: cross-cutting
@@ -34,10 +34,16 @@ bespoke, hard to evolve, and the human play surface on top of it is thin.
 
 **Target:** [poke-env](https://github.com/hsahovic/poke-env) — the mature Python
 interface to Pokémon Showdown — becomes the single battle-execution substrate,
-talking over websocket to a **real Pokémon Showdown server**. The repo already
-vendors `pokemon-showdown@0.11.10` in `packages/adx_showdown/node_modules`, so we
-boot that binary in server mode (`--no-security`) on `127.0.0.1` for local dev and
-on `54.203.252.69` on the box — no new runtime dependency.
+talking over websocket to a **real Pokémon Showdown server**. The repo tracks the
+`pokemon-showdown@0.11.10` dependency in `packages/adx_showdown/package.json` +
+`package-lock.json`, but `node_modules/` is gitignored — so a clean checkout
+materializes the server binary with `npm ci` (or `npm install`) in
+`packages/adx_showdown`, then boots it via `scripts/adx_ps_server.sh`. That
+launcher also performs the one-time `cp config/config-example.js config/config.js`
+step the npm package omits (`0.11.10` ships only the example) and pins
+`bindaddress` to `ADX_PS_HOST`. It runs on `127.0.0.1` for local dev and on
+`54.203.252.69` on the box — **no new _Python_ runtime dependency** (the PS server
+is a Node dev-setup step, not an importable package dep).
 
 ## 2. Decision
 
