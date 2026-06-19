@@ -14,6 +14,7 @@ and the owner stream is ownership-scoped (a battle for another account's agent 4
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -411,3 +412,69 @@ async def test_finish_tolerates_malformed_evict_grace_env(tmp_path, monkeypatch)
     assert receipt is not None  # _finish ran to completion (past the artifact write)
     assert sess.ended is not None  # battle committed despite the malformed env
     assert sess.frames_evict_after == 2_030.0  # fell back to the 30s default deadline
+
+
+def _stale_session(gw, clock, *, battle_id):
+    sess = BattleSession(
+        battle_id=battle_id,
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0, 1],
+        sidecar=None,  # skip the sidecar 'stop' request on the forfeit path
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.frames = [dict(f) for f in _FRAMES]
+    sess.frame_seq = len(_FRAMES)
+    sess.last_touch = clock["t"]
+    gw.sessions[sess.battle_id] = sess
+    return sess
+
+
+@pytest.mark.asyncio
+async def test_concurrent_expire_forfeits_once_not_twice(tmp_path):
+    """Two SSE streams polling the SAME stale battle concurrently must NOT both drive the
+    forfeit branch — that would append two battle_end/period rows and let the ladder count
+    the timeout twice (PR #377 review 3443669247). The synchronous session.forfeiting
+    marker (set before the first await) makes the second caller short-circuit the guard."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 9_000.0}
+    gw.now = lambda: clock["t"]
+    sess = _stale_session(gw, clock, battle_id="b_conc")
+
+    calls = {"n": 0}
+    real_finish = gw._finish
+
+    async def counting_finish(*a, **k):
+        calls["n"] += 1
+        await asyncio.sleep(0)  # yield so the concurrent caller runs its guard meanwhile
+        return await real_finish(*a, **k)
+
+    gw._finish = counting_finish
+
+    # Idle past the turn budget -> abandoned; fire two expiries concurrently.
+    clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+    await asyncio.gather(gw._expire_if_stale(sess), gw._expire_if_stale(sess))
+
+    assert calls["n"] == 1  # forfeit committed EXACTLY once (no double-_finish)
+    assert sess.ended is not None
+    assert sess.ended.get("forfeit") == "turn budget exceeded"
+    assert sess.forfeiting is True  # marker stays set on a committed forfeit
+
+
+@pytest.mark.asyncio
+async def test_expire_skips_forfeit_when_already_forfeiting(tmp_path):
+    """The guard short-circuits when session.forfeiting is already set, even for a stale
+    battle — the in-flight forfeit owns the commit."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 7_000.0}
+    gw.now = lambda: clock["t"]
+    sess = _stale_session(gw, clock, battle_id="b_inflight")
+    sess.forfeiting = True  # another caller already claimed the forfeit
+
+    clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+    await gw._expire_if_stale(sess)
+
+    assert sess.ended is None  # this caller did NOT re-forfeit
