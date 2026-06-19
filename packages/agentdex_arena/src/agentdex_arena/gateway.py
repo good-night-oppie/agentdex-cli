@@ -2372,6 +2372,45 @@ _SSE_HEADERS = {
 }
 
 
+class _BattleSseResponse(StreamingResponse):
+    """StreamingResponse that owns the live-viewer refcount.
+
+    The increment must happen before the route returns so a concurrent winning
+    /choose sees a connecting viewer and defers the frame clear. The matching
+    decrement cannot live in the async generator: if the client disconnects after
+    the handler returns but before StreamingResponse advances the generator, an
+    unstarted generator's ``finally`` never runs.
+    """
+
+    def __init__(
+        self,
+        session: BattleSession,
+        content: AsyncIterator[str],
+        *,
+        media_type: str,
+        headers: dict[str, str],
+    ) -> None:
+        self._battle_session = session
+        self._viewer_released = False
+        session.live_viewers += 1
+        super().__init__(content, media_type=media_type, headers=headers)
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self._release_viewer()
+
+    def _release_viewer(self) -> None:
+        if self._viewer_released:
+            return
+        self._viewer_released = True
+        session = self._battle_session
+        session.live_viewers -= 1
+        if session.live_viewers <= 0 and session.ended is not None:
+            session.frames = []
+
+
 async def _sse_battle_stream(
     gateway: ArenaGateway,
     session: BattleSession,
@@ -2399,49 +2438,36 @@ async def _sse_battle_stream(
     """
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
-    # NOTE: the route handler already did session.live_viewers += 1 BEFORE returning this
-    # StreamingResponse — registered there (not lazily here) so a winning /choose finishing
-    # in the connect-startup window, before this generator first advances, still sees the
-    # viewer and DEFERS the buffer clear instead of dropping the final frames (PR #380
-    # review 3443769189). This generator owns the matching decrement in the finally below.
-    try:
-        while True:
-            if await request.is_disconnected():
-                return
-            # Drive the gateway's stale-expiry: reclaim a finished battle's frame buffer once
-            # past its grace, and — on AUTHENTICATED streams only (allow_forfeit) — forfeit an
-            # ABANDONED battle (idle past turn_budget_s) → ended → emit the terminal event:end
-            # instead of polling forever (PR #373). The public spectator stream is reclaim-only
-            # (PR #377 review 3443669242); it ends when an authenticated touch forfeits the
-            # battle or the client disconnects. Cheap no-op when nothing is due.
-            await gateway._expire_if_stale(session, allow_forfeit=allow_forfeit)
-            frames = session.frames
-            while sent < len(frames):
-                fr = frames[sent]
-                sent += 1
-                payload = {
-                    "battle_id": session.battle_id,
-                    "turn": fr.get("turn", 0),
-                    "seq": fr.get("seq", sent),
-                    "side": side,
-                    "lines": project_frame(fr.get("raw_lines") or [], side=side),
-                    "ts_ms": int(gateway.now() * 1000),
-                }
-                yield f"data: {json.dumps(payload)}\n\n"
-            if session.ended is not None:
-                yield f"event: end\ndata: {json.dumps({'replay': f'/replay/{session.battle_id}'})}\n\n"
-                return
-            await asyncio.sleep(poll_sec)
-    finally:
-        # Last viewer of a FINISHED battle reclaims the buffer now: the deferral in _finish
-        # existed only to let active viewers drain, and with no background reaper an
-        # un-re-touched finished session would otherwise leak its buffer (PR #377 review
-        # 3443669243). Guarded on ``ended`` so a viewer disconnecting MID-battle never wipes
-        # a still-live buffer; the count guard means only the final concurrent viewer clears.
-        # (Runs on return, client-disconnect, and generator aclose.)
-        session.live_viewers -= 1
-        if session.live_viewers <= 0 and session.ended is not None:
-            session.frames = []
+    # NOTE: _BattleSseResponse registered the viewer before returning the response
+    # object, and owns the matching decrement in its ASGI-call finally. Keep the
+    # generator refcount-free: unstarted async generators do not run finally blocks.
+    while True:
+        if await request.is_disconnected():
+            return
+        # Drive the gateway's stale-expiry: reclaim a finished battle's frame buffer once
+        # past its grace, and — on AUTHENTICATED streams only (allow_forfeit) — forfeit an
+        # ABANDONED battle (idle past turn_budget_s) → ended → emit the terminal event:end
+        # instead of polling forever (PR #373). The public spectator stream is reclaim-only
+        # (PR #377 review 3443669242); it ends when an authenticated touch forfeits the
+        # battle or the client disconnects. Cheap no-op when nothing is due.
+        await gateway._expire_if_stale(session, allow_forfeit=allow_forfeit)
+        frames = session.frames
+        while sent < len(frames):
+            fr = frames[sent]
+            sent += 1
+            payload = {
+                "battle_id": session.battle_id,
+                "turn": fr.get("turn", 0),
+                "seq": fr.get("seq", sent),
+                "side": side,
+                "lines": project_frame(fr.get("raw_lines") or [], side=side),
+                "ts_ms": int(gateway.now() * 1000),
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+        if session.ended is not None:
+            yield f"event: end\ndata: {json.dumps({'replay': f'/replay/{session.battle_id}'})}\n\n"
+            return
+        await asyncio.sleep(poll_sec)
 
 
 def create_app(
@@ -2945,12 +2971,8 @@ def create_app(
         session = gateway.sessions.get(battle_id)
         if session is None:
             raise _opaque_error(404, "no such live battle")
-        # Register the viewer SYNCHRONOUSLY here, before returning the StreamingResponse, so
-        # a /choose finishing in the connect-startup window (before the generator advances)
-        # still defers the buffer clear (PR #380 review 3443769189). The generator owns the
-        # matching decrement in its finally.
-        session.live_viewers += 1
-        return StreamingResponse(
+        return _BattleSseResponse(
+            session,
             # Reclaim-only: an unauthenticated spectator must NOT drive the forfeit commit
             # (rating/EventLog writes) of a rated battle (PR #377 review 3443669242).
             _sse_battle_stream(gateway, session, "spectator", request, allow_forfeit=False),
@@ -2986,11 +3008,8 @@ def create_app(
             and session.owner != owner_norm
         ):
             raise _opaque_error(403, "not your battle")
-        # Register the viewer SYNCHRONOUSLY here (see battle_live) — before the generator
-        # advances — so a connect-startup-window finish defers rather than dropping the
-        # final frames (PR #380 review 3443769189). The generator owns the decrement.
-        session.live_viewers += 1
-        return StreamingResponse(
+        return _BattleSseResponse(
+            session,
             _sse_battle_stream(gateway, session, session.visitor_side, request),
             media_type="text/event-stream",
             headers=_SSE_HEADERS,
