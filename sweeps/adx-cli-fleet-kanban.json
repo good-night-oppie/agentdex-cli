@@ -1448,49 +1448,112 @@
       "updated_at": "2026-06-18T16:46:17Z"
     },
     {
+      "assignee": "bene-core",
+      "created": "2026-06-19",
       "id": "BENE-BATTLE-B1",
+      "lane": "bene-core",
+      "notes": "PR #62 open https://github.com/good-night-oppie/bene/pull/62; mock_fitness built-in; swap to real multi_dim_fitness when Lane A3 lands",
+      "owner": "bene-core",
+      "priority": "P1",
+      "status": "done",
       "title": "Lane B: evolve_battle_harness Contract-4 entrypoint (bene)",
-      "status": "done",
-      "owner": "bene-core",
-      "created": "2026-06-19",
-      "updated": "2026-06-19",
-      "notes": "PR #62 open https://github.com/good-night-oppie/bene/pull/62; mock_fitness built-in; swap to real multi_dim_fitness when Lane A3 lands"
+      "updated": "2026-06-19"
     },
     {
+      "assignee": "bene-core",
+      "created": "2026-06-19",
       "id": "BENE-BATTLE-B2",
+      "lane": "bene-core",
+      "notes": "Uses compute_pareto; all 5 dims covered; bundled in PR #62",
+      "owner": "bene-core",
+      "priority": "P1",
+      "status": "done",
       "title": "Lane B: Pareto evaluator wired to Contract-3 5-dim fitness",
-      "status": "done",
-      "owner": "bene-core",
-      "created": "2026-06-19",
-      "updated": "2026-06-19",
-      "notes": "Uses compute_pareto; all 5 dims covered; bundled in PR #62"
+      "updated": "2026-06-19"
     },
     {
+      "assignee": "bene-core",
+      "created": "2026-06-19",
       "id": "BENE-BATTLE-B3",
+      "lane": "bene-core",
+      "notes": "3 gates frozen; tamper=LockTamperError; bundled in PR #62",
+      "owner": "bene-core",
+      "priority": "P1",
+      "status": "done",
       "title": "Lane B: hash-locked kill-gate probe (win_rate_uplift + anti-vacuous)",
-      "status": "done",
-      "owner": "bene-core",
-      "created": "2026-06-19",
-      "updated": "2026-06-19",
-      "notes": "3 gates frozen; tamper=LockTamperError; bundled in PR #62"
+      "updated": "2026-06-19"
     },
     {
+      "assignee": "bene-core",
+      "created": "2026-06-19",
       "id": "BENE-BATTLE-B4",
-      "title": "Lane B: SharedLog lineage + run_seed reproducibility",
-      "status": "done",
+      "lane": "bene-core",
+      "notes": "write_lineage() -> type=evolution on fleet bus; bundled in PR #62",
       "owner": "bene-core",
-      "created": "2026-06-19",
-      "updated": "2026-06-19",
-      "notes": "write_lineage() -> type=evolution on fleet bus; bundled in PR #62"
+      "priority": "P1",
+      "status": "done",
+      "title": "Lane B: SharedLog lineage + run_seed reproducibility",
+      "updated": "2026-06-19"
     },
     {
-      "id": "BENE-BATTLE-INTEGRATE",
-      "title": "Lane B \u2192 A3 integration: swap mock_fitness for real multi_dim_fitness",
-      "status": "blocked",
-      "owner": "bene-core",
+      "assignee": "bene-core",
       "created": "2026-06-19",
-      "updated": "2026-06-19",
-      "notes": "Blocked on Lane A3 (multi_dim_fitness) from adx-cli-7"
+      "id": "BENE-BATTLE-INTEGRATE",
+      "lane": "bene-core",
+      "notes": "Blocked on Lane A3 (multi_dim_fitness) from adx-cli-7",
+      "owner": "bene-core",
+      "priority": "P1",
+      "status": "blocked",
+      "title": "Lane B \u2192 A3 integration: swap mock_fitness for real multi_dim_fitness",
+      "updated": "2026-06-19"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "PR#64 merged 1e3ea0c; full suite 1082"
+      ],
+      "fix": "Shipped bene/kernel/codex_harness/: evolve_codex_harness (Refiner-as-mutation-op loop), DGMArchive (open-ended), hash-locked kill-gate; mock Refiner/apply/eval swappable for adx R/S/E.",
+      "id": "BENE-CODEX-EVO-G1",
+      "impact": "Without the bene-core engine the SECH loop has no gated promotion + open-ended archive; adx lanes have nothing to wire against.",
+      "lane": "bene-core",
+      "priority": "P1",
+      "status": "done",
+      "title": "SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1)",
+      "updated_at": "2026-06-19T04:58:36Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "PR#65 merged 9b508e9; full suite 1087"
+      ],
+      "fix": "HeldoutManifest + is_disjoint/overlap; evolve_codex_harness(heldout_manifest=) checks heldout-intersect-training=empty before the win-rate gate (overlap->VOID), stamps 3 sha256 hashes on ACCEPT.",
+      "id": "BENE-CODEX-EVO-HELDOUT",
+      "impact": "Without held-out disjointness an overfit harness could clear the kill-gate; SPEC DONE #3/#4 depend on it.",
+      "lane": "bene-core",
+      "priority": "P1",
+      "status": "done",
+      "title": "SECH held-out anti-overfit gate: disjointness + VOID + hash-stamping (bene-core)",
+      "updated_at": "2026-06-19T04:58:36Z"
+    },
+    {
+      "assignee": "bene-core",
+      "comments": [],
+      "created_by": "bene-core",
+      "evidence": [
+        "proposed A2A bus position 501; not started"
+      ],
+      "fix": "Wire bene's ContinualMutator to the CodexHarness genome (mid-episode component swap behind the kill-gate). Needs a Genome bridge + fleet shaping \u2014 flagged proposal (bus pos 501).",
+      "id": "BENE-CODEX-EVO-B3",
+      "impact": "SECH loop is between-generation (Autogenesis/DGM); the Continual-Harness (Karten 2026) contribution is in-episode reset-free refinement, currently uncovered.",
+      "lane": "bene-core",
+      "priority": "P2",
+      "status": "todo",
+      "title": "SECH in-episode continual swap (Continual-Harness pillar): ContinualMutator -> CodexHarness",
+      "updated_at": "2026-06-19T04:58:36Z"
     }
   ],
   "events": [
@@ -3458,8 +3521,29 @@
       "card_id": "RVW-P1-codex-adx-cli-prs",
       "created_at": "2026-06-18T16:46:17Z",
       "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-G1",
+      "created_at": "2026-06-19T04:58:36Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-HELDOUT",
+      "created_at": "2026-06-19T04:58:36Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "bene-core",
+      "card_id": "BENE-CODEX-EVO-B3",
+      "created_at": "2026-06-19T04:58:36Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-18T16:46:17Z"
+  "updated_at": "2026-06-19T04:58:36Z"
 }
