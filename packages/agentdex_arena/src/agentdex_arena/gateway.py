@@ -81,6 +81,7 @@ from agentdex_arena.consent import (
     _normalize_owner,
 )
 from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
+from agentdex_arena.invite import InviteError, InviteStore, new_invite_code
 from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
@@ -512,6 +513,22 @@ MAX_GRANT_HORIZON_SEC = 400 * 86_400
 INTERRUPTED_RESTART_MSG = "battle interrupted by a gateway restart — start a new battle"
 
 
+class RedeemInviteRequest(BaseModel):
+    """POST /enroll/redeem-invite body (GA-CORE-1). The owner is the session
+    token's verified email, never client-supplied — only the code is."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    invite_code: str = Field(min_length=1, max_length=128)
+
+
+class MintInvitesRequest(BaseModel):
+    """POST /admin/mint-invites body (GA-CORE-1). Operator-only; auth runs BEFORE
+    body parse via Depends, same anti-enumeration posture as grant-membership."""
+
+    model_config = ConfigDict(extra="forbid", strict=False)
+    count: int = Field(ge=1, le=1000)
+
+
 class GrantMembershipRequest(BaseModel):
     """POST /admin/grant-membership body (ADR-0011 11b.3). Auth runs BEFORE
     body parse via FastAPI Depends, so a malformed body cannot leak schema
@@ -595,6 +612,9 @@ class ArenaGateway:
         # write-ahead-then-replay discipline as membership_grant / quota_spend).
         # Writers (device-flow login, /enroll/account) land in later PRs.
         self.accounts = AccountStore()
+        # GA-CORE-1: the agentdex.builders beta registration gate. Rebuilt at boot
+        # from invite_grant / invite_redeem events (same replay discipline).
+        self.invites = InviteStore()
         # ADX-P1-007: one asyncio.Lock per visitor_name serializing the rated
         # before->append->after rating window in _finish, so two concurrent
         # finishes for the same agent cannot interleave their recompute brackets
@@ -667,6 +687,23 @@ class ArenaGateway:
                     if not isinstance(agent_name, str) or not agent_name:
                         raise ValueError("account_enroll agent_name missing/non-string")
                     self.accounts.add_agent(owner_raw, agent_name)
+                elif etype == "invite_grant":
+                    # GA-CORE-1: rehydrate a minted invite code (idempotent).
+                    code = payload.get("code")
+                    if not isinstance(code, str) or not code:
+                        raise ValueError("invite_grant code missing/non-string")
+                    self.invites.mint(code)
+                elif etype == "invite_redeem":
+                    # GA-CORE-1: rehydrate a redemption so an admitted owner stays
+                    # admitted across restarts (and a used code stays used).
+                    code = payload.get("code")
+                    owner_raw = payload.get("owner")
+                    if not isinstance(code, str) or not code:
+                        raise ValueError("invite_redeem code missing/non-string")
+                    if not isinstance(owner_raw, str) or not owner_raw:
+                        raise ValueError("invite_redeem owner missing/non-string")
+                    self.invites.mint(code)  # ensure the code exists before redeem
+                    self.invites.redeem(code, owner_raw)
             except Exception:
                 log.warning(
                     "skipping malformed event during replay: type=%r seq=%r",
@@ -806,6 +843,11 @@ class ArenaGateway:
         account_enroll before returning, so `adx status` survives a restart).
         The pubkey is validated by the request model before this runs, so the
         name is never reserved for a token that then fails to mint."""
+        # GA-CORE-1 beta gate: when invites are required, only an owner who has
+        # redeemed an invite may enroll. Optional-at-boot (ARENA_INVITE_REQUIRED
+        # unset → open enroll, existing behavior). Checked BEFORE reserving a name.
+        if self._invite_required() and not self.invites.is_admitted(claims.owner):
+            raise PermissionError("an invitation code is required for the beta")
         clean_name = self._guard_reserved_name(agent_name)
         self._register_agent(clean_name)
         # account->agents join (D6) — durable BEFORE returning the token.
@@ -814,6 +856,41 @@ class ArenaGateway:
         return self._mint_consent(
             claims.owner, clean_name, agent_pubkey_hex, f"account:{claims.session_id}"
         )
+
+    @staticmethod
+    def _invite_required() -> bool:
+        """Whether the beta invite gate is on (``ARENA_INVITE_REQUIRED=1``). Default
+        off so every existing enroll flow + test is unaffected (optional-at-boot)."""
+        return os.environ.get("ARENA_INVITE_REQUIRED") == "1"
+
+    def mint_invites(self, count: int, *, actor_hash: str) -> list[str]:
+        """Operator-only: mint ``count`` fresh single-use invite codes. Each code's
+        ``invite_grant`` is appended to the durable log BEFORE it is returned, so a
+        code an operator sees is always one a fresh replay will honor (Class-A)."""
+        if not isinstance(count, int) or not (1 <= count <= 1000):
+            raise ValueError("count must be an int in [1, 1000]")
+        codes: list[str] = []
+        for _ in range(count):
+            code = new_invite_code()
+            self.events.append("invite_grant", {"code": code, "actor_hash": actor_hash})
+            self.invites.mint(code)
+            codes.append(code)
+        return codes
+
+    def redeem_invite(self, claims: SessionClaims, code: str) -> dict[str, Any]:
+        """A logged-in human redeems an invite code, admitting their owner to the
+        beta. Idempotent for an already-admitted owner (no code burned — survives
+        token rotation / re-enrollment). The ``invite_redeem`` event is written-ahead
+        BEFORE the in-memory admission (Class-A), so a replay can never disagree."""
+        owner_key = _normalize_owner(claims.owner)
+        if self.invites.is_admitted(owner_key):
+            return {"ok": True, "admitted": True, "owner": owner_key}  # already in, no code burned
+        if not self.invites.redeemable(code):
+            raise InviteError("invite code is invalid or already used")
+        # write-ahead the redemption, THEN apply it to the in-memory store
+        self.events.append("invite_redeem", {"code": code, "owner": owner_key})
+        self.invites.redeem(code, owner_key)
+        return {"ok": True, "admitted": True, "owner": owner_key}
 
     def account_quota(self, claims: SessionClaims) -> dict[str, Any]:
         """The ADR-0013 D6 read-only quota dashboard for `adx status`: owner-pooled
@@ -2120,6 +2197,27 @@ def create_app(
         )
         return {"ok": True, "owner": owner_key, "valid_until_epoch": req.valid_until_epoch}
 
+    @app.post("/admin/mint-invites", include_in_schema=False)
+    async def mint_invites(
+        request: Request,
+        actor_hash: str = Depends(_check_admin),
+    ) -> dict:
+        """Operator-only (GA-CORE-1): mint N single-use invite codes for the beta.
+        Same anti-enumeration posture as /admin/grant-membership — out of OpenAPI,
+        auth BEFORE body parse (a malformed body from an unauthed probe gets 403,
+        not 422). Returns the plaintext codes ONCE for the operator to distribute;
+        they are not retrievable again (only their redemption state is)."""
+        try:
+            body = await request.json()
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(422, f"invalid JSON body: {e!r}") from None
+        try:
+            req = MintInvitesRequest.model_validate(body)
+        except Exception as e:  # noqa: BLE001 — opaque boundary
+            raise _opaque_error(422, e) from None
+        codes = gateway.mint_invites(req.count, actor_hash=actor_hash)
+        return {"ok": True, "count": len(codes), "codes": codes, "stats": gateway.invites.stats()}
+
     @app.post("/enroll/request")
     async def enroll_request(req: EnrollRequest) -> dict:
         try:
@@ -2203,8 +2301,33 @@ def create_app(
             return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
         except HTTPException:
             raise
+        except PermissionError as e:  # GA-CORE-1 beta gate: not invited
+            raise _opaque_error(403, e) from None
         except Exception as e:  # noqa: BLE001 — opaque boundary
             raise _opaque_error(400, e) from None
+
+    @app.post("/enroll/redeem-invite")
+    async def redeem_invite(
+        req: RedeemInviteRequest, authorization: str | None = Header(default=None)
+    ) -> dict:
+        """Session-authed (GA-CORE-1): a logged-in human redeems an invite code to
+        join the beta. 503 when session auth is unconfigured; 401/403 on a
+        missing/bad session; 403 (opaque) on an invalid/used code. Idempotent for an
+        already-admitted owner (no code burned). The owner is the session's verified
+        email — never client-supplied."""
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if not authorization or not authorization.startswith("Bearer "):
+            raise _opaque_error(401, "Bearer session token required")
+        token = authorization[len("Bearer ") :]
+        try:
+            claims = gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+        try:
+            return gateway.redeem_invite(claims, req.invite_code)
+        except InviteError as e:
+            raise _opaque_error(403, e) from None
 
     @app.get("/account/quota")
     async def account_quota(authorization: str | None = Header(default=None)) -> dict:
