@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_owner
-from agentdex_arena.gateway import ArenaGateway, BattleSession, create_app
+from agentdex_arena.gateway import ArenaGateway, BattleSession, _sse_battle_stream, create_app
 from agentdex_arena.session import SessionAuthority
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
@@ -612,3 +612,33 @@ def test_state_and_choose_409_during_inflight_forfeit(tmp_path, caplog):
     # handlers took the in-flight-forfeit branch (not the no-pending fallback 409).
     finishing = [r for r in caplog.records if "battle is finishing (timed out)" in r.getMessage()]
     assert len(finishing) >= 2
+
+
+@pytest.mark.asyncio
+async def test_stream_generator_does_not_register_viewer_lazily(tmp_path):
+    """The viewer count is registered by the route HANDLER (before the StreamingResponse),
+    NOT lazily inside _sse_battle_stream — closing the connect-startup window where a
+    winning /choose could finish + clear the buffer before the generator first advances
+    (PR #380 review 3443769189). Merely constructing the stream generator must not touch
+    live_viewers; only the handler increments and only the generator's finally decrements.
+    Together with test_finished_stream_reclaims_buffer_on_last_viewer_exit (which asserts
+    the count rebalances to exactly 0 after a full stream — impossible unless the handler
+    supplied the matching increment), this pins the increment to the handler."""
+    gw = _gateway(tmp_path)
+    sess = BattleSession(
+        battle_id="b_gen",
+        claims_token_id="tok",
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    gw.sessions[sess.battle_id] = sess
+
+    # Constructing the async generator runs NONE of its body (lazy) — no increment.
+    gen = _sse_battle_stream(gw, sess, "spectator", None, allow_forfeit=False)
+    assert sess.live_viewers == 0  # not incremented by the generator
+    await gen.aclose()  # tidy the un-started generator (no finally runs — body never began)
+    assert sess.live_viewers == 0

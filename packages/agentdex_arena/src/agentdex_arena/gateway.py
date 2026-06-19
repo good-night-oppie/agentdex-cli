@@ -2394,9 +2394,11 @@ async def _sse_battle_stream(
     """
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
-    # Register as an active viewer so _finish defers the buffer clear while we drain
-    # (PR #374 race) and the LAST viewer to leave reclaims it (PR #377 review 3443669243).
-    session.live_viewers += 1
+    # NOTE: the route handler already did session.live_viewers += 1 BEFORE returning this
+    # StreamingResponse — registered there (not lazily here) so a winning /choose finishing
+    # in the connect-startup window, before this generator first advances, still sees the
+    # viewer and DEFERS the buffer clear instead of dropping the final frames (PR #380
+    # review 3443769189). This generator owns the matching decrement in the finally below.
     try:
         while True:
             if await request.is_disconnected():
@@ -2938,6 +2940,11 @@ def create_app(
         session = gateway.sessions.get(battle_id)
         if session is None:
             raise _opaque_error(404, "no such live battle")
+        # Register the viewer SYNCHRONOUSLY here, before returning the StreamingResponse, so
+        # a /choose finishing in the connect-startup window (before the generator advances)
+        # still defers the buffer clear (PR #380 review 3443769189). The generator owns the
+        # matching decrement in its finally.
+        session.live_viewers += 1
         return StreamingResponse(
             # Reclaim-only: an unauthenticated spectator must NOT drive the forfeit commit
             # (rating/EventLog writes) of a rated battle (PR #377 review 3443669242).
@@ -2974,6 +2981,10 @@ def create_app(
             and session.owner != owner_norm
         ):
             raise _opaque_error(403, "not your battle")
+        # Register the viewer SYNCHRONOUSLY here (see battle_live) — before the generator
+        # advances — so a connect-startup-window finish defers rather than dropping the
+        # final frames (PR #380 review 3443769189). The generator owns the decrement.
+        session.live_viewers += 1
         return StreamingResponse(
             _sse_battle_stream(gateway, session, session.visitor_side, request),
             media_type="text/event-stream",
