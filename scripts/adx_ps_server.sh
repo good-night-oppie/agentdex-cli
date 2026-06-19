@@ -45,15 +45,34 @@ fi
 # bind host only from config.js (the 0.11.10 CLI has no bindaddress flag) and its
 # config-example default is '0.0.0.0' — every interface. Left at the default, the
 # banner says 127.0.0.1 while the socket is actually reachable by anyone who can
-# hit the port. So bind explicitly to ADX_PS_HOST, and refuse the all-interfaces
-# address unless the operator knowingly opts in.
-if [[ "$ADX_PS_HOST" == "0.0.0.0" && "${ADX_PS_ALLOW_PUBLIC:-0}" != "1" ]]; then
-  echo "error: refusing to bind a --no-security server to 0.0.0.0 (all interfaces)." >&2
-  echo "  that exposes an unauthenticated server to the whole network." >&2
-  echo "  set ADX_PS_ALLOW_PUBLIC=1 to opt in, or pin ADX_PS_HOST to a specific IP." >&2
+# hit the port. So bind explicitly to ADX_PS_HOST and refuse ANY non-loopback bind
+# (the all-interfaces 0.0.0.0 / IPv6 '::', or a routable public IP) unless the
+# operator knowingly opts in — one public interface is still publicly reachable.
+case "$ADX_PS_HOST" in
+  127.0.0.1 | ::1 | localhost) ;;  # loopback — safe by default
+  *)
+    if [[ "${ADX_PS_ALLOW_PUBLIC:-0}" != "1" ]]; then
+      echo "error: refusing to bind a --no-security server to non-loopback ${ADX_PS_HOST}." >&2
+      echo "  that exposes an unauthenticated server beyond localhost (0.0.0.0, ::, or a" >&2
+      echo "  routable IP are all reachable off-box). Set ADX_PS_ALLOW_PUBLIC=1 to opt in." >&2
+      exit 1
+    fi
+    ;;
+esac
+
+# Pin bindaddress to ADX_PS_HOST. Rewrite the existing line if present, else APPEND
+# it — a silent sed no-op (no 'exports.bindaddress =' line, e.g. after a local edit
+# or an upstream reformat) would leave PS on its 0.0.0.0 default, the exact exposure
+# this guards against. Verify the pin landed before starting.
+if grep -qE "^exports\.bindaddress[[:space:]]*=" "$PS_CONFIG"; then
+  sed -i "s|^exports\.bindaddress[[:space:]]*=.*|exports.bindaddress = '${ADX_PS_HOST}';|" "$PS_CONFIG"
+else
+  printf "\nexports.bindaddress = '%s';\n" "$ADX_PS_HOST" >> "$PS_CONFIG"
+fi
+if ! grep -qF "exports.bindaddress = '${ADX_PS_HOST}';" "$PS_CONFIG"; then
+  echo "error: failed to pin bindaddress to ${ADX_PS_HOST} in $PS_CONFIG" >&2
   exit 1
 fi
-sed -i "s|^exports\.bindaddress = .*|exports.bindaddress = '${ADX_PS_HOST}';|" "$PS_CONFIG"
 
 echo "[adx-ps] starting Pokémon Showdown server on ${ADX_PS_HOST}:${ADX_PS_PORT} (--no-security)"
 echo "[adx-ps] websocket: ws://${ADX_PS_HOST}:${ADX_PS_PORT}/showdown/websocket"
