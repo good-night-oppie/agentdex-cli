@@ -3112,7 +3112,6 @@ def create_app(
         res["genome_packed"] = res.get("team_packed")
         return res
 
-
     @app.get("/me/battles")
     async def me_battles(authorization: str | None = Header(default=None)) -> dict:
         """GA-CORE-5: session-authed list of the owner's LIVE + RECENT battles

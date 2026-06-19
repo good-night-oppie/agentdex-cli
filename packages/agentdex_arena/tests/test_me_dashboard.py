@@ -395,6 +395,7 @@ def test_me_agents_excludes_quarantined_from_wl(tmp_path):
 def test_me_agent_team_and_genome_endpoints(tmp_path):
     import hashlib
     import json
+
     from agentdex_arena.consent import _normalize_owner
 
     gw = _gateway(tmp_path)
@@ -467,20 +468,26 @@ def test_me_agent_team_mixed_window(tmp_path):
     gw.events.append("register", {"name": "oppie", "frozen": False})
     gw.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b1", "lane": "rated", "visitor": "oppie", "team_hash": "hash1"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b1",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash1",
+        },
     )
-    gw.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b1", "winner": "oppie"}
-    )
+    gw.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b1", "winner": "oppie"})
     gw.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b2", "lane": "rated", "visitor": "oppie", "team_hash": "hash2"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b2",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash2",
+        },
     )
-    gw.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b2", "winner": "oppie"}
-    )
+    gw.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b2", "winner": "oppie"})
     with _client(gw) as c:
         agents_resp = c.get("/me/agents", headers=_auth(gw)).json()
         team_resp = c.get("/me/agents/oppie/team", headers=_auth(gw)).json()
@@ -493,20 +500,26 @@ def test_me_agent_team_mixed_window(tmp_path):
     gw2.events.append("register", {"name": "oppie", "frozen": False})
     gw2.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b3", "lane": "rated", "visitor": "oppie", "team_hash": "hash1"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b3",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash1",
+        },
     )
-    gw2.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b3", "winner": "oppie"}
-    )
+    gw2.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b3", "winner": "oppie"})
     gw2.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b4", "lane": "rated", "visitor": "oppie", "team_hash": None}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b4",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": None,
+        },
     )
-    gw2.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b4", "winner": "oppie"}
-    )
+    gw2.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b4", "winner": "oppie"})
     with _client(gw2) as c:
         agents_resp = c.get("/me/agents", headers=_auth(gw2)).json()
         team_resp = c.get("/me/agents/oppie/team", headers=_auth(gw2)).json()
@@ -519,12 +532,15 @@ def test_me_agent_team_mixed_window(tmp_path):
     gw3.events.append("register", {"name": "oppie", "frozen": False})
     gw3.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b5", "lane": "rated", "visitor": "oppie", "team_hash": "hash1"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b5",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash1",
+        },
     )
-    gw3.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b5", "winner": "oppie"}
-    )
+    gw3.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b5", "winner": "oppie"})
     with _client(gw3) as c:
         agents_resp = c.get("/me/agents", headers=_auth(gw3)).json()
         team_resp = c.get("/me/agents/oppie/team", headers=_auth(gw3)).json()
@@ -540,22 +556,28 @@ def test_me_agent_team_quarantine_exclusion(tmp_path):
     # First rated battle, ends successfully. team_hash is hash1.
     gw.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b1", "lane": "rated", "visitor": "oppie", "team_hash": "hash1"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b1",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash1",
+        },
     )
-    gw.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b1", "winner": "oppie"}
-    )
+    gw.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b1", "winner": "oppie"})
 
     # Second rated battle, ends successfully. team_hash is hash2.
     gw.events.append(
         "battle_begin",
-        {"tenant_id": "tok", "battle_id": "b2", "lane": "rated", "visitor": "oppie", "team_hash": "hash2"}
+        {
+            "tenant_id": "tok",
+            "battle_id": "b2",
+            "lane": "rated",
+            "visitor": "oppie",
+            "team_hash": "hash2",
+        },
     )
-    gw.events.append(
-        "battle_end",
-        {"tenant_id": "tok", "battle_id": "b2", "winner": "oppie"}
-    )
+    gw.events.append("battle_end", {"tenant_id": "tok", "battle_id": "b2", "winner": "oppie"})
 
     # Quarantine the second battle
     gw.events.append("quarantine", {"battle_id": "b2", "reason": "collusion"})
@@ -576,8 +598,9 @@ def test_me_agent_team_capture_failure_fail_safe(tmp_path, caplog):
     import asyncio
     import logging
     from unittest import mock
-    from agentdex_arena.gateway import BeginRequest
+
     from agentdex_arena.consent import ConsentClaims
+    from agentdex_arena.gateway import BeginRequest
 
     gw = _gateway(tmp_path)
     gw.accounts.add_agent(_OWNER, "oppie")
@@ -621,11 +644,12 @@ def test_me_agent_team_capture_failure_fail_safe(tmp_path, caplog):
     async def _fake_advance(session, state, visitor_choice=None):
         return {"state": {}}
 
-    with mock.patch("agentdex_arena.gateway.pack_team", _fake_pack_team), \
-         mock.patch("agentdex_arena.gateway.validate_team", _fake_validate_team), \
-         mock.patch.object(gw, "_advance", _fake_advance), \
-         caplog.at_level(logging.WARNING):
-        
+    with (
+        mock.patch("agentdex_arena.gateway.pack_team", _fake_pack_team),
+        mock.patch("agentdex_arena.gateway.validate_team", _fake_validate_team),
+        mock.patch.object(gw, "_advance", _fake_advance),
+        caplog.at_level(logging.WARNING),
+    ):
         res = asyncio.run(
             gw._run_battle_begin(
                 req=req,
@@ -635,18 +659,16 @@ def test_me_agent_team_capture_failure_fail_safe(tmp_path, caplog):
                 on_published=lambda: None,
             )
         )
-        
+
     assert res is not None
     assert "battle_id" in res
-    
+
     # Verify that the warning log was recorded
     assert "Failed to capture team/build identity" in caplog.text
-    
+
     # Verify that the battle_begin event was written to the event log with team_hash=None
     events = list(gw.events.iter_events())
     assert len(events) == 1
     begin_event = events[0]
     assert begin_event["type"] == "battle_begin"
     assert begin_event["payload"]["team_hash"] is None
-
-
