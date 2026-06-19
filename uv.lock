@@ -81,10 +81,16 @@ dependencies = [
     { name = "pydantic" },
 ]
 
+[package.optional-dependencies]
+selfplay = [
+    { name = "adx-showdown", extra = ["selfplay"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "adx-bridges", editable = "packages/adx_bridges" },
     { name = "adx-showdown", editable = "packages/adx_showdown" },
+    { name = "adx-showdown", extras = ["selfplay"], marker = "extra == 'selfplay'", editable = "packages/adx_showdown" },
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "cryptography", specifier = ">=42" },
@@ -92,6 +98,7 @@ requires-dist = [
     { name = "mcp" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
+provides-extras = ["selfplay"]
 
 [[package]]
 name = "agentdex-cli"

@@ -18,5 +18,14 @@ dependencies = [
   "asyncpg>=0.29.0",
 ]
 
+[project.optional-dependencies]
+# The arena.selfplay_battle MCP tool drives the live A1 runner, which imports
+# poke-env (adx-showdown's `selfplay` extra). Chain it so installing the arena
+# with this extra — `uv sync --package agentdex-arena --extra selfplay` (or
+# `pip install "agentdex-arena[selfplay]"`) — provides the server-facing client.
+# The DEFAULT arena install stays poke-env-free (the gateway + non-selfplay MCP
+# tools don't need it), preserving the import-safe-without-poke-env posture.
+selfplay = ["adx-showdown[selfplay]"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentdex_arena"]
