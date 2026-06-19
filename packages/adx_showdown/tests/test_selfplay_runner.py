@@ -43,10 +43,13 @@ def test_filter_switch_orders_passthrough_when_not_excluded():
     assert _filter_switch_orders(orders, exclude_switches=False) is orders
 
 
-def test_filter_switch_orders_never_empties_a_forced_switch():
-    """If every order is a switch (a true forced switch) keep them — never deadlock."""
+def test_filter_switch_orders_does_not_restore_switches_when_excluded():
+    """#3440654824: exclusion is unconditional — an all-switch list returns EMPTY, it is
+    NOT restored. The caller only excludes on a voluntary (non-forced) turn, so "every
+    order is a switch" must not be inferred as a forced switch; _seeded_order's
+    choose_random_move handles the genuine only-switches-legal corner."""
     orders = [_Order("/choose switch a"), _Order("/choose switch b")]
-    assert _filter_switch_orders(orders, exclude_switches=True) == orders
+    assert _filter_switch_orders(orders, exclude_switches=True) == []
 
 
 # --- the exact raw_dims keys A3's fitness + the C2 driver mock agree on ---
