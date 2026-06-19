@@ -427,8 +427,11 @@ def run_e2e(
 
     ``runner_fn`` defaults to the deterministic mock; pass ``pokeenv_runner`` for
     the real poke-env backend. Uses the REAL Lane-A2 genome + Lane-A3 fitness;
-    only evolve is mocked. ``ok`` requires non-vacuous (battles>0 ∧ gens>0) AND
-    the kill-gate passed AND the uplift's 95% CI excludes 0 (DONE #3)."""
+    only evolve is mocked. ``ok`` requires non-vacuous (battles>0 ∧ gens>0), a
+    candidate that actually beat the seed (best ≠ seed), the kill-gate passed, AND
+    the FRESH re-measure clearing both the margin (uplift_pp ≥ margin_pp) and
+    significance (its 95% CI excludes 0, DONE #3) — the selection sample alone
+    never decides ``ok``."""
     runner: RunnerFn = runner_fn or _mock_run_vs_baselines
     # Classify the runner EXPLICITLY: only the real pokeenv_runner is a PS-backed
     # run. A wrapped/injected runner through the public seam must not be able to
@@ -453,8 +456,15 @@ def run_e2e(
     # the selection samples would let a lucky draw both pick the best AND clear the
     # CI, overstating the evidence; these battles are counted separately.
     remeasure_seed = run_seed + _CI_REMEASURE_SEED_OFFSET
+    # When evolution kept NO candidate, the selected best IS the seed. Re-measuring
+    # that identical harness on two different fresh schedules (remeasure_seed vs +1)
+    # would let run-seed noise alone fabricate a positive, significant uplift. Use
+    # the SAME fresh schedule for both sides in that case, so the uplift is
+    # truthfully ~0 — and ``ok`` additionally fails closed below (review #3440028647).
+    best_is_seed = _harness_id(evolved.best) == _harness_id(seed)
     fresh_seed_results = runner(seed, remeasure_seed, n_battles)
-    fresh_best_results = runner(evolved.best, remeasure_seed + 1, n_battles)
+    best_remeasure_seed = remeasure_seed if best_is_seed else remeasure_seed + 1
+    fresh_best_results = runner(evolved.best, best_remeasure_seed, n_battles)
     ci = uplift_ci95(fresh_seed_results, fresh_best_results)
     remeasure_battles = (
         _wins_and_battles(fresh_seed_results)[1] + _wins_and_battles(fresh_best_results)[1]
@@ -464,7 +474,14 @@ def run_e2e(
     non_vacuous = total_battles > 0 and evolved.gens_completed > 0
     ok = (
         non_vacuous
+        # no candidate was kept → best is the seed → no improvement to claim
+        and not best_is_seed
         and bool(evolved.killgate_report.get("passed"))
+        # Gate the margin on the FRESH re-measure, not the selection sample: a run
+        # can clear margin_pp on a lucky selection draw yet fall below it on the
+        # independent re-measure that the reported uplift/CI come from — so trust
+        # the fresh margin the report shows (review #3440028645).
+        and ci["uplift_pp"] >= margin_pp
         and bool(ci["excludes_zero"])
         and n_battles >= _DONE3_MIN_BATTLES  # DONE #3: >=30 battles/matchup
     )
