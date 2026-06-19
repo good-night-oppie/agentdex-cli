@@ -542,7 +542,14 @@ class DevicePollRequest(BaseModel):
 
 
 # GA-CORE-2: a magic-link login code lives this long before it must be re-requested.
-EMAIL_LOGIN_TTL_SEC = 900.0  # 15 minutes
+# US-1.3 AC1 caps the one-time code at ≤10 min TTL — keep it at the ceiling.
+EMAIL_LOGIN_TTL_SEC = 600.0  # 10 minutes (US-1.3 AC1: ≤10 min)
+# Don't re-send a code to the same email more than once per this window (delivery-spam
+# guard on the unauthenticated /auth/email/start; a re-request inside it is a no-op send).
+EMAIL_LOGIN_RESEND_COOLDOWN_SEC = 60.0
+# Hard cap on concurrently-pending login codes — an abuse backstop so an
+# unauthenticated burst across many distinct emails can't exhaust memory.
+MAX_PENDING_EMAIL_LOGINS = 1000
 
 
 def _validate_contact_address(v: str) -> str:
@@ -987,13 +994,42 @@ class ArenaGateway:
     def email_login_start(self, email: str) -> dict[str, Any]:
         """Mint + deliver a one-time login code to ``email``. Uniform response (never
         reveals whether the email is registered — any email may request a code, only
-        its owner can read it). Caller (route) 503s when session auth is unconfigured."""
-        # Opportunistically prune expired codes so the in-memory map stays bounded.
+        its owner can read it). Caller (route) 503s when session auth is unconfigured.
+
+        This endpoint is UNAUTHENTICATED, so it is hardened against memory exhaustion
+        and delivery spam (PR #376 review): expired codes are pruned; at most ONE
+        pending code per email (a re-request replaces the old one); a re-request
+        inside the resend cooldown is a no-op SEND (same uniform response, no new
+        email); and a global hard cap rejects an abusive cross-email burst with a
+        429 (opaque) rather than growing the map / spamming the channel unboundedly."""
         now = self.now()
+        owner_norm = _normalize_owner(email)
+        # 1) prune expired codes.
         if self.pending_email_logins:
             self.pending_email_logins = {
                 c: v for c, v in self.pending_email_logins.items() if v[1] > now
             }
+        # 2) resend cooldown: if this email already has a fresh, recently-issued code,
+        #    return the uniform pending response WITHOUT issuing/sending a new one.
+        for _c, (e, exp) in self.pending_email_logins.items():
+            if (
+                _normalize_owner(e) == owner_norm
+                and (exp - EMAIL_LOGIN_TTL_SEC) > now - EMAIL_LOGIN_RESEND_COOLDOWN_SEC
+            ):
+                return {
+                    "status": "pending_email_verification",
+                    "detail": "a one-time login code was sent to your email",
+                }
+        # 3) per-email dedup: drop any prior pending code for THIS email (one live
+        #    code per email — bounds per-email growth; a new request invalidates the old).
+        self.pending_email_logins = {
+            c: v
+            for c, v in self.pending_email_logins.items()
+            if _normalize_owner(v[0]) != owner_norm
+        }
+        # 4) global hard cap (abuse backstop on the unauthenticated path).
+        if len(self.pending_email_logins) >= MAX_PENDING_EMAIL_LOGINS:
+            raise _opaque_error(429, "too many pending login requests; try again shortly")
         code = secrets.token_urlsafe(24)  # CSPRNG, ~192 bits — unguessable
         self.pending_email_logins[code] = (email, now + EMAIL_LOGIN_TTL_SEC)
         # the code goes to the OWNER out-of-band — never into this response
