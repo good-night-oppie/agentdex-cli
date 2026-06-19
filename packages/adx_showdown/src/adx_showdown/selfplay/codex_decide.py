@@ -30,7 +30,21 @@ from typing import Any
 # (prompt, json_schema, timeout_sec) -> the structured object codex returned.
 CodexRunFn = Callable[[str, "dict[str, Any]", float], "dict[str, Any]"]
 
-_DEFAULT_TIMEOUT_SEC = float(os.environ.get("ADX_CODEX_TIMEOUT_SEC", "60") or "60")
+_DEFAULT_TIMEOUT_SEC = 60.0
+
+
+def _timeout_sec() -> float:
+    """The per-call codex timeout from ``ADX_CODEX_TIMEOUT_SEC`` (default 60s),
+    parsed defensively. A mistyped (non-numeric) override falls back to the default
+    instead of raising ``ValueError`` — parsing this at MODULE scope used to crash
+    the lazy ``import codex_decide`` in the runner BEFORE ``codex_decide``'s
+    fail-safe ``try/except`` could catch it, aborting the battle. The live hook is
+    documented to never crash a battle, so the override must fail safe too."""
+    try:
+        return float(os.environ.get("ADX_CODEX_TIMEOUT_SEC", "60") or "60")
+    except (TypeError, ValueError):
+        return _DEFAULT_TIMEOUT_SEC
+
 
 # The schema codex's last message must conform to (--output-schema). OpenAI strict
 # structured output requires EVERY property to be listed in ``required`` (else the
@@ -127,7 +141,7 @@ def codex_decide(
         return None
     runner = run or _run_codex_cli
     try:
-        result = runner(_build_prompt(harness, ctx, legal_ids), _MOVE_SCHEMA, _DEFAULT_TIMEOUT_SEC)
+        result = runner(_build_prompt(harness, ctx, legal_ids), _MOVE_SCHEMA, _timeout_sec())
         move_id = str((result or {}).get("move_id", "")).strip()
     except Exception:
         return None  # codex missing / timeout / bad output — never crash a battle
