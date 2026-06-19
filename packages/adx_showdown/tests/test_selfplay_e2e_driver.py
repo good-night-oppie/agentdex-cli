@@ -12,6 +12,8 @@ import sys
 from adx_showdown.harness import BattleHarness, seed_harness
 from adx_showdown.selfplay.baselines import baseline_names
 from adx_showdown.selfplay.e2e_driver import (
+    _CI_REMEASURE_SEED_OFFSET,
+    _harness_id,
     _mock_evolve,
     _mock_run_vs_baselines,
     main,
@@ -33,6 +35,33 @@ def _results(wins_per_baseline, n=30):
     return [
         {"raw_dims": {"opponent_baseline": b, "n_battles": n, "wins_a": w, "draws": 0}}
         for b, w in zip(baseline_names(), wins_per_baseline, strict=False)
+    ]
+
+
+def _controlled_results(win_frac, n):
+    """A full Contract-2 result set at a chosen win fraction with every guard dim
+    clean + constant (no forfeits/illegal moves, fixed turns) — so two harnesses
+    differ only in win_rate (and the elo that tracks it). Lets a test drive the
+    evolve keep/kill-gate + fresh-re-measure logic with exact win rates."""
+    wins = round(n * win_frac)
+    turns = n * 11
+    return [
+        {
+            "winner": "a" if wins * 2 >= n else "b",
+            "battles": [],
+            "trace_path": "",
+            "raw_dims": {
+                "opponent_baseline": b,
+                "n_battles": n,
+                "wins_a": wins,
+                "draws": 0,
+                "turns": turns,
+                "forfeits": 0,
+                "illegal_moves": 0,
+                "total_moves": turns,
+            },
+        }
+        for b in baseline_names()
     ]
 
 
@@ -192,6 +221,55 @@ def test_mock_evolve_keeps_improvements_and_returns_results():
     seed_win = multi_dim_fitness(_mock_run_vs_baselines(seed, 1, 200))["win_rate"]
     assert all(e["win_rate"] > seed_win for e in res.lineage if e["kept"])
     assert res.gens_completed == 3
+
+
+# ---- fresh-re-measure gate hardening (PR #342 review) ----
+
+
+def test_ok_false_when_fresh_margin_below_required():
+    """P1 (review #3440028645): ``ok`` must gate the margin on the FRESH
+    re-measure, not the selection sample. A best that clears ``margin_pp`` on the
+    (lucky) selection draw but lands a significant yet sub-margin uplift on the
+    independent re-measure must NOT be ok — even though the kill-gate passed."""
+    seed_id = seed_harness().harness_id
+
+    def staged_runner(h, run_seed, n_battles):
+        is_candidate = _harness_id(h) != seed_id
+        is_fresh = run_seed >= _CI_REMEASURE_SEED_OFFSET
+        if not is_candidate:
+            frac = 0.50
+        elif is_fresh:
+            frac = 0.55  # fresh: +5pp (significant at n≈1200, below the 10pp margin)
+        else:
+            frac = 0.90  # selection: +40pp — clears the kill-gate by a wide margin
+        return _controlled_results(frac, n_battles)
+
+    r = run_e2e(run_seed=0, n_gen=1, n_battles=400, margin_pp=10.0, runner_fn=staged_runner)
+    assert any(e["kept"] for e in r.lineage)  # a candidate WAS kept (best ≠ seed)
+    assert r.killgate["passed"] is True  # selection-sample margin cleared (40pp)
+    assert r.ci_excludes_zero is True  # the fresh uplift IS significant
+    assert 0.0 < r.win_rate_uplift_pp < 10.0  # ...but below the required margin
+    assert r.ok is False  # the fix: the fresh margin decides ok, not selection
+
+
+def test_ok_false_on_control_run_when_best_is_seed():
+    """P2 (review #3440028647): when evolution keeps no candidate, best IS the
+    seed. Re-measuring the identical harness on two different fresh schedules must
+    not let run-seed noise fabricate a significant uplift — both sides share one
+    fresh schedule, so the uplift is truthfully ~0 and ok fails closed."""
+
+    def noisy_runner(h, run_seed, n_battles):
+        # Candidate never raises win_rate (→ never kept → best stays the seed), but
+        # win-rate is nudged by run-seed parity so an UNPAIRED fresh schedule
+        # (seed vs seed+1) would manufacture a +6pp significant uplift from noise.
+        frac = 0.50 + (0.06 if run_seed % 2 == 1 else 0.0)
+        return _controlled_results(frac, n_battles)
+
+    r = run_e2e(run_seed=0, n_gen=2, n_battles=400, margin_pp=0.0, runner_fn=noisy_runner)
+    assert not any(e["kept"] for e in r.lineage)  # nothing kept → best is the seed
+    assert r.win_rate_uplift_pp == 0.0  # same fresh schedule → no fabricated uplift
+    assert r.ci_excludes_zero is False
+    assert r.ok is False
 
 
 # ---- full-vector (Pareto) keep, not win_rate alone ----
