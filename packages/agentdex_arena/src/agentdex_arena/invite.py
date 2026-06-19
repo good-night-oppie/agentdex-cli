@@ -102,11 +102,21 @@ class InviteStore:
         self.grant_hash(hash_invite_code(code))
 
     def exists(self, code: str) -> bool:
-        return hash_invite_code(code) in self._codes
+        try:
+            return hash_invite_code(code) in self._codes
+        except ValueError:
+            return False  # a blank/malformed code simply does not exist
 
     def redeemable(self, code: str) -> bool:
-        """A code that exists and has not been redeemed yet."""
-        return self.is_redeemable_hash(hash_invite_code(code))
+        """A code that exists and has not been redeemed yet. A blank/malformed code
+        is NOT redeemable (returns False) — never raises — so the redemption path
+        surfaces a clean InviteError → opaque 403, not an uncaught 500 from hashing
+        an empty string (a whitespace-only invite_code passes the request model's
+        min_length=1 but has no valid hash). PR #363 review."""
+        try:
+            return self.is_redeemable_hash(hash_invite_code(code))
+        except ValueError:
+            return False
 
     def redeem(self, code: str, owner: str) -> str:
         """Redeem ``code`` for ``owner``; returns the normalized owner key.

@@ -100,3 +100,14 @@ def test_malformed_inputs_fail_closed():
     with pytest.raises(ValueError):
         s.redeem("code-1", "")  # malformed owner reserves nothing
     assert s.redeemable("code-1") is True  # not consumed by the failed redeem
+
+
+def test_blank_code_is_not_redeemable_without_raising():
+    """A blank/whitespace-only code is simply not redeemable / not existent — the
+    lookups must NOT raise (else the HTTP redeem path 500s instead of an opaque
+    403, since the request model only enforces min_length=1). PR #363 review."""
+    s = InviteStore()
+    s.mint("real-code")
+    for blank in ("", "   ", "\t"):
+        assert s.redeemable(blank) is False
+        assert s.exists(blank) is False

@@ -402,3 +402,29 @@ def test_mint_is_no_burn_on_partial_append_failure(tmp_path, monkeypatch):
     for c in codes:  # every returned code is durably committed + redeemable
         assert gw.invites.redeemable(c) is True
     assert gw.invites.stats()["minted"] == 2  # no phantom/uncommitted seat
+
+
+def test_blank_invite_code_is_opaque_403_not_500(tmp_path, monkeypatch):
+    """A whitespace-only invite_code passes the request model (min_length=1) but has
+    no valid hash; it must surface as the opaque invalid/used 403 on BOTH redeem
+    seams, never an uncaught 500 from hashing a blank string. PR #363 review."""
+    monkeypatch.setenv("ARENA_INVITE_REQUIRED", "1")
+    gw, sent = _gateway_capture(tmp_path)
+    with _client(gw) as c:
+        # session redeem path
+        r = c.post(
+            "/enroll/redeem-invite", json={"invite_code": " "}, headers=_sess(gw, "alice@x.com")
+        )
+        assert r.status_code == 403
+        # email-OOB confirm path (blank invite_code carried to confirm)
+        c.post(
+            "/enroll/request",
+            json={
+                "owner": "bob@x.com",
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "invite_code": " ",
+            },
+        )
+        oob_code = sent[-1][1]
+        assert c.post(f"/enroll/confirm/{oob_code}").status_code == 403
