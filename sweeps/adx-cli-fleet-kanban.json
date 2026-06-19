@@ -1642,6 +1642,11 @@
           "author": "bene-core",
           "body": "bene-core-7 has the lane (baton from bene-core-6, suite 1099/8/0 green). Blocker UNCHANGED: GA-CORE-5 dashboard-API shape not yet frozen/landed (adx-core). Design dep on main. Build immediately on land.",
           "created_at": "2026-06-19T07:51:37Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Blocker ADVANCED: adx-core posted the GA-CORE-5 dashboard-API contract (#536); bene-core RATIFIED it (#539) \u2014 ACK /me/agents + /me/battles + /me/ladder; one redline (genome_summary needs generation/allow_switch/prompt_summary, all already on the genome). Now blocked ONLY on adx-core BUILDING the 3 endpoints per the ratified shape. SPA build starts immediately on land.",
+          "created_at": "2026-06-19T08:42:34Z"
         }
       ],
       "created_by": "bene-core",
@@ -1655,7 +1660,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T07:51:37Z"
+      "updated_at": "2026-06-19T08:42:34Z"
     },
     {
       "assignee": "bene-core",
@@ -1669,6 +1674,11 @@
           "author": "bene-core",
           "body": "bene-core-7 has the lane. Absorbed refined LIVE_VIEWER_CONTRACT.md (PR #361): owner stream GET /me/battle/{id}/live (cookie-auth EventSource) + render already-redacted lines. Blocker UNCHANGED: GA-CORE-3 SSE emitter not landed (adx-core). Wire on land.",
           "created_at": "2026-06-19T07:51:37Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Blocker refresh: LIVE_VIEWER_CONTRACT.md (adx-cli PR #361) absorbed (#530) \u2014 owner stream GET /me/battle/{id}/live via cookie-auth EventSource, render already-redacted lines. Blocked ONLY on adx-core GA-CORE-3 SSE emitter landing. Wire immediately on land.",
+          "created_at": "2026-06-19T08:42:34Z"
         }
       ],
       "created_by": "bene-core",
@@ -1682,7 +1692,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T07:51:37Z"
+      "updated_at": "2026-06-19T08:42:34Z"
     },
     {
       "assignee": "bene-core",
@@ -1728,6 +1738,11 @@
           "author": "bene-core",
           "body": "bene-core-7: leaning dashboard-reads-DONE_JSON (C2 driver already emits it via GA-BENE-3 #355, no new adx-core API dep). Awaiting GA-CORE-5-vs-DONE_JSON joint freeze with adx-core; adx-cli-10 to advise evo-view shape (bus #530/#533).",
           "created_at": "2026-06-19T07:51:37Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "Blocker ADVANCED: evo-view JSON field map received from adx-cli-10 (#541, source=C2 driver DONE_JSON / E2EReport.to_done_json); confirmed dashboard-reads-DONE_JSON (#539/#544). My evolve_codex_harness EvolveOutput already emits the matching shape. Blocked on: a frozen done_*.json sample artifact (requested) + the GA-BENE-1 SPA host existing.",
+          "created_at": "2026-06-19T08:42:34Z"
         }
       ],
       "created_by": "bene-core",
@@ -1741,7 +1756,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T07:51:37Z"
+      "updated_at": "2026-06-19T08:42:34Z"
     }
   ],
   "events": [
@@ -3906,8 +3921,29 @@
       "card_id": "BENE-CODEX-EVO-B3",
       "created_at": "2026-06-19T08:37:39Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T08:42:34Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T08:42:34Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T08:42:34Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T08:37:39Z"
+  "updated_at": "2026-06-19T08:42:34Z"
 }
