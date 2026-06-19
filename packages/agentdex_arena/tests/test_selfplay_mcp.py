@@ -38,6 +38,19 @@ def test_malformed_genome_rejected():
         _validate_selfplay_args({"harness_id": "x", "bogus": 1}, _B, 10)  # extra=forbid
 
 
+def test_opponent_label_is_derived_and_unspoofable():
+    # A caller naming harness_b after a strong held-out baseline must NOT be able
+    # to claim its Elo anchor: the label is derived + namespaced, never an anchor.
+    from adx_showdown.selfplay.baselines import ANCHOR_ELO, baseline_names
+    from agentdex_arena.mcp_surface import _selfplay_opponent_label, _validate_selfplay_args
+
+    _, b, _ = _validate_selfplay_args(_A, {"harness_id": "SimpleHeuristicsPlayer"}, 10)
+    label = _selfplay_opponent_label(b)
+    assert label not in baseline_names()  # not a held-out baseline name
+    assert label not in ANCHOR_ELO  # → multi_dim_fitness uses the neutral default anchor
+    assert "SimpleHeuristicsPlayer" in label  # still informative for the trace
+
+
 def test_tool_is_importable():
     # @mcp.tool() must not shadow the module-level symbol the loop imports.
     from agentdex_arena import mcp_surface

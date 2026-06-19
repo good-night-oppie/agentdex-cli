@@ -429,6 +429,17 @@ def _validate_selfplay_args(
     return a, b, n
 
 
+def _selfplay_opponent_label(harness_b: Any) -> str:
+    """A trusted opponent label for the Contract-2 ``raw_dims``, DERIVED from the
+    opponent harness — never the MCP caller. The self-play opponent is always a
+    candidate harness (never a real held-out baseline Player), so the label is
+    namespaced (``harness:<id>``) to guarantee it can never collide with a
+    held-out Elo anchor (RandomPlayer / MaxBasePowerPlayer / SimpleHeuristicsPlayer).
+    Otherwise a caller could name a weak ``harness_b`` after a strong baseline and
+    inflate the ``multi_dim_fitness`` Elo / kill-gate without changing the battle."""
+    return f"harness:{harness_b.harness_id}"
+
+
 @mcp.tool()
 async def selfplay_battle(
     token: str,
@@ -436,7 +447,6 @@ async def selfplay_battle(
     harness_b: dict[str, Any],
     seed: int,
     n_battles: int = 10,
-    opponent_baseline: str | None = None,
 ) -> dict[str, Any]:
     """Run a self-play matchup on the Pokémon Showdown server: ``harness_a`` (the
     candidate) vs ``harness_b`` over ``n_battles``, returning the Contract-2
@@ -444,6 +454,10 @@ async def selfplay_battle(
     the evolution-loop surface codex drives (ADR-0014); it is EVAL, not a rated
     arena battle, so it spends NO battle quota. Required scope: 'battle'. Needs a
     running PS server (ADX_PS_HOST/PORT); ``n_battles`` is capped at 50.
+
+    The opponent label in the result is DERIVED from ``harness_b`` (never caller-
+    supplied), so a run cannot be mislabeled as having beaten an anchored held-out
+    baseline to inflate the fitness / kill-gate.
     """
     gw = _get_gateway()
     _verify_token_opaque(gw, token, scope="battle")
@@ -457,7 +471,7 @@ async def selfplay_battle(
 
     try:
         result = await run_selfplay_battle(
-            a, b, seed=int(seed), n_battles=n, opponent_baseline=opponent_baseline
+            a, b, seed=int(seed), n_battles=n, opponent_baseline=_selfplay_opponent_label(b)
         )
     except Exception as e:  # PS-server / poke-env failure
         raise _opaque_mcp_error("selfplay_battle", e) from None
