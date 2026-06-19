@@ -52,6 +52,13 @@ def test_committed_e2e_script_is_present_and_valid():
     reason="real e2e needs ADX_E2E_SELFPLAY=1 + BENE_LANEB + poke-env + a live PS server",
 )
 def test_real_e2e_meta_harness_loop_emits_done_json():
+    # A POSITIVE control: enough battles that the forced max_damage mutant reliably
+    # beats the random seed (the un-seeded PS RNG makes a tiny-N uplift flaky), and
+    # never the negative control — so the kill-gate is expected to ACCEPT, and a
+    # regression to REJECT must fail this proof rather than pass vacuously.
+    os.environ["E2E_N_BATTLES"] = str(max(8, int(os.environ.get("E2E_N_BATTLES", "8"))))
+    os.environ.pop("NEGATIVE_CONTROL", None)
+
     spec = importlib.util.spec_from_file_location("e2e_selfplay_metaharness", _E2E_SCRIPT)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -65,11 +72,15 @@ def test_real_e2e_meta_harness_loop_emits_done_json():
         "B1.evolve_battle_harness",
     ]
     assert done["mocked_components"] == []
-    # anti-vacuous: real battles were played AND at least one generation ran
+    # the run discloses it is a positive control (not a fully-unmodified bene run)
+    assert done["negative_control"] is False
+    assert "positive_control" in done["harness_mutation"]
+    # battles_played counts EVERY evaluated candidate, not just seed + best
+    assert done["candidates_evaluated"] >= 2
     assert done["battles_played"] > 0
     assert done["gens_completed"] > 0
     assert done["anti_vacuous"]["battles_played_gt_0"] is True
     assert done["anti_vacuous"]["gens_gt_0"] is True
-    # bene's kill-gate produced a real verdict (ACCEPT/REJECT) — not asserted to
-    # ACCEPT here because the un-seeded PS server RNG makes a 2-battle uplift vary.
-    assert done["killgate_report"]["verdict"] in ("ACCEPT", "REJECT")
+    # the positive control must clear bene's kill-gate (a REJECT here is a real
+    # regression, not acceptable vacuously)
+    assert done["killgate_report"]["verdict"] == "ACCEPT"

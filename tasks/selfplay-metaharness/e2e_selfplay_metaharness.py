@@ -151,10 +151,23 @@ def run() -> dict[str, Any]:
         BattleHarness.mutate = original_mutate
 
     best_fit = fitness_fn(out.best)
+    # Every harness bene evaluated ran real held-out battles (cached by id), so the
+    # true substrate cost is the sum over ALL of them — not just seed + best.
+    total_battles = sum(fv.battles_played for fv in fitness_cache.values())
     uplift_pp = round((best_fit.win_rate - seed_fit.win_rate) * 100, 1)
     return {
         "DONE_JSON": True,
         "negative_control": is_negative_control,
+        # Truth-in-advertising: A1/A3/B1 are the real implementations, but the run
+        # is NOT a fully-unmodified bene evolution — disclose the injected control.
+        # bene's selection, kill-gate, and lineage are real; only the first mutant's
+        # genome is hand-built (positive) or every mutant's win_rate is zeroed (neg).
+        "harness_mutation": (
+            "negative_control: every mutant's win_rate forced to 0 so the kill-gate must REJECT"
+            if is_negative_control
+            else "positive_control: the first bene mutant is replaced with a hand-built "
+            "max_damage harness (guarantees a runner-realizable uplift exists)"
+        ),
         "real_components": [
             "A1.run_vs_baselines",
             "A3.multi_dim_fitness",
@@ -174,9 +187,10 @@ def run() -> dict[str, Any]:
         "win_rate_uplift_pp": uplift_pp,
         "killgate_report": out.killgate_report,
         "gens_completed": N_GEN,
-        "battles_played": seed_fit.battles_played + best_fit.battles_played,
+        "candidates_evaluated": len(fitness_cache),
+        "battles_played": total_battles,
         "anti_vacuous": {
-            "battles_played_gt_0": best_fit.battles_played > 0,
+            "battles_played_gt_0": total_battles > 0,
             "gens_gt_0": N_GEN > 0,
         },
     }
