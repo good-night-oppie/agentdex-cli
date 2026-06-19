@@ -47,6 +47,7 @@ from adx_showdown.bots import (
     stall_bot,
     trick_room_bot,
 )
+from adx_showdown.lineproto import project_frame
 from adx_showdown.pool import SidecarPool
 from adx_showdown.protocol import (
     ParsedRequest,
@@ -67,7 +68,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -448,6 +449,14 @@ class BattleSession:
     # Normalized owner — keys the per-owner concurrency cap (ADR-0012 §7). Defaulted
     # so existing constructions (tests, fork) need no change; battle_begin sets it.
     owner: str = ""
+    # GA-CORE-3 live viewer: the OMNISCIENT raw protocol_log deltas captured each
+    # _advance settle (one frame per step), tailed + per-side projected by the SSE
+    # /battle/{id}/live (spectator) + /me/battle/{id}/live (owner) routes. Stored
+    # omniscient so ONE buffer serves p1 + spectator (projected at read time);
+    # ``frame_seq`` is monotonic for client ordering / dedup. Each frame is
+    # ``{"seq": int, "turn": int, "raw_lines": list[str]}``.
+    frames: list[dict[str, Any]] = field(default_factory=list)
+    frame_seq: int = 0
 
 
 class EnrollRequest(BaseModel):
@@ -1554,6 +1563,22 @@ class ArenaGateway:
                 if formatted:
                     _push_recent(session, f"T{current_event_turn}: {formatted}")
 
+            # GA-CORE-3: capture the OMNISCIENT raw protocol delta as a live frame.
+            # The gateway otherwise drops state["protocol_log"] (keeping only the
+            # cooked, split-free log_events above) — the live viewer needs the raw
+            # |split| frames to project per side. Pure in-memory append: no await, no
+            # durable write, so the Class-A atomicity of begin/finish is untouched.
+            raw_delta = state.get("protocol_log") or []
+            if raw_delta:
+                session.frame_seq += 1
+                session.frames.append(
+                    {
+                        "seq": session.frame_seq,
+                        "turn": current_event_turn,
+                        "raw_lines": list(raw_delta),
+                    }
+                )
+
             if state.get("end"):
                 # The battle has reached a terminal sidecar state — the finish
                 # MUST run to completion even if THIS request is cancelled (e.g.
@@ -2132,6 +2157,53 @@ class ArenaGateway:
         }
 
 
+# GA-CORE-3 live viewer: SSE response headers (proxy-friendly — disable buffering so
+# frames flush immediately; no-cache + keep-alive for the long-lived stream).
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",
+    "Connection": "keep-alive",
+}
+
+
+async def _sse_battle_stream(
+    gateway: ArenaGateway, session: BattleSession, side: str, request: Request
+) -> AsyncIterator[str]:
+    """Tail a battle's captured frames as Server-Sent Events, each projected for
+    ``side`` (``"p1"`` / ``"p2"`` owner, or ``"spectator"``) per LIVE_VIEWER_CONTRACT.md.
+
+    Replays the buffered frames ``[0..now]`` (a client connecting mid-battle first
+    catches up), then polls for new frames by index until the battle ends, then emits a
+    terminal ``event: end`` carrying the ``/replay/{id}`` url. Reads ONLY the in-memory
+    frame buffer — it never holds a sidecar — and stops as soon as the client
+    disconnects. The battle only advances while its owner drives ``/choose`` (no
+    background ticker), so frames arrive at ``/choose`` cadence; the client orders on
+    ``seq``.
+    """
+    poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
+    sent = 0
+    while True:
+        if await request.is_disconnected():
+            return
+        frames = session.frames
+        while sent < len(frames):
+            fr = frames[sent]
+            sent += 1
+            payload = {
+                "battle_id": session.battle_id,
+                "turn": fr.get("turn", 0),
+                "seq": fr.get("seq", sent),
+                "side": side,
+                "lines": project_frame(fr.get("raw_lines") or [], side=side),
+                "ts_ms": int(gateway.now() * 1000),
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+        if session.ended is not None:
+            yield f"event: end\ndata: {json.dumps({'replay': f'/replay/{session.battle_id}'})}\n\n"
+            return
+        await asyncio.sleep(poll_sec)
+
+
 def create_app(
     gateway: ArenaGateway, *, sidecar_factory: Callable[[], Sidecar | SidecarPool]
 ) -> FastAPI:
@@ -2594,6 +2666,45 @@ def create_app(
         (US-5.1, "my agents highlighted") — same rating source as ``/ladder``, just
         filtered to the caller's agents. Free read."""
         return gateway.me_ladder(_require_session(authorization))
+
+    @app.get("/battle/{battle_id}/live")
+    async def battle_live(battle_id: str, request: Request) -> StreamingResponse:
+        """GA-CORE-3 PUBLIC spectator stream (US-3.1): SSE, NO auth, the spectator
+        projection ONLY (public HP %, no hidden info, no rating) — for third-party /
+        shared-link spectating, mirroring /replay's public posture. Opaque 404 on an
+        unknown live battle (D7 anti-enumeration)."""
+        session = gateway.sessions.get(battle_id)
+        if session is None:
+            raise _opaque_error(404, "no such live battle")
+        return StreamingResponse(
+            _sse_battle_stream(gateway, session, "spectator", request),
+            media_type="text/event-stream",
+            headers=_SSE_HEADERS,
+        )
+
+    @app.get("/me/battle/{battle_id}/live")
+    async def me_battle_live(
+        battle_id: str,
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> StreamingResponse:
+        """GA-CORE-3 AUTHENTICATED owner stream (US-2.1 / US-3.1 fog-of-war): SSE,
+        session-authed, the owner's per-side frames WITH their own hidden info (their
+        own ``|split|`` private lines). Ownership = the session owns the agent that
+        started the battle (``visitor_name`` in the account's agents); the projection
+        side is the visitor's side. Bearer session token is the carrier (the
+        contract's fetch-SSE path; an httponly-cookie carrier for native EventSource
+        is a frontend follow-up). Opaque 403 on a missing/bad session or a battle the
+        caller does not own (D7 — collapses not-found + not-yours)."""
+        claims = _require_session(authorization)
+        session = gateway.sessions.get(battle_id)
+        if session is None or session.visitor_name not in gateway.accounts.agents_for(claims.owner):
+            raise _opaque_error(403, "not your battle")
+        return StreamingResponse(
+            _sse_battle_stream(gateway, session, session.visitor_side, request),
+            media_type="text/event-stream",
+            headers=_SSE_HEADERS,
+        )
 
     @app.post("/team/draft")
     async def team_draft(body: dict) -> dict:
