@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from adx_showdown.sidecar import Sidecar
-from agentdex_arena.consent import ConsentAuthority, _normalize_owner
+from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_owner
 from agentdex_arena.gateway import ArenaGateway, BattleSession, create_app
 from agentdex_arena.session import SessionAuthority
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -565,3 +565,50 @@ def test_finished_stream_reclaims_buffer_on_last_viewer_exit(tmp_path):
     assert len(frames) == 2  # frames were streamed BEFORE the buffer was reclaimed
     assert gw.sessions[bid].frames == []  # buffer reclaimed on the last viewer's exit
     assert gw.sessions[bid].live_viewers == 0  # refcount balanced
+
+
+def test_state_and_choose_409_during_inflight_forfeit(tmp_path, caplog):
+    """While a concurrent caller is mid-forfeit (session.forfeiting set, awaiting
+    stop/_finish behind the rated finish lock), session.ended is not set YET. /state must
+    NOT render a stale ``your_move`` and /choose must NOT attempt a sidecar step that races
+    the stop — both return a transient 409 the client retries (PR #378 review 3443735244).
+    The opaque 409 body hides the reason, so we assert it via the server-side log."""
+    gw = _gateway(tmp_path)
+    pub = Ed25519PrivateKey.generate().public_key().public_bytes_raw().hex()
+    claims = ConsentClaims(
+        token_id="tok_inflight",
+        owner=_OWNER,
+        agent_name="oppie",
+        agent_pubkey_hex=pub,
+        scopes=["battle"],
+        issued_at=0.0,
+        expires_at=4.0e12,
+        confirmed_via="test",
+    )
+    token = gw.authority.mint(claims)
+    sess = BattleSession(
+        battle_id="b_forf",
+        claims_token_id=claims.token_id,
+        visitor_name="oppie",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[1],
+        sidecar=None,
+        opponent_policy=None,
+    )
+    sess.forfeiting = True  # a concurrent caller already claimed the forfeit; ended is None
+    gw.sessions[sess.battle_id] = sess
+
+    with _client(gw) as c, caplog.at_level("WARNING"):
+        rs = c.get(
+            f"/battle/{sess.battle_id}/state",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        rc = c.post(f"/battle/{sess.battle_id}/choose", json={"token": token, "choice_index": 1})
+
+    assert rs.status_code == 409  # /state: not a stale your_move
+    assert rc.status_code == 409  # /choose: not a sidecar step racing the stop
+    # The opaque body hides the detail; the server logs the real reason — assert BOTH
+    # handlers took the in-flight-forfeit branch (not the no-pending fallback 409).
+    finishing = [r for r in caplog.records if "battle is finishing (timed out)" in r.getMessage()]
+    assert len(finishing) >= 2
