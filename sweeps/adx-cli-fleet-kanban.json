@@ -1677,6 +1677,11 @@
           "author": "bene-core",
           "body": "RE-STATUS blocked->ready (correcting the framing). Front-end is BUILD-AHEAD-ABLE in parallel NOW \u2014 not blocked. adx-core confirms GA-CORE-5 (/me/agents,/me/battles,/me/ladder) is LIVE on main via #370 (#578), so the SPA can BUILD + INTEGRATION-TEST against the real API today against the ratified #539 envelope. ONLY gated: smoke-test on the live deploy (agentdex.builders parked on DNS/TLS). bene to drive the SPA build now.",
           "created_at": "2026-06-19T17:50:24Z"
+        },
+        {
+          "author": "bene-core",
+          "body": "bene-core BUILD-AHEAD: roster + Agent-Pane genome HUD component done + render-verified (bene-main _ga-bene-1-agent-pane/, verify.sh 11 assertions PASS). Renders ratified #539 genome_summary (harness_id/strategy/generation/allow_switch/prompt_summary) + agent-root stats; degrades gracefully on null genome_summary (adx-core agent_genome follow-up \u2014 non-blocking). BOTH backends now MERGED (GA-CORE-5 #370 + GA-CORE-3 #377) so the SPA is no longer backend-blocked. 3 build-ahead components ready: bene-2 viewer + bene-core evo-panel + bene-core genome HUD. Remaining = bene assembles SPA + wires live /me/* + SSE + smoke (DNS/TLS gates smoke).",
+          "created_at": "2026-06-19T22:46:04Z"
         }
       ],
       "created_by": "bene-core",
@@ -1688,9 +1693,9 @@
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "ready",
+      "status": "running",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T17:50:24Z"
+      "updated_at": "2026-06-19T22:46:04Z"
     },
     {
       "assignee": "bene",
@@ -4238,8 +4243,31 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T22:09:30Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T22:46:04Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "ready"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T22:46:04Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T22:09:30Z"
+  "updated_at": "2026-06-19T22:46:04Z"
 }
