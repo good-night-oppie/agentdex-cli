@@ -365,6 +365,7 @@ class E2EReport:
 
     def to_done_json(self) -> dict[str, Any]:
         real_run = self.backend == "pokeenv"
+        evolve_real = not any("evolve" in m for m in self.mocked_components)
         return {
             "ok": self.ok,
             "lane": "C2",
@@ -391,13 +392,24 @@ class E2EReport:
             "note": (
                 "REAL run: poke-env Lane-A1 runner vs the held-out baselines on a "
                 "live PS server; multi_dim_fitness (A3) + BattleHarness (A2) real; "
-                "only the evolve step (Lane B) is mocked. The win-rate uplift is "
-                "reported with a two-proportion 95% CI; ok requires the CI to "
-                "exclude 0 (SPEC DONE #3)."
+                + (
+                    "Lane B is bene's REAL evolve_battle_harness too — A1/A2/A3/B1 "
+                    "all real (the full self-improving stack). "
+                    if evolve_real
+                    else "only the evolve step (Lane B) is mocked. "
+                )
+                + "The win-rate uplift is reported with a two-proportion 95% CI; "
+                "ok requires the CI to exclude 0 (SPEC DONE #3)."
                 if real_run
-                else "MOCK backend: deterministic synthetic battles for testing "
-                "the wiring + CI math + DONE_JSON shape without a PS server — the "
-                "uplift is NOT a real result. Use --backend pokeenv for DONE #3."
+                else "MOCK runner: deterministic synthetic battles for testing the "
+                "wiring + CI math + DONE_JSON shape without a PS server — the uplift "
+                "is NOT a real result"
+                + (
+                    " (Lane B evolve IS bene's real evolve_battle_harness)."
+                    if evolve_real
+                    else "."
+                )
+                + " Use --backend pokeenv for DONE #3."
             ),
         }
 
@@ -414,6 +426,121 @@ def _make_seed(strategy: str | None) -> BattleHarness:
     return s
 
 
+# --------------------------------------------------------------------------- #
+# Real Lane-B evolve (GA-BENE-3) — bene's evolve_battle_harness over the genome.
+# --------------------------------------------------------------------------- #
+
+_BENE_IMPORT_ERROR = (
+    "the real evolve backend needs bene's evolve_battle_harness, but bene is not "
+    "importable. Point BENE_LANEB at a bene checkout exposing bene.kernel.battle "
+    "(it is not a workspace dependency), or use evolve_backend='mock'."
+)
+
+
+def _import_bene() -> Any:
+    """Lazily import ``bene.kernel.battle`` (not a workspace dep). ``BENE_LANEB`` may
+    point at a bene checkout; otherwise rely on it already being importable."""
+    import os
+    import sys
+
+    lane_b = os.environ.get("BENE_LANEB")
+    if lane_b and lane_b not in sys.path:
+        sys.path.insert(0, lane_b)
+    try:
+        import bene.kernel.battle as battle
+    except ImportError as exc:  # pragma: no cover - exercised only without bene
+        raise RuntimeError(_BENE_IMPORT_ERROR) from exc
+    return battle
+
+
+def _real_evolve(
+    seed: BattleHarness,
+    eval_fn: Callable[[BattleHarness], tuple[list[dict[str, Any]], FitnessVector]],
+    n_gen: int,
+    run_seed: int,
+    *,
+    n_battles: int,
+    margin_pp: float,
+    candidates_per_gen: int = 2,
+) -> EvolveResult:
+    """REAL Lane-B (Contract 4): bene's ``evolve_battle_harness`` drives the genome
+    (mutate → A3 fitness → Pareto → hash-locked kill-gate), replacing ``_mock_evolve``.
+    Standalone-proven in ``done_e2e_real_bene.json``; this folds it into the C2 driver.
+
+    bene is lazy-imported (``BENE_LANEB``). The canonical ``BattleHarness`` (A2) stays
+    the Contract-1 head; the JSON dict is the wire to bene's dataclass genome. Each
+    harness bene evaluates is scored through the SAME ``eval_fn`` the mock uses (A1
+    runner → A3 ``multi_dim_fitness``) and cached, so the driver gets the seed/best
+    results without re-running battles and ``battles_played`` is the true sum over EVERY
+    harness bene scored — not just seed + best.
+    """
+    from dataclasses import asdict
+
+    from adx_showdown.harness import from_bene_genome
+
+    battle = _import_bene()
+    bene_harness_cls = battle.BattleHarness
+    bene_fitness_cls = battle.FitnessVector
+    evolve_battle_harness = battle.evolve_battle_harness
+
+    # bene_harness_id -> (Contract-2 results, A3 FitnessVector)
+    cache: dict[str, tuple[list[dict[str, Any]], FitnessVector]] = {}
+
+    def bene_fitness_fn(bh: Any) -> Any:
+        canon = from_bene_genome(bh.to_dict())
+        results, fit = eval_fn(canon)
+        cache[bh.harness_id] = (results, fit)
+        return bene_fitness_cls(
+            win_rate=fit["win_rate"],
+            elo=fit["elo"],
+            move_legibility=fit["move_legibility"],
+            no_forfeit_exploit=fit["no_forfeit_exploit"],
+            turn_efficiency=fit["turn_efficiency"],
+            battles_played=_wins_and_battles(results)[1],
+        )
+
+    bene_seed = bene_harness_cls.from_adx_dict(seed.model_dump())
+    bene_fitness_fn(bene_seed)  # evaluate seed (populates the cache)
+    seed_results, seed_fit = cache[bene_seed.harness_id]
+
+    out = evolve_battle_harness(
+        bene_seed,
+        bene_fitness_fn,
+        n_gen=n_gen,
+        run_seed=run_seed,
+        candidates_per_gen=candidates_per_gen,
+        bus_path=False,  # an e2e run must not write evolution lineage to the fleet A2A bus
+    )
+
+    best_canon = from_bene_genome(out.best.to_dict())
+    if out.best.harness_id in cache:
+        best_results, best_fit = cache[out.best.harness_id]
+    else:  # pragma: no cover - bene always evaluates its own best
+        best_results, best_fit = eval_fn(best_canon)
+
+    killgate = dict(out.killgate_report)
+    # bene reports verdict ACCEPT/REJECT/VOID; the driver's `ok` reads .get("passed").
+    killgate["passed"] = killgate.get("verdict") == "ACCEPT"
+
+    lineage = [
+        asdict(g) if hasattr(g, "__dataclass_fields__") else dict(g)
+        for g in (out.lineage or [])
+    ]
+    total_battles = sum(_wins_and_battles(r)[1] for (r, _f) in cache.values())
+
+    return EvolveResult(
+        best=best_canon,
+        best_fitness=best_fit,
+        best_results=best_results,
+        seed_fitness=seed_fit,
+        seed_results=seed_results,
+        lineage=lineage,
+        killgate_report=killgate,
+        gens_completed=n_gen,
+        battles_played=total_battles,
+    )
+
+
 def run_e2e(
     *,
     run_seed: int = 42,
@@ -422,6 +549,7 @@ def run_e2e(
     margin_pp: float = 10.0,
     runner_fn: RunnerFn | None = None,
     seed_strategy: str | None = None,
+    evolve_backend: str = "mock",
 ) -> E2EReport:
     """Drive one end-to-end run and return the report.
 
@@ -448,7 +576,10 @@ def run_e2e(
         results = runner(h, run_seed, n_battles)
         return results, multi_dim_fitness(results)
 
-    evolved = _mock_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
+    if evolve_backend == "real":
+        evolved = _real_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
+    else:
+        evolved = _mock_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
 
     # Re-measure seed + the SELECTED best on FRESH held-out samples (seeds offset so
     # the mock's deterministic results — and the live PS battles — are INDEPENDENT
@@ -486,11 +617,19 @@ def run_e2e(
         and n_battles >= _DONE3_MIN_BATTLES  # DONE #3: >=30 battles/matchup
     )
 
-    mocked = ["evolve(LaneB/Contract4, bene-core)"]
-    real = [
-        "genome(A2/Contract1, adx_showdown.harness)",
-        "fitness(A3/Contract3, adx-core)",
-    ]
+    if evolve_backend == "real":
+        mocked = []
+        real = [
+            "genome(A2/Contract1, adx_showdown.harness)",
+            "fitness(A3/Contract3, adx-core)",
+            "evolve(LaneB/Contract4, bene.evolve_battle_harness)",
+        ]
+    else:
+        mocked = ["evolve(LaneB/Contract4, bene-core)"]
+        real = [
+            "genome(A2/Contract1, adx_showdown.harness)",
+            "fitness(A3/Contract3, adx-core)",
+        ]
     if real_run:
         real.insert(1, "runner(A1/Contract2, poke-env vs PS server)")
     elif backend == "custom":
@@ -539,6 +678,13 @@ def main(argv: list[str] | None = None) -> int:
         help="mock = deterministic synthetic; pokeenv = real run vs PS server",
     )
     ap.add_argument(
+        "--evolve-backend",
+        choices=["mock", "real"],
+        default="mock",
+        help="mock = scaffold _mock_evolve; real = bene's evolve_battle_harness "
+        "(GA-BENE-3; needs BENE_LANEB pointing at a bene checkout)",
+    )
+    ap.add_argument(
         "--seed-strategy",
         default=None,
         help="override the seed harness strategy (e.g. 'random' so the real run "
@@ -559,6 +705,7 @@ def main(argv: list[str] | None = None) -> int:
         margin_pp=args.margin_pp,
         runner_fn=runner_fn,
         seed_strategy=args.seed_strategy,
+        evolve_backend=args.evolve_backend,
     )
     done = report.to_done_json()
     if args.artifact:
