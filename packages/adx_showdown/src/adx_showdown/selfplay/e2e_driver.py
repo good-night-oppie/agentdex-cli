@@ -243,6 +243,24 @@ def _mutate(harness: BattleHarness, *, gen: int, run_seed: int) -> BattleHarness
     return BattleHarness.model_validate(data)
 
 
+# A3's three anti-reward-hack guard dims. A candidate must not raise win_rate by
+# sacrificing any of them — that is the exact gaming vector multi_dim_fitness
+# exists to catch. Compared with a small float-noise tolerance.
+_GUARD_DIMS = ("move_legibility", "no_forfeit_exploit", "turn_efficiency")
+_GUARD_TOL = 1e-9
+
+
+def _is_pareto_improvement(cand: FitnessVector, incumbent: FitnessVector) -> bool:
+    """Keep a candidate only if it raises ``win_rate`` AND regresses none of A3's
+    anti-reward-hack guard dims — comparing the full Pareto vector, not win_rate
+    alone. Otherwise the scaffold could 'evolve' a best that hacked a guard dim
+    (move_legibility / no_forfeit_exploit / turn_efficiency) down to buy win-rate,
+    which is precisely what A3's multi-dim fitness is there to prevent."""
+    if cand["win_rate"] <= incumbent["win_rate"]:
+        return False
+    return all(cand[d] >= incumbent[d] - _GUARD_TOL for d in _GUARD_DIMS)
+
+
 def _mock_evolve(
     seed: BattleHarness,
     eval_fn: Callable[[BattleHarness], tuple[list[dict[str, Any]], FitnessVector]],
@@ -253,11 +271,14 @@ def _mock_evolve(
     margin_pp: float,
 ) -> EvolveResult:
     """Mock of Contract-4 evolve (Lane B). Mutates the REAL genome and keeps a
-    candidate only if its REAL Lane-A3 fitness beats the incumbent — so the loop
-    optimizes the production objective. Each harness is evaluated exactly once
-    (``eval_fn`` returns both the Contract-2 results and the fitness), so the
-    driver can compute the uplift CI without re-running battles. The KILL-GATE is
-    real logic: a best that fails to beat the seed by ``margin_pp`` is REJECTED.
+    candidate only if its REAL Lane-A3 fitness is a Pareto improvement over the
+    incumbent — higher win_rate with no regression on the anti-reward-hack guard
+    dims (see :func:`_is_pareto_improvement`) — so the loop optimizes the full
+    production objective, not win_rate in isolation. Each harness is evaluated
+    exactly once (``eval_fn`` returns both the Contract-2 results and the
+    fitness), so the driver can compute the uplift CI without re-running battles.
+    The KILL-GATE is real logic: a best that fails to beat the seed by
+    ``margin_pp`` is REJECTED.
     """
     seed_results, seed_fit = eval_fn(seed)
     incumbent, inc_fit, inc_results = seed, seed_fit, seed_results
@@ -269,7 +290,7 @@ def _mock_evolve(
         cand = _mutate(incumbent, gen=gen, run_seed=run_seed)
         cand_results, cand_fit = eval_fn(cand)
         battles += n_baselines * n_battles
-        improved = cand_fit["win_rate"] > inc_fit["win_rate"]
+        improved = _is_pareto_improvement(cand_fit, inc_fit)
         lineage.append(
             {
                 "gen": gen,
