@@ -1658,7 +1658,13 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core",
+          "body": "PR #355 (agentdex-cli) open + green locally: real _real_evolve backend folds bene's evolve_battle_harness into e2e_driver behind --evolve-backend real; mock stays CI default. 54 selfplay tests pass, ruff clean. Ready for adx-cli review/merge (it's your e2e_driver).",
+          "created_at": "2026-06-19T06:50:57Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451"
@@ -1668,9 +1674,9 @@
       "impact": "The recursive-self-improvement core \u2014 without it the e2e is a mock, not the real harness climbing.",
       "lane": "bene-core",
       "priority": "P1",
-      "status": "running",
+      "status": "review",
       "title": "Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver",
-      "updated_at": "2026-06-19T06:38:40Z"
+      "updated_at": "2026-06-19T06:50:57Z"
     },
     {
       "assignee": "bene-core",
@@ -3717,8 +3723,31 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-19T06:38:40Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-3",
+      "created_at": "2026-06-19T06:50:56Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core",
+      "card_id": "GA-BENE-3",
+      "created_at": "2026-06-19T06:50:57Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T06:38:40Z"
+  "updated_at": "2026-06-19T06:50:57Z"
 }

@@ -75,7 +75,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 |---|---|---|---|---|---|
 | ADX-ONLINE-002 | P0 | adx-core | launch-gate | launch gate: agentdex 100-user readiness assessment + go/no-go | wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320 |
 | ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
-| GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 
 ### blocked
 
@@ -91,6 +90,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
+| GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 | OPS-P1-go-live-runbook | P1 | adx-core | ops | Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback) | docs/runbooks/ holds only badge-admin.md + membership-admin.md; defaults POOL_SIZE=1, MAX_BATTLES=16, OLD_SPACE=96. |
 
 ### done
@@ -438,16 +438,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
 - Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
 
-### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
-
-- Priority: `P1`
-- Status: `running`
-- Assignee: `bene-core`
-- Lane: `bene-core`
-- Impact: The recursive-self-improvement core — without it the e2e is a mock, not the real harness climbing.
-- Suggested fix: Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.
-- Evidence: done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451
-
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
 - Priority: `P1`
@@ -477,6 +467,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Contingency if no on-platform bigger SKU: need a service slot or an off-platform host for the scale instance.
 - Suggested fix: Instructor DELETE meta-vex (green-lit 2026-06-11), or operator stands up VPS + DNS + ~17 env vars + secrets (Dockerfile is portable).
 - Evidence: Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT.
+
+### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
+
+- Priority: `P1`
+- Status: `review`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: The recursive-self-improvement core — without it the e2e is a mock, not the real harness climbing.
+- Suggested fix: Fold the real bene evolve_battle_harness (proved standalone in done_e2e_real_bene.json) into e2e_driver.py, behind a flag/lazy-import with the mock as CI fallback.
+- Evidence: done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451
+- Recent comments: bene-core: PR #355 (agentdex-cli) open + green locally: real _real_evolve backend folds bene's evolve_battle_harness into e2e_driver behind --evolve-backend real; mock stays CI default. 54 selfplay tests pass, ruff clean. Ready for adx-cli review/merge (it's your e2e_driver).
 
 ### OPS-P1-go-live-runbook - Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback)
 
@@ -988,8 +989,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-18T16:46:17Z | add | adx-cli-7 | PLAY-P1-bene-e2e-live | {} |
-| 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-og-adx-cli-prs | {} |
 | 2026-06-18T16:46:17Z | add | adx-cli-7 | RVW-P1-codex-adx-cli-prs | {} |
 | 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-G1 | {} |
 | 2026-06-19T04:58:36Z | add | bene-core | BENE-CODEX-EVO-HELDOUT | {} |
@@ -1000,6 +999,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-2 | {} |
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-3 | {} |
 | 2026-06-19T06:38:40Z | add | bene-core | GA-BENE-4 | {} |
+| 2026-06-19T06:50:56Z | move | admin | GA-BENE-3 | {"after": {"assignee": "bene-core", "status": "review"}, "before": {"assignee": "bene-core", "status": "running"}} |
+| 2026-06-19T06:50:57Z | comment | bene-core | GA-BENE-3 | {} |
 
 ## Source Pattern
 
