@@ -913,40 +913,29 @@ class ArenaGateway:
         return os.environ.get("ARENA_INVITE_REQUIRED") == "1"
 
     def mint_invites(self, count: int, *, actor_hash: str) -> list[str]:
-        """Operator-only: mint ``count`` fresh single-use invite codes. Each code's
-        ``invite_grant`` is appended to the durable log BEFORE it is returned, so a
-        code an operator sees is always one a fresh replay will honor (Class-A).
+        """Operator-only: mint ``count`` fresh single-use invite codes, returning the
+        plaintext codes ONCE for the operator to distribute (only the hash is logged).
 
-        No-burn on a partial failure: if an ``append`` fails mid-batch (e.g. a full
-        runtime volume), the codes committed so far are RETURNED rather than lost to
-        a propagating exception — otherwise those seats would be durably minted but
-        the operator would never see their plaintext, silently burning part of the
-        batch (PR #360 review). Every returned code is durably committed; a short
-        return (< count) signals the operator to mint the remainder."""
+        No-burn by ATOMICITY: the whole batch is appended via ``append_many`` (writes
+        the next log to a tmp file + fsync + os.replace), so either EVERY
+        ``invite_grant`` lands with a valid hash chain or NONE do. There is no
+        partial-commit window — so the returned codes are exactly the durably-minted
+        seats. A per-row loop could (a) lose already-committed codes to a propagating
+        exception (PR #360 review) or (b) drop a code whose row actually landed when a
+        buffered-flush error surfaces AFTER the bytes hit disk (PR #365 review); the
+        atomic batch closes both. On any failure ``append_many`` raises and commits
+        nothing, so the operator simply re-mints — no seat is burned unseen."""
         if not isinstance(count, int) or not (1 <= count <= 1000):
             raise ValueError("count must be an int in [1, 1000]")
-        codes: list[str] = []
-        for _ in range(count):
-            code = new_invite_code()
-            # Only the HASH is logged — the plaintext code is a seat-claiming secret
-            # and is returned ONCE to the authed operator, never persisted.
-            code_hash = hash_invite_code(code)
-            try:
-                self.events.append(
-                    "invite_grant", {"code_hash": code_hash, "actor_hash": actor_hash}
-                )
-            except Exception:
-                # The grant did NOT commit → this code is not a minted seat; stop
-                # and return the codes that DID commit (no seat is burned unseen).
-                log.warning(
-                    "invite_grant append failed after %d/%d codes; returning the committed codes",
-                    len(codes),
-                    count,
-                    exc_info=True,
-                )
-                break
+        codes = [new_invite_code() for _ in range(count)]
+        # Only the HASH is logged — the plaintext code is a seat-claiming secret.
+        hashes = [hash_invite_code(c) for c in codes]
+        self.events.append_many(
+            [("invite_grant", {"code_hash": h, "actor_hash": actor_hash}) for h in hashes]
+        )
+        # The durable batch committed atomically → reflect it in the live registry.
+        for code_hash in hashes:
             self.invites.grant_hash(code_hash)
-            codes.append(code)
         return codes
 
     def _redeem_invite_for_owner(self, code: str, owner: str) -> str:

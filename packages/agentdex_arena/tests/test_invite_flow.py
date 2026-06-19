@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.admin_auth import AdminAuthority
 from agentdex_arena.consent import ConsentAuthority
@@ -381,27 +382,29 @@ def test_admin_invites_listing(tmp_path):
             assert code not in r.text
 
 
-def test_mint_is_no_burn_on_partial_append_failure(tmp_path, monkeypatch):
-    """A mid-batch append failure RETURNS the codes already committed rather than
-    losing them to a propagating exception — so no durably-minted seat is burned
-    unseen by the operator (PR #360 review)."""
+def test_mint_is_atomic_no_burn_on_append_failure(tmp_path, monkeypatch):
+    """The batch mint is ATOMIC (append_many: tmp + fsync + os.replace), so an
+    append failure commits NOTHING — there is no partial-commit window that could
+    burn seats (durably minted but undistributable). PR #360 + #365 review."""
     gw = _gateway(tmp_path)
-    real_append = gw.events.append
-    calls = {"n": 0}
 
-    def flaky_append(etype, payload):
-        if etype == "invite_grant":
-            calls["n"] += 1
-            if calls["n"] == 3:  # the 3rd grant's durable write fails
-                raise OSError("disk full")
-        return real_append(etype, payload)
+    def boom(_items):
+        raise OSError("disk full")
 
-    monkeypatch.setattr(gw.events, "append", flaky_append)
+    monkeypatch.setattr(gw.events, "append_many", boom)
+    with pytest.raises(OSError):
+        gw.mint_invites(5, actor_hash="op")
+    assert gw.invites.stats()["minted"] == 0  # atomic: nothing committed, no burn
+
+
+def test_mint_commits_whole_batch(tmp_path):
+    """The happy path commits every code in one atomic batch (append_many)."""
+    gw = _gateway(tmp_path)
     codes = gw.mint_invites(5, actor_hash="op")
-    assert len(codes) == 2  # only the 2 that committed before the 3rd failed
-    for c in codes:  # every returned code is durably committed + redeemable
+    assert len(codes) == 5
+    for c in codes:
         assert gw.invites.redeemable(c) is True
-    assert gw.invites.stats()["minted"] == 2  # no phantom/uncommitted seat
+    assert gw.invites.stats()["minted"] == 5
 
 
 def test_blank_invite_code_is_opaque_403_not_500(tmp_path, monkeypatch):
