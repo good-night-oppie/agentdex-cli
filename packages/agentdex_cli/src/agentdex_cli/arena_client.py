@@ -94,6 +94,21 @@ def token_expired(token: str, *, now: float | None = None) -> bool:
     return (now if now is not None else time.time()) >= exp
 
 
+# Bounded retry for the arena's transient in-flight-forfeit 409: when a battle times out
+# while a concurrent caller is mid-forfeit, /state and /choose return a 409 carrying a
+# Retry-After header (the body is opaque). Re-polling a few times surfaces the ended
+# timeout receipt instead of a terminal error (arena PR #381 review 3443812758).
+_INFLIGHT_MAX_ATTEMPTS = 4
+
+
+def _retry_after_seconds(raw: str | None, *, default: float = 1.0, cap: float = 5.0) -> float:
+    """Parse a Retry-After header value (delta-seconds) defensively, clamped to [0, cap]."""
+    try:
+        return min(max(float(raw if raw is not None else default), 0.0), cap)
+    except (TypeError, ValueError):
+        return default
+
+
 class ArenaClient:
     """Stateless HTTP wrapper; pass ``token`` per call. Use as a context manager."""
 
@@ -163,26 +178,36 @@ class ArenaClient:
             .json()
         )
 
+    def _send_retrying_inflight(self, send: Any) -> dict[str, Any]:
+        """Call ``send`` (-> httpx.Response) and transparently retry the arena's transient
+        in-flight-forfeit 409 (a concurrent timeout forfeit window, signalled by a
+        Retry-After header) a bounded number of times, so the caller gets the ended
+        receipt instead of an opaque terminal error (arena PR #381 review 3443812758).
+        Any other status (incl. a 409 WITHOUT Retry-After) is raised as usual."""
+        resp = send()
+        for _ in range(_INFLIGHT_MAX_ATTEMPTS - 1):
+            if resp.status_code != 409 or "retry-after" not in resp.headers:
+                break
+            time.sleep(_retry_after_seconds(resp.headers.get("retry-after")))
+            resp = send()
+        return resp.raise_for_status().json()
+
     def battle_state(self, token: str, battle_id: str) -> dict[str, Any]:
         """Poll without choosing. Token in the Authorization header (never the query)."""
-        return (
-            self._http.get(
+        return self._send_retrying_inflight(
+            lambda: self._http.get(
                 f"/battle/{battle_id}/state",
                 headers={"Authorization": f"Bearer {token}"},
             )
-            .raise_for_status()
-            .json()
         )
 
     def battle_choose(self, token: str, battle_id: str, choice_index: int) -> dict[str, Any]:
         """choice_index is 1-based (1..n_choices). Returns next state OR ended receipt."""
-        return (
-            self._http.post(
+        return self._send_retrying_inflight(
+            lambda: self._http.post(
                 f"/battle/{battle_id}/choose",
                 json={"token": token, "choice_index": choice_index},
             )
-            .raise_for_status()
-            .json()
         )
 
     def replay(self, battle_id: str) -> dict[str, Any]:

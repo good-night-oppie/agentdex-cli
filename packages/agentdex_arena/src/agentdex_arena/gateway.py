@@ -266,10 +266,15 @@ def _gym_team_name(opponent: str) -> str:
     return names[GYM_TEAM_INDEX.get(opponent, 1) % len(names)]
 
 
-def _opaque_error(status: int, exc: Exception | str) -> HTTPException:
+def _opaque_error(
+    status: int, exc: Exception | str, *, headers: dict[str, str] | None = None
+) -> HTTPException:
     err_id = uuid.uuid4().hex[:12]
     log.warning("arena error (ref=%s): %s", err_id, exc)
-    return HTTPException(status_code=status, detail=f"arena error (ref: {err_id})")
+    # ``headers`` carries non-secret transport signals (e.g. Retry-After on a transient
+    # 409) — the opaque body still hides the reason, so this leaks nothing about
+    # existence/ownership (D7) while letting a client distinguish a RETRIABLE error.
+    return HTTPException(status_code=status, detail=f"arena error (ref: {err_id})", headers=headers)
 
 
 def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
@@ -3090,7 +3095,12 @@ def create_app(
             # timeout as terminal-in-progress — a transient 409 the client retries (it then
             # gets the ended receipt) — instead of rendering a stale ``your_move`` for a
             # battle that is already timing out (PR #378 review 3443735244).
-            raise _opaque_error(409, "battle is finishing (timed out)")
+            # Retry-After marks this 409 as a transient retriable signal so a client can
+            # re-poll and get the ended timeout receipt instead of treating it as terminal
+            # (PR #381 review 3443812758). The opaque body still hides the reason (D7).
+            raise _opaque_error(
+                409, "battle is finishing (timed out)", headers={"Retry-After": "1"}
+            )
         if session.pending is None or session.last_state is None:
             raise _opaque_error(409, "no pending state (battle not yet stepped)")
         return gw._render(session, session.last_state)
@@ -3122,7 +3132,12 @@ def create_app(
             # would race the ``stop``; return a transient 409 the client retries, by which
             # point session.ended carries the terminal timeout receipt (PR #378 review
             # 3443735244).
-            raise _opaque_error(409, "battle is finishing (timed out)")
+            # Retry-After marks this 409 as a transient retriable signal so a client can
+            # re-poll and get the ended timeout receipt instead of treating it as terminal
+            # (PR #381 review 3443812758). The opaque body still hides the reason (D7).
+            raise _opaque_error(
+                409, "battle is finishing (timed out)", headers={"Retry-After": "1"}
+            )
         if session.pending is None:
             raise _opaque_error(409, "no pending request")
         choices = legal_choices(session.pending)

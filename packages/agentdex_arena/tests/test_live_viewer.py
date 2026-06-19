@@ -608,6 +608,10 @@ def test_state_and_choose_409_during_inflight_forfeit(tmp_path, caplog):
 
     assert rs.status_code == 409  # /state: not a stale your_move
     assert rc.status_code == 409  # /choose: not a sidecar step racing the stop
+    # Retry-After marks the transient as RETRIABLE so a client re-polls for the ended
+    # receipt instead of treating it as terminal (PR #381 review 3443812758).
+    assert rs.headers.get("retry-after")
+    assert rc.headers.get("retry-after")
     # The opaque body hides the detail; the server logs the real reason — assert BOTH
     # handlers took the in-flight-forfeit branch (not the no-pending fallback 409).
     finishing = [r for r in caplog.records if "battle is finishing (timed out)" in r.getMessage()]
