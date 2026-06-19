@@ -24,7 +24,7 @@ battle and adds nothing to the non-codex move path.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 # Strategies the runner routes to this adapter (the codex move seam).
@@ -38,22 +38,39 @@ DecideFn = Callable[[Any, dict[str, Any]], "str | None"]
 
 def _allow_switch(harness: Any) -> bool:
     """Whether the genome's Contract-1 ``ToolPolicy`` permits a VOLUNTARY switch
-    (default ``True`` when unset / duck-typed). A FORCED switch (no legal move after
-    a KO) is always allowed regardless — the player must switch."""
-    tp = getattr(harness, "tool_policy", None)
+    (default ``True`` when unset / duck-typed). A FORCED switch is always allowed
+    regardless — the player must switch. Reads either the ``BattleHarness`` model OR
+    its Contract-1 dict/wire form (``{"tool_policy": {"allow_switch": false}}``), so
+    the policy gate holds when the adapter is handed the wire form."""
+    tp = (
+        harness.get("tool_policy")
+        if isinstance(harness, Mapping)
+        else getattr(harness, "tool_policy", None)
+    )
     if tp is None:
         return True
-    val = getattr(tp, "allow_switch", True)
+    val = (
+        tp.get("allow_switch", True)
+        if isinstance(tp, Mapping)
+        else getattr(tp, "allow_switch", True)
+    )
     return True if val is None else bool(val)
 
 
-def _legal_switches(harness: Any, battle: Any, moves: list[Any]) -> list[Any]:
-    """The switch targets the policy may pick this turn: always the forced-switch set
-    (no legal move), but VOLUNTARY switches (a move is also legal) only when the
-    genome's ``tool_policy.allow_switch`` is set — so a switch-disabled experiment
-    cannot switch as soon as codex names one (Contract-1 ToolPolicy)."""
+def _is_forced_switch(battle: Any) -> bool:
+    """A MANDATORY switch (KO / forced) — the explicit ``force_switch`` flag, NOT
+    merely "no legal move": some no-move turns (every active move disabled) are still
+    a VOLUNTARY switch opportunity that ``allow_switch`` must gate."""
+    return bool(getattr(battle, "force_switch", False))
+
+
+def _legal_switches(harness: Any, battle: Any) -> list[Any]:
+    """The switch targets the policy may pick this turn: always the forced-switch set,
+    but VOLUNTARY switches (``force_switch`` is False) only when the genome's
+    ``tool_policy.allow_switch`` is set — so a switch-disabled experiment cannot switch
+    as soon as codex names one, even on a non-KO no-move turn (Contract-1 ToolPolicy)."""
     switches = list(getattr(battle, "available_switches", None) or [])
-    if moves and not _allow_switch(harness):
+    if not _is_forced_switch(battle) and not _allow_switch(harness):
         return []
     return switches
 
@@ -66,12 +83,12 @@ def codex_context(battle: Any, *, allow_switch: bool = True) -> dict[str, Any]:
     ``available_moves`` carries each legal move's id + base_power; ``available_switches``
     carries each legal switch target's species (so the policy can choose a switch —
     on a forced switch after a KO there are NO moves, only switches). ``allow_switch``
-    drops VOLUNTARY switches (when a move is also legal) so the prompt never offers a
+    drops VOLUNTARY switches (``force_switch`` is False) so the prompt never offers a
     switch the genome's ToolPolicy forbids. The rest is light situational state."""
     moves = list(getattr(battle, "available_moves", None) or [])
     switches = list(getattr(battle, "available_switches", None) or [])
-    if moves and not allow_switch:
-        switches = []  # voluntary switch disallowed by tool_policy
+    if not _is_forced_switch(battle) and not allow_switch:
+        switches = []  # voluntary switch disallowed by tool_policy (gated on force_switch)
     active = getattr(battle, "active_pokemon", None)
     return {
         "available_moves": [
@@ -131,7 +148,7 @@ def select_codex_move(
     legal."""
     moves = list(getattr(battle, "available_moves", None) or [])
     allow_switch = _allow_switch(harness)
-    switches = _legal_switches(harness, battle, moves)
+    switches = _legal_switches(harness, battle)
     if not moves and not switches:
         return None  # nothing legal (forced pass / struggle) → caller's random fallback
     ctx = codex_context(battle, allow_switch=allow_switch)

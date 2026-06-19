@@ -93,6 +93,20 @@ def _seeded_index(modulo: int, *parts: Any) -> int:
     return int.from_bytes(digest, "big") % modulo
 
 
+def _filter_switch_orders(orders: list[Any], *, exclude_switches: bool) -> list[Any]:
+    """Drop voluntary switch orders from a poke-env ``valid_orders`` list when the
+    genome forbids switching. A switch order's Showdown message is ``/choose switch
+    <name>`` (a move is ``/choose move <id>``, so a move named e.g. Switcheroo is NOT
+    matched). Never returns empty when the input was non-empty — if every order is a
+    switch (a true forced switch), keep them so the player never deadlocks."""
+    if not exclude_switches:
+        return orders
+    non_switch = [
+        o for o in orders if not str(getattr(o, "message", "")).startswith("/choose switch")
+    ]
+    return non_switch or orders
+
+
 def _resolve_codex_decide() -> Any:
     """The live-codex ``DecideFn`` when ``ADX_CODEX_LIVE=1`` (codex picks each move via
     the real CLI, driven by the harness prompt), else ``None`` → the adapter's
@@ -157,7 +171,7 @@ def make_harness_player(
             substitutes a legal move, so the battle is unaffected)."""
             self.illegal_moves += 1
 
-        def _seeded_order(self, battle: Any) -> Any:
+        def _seeded_order(self, battle: Any, *, exclude_switches: bool = False) -> Any:
             """A reproducible random legal choice, replacing poke-env's unseeded
             ``choose_random_move``. Draws from poke-env's FULL legal order set
             (``battle.valid_orders`` — moves incl. tera / dynamax / mega / Z +
@@ -165,8 +179,12 @@ def make_harness_player(
             keys the pick on ``rng_seed`` + the turn + the legal options' stable
             Showdown command strings (NOT the server-assigned ``battle_tag``), so
             an identical decision context yields the same choice regardless of run
-            or call order across concurrent battles."""
-            orders = list(getattr(battle, "valid_orders", None) or [])
+            or call order across concurrent battles. ``exclude_switches`` drops
+            voluntary switch orders so a codex-abstention fallback honors the genome's
+            ``allow_switch`` instead of sneaking a switch back in."""
+            orders = _filter_switch_orders(
+                list(getattr(battle, "valid_orders", None) or []), exclude_switches=exclude_switches
+            )
             if not orders:  # nothing legal to choose (forced pass / struggle)
                 return self.choose_random_move(battle)
             key = "|".join(str(o) for o in orders)
@@ -213,7 +231,15 @@ def make_harness_player(
                         self._note_illegal()
                 if chosen is not None:
                     return self.create_order(chosen)
-                return self._seeded_order(battle)
+                # abstention / failure: fall back to a seeded legal order, but keep
+                # the genome's allow_switch — a voluntary switch must not sneak in via
+                # the fallback (a forced switch still must). The seeded order otherwise
+                # samples valid_orders, which includes switches.
+                allow_switch = bool(getattr(getattr(h, "tool_policy", None), "allow_switch", True))
+                force_switch = bool(getattr(battle, "force_switch", False))
+                return self._seeded_order(
+                    battle, exclude_switches=(not force_switch and not allow_switch)
+                )
             # non-codex strategies with no legal move (e.g. a forced switch) defer to
             # the seeded random legal order.
             if not moves:
