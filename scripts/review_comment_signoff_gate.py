@@ -35,7 +35,13 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
-BOT_LOGINS = {"github-actions", "github-actions[bot]", "codex", "dependabot[bot]"}
+BOT_LOGINS = {
+    "codex",
+    "dependabot[bot]",
+    "github-actions",
+    "github-actions[bot]",
+    "triple-review-stub",
+}
 
 QUERY = """
 query($owner:String!,$repo:String!,$pr:Int!,$threadsAfter:String){
