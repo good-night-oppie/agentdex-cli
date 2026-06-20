@@ -138,7 +138,8 @@ ARE codex's policy. This is the thing being evolved.
   B3 hash-locked **kill-gate** eval probe (evolved must beat seed on held-out by margin) + anti-vacuous assert.
   B4 SharedLog lineage + `(run_seed, inputLog)` reproducibility.
 - **Lane C — codex self-play agent adapter + E2E.** Owner: **codex** (+harness-11 integrate).
-  C1 codex battle-harness adapter: codex picks moves from `BattleHarness`+state over MCP (Contract 5).
+  C1 codex battle-harness adapter: codex strategies pick moves from `BattleHarness`+state in-process via
+  `select_codex_move` (Contract 5).
   C2 e2e driver: seed → self-play → fitness → evolve ≥1 gen → measure uplift on held-out; emit `DONE_JSON`.
 - **Lane D — verify (anti-vacuous).** Owner: **og** (+harness-11). Triple-verify the uplift isn't vacuous:
   held-out opponents real, `battles_played>0 ∧ gens_completed>0`, kill-gate actually rejects a non-improving harness.
