@@ -56,9 +56,11 @@ produces transcript plus artifact evidence that satisfies every criterion below:
 
 1. codex drives Showdown self-play battles **via the agentdex-cli arena MCP surface** (not a bespoke script).
 2. bene runs **≥1 meta-harness evolution generation** mutating codex's battle harness.
-3. The **evolved harness beats the seed harness by a measured win-rate margin** (target ≥ +10 pp,
-   95% CI excludes 0 over ≥30 battles) on **held-out baseline opponents** (poke-env
-   `RandomPlayer`, `MaxBasePowerPlayer`, `SimpleHeuristicsPlayer`).
+3. The **evolved harness beats the seed harness by a measured win-rate margin** on
+   **held-out baseline opponents** (poke-env `RandomPlayer`, `MaxBasePowerPlayer`,
+   `SimpleHeuristicsPlayer`). CI-sized C2 evidence targets ≥ +10 pp with 95% CI
+   excluding 0 over ≥30 battles; real-bene E2E evidence is the substrate-gated
+   `killgate_report.verdict == "ACCEPT"` plus nonzero battle/gen counts.
 4. Promotion is **kill-gated** (hash-locked bene eval probe): a harness that does NOT beat seed on
    held-out is REJECTED. Anti-vacuous: assert `battles_played > 0` and `gens_completed > 0`, not
    just "gate clean".
