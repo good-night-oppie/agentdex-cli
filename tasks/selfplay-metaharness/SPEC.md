@@ -35,7 +35,7 @@ promotes only kill-gate winners.
 
 ## Acceptance Criteria
 
-- [x] Codex drives Showdown self-play battles via the agentdex-cli arena MCP surface.
+- [ ] Codex drives Showdown self-play battles via the agentdex-cli arena MCP surface.
 - [x] Bene runs at least 1 meta-harness evolution generation mutating codex's battle harness.
 - [x] The evolved harness beats the seed by at least +10 pp on held-out baselines.
 - [x] The kill gate rejects a non-improving harness and asserts `battles_played > 0` plus `gens_completed > 0`.
