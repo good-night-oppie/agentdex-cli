@@ -404,11 +404,7 @@ class E2EReport:
                 else "MOCK runner: deterministic synthetic battles for testing the "
                 "wiring + CI math + DONE_JSON shape without a PS server — the uplift "
                 "is NOT a real result"
-                + (
-                    " (Lane B evolve IS bene's real evolve_battle_harness)."
-                    if evolve_real
-                    else "."
-                )
+                + (" (Lane B evolve IS bene's real evolve_battle_harness)." if evolve_real else ".")
                 + " Use --backend pokeenv for DONE #3."
             ),
         }
@@ -537,8 +533,7 @@ def _real_evolve(
     killgate["passed"] = killgate.get("verdict") == "ACCEPT" and uplift_pp >= margin_pp
 
     lineage = [
-        asdict(g) if hasattr(g, "__dataclass_fields__") else dict(g)
-        for g in (out.lineage or [])
+        asdict(g) if hasattr(g, "__dataclass_fields__") else dict(g) for g in (out.lineage or [])
     ]
     total_battles = sum(_wins_and_battles(r)[1] for (r, _f) in cache.values())
 
@@ -591,9 +586,13 @@ def run_e2e(
         return results, multi_dim_fitness(results)
 
     if evolve_backend == "real":
-        evolved = _real_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
+        evolved = _real_evolve(
+            seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp
+        )
     else:
-        evolved = _mock_evolve(seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp)
+        evolved = _mock_evolve(
+            seed, eval_fn, n_gen, run_seed, n_battles=n_battles, margin_pp=margin_pp
+        )
 
     # Re-measure seed + the SELECTED best on FRESH held-out samples (seeds offset so
     # the mock's deterministic results — and the live PS battles — are INDEPENDENT
