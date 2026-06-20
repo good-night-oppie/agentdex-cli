@@ -78,6 +78,15 @@ BOT_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
 mk bot_thread "$BOT_THREAD"
 run bot_thread || fail "bot-authored thread should be EXEMPT (pass)"
 
+TRIPLE_REVIEW_STUB_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"triple-review-stub","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk triple_review_stub_thread "$TRIPLE_REVIEW_STUB_THREAD"
+run triple_review_stub_thread || fail "triple-review-stub thread should be EXEMPT (pass)"
+
 PRAUTHOR_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[
