@@ -1176,7 +1176,9 @@ class ArenaGateway:
 
     def me_agents(self, claims: SessionClaims) -> dict[str, Any]:
         """GA-CORE-5: the dashboard roster (US-2.1) — the owner's agents with their
-        ladder rating, rated W/L, badges, and a live/idle flag. Read-only: never debits quota, never
+        ladder rating, rated W/L, badges, and a live/idle flag. ``genome_summary`` is
+        ``None`` until per-agent genome persistence lands (the arena stores no genome
+        server-side today — GA-CORE-5 follow-up). Read-only: never debits quota, never
         feeds ``recompute_ladder`` (same anti-pay-to-rank posture as ``account_quota``)."""
         names = self.accounts.agents_for(claims.owner)  # already sorted
         nameset = set(names)
@@ -1186,76 +1188,39 @@ class ArenaGateway:
         # the agents (p1/p2/winner). ``battle_end`` carries no agent_name, so sandbox
         # (gym/anchor) battles are not counted here — rated W/L only.
         wl: dict[str, dict[str, int]] = {n: {"wins": 0, "losses": 0, "ties": 0} for n in names}
-        latest_teams: dict[str, str | None] = {}
-        agent_rated_teams: dict[str, set[str]] = {n: set() for n in names}
-        agent_has_uncaptured: dict[str, bool] = {n: False for n in names}
-
         if have_log and nameset:
             # Quarantined battles are dropped from the public rating/games by
             # recompute_ladder (it pre-scans ``quarantine`` rows); mirror that here so
             # the dashboard W/L can never diverge from /ladder for a disputed/colluding
             # account (PR #370 review). quarantine + period both carry battle_id.
             quarantined: set[str] = set()
-            ended_battles: set[str] = set()
             for ev in self.events.iter_events():
-                etype = ev.get("type")
-                payload = ev.get("payload") or {}
-                bid = payload.get("battle_id")
-                if not bid:
+                if ev.get("type") == "quarantine":
+                    qbid = (ev.get("payload") or {}).get("battle_id")
+                    if qbid:
+                        quarantined.add(qbid)
+            for ev in self.events.iter_events():
+                if ev.get("type") != "period":
                     continue
-                if etype == "quarantine":
-                    quarantined.add(bid)
-                elif etype == "battle_end":
-                    ended_battles.add(bid)
-
-            for ev in self.events.iter_events():
-                etype = ev.get("type")
-                payload = ev.get("payload") or {}
-                if etype == "period":
-                    for rev in payload.get("events") or []:
-                        bid = rev.get("battle_id")
-                        if bid in quarantined:
-                            continue  # excluded from the authoritative ladder → exclude from W/L too
-                        winner = rev.get("winner")
-                        for n in (rev.get("p1"), rev.get("p2")):
-                            if n not in nameset:
-                                continue
-                            if winner == n:
-                                wl[n]["wins"] += 1
-                            elif winner == "":
-                                wl[n]["ties"] += 1
-                            else:
-                                wl[n]["losses"] += 1
-                elif etype == "battle_begin":
-                    bid = payload.get("battle_id")
-                    lane = payload.get("lane")
-                    visitor = payload.get("visitor")
-                    team_hash = payload.get("team_hash")
-                    if (
-                        bid
-                        and lane == "rated"
-                        and visitor in nameset
-                        and bid in ended_battles
-                        and bid not in quarantined
-                    ):
-                        latest_teams[visitor] = team_hash
-                        if team_hash:
-                            agent_rated_teams[visitor].add(team_hash)
+                for rev in (ev.get("payload") or {}).get("events") or []:
+                    if rev.get("battle_id") in quarantined:
+                        continue  # excluded from the authoritative ladder → exclude from W/L too
+                    winner = rev.get("winner")
+                    for n in (rev.get("p1"), rev.get("p2")):
+                        if n not in nameset:
+                            continue
+                        if winner == n:
+                            wl[n]["wins"] += 1
+                        elif winner == "":
+                            wl[n]["ties"] += 1
                         else:
-                            agent_has_uncaptured[visitor] = True
-
+                            wl[n]["losses"] += 1
         # live = an unfinished session for one of the owner's agents in THIS process
         # (finished sessions linger in self.sessions, so ``ended is None`` is the gate).
         live_names = {s.visitor_name for s in self.sessions.values() if s.ended is None} & nameset
         agents: list[dict[str, Any]] = []
         for n in names:
             r = ladder.entrants.get(n, Rating()) if ladder is not None else Rating()
-            team_summary = None
-            if n in latest_teams:
-                team_summary = {
-                    "team_hash": latest_teams[n],
-                    "mixed_window": len(agent_rated_teams[n]) > 1 or agent_has_uncaptured[n],
-                }
             agents.append(
                 {
                     "agent_name": n,
@@ -1267,96 +1232,10 @@ class ArenaGateway:
                     "ties": wl[n]["ties"],
                     "badges": ladder.badges.get(n, []) if ladder is not None else [],
                     "live": n in live_names,
-                    "team_summary": team_summary,
-                    # Alias for backwards compatibility with any old clients/tests
-                    "genome_summary": team_summary,
+                    "genome_summary": None,
                 }
             )
         return {"owner": claims.owner, "agents": agents}
-
-    def me_agent_team(self, agent_name: str, claims: SessionClaims) -> dict[str, Any]:
-        """GA-CORE-5: session-authed detail view for the agent's team/build identity (US-2.1)."""
-        names = self.accounts.agents_for(claims.owner)
-        if agent_name not in names:
-            raise _opaque_error(403, "not your agent")
-
-        have_log = self.events.path.is_file()
-        ladder = recompute_ladder(self.events.path) if have_log else None
-
-        latest_team_hash = None
-        agent_rated_teams = set()
-        agent_has_uncaptured = False
-        latest_any_battle_lane = None
-
-        if have_log:
-            quarantined: set[str] = set()
-            ended_battles: set[str] = set()
-            for ev in self.events.iter_events():
-                etype = ev.get("type")
-                payload = ev.get("payload") or {}
-                bid = payload.get("battle_id")
-                if not bid:
-                    continue
-                if etype == "quarantine":
-                    quarantined.add(bid)
-                elif etype == "battle_end":
-                    ended_battles.add(bid)
-
-            for ev in self.events.iter_events():
-                etype = ev.get("type")
-                payload = ev.get("payload") or {}
-                if etype == "battle_begin":
-                    bid = payload.get("battle_id")
-                    lane = payload.get("lane")
-                    visitor = payload.get("visitor")
-                    team_hash = payload.get("team_hash")
-                    if visitor == agent_name and lane:
-                        latest_any_battle_lane = lane
-                    if (
-                        bid
-                        and lane == "rated"
-                        and visitor == agent_name
-                        and bid in ended_battles
-                        and bid not in quarantined
-                    ):
-                        latest_team_hash = team_hash
-                        if team_hash:
-                            agent_rated_teams.add(team_hash)
-                        else:
-                            agent_has_uncaptured = True
-
-        # Retrieve the team blob out-of-band, content-addressed by hash, owner-scoped.
-        team_packed = None
-        if latest_team_hash:
-            owner_norm = _normalize_owner(claims.owner)
-            owner_dir = hashlib.blake2b(owner_norm.encode("utf-8"), digest_size=8).hexdigest()
-            team_file = self.artifacts_dir / "teams" / owner_dir / f"{latest_team_hash}.json"
-            if team_file.exists():
-                try:
-                    data = json.loads(team_file.read_text())
-                    team_packed = data.get("team_packed")
-                except Exception:
-                    pass
-
-        r = ladder.entrants.get(agent_name, Rating()) if ladder is not None else Rating()
-        recent_non_rated_note = None
-        if latest_any_battle_lane and latest_any_battle_lane != "rated":
-            recent_non_rated_note = f"Most recent play was in {latest_any_battle_lane} lane"
-
-        return {
-            "agent_name": agent_name,
-            "team_hash": latest_team_hash,
-            "team_packed": team_packed,
-            "genome_hash": latest_team_hash,
-            "genome_packed": team_packed,
-            "rating_context": {
-                "rating": round(r.rating, 1),
-                "rd": round(r.rd, 1),
-                "games": r.games,
-                "mixed_window": len(agent_rated_teams) > 1 or agent_has_uncaptured,
-            },
-            "recent_non_rated_note": recent_non_rated_note,
-        }
 
     def me_battles(self, claims: SessionClaims, *, recent_limit: int = 50) -> dict[str, Any]:
         """GA-CORE-5: the owner's battles (US-2.1) — LIVE battle ids (in-flight in THIS
@@ -1746,30 +1625,6 @@ class ArenaGateway:
         # Postgres write-behind. NO seed in the payload: mirror rows are
         # tenant-readable and the rated seed stays secret until the post-result
         # disclosure (A3).
-        # Capture team/build identity (re-homed genome-HUD)
-        team_hash = None
-        try:
-            team_hash = hashlib.sha256(team.encode("utf-8")).hexdigest()[:8]
-            # Store the team blob out-of-band, content-addressed by hash, owner-scoped.
-            owner_dir = hashlib.blake2b(owner_norm.encode("utf-8"), digest_size=8).hexdigest()
-            team_dir = self.artifacts_dir / "teams" / owner_dir
-            team_dir.mkdir(parents=True, exist_ok=True)
-            team_file = team_dir / f"{team_hash}.json"
-            if not team_file.exists():
-                team_file.write_text(
-                    json.dumps(
-                        {
-                            "owner": owner_norm,
-                            "team_hash": team_hash,
-                            "team_packed": team,
-                        }
-                    )
-                )
-        except Exception as e:
-            # GATE-2 validation: a battle must NEVER fail to start because capture failed.
-            log.warning("Failed to capture team/build identity: %s", e)
-            team_hash = None
-
         await self._append_or_fail_closed(
             "battle_begin",
             {
@@ -1778,7 +1633,6 @@ class ArenaGateway:
                 "lane": req.lane,
                 "visitor": visitor,
                 "opponent": opponent,
-                "team_hash": team_hash,  # OPTIONAL
             },
             sidecar=sidecar,
             battle_id=battle_id,
@@ -3129,24 +2983,6 @@ def create_app(
         membership, no quota); 503 if session auth is unconfigured, 401/403 on a
         missing/bad session."""
         return gateway.me_agents(_require_session(authorization))
-
-    @app.get("/me/agents/{agent_name}/team")
-    async def me_agent_team(
-        agent_name: str, authorization: str | None = Header(default=None)
-    ) -> dict:
-        """GA-CORE-5: session-authed detail view for the agent's team/build identity (US-2.1)."""
-        return gateway.me_agent_team(agent_name, _require_session(authorization))
-
-    @app.get("/me/agents/{agent_name}/genome")
-    async def me_agent_genome(
-        agent_name: str, authorization: str | None = Header(default=None)
-    ) -> dict:
-        """GA-CORE-5: session-authed detail view for the agent's genome identity (compatibility alias)."""
-        res = gateway.me_agent_team(agent_name, _require_session(authorization))
-        res = dict(res)
-        res["genome_hash"] = res.get("team_hash")
-        res["genome_packed"] = res.get("team_packed")
-        return res
 
     @app.get("/me/battles")
     async def me_battles(authorization: str | None = Header(default=None)) -> dict:
