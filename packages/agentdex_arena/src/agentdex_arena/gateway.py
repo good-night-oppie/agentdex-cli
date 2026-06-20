@@ -3705,6 +3705,22 @@ def create_app(
 
         app.mount("/bene", StaticFiles(directory=str(_bene_site), html=True), name="bene")
 
+    # agentdex.builders dashboard SPA (static). Mounted only when the deploy image
+    # bundles web/dashboard so local/API-only runs keep their previous surface.
+    _dashboard_site = Path("web/dashboard")
+    if _dashboard_site.is_dir():
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/dashboard", include_in_schema=False)
+        async def _dashboard_trailing_slash() -> RedirectResponse:
+            return RedirectResponse(url="/dashboard/", status_code=308)
+
+        app.mount(
+            "/dashboard",
+            StaticFiles(directory=str(_dashboard_site), html=True),
+            name="dashboard",
+        )
+
     return app
 
 
