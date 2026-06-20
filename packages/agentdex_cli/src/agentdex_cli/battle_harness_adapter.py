@@ -384,7 +384,7 @@ def _first_float(raw: Mapping[str, Any], *keys: str) -> float | None:
             continue
         try:
             return float(raw[key])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
     return None
 
@@ -417,7 +417,7 @@ def _coerce_param(
         return default
     try:
         val = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
     import math
 
