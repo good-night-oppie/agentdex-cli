@@ -51,11 +51,7 @@ const loadAgents = () =>
     : getJSON("./fixtures/me_agents.json");
 
 const loadEvolution = (agent) =>
-  LIVE
-    ? getJSON(`/me/agents/${encodeURIComponent(agent.agent_id || agent.agent_name)}/evolution`, {
-        ...liveFetchOptions(),
-      })
-    : getJSON("./fixtures/done.json");
+  getJSON("./fixtures/done.json");
 
 let battleSource = null;
 let current = null;
