@@ -119,8 +119,11 @@ illegal-move spam / stalling (per the rewardhack-design doc).
 backed by bene `MetaHarnessSearch` + `pareto.py`; `killgate_report` asserts best beats seed on held-out.
 
 ### Contract 5 — codex adapter (Lane C; the agent-under-evolution)
-codex receives a `BattleHarness` + current battle state over MCP and returns a move choice. The harness's
-`system_prompt`+`params` ARE codex's policy. This is the thing being evolved.
+`selfplay_battle` is the batch MCP surface codex drives. Per-turn move decisions are
+resolved in-process by `adx_showdown.selfplay.runner`: codex strategies route the
+current `BattleHarness` plus battle state through `select_codex_move` (and, when
+live codex is enabled, its `decide` hook). The harness's `system_prompt`+`params`
+ARE codex's policy. This is the thing being evolved.
 
 ## LANES (owner = live fleet session; build as tiny PRs per repo discipline)
 
