@@ -49,6 +49,15 @@ STALE_APPROVAL='{"repository":{"pullRequest":{"author":{"login":"pa"},
 mk stale_approval "$STALE_APPROVAL"
 run stale_approval && fail "approval before author's latest thread comment should FAIL"
 
+SAME_TIME_APPROVAL='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[{"author":{"login":"alice"},"state":"APPROVED","submittedAt":"2026-06-20T02:00:00Z"}]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T02:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk same_time_approval "$SAME_TIME_APPROVAL"
+run same_time_approval && fail "approval at the author's latest thread comment time should FAIL"
+
 STALE_THUMBS='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[

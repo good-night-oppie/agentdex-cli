@@ -105,7 +105,7 @@ def login(author: dict | None) -> str:
 
 def signed_after(event_times: list[datetime | None], threshold: datetime | None) -> bool:
     return any(
-        threshold is None or (event_time is not None and event_time >= threshold)
+        threshold is None or (event_time is not None and event_time > threshold)
         for event_time in event_times
     )
 
