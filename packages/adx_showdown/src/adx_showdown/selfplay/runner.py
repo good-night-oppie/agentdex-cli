@@ -37,6 +37,7 @@ from adx_showdown.selfplay.baselines import (
     build_baseline,
     max_base_power_choice,
 )
+from adx_showdown.selfplay.codex_adapter import CODEX_STRATEGIES
 
 DEFAULT_FORMAT = "gen9randombattle"
 _PS_HOST = os.environ.get("ADX_PS_HOST", "127.0.0.1")
@@ -243,7 +244,7 @@ def make_harness_player(
             # seeded random fallback — picks the switch; the adapter returns None only
             # when nothing is legal. Lazy import keeps the non-codex path + poke-env-
             # free callers untouched.
-            if self.strategy in ("llm_freeform", "codex"):
+            if self.strategy in CODEX_STRATEGIES:
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
                 decide = _resolve_codex_decide()

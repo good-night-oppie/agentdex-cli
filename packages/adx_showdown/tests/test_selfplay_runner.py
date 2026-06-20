@@ -6,6 +6,8 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import sys
+import types
 
 import pytest
 from adx_showdown.harness import BattleHarness, seed_harness
@@ -20,11 +22,68 @@ from adx_showdown.selfplay.runner import (
 )
 
 
+class _Move:
+    def __init__(self, mid: str, base_power: int) -> None:
+        self.id = mid
+        self.base_power = base_power
+
+
 class _Order:
     """A duck-typed poke-env BattleOrder: only ``.message`` matters for filtering."""
 
     def __init__(self, message: str) -> None:
         self.message = message
+
+
+class _Battle:
+    def __init__(self, moves: list[_Move]) -> None:
+        self.available_moves = moves
+        self.available_switches = []
+        self.valid_orders = []
+        self.force_switch = False
+        self.turn = 1
+
+
+def _install_fake_poke_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakePlayer:
+        def __init__(self, **_kw) -> None:
+            pass
+
+        def create_order(self, choice):
+            return ("order", getattr(choice, "id", choice))
+
+        def choose_random_move(self, battle):
+            return ("random", battle)
+
+        def choose_default_move(self):
+            return "default"
+
+    fake_pkg = types.ModuleType("poke_env")
+    fake_pkg.__path__ = []
+    fake_player = types.ModuleType("poke_env.player")
+    fake_player.Player = _FakePlayer
+    monkeypatch.setitem(sys.modules, "poke_env", fake_pkg)
+    monkeypatch.setitem(sys.modules, "poke_env.player", fake_player)
+
+
+def test_native_strategy_dispatch_does_not_use_codex_adapter(monkeypatch):
+    """Regression for gh#388: runner dispatch itself must keep native strategies
+    native, not just avoid injecting a selector at the MCP boundary."""
+    from adx_showdown.selfplay import codex_adapter
+    from adx_showdown.selfplay.runner import make_harness_player
+
+    _install_fake_poke_env(monkeypatch)
+
+    def _fail_if_called(*_args, **_kwargs):
+        raise AssertionError("native strategy was routed through codex")
+
+    monkeypatch.setattr(codex_adapter, "select_codex_move", _fail_if_called)
+    player = make_harness_player(
+        BattleHarness(harness_id="native-max", move_selection_strategy="max_damage"),
+        server=object(),
+    )
+    chosen = asyncio.run(player.choose_move(_Battle([_Move("tackle", 40), _Move("eruption", 150)])))
+    assert chosen == ("order", "eruption")
 
 
 def test_fallback_orders_prefers_the_policy_allowed_set():
