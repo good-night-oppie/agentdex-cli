@@ -15,6 +15,8 @@ verifiable_claims:
     enforced_by: tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json
   - claim: The real bene Lane-B evolver can run the loop behind the kill gate.
     enforced_by: tasks/selfplay-metaharness/artifacts/done_e2e_real_bene.json
+  - claim: The kill gate rejects a non-improving harness.
+    enforced_by: packages/adx_showdown/tests/test_selfplay_e2e_driver.py
 definition_of_done: E2E DONE_JSON contains battles_played > 0, gens_completed > 0, and killgate_report.verdict == "ACCEPT".
 ---
 
