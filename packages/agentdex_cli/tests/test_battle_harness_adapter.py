@@ -256,3 +256,24 @@ def test_choice_index_uses_ordinal_not_slot() -> None:
     selection = select_codex_move(harness, state)
     assert selection.choice_index == 2
     assert selection.choice == "move 3"
+
+
+def test_oversized_integer_params_coerced_gracefully() -> None:
+    harness = BattleHarness(
+        harness_id="overflow-params",
+        move_selection_strategy="max_damage",
+        params={
+            "accuracy_weight": 10**400,
+        },
+    )
+    state = {
+        "status": "your_move",
+        "n_choices": 2,
+        "choices": [
+            {"choice_index": 1, "choice": "move 1", "name": "Quick Attack", "base_power": 40},
+            {"choice_index": 2, "choice": "move 2", "name": "Mega Punch", "base_power": 80},
+        ],
+    }
+    selection = select_codex_move(harness, state)
+    assert selection.choice_index == 2
+    assert selection.score == 80.0
