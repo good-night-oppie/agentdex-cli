@@ -187,7 +187,8 @@ def _option_from_any(raw: Any, fallback_index: int) -> MoveOption:
     if not isinstance(raw, Mapping):
         return MoveOption(fallback_index, str(raw), "unknown")
 
-    idx = _first_int(raw, "choice_index", "index", "slot", "choice") or fallback_index
+    choice_idx = _first_int(raw, "choice_index") or fallback_index
+    slot_or_val = _first_int(raw, "index", "slot", "choice", "choice_index") or fallback_index
     choice = str(raw.get("choice") or raw.get("command") or "")
     name = str(raw.get("name") or raw.get("move") or raw.get("move_name") or "")
     move_id = str(raw.get("id") or raw.get("move_id") or _normalize_move_id(name))
@@ -195,10 +196,16 @@ def _option_from_any(raw: Any, fallback_index: int) -> MoveOption:
     if not kind:
         kind = _infer_kind(choice, name, raw)
     if not choice:
-        choice = f"move {idx}" if kind == "move" else f"{kind} {idx}" if kind else str(idx)
+        choice = (
+            f"move {slot_or_val}"
+            if kind == "move"
+            else f"{kind} {slot_or_val}"
+            if kind
+            else str(slot_or_val)
+        )
 
     return MoveOption(
-        choice_index=idx,
+        choice_index=choice_idx,
         choice=choice,
         kind=kind,
         name=name,
