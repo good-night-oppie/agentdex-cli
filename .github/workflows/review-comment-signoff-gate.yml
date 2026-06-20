@@ -20,6 +20,10 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Run the gate from trusted base-branch code. A PR that edits the gate
+          # script must not be able to weaken this check for itself.
+          ref: ${{ github.event.pull_request.base.sha }}
       - name: comment-author sign-off (approval or 👍; Resolve alone is not enough)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
