@@ -183,6 +183,7 @@ def test_me_agents_live_flag_reflects_inflight_session(tmp_path):
     with _client(gw) as c:
         [row] = c.get("/me/agents", headers=_auth(gw)).json()["agents"]
     assert row["live"] is True
+    assert row["live_battle_id"] == "live1"
 
 
 # --------------------------------------------------------------------------- #
