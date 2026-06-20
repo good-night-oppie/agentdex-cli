@@ -59,6 +59,12 @@ def test_routes_the_llm_strategies():
     assert "codex" in CODEX_STRATEGIES
 
 
+def test_native_harness_strategies_are_not_codex_routed():
+    """Regression for gh#388: native runner strategies must not be silently
+    converted into the codex/greedy adapter path."""
+    assert CODEX_STRATEGIES.isdisjoint({"random", "max_damage"})
+
+
 def test_greedy_default_picks_highest_base_power():
     battle = _Battle([_Move("tackle", 40), _Move("eruption", 150), _Move("ember", 40)])
     chosen = select_codex_move(harness=None, battle=battle)

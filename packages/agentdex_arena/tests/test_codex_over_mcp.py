@@ -124,6 +124,45 @@ async def test_concurrency_rail_releases_slot_after_failure(tmp_path, monkeypatc
     assert gw._owner_inflight[owner] == 1  # back to the pre-call count (no leak)
 
 
+@pytest.mark.asyncio
+async def test_selfplay_mcp_does_not_inject_codex_selector_for_native_strategy(
+    tmp_path, monkeypatch
+):
+    """Regression for gh#388: native strategies stay native at the MCP boundary.
+
+    The runner owns strategy dispatch. The MCP tool must not pass a selector seam
+    that would route valid ``random`` / ``max_damage`` harnesses through the codex
+    adapter.
+    """
+    captured = {}
+
+    class _Result:
+        def model_dump(self):
+            return {"winner": "draw", "battles": [], "trace_path": "", "raw_dims": {}}
+
+    async def _fake_run_selfplay_battle(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return _Result()
+
+    monkeypatch.setattr("adx_showdown.selfplay.run_selfplay_battle", _fake_run_selfplay_battle)
+
+    gw = _gateway(tmp_path)
+    init_mcp(gw, lambda: None)
+    token = _battle_token(gw)
+
+    await selfplay_battle(
+        token,
+        {"harness_id": "native-rng", "move_selection_strategy": "random"},
+        _BASELINE,
+        seed=7,
+        n_battles=2,
+    )
+
+    assert "move_selector" not in captured["kwargs"]
+    assert captured["kwargs"]["opponent_baseline"] == "harness:rng"
+
+
 # ---- PS-gated: codex actually drives moves through the MCP tool ----
 
 
