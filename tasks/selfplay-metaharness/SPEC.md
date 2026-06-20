@@ -51,8 +51,9 @@ promotes only kill-gate winners.
 
 ## Definition of Done
 
-This run is done only when an E2E run, reproducible from `(seed, inputLog)`,
-produces transcript plus artifact evidence that satisfies every criterion below:
+This run is done only when a fixed-seed E2E run, reproducible under the
+current live poke-env/PS runner contract, produces transcript plus artifact
+evidence that satisfies every criterion below:
 
 1. codex drives Showdown self-play battles **via the agentdex-cli arena MCP surface** (not a bespoke script).
 2. bene runs **≥1 meta-harness evolution generation** mutating codex's battle harness.
@@ -136,7 +137,8 @@ ARE codex's policy. This is the thing being evolved.
   B1 `evolve_battle_harness` driving `MetaHarnessSearch` to mutate the BattleHarness genome (Contract 4).
   B2 Pareto evaluator wired to Contract-3 fitness vectors.
   B3 hash-locked **kill-gate** eval probe (evolved must beat seed on held-out by margin) + anti-vacuous assert.
-  B4 SharedLog lineage + `(run_seed, inputLog)` reproducibility.
+  B4 SharedLog lineage + current-runner reproducibility receipt; exact `(run_seed, inputLog)` byte replay
+  stays an ADR-0014 open item.
 - **Lane C — codex self-play agent adapter + E2E.** Owner: **codex** (+harness-11 integrate).
   C1 codex battle-harness adapter: codex strategies pick moves from `BattleHarness`+state in-process via
   `select_codex_move` (Contract 5).
