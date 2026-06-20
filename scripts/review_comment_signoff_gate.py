@@ -26,12 +26,13 @@ Exit 0 = all human threads signed off; 1 = unsigned thread(s); 2 = usage/transpo
 """
 
 from __future__ import annotations
+
 import argparse
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 BOT_LOGINS = {"github-actions", "github-actions[bot]", "codex", "dependabot[bot]"}
 
@@ -86,9 +87,7 @@ def fetch(owner: str, repo: str, pr: int) -> dict:
 def is_bot(author: dict) -> bool:
     login = (author or {}).get("login", "") or ""
     return (
-        (author or {}).get("__typename") == "Bot"
-        or login.endswith("[bot]")
-        or login in BOT_LOGINS
+        (author or {}).get("__typename") == "Bot" or login.endswith("[bot]") or login in BOT_LOGINS
     )
 
 
@@ -132,9 +131,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", help="owner/name")
     ap.add_argument("--pr", type=int)
-    ap.add_argument(
-        "--fixture", help="JSON file with a GraphQL `data` payload (for tests)"
-    )
+    ap.add_argument("--fixture", help="JSON file with a GraphQL `data` payload (for tests)")
     ap.add_argument(
         "--include-bots",
         action="store_true",
@@ -154,9 +151,7 @@ def main() -> int:
         for u in unsigned:
             print(f"  - {u}")
         return 1
-    print(
-        "PASS: every human review thread is signed off by its author (approval or 👍)."
-    )
+    print("PASS: every human review thread is signed off by its author (approval or 👍).")
     return 0
 
 
