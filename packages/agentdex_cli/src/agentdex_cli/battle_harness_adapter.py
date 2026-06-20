@@ -124,8 +124,14 @@ def select_codex_move(
     scored = [(option, _score_option(strategy, option, battle_state, h)) for option in options]
 
     allow_switch = bool(h.tool_policy.get("allow_switch", True))
-    if not allow_switch and any(option.kind == "move" for option, _ in scored):
-        scored = [(option, score) for option, score in scored if option.kind == "move"]
+    is_force_switch = bool(
+        battle_state.get("force_switch") or battle_state.get("forceSwitch", False)
+    )
+    if not allow_switch and not is_force_switch:
+        scored = [(option, score) for option, score in scored if option.kind != "switch"]
+
+    if not scored:
+        raise ValueError("no legal choices")
 
     # If any damaging move exists, avoid voluntary switches unless the harness
     # explicitly biases them above moves through params.

@@ -93,6 +93,7 @@ def test_force_switch_selects_first_switch_even_when_switches_disabled() -> None
     state = {
         "status": "your_move",
         "n_choices": 2,
+        "force_switch": True,
         "choices": [
             {"choice_index": 1, "choice": "switch 2", "kind": "switch", "name": "Gengar"},
             {"choice_index": 2, "choice": "switch 3", "kind": "switch", "name": "Snorlax"},
@@ -103,6 +104,26 @@ def test_force_switch_selects_first_switch_even_when_switches_disabled() -> None
 
     assert selection.choice_index == 1
     assert selection.choice == "switch 2"
+
+
+def test_switch_ban_honored_on_non_forced_switch_only_turns() -> None:
+    harness = BattleHarness(
+        harness_id="no-switch",
+        move_selection_strategy="type_aware",
+        tool_policy={"allow_switch": False},
+    )
+    state = {
+        "status": "your_move",
+        "n_choices": 2,
+        "force_switch": False,
+        "choices": [
+            {"choice_index": 1, "choice": "switch 2", "kind": "switch", "name": "Gengar"},
+            {"choice_index": 2, "choice": "switch 3", "kind": "switch", "name": "Snorlax"},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="no legal choices"):
+        select_codex_move(harness, state)
 
 
 def test_harness_mapping_round_trip_and_unknown_strategy_seed_rail() -> None:
