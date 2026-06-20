@@ -61,6 +61,9 @@
       }
       if (LP.NONDETERMINISTIC_TYPES.has(lt)) continue; // strip |t:|
       if (lt === "player") { out.push(redactPlayer(line)); continue; }
+      if (LP.tierOf(lt) === LP.Tier.META) {
+        if (lt !== LP.DIVIDER_TYPE) continue; // drop all other control/secret meta (e.g. |request|, |seed|, |error|)
+      }
       out.push(line);
     }
     return out;
