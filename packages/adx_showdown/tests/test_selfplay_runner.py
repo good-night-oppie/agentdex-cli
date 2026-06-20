@@ -86,6 +86,36 @@ def test_native_strategy_dispatch_does_not_use_codex_adapter(monkeypatch):
     assert chosen == ("order", "eruption")
 
 
+def test_runner_dispatch_tracks_codex_strategy_constant(monkeypatch):
+    """A new codex strategy in CODEX_STRATEGIES must route through the adapter."""
+    from adx_showdown.selfplay import codex_adapter, runner
+
+    _install_fake_poke_env(monkeypatch)
+    monkeypatch.setattr(
+        runner,
+        "CODEX_STRATEGIES",
+        runner.CODEX_STRATEGIES | {"sentinel_codex"},
+    )
+    seen = {}
+
+    def _select_codex_move(harness, battle, **_kwargs):
+        seen["strategy"] = harness.move_selection_strategy
+        return battle.available_moves[0]
+
+    monkeypatch.setattr(codex_adapter, "select_codex_move", _select_codex_move)
+    player = runner.make_harness_player(
+        BattleHarness(
+            harness_id="sentinel-codex",
+            move_selection_strategy="sentinel_codex",
+        ),
+        server=object(),
+    )
+    chosen = asyncio.run(player.choose_move(_Battle([_Move("tackle", 40), _Move("eruption", 150)])))
+
+    assert chosen == ("order", "tackle")
+    assert seen == {"strategy": "sentinel_codex"}
+
+
 def test_fallback_orders_prefers_the_policy_allowed_set():
     """A policy-allowed action survived → the seeded fallback samples over the filtered set."""
     filtered = [_Order("/choose move ember")]
