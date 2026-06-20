@@ -137,7 +137,13 @@
     // ---- apply + render --------------------------------------------------
     _apply(frame, animate) {
       // authoritative layout from the pre-parsed snapshot…
-      if (frame.scene) this.scene = frame.scene;
+      if (frame.scene) {
+        this.scene = frame.scene;
+      } else if (SR && frame.lines) {
+        for (const line of frame.lines) {
+          SR.applyLine(this.scene, line);
+        }
+      }
       // …transient FX + ticker from the raw (already-redacted) lines.
       if (LP && frame.lines) {
         for (const line of frame.lines) this._reduceLine(line, animate);
@@ -271,7 +277,13 @@
       for (let i = 0; i <= seq && i < this.frames.length; i++) {
         const f = this.frames[i];
         if (!f) continue;
-        if (f.scene) this.scene = f.scene;
+        if (f.scene) {
+          this.scene = f.scene;
+        } else if (SR && f.lines) {
+          for (const line of f.lines) {
+            SR.applyLine(this.scene, line);
+          }
+        }
         if (LP && f.lines && i === seq) for (const line of f.lines) this._reduceLine(line, false);
       }
       this.sideLabel = (this.frames[seq] && this.frames[seq].side) || this.sideLabel;
