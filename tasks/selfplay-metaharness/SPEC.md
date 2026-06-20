@@ -73,8 +73,8 @@ produces transcript plus artifact evidence that satisfies every criterion below:
 - poke-env self_play: https://poke-env.readthedocs.io/en/stable/examples/self_play.html
   (We **replace** the PPO/SuperSuit RL training loop with bene MetaHarnessSearch; we KEEP the
   `Player` battle surface, `cross_evaluate`, and the 3 baseline players for held-out eval.)
-- agentdex-cli: `packages/adx_showdown/src/adx_showdown/sim.py` (Showdown sidecar sim; has team/bot
-  evolution tests already), `packages/agentdex_arena/src/agentdex_arena/{gateway,mcp_surface}.py`.
+- agentdex-cli: `packages/adx_showdown/src/adx_showdown/selfplay/runner.py` (poke-env/PS
+  self-play runner), `packages/agentdex_arena/src/agentdex_arena/{gateway,mcp_surface}.py`.
 - bene: `bene/metaharness/{search,evaluator,pareto,compactor,worker}.py`, `bene/kernel/evolve/gepa.py`,
   bene eval-probe/kill-gate substrate. `uv run --project ~/gh/bene-main`.
 - agentdex multi-dim/anti-reward-hack reward design: `docs/references/2026-06-12-arena-fun-multidim-rewardhack-design.md`.
@@ -83,7 +83,7 @@ produces transcript plus artifact evidence that satisfies every criterion below:
 
 ```
 seed battle-harness H0
-  └─> [Lane A] run_selfplay_battle(Hi, Hj, seed) via adx_showdown sim, codex picks moves over MCP
+  └─> [Lane A] run_selfplay_battle(Hi, Hj, seed) via poke-env Players on a live PS server
         └─> BattleResult{winner, trace, raw_dims}
   └─> [Lane A] multi_dim_fitness(BattleResult[]) -> Pareto vector {win_rate, elo, legibility, ...}
   └─> [Lane B] bene MetaHarnessSearch.evolve(Hi, fitness_fn) -> mutated harness population
@@ -125,7 +125,7 @@ codex receives a `BattleHarness` + current battle state over MCP and returns a m
 ## LANES (owner = live fleet session; build as tiny PRs per repo discipline)
 
 - **Lane A — agentdex-cli arena self-play surface (MCP-first).** Owner: **adx-cli-7** (+adx-core support).
-  A1 `run_selfplay_battle` over adx_showdown sim (two harness-driven players).
+  A1 `run_selfplay_battle` over poke-env Players on a live PS server.
   A2 `BattleHarness` genome type + seed harness H0 (Contract 1).
   A3 `multi_dim_fitness` incl. win-rate/Elo + ≥2 anti-reward-hack dims; port poke-env Random/MaxBasePower/SimpleHeuristics as held-out baselines (Contract 3).
   A4 expose `selfplay_battle` MCP tool on `mcp_surface.py` (Contract 2) + current runner reproducibility.
