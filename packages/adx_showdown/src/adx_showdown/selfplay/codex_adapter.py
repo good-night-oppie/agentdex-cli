@@ -128,24 +128,78 @@ def select_codex_move(
     decide: DecideFn | None = None,
     on_illegal: Callable[[], None] | None = None,
 ) -> Any | None:
-    """Return the poke-env order codex chooses this turn (a move OR a switch, both
-    for ``create_order``), or ``None`` when there is no legal action (the caller
-    falls back to a random legal order).
+    if decide is None:
+        try:
+            from agentdex_cli.battle_harness_adapter import select_codex_move as cli_select
+        except ImportError:
+            cli_select = None
 
-    The action space is BOTH ``available_moves`` (by move id) and
-    ``available_switches`` (by species) — so a switch-aware harness policy can pick
-    a switch, and a forced switch (after a KO: no moves, only switches) is chosen by
-    the policy rather than the runner's random fallback. ``decide(harness,
-    codex_context) -> id`` returns a move id or a switch species; the default is the
-    deterministic greedy policy. An id matching neither a legal move nor a legal
-    switch is an ILLEGAL decision: ``on_illegal`` is invoked (so the runner records
-    it in ``raw_dims["illegal_moves"]`` — otherwise a live policy could hallucinate
-    an illegal id every turn while ``move_legibility`` stayed a perfect 1.0) before
-    falling back to the first legal action (defensive — a live LLM still cannot force
-    an illegal order through this seam). An abstaining hook (``decide`` returns
-    ``None``) is NOT counted illegal. VOLUNTARY switches are offered only when the
-    genome's ``tool_policy.allow_switch`` permits them; a forced switch is always
-    legal."""
+        if cli_select is not None:
+            moves = list(getattr(battle, "available_moves", None) or [])
+            switches = list(getattr(battle, "available_switches", None) or [])
+            choices = []
+            for idx, m in enumerate(moves):
+                t = getattr(m, "type", None)
+                tname = t.name.lower() if t else ""
+                choices.append(
+                    {
+                        "choice_index": len(choices) + 1,
+                        "choice": f"move {idx + 1}",
+                        "id": str(getattr(m, "id", "") or ""),
+                        "name": str(getattr(m, "id", "") or ""),
+                        "kind": "move",
+                        "base_power": int(getattr(m, "base_power", 0) or 0),
+                        "accuracy": float(getattr(m, "accuracy", 100) or 100),
+                        "move_type": tname,
+                    }
+                )
+            for s in switches:
+                choices.append(
+                    {
+                        "choice_index": len(choices) + 1,
+                        "choice": f"switch {getattr(s, 'species', '')}",
+                        "name": str(getattr(s, "species", "") or ""),
+                        "kind": "switch",
+                    }
+                )
+
+            active = getattr(battle, "active_pokemon", None)
+            opp_active = getattr(battle, "opponent_active_pokemon", None)
+            battle_state = {
+                "n_choices": len(choices),
+                "choices": choices,
+                "own_types": [t.name.lower() for t in active.types if t]
+                if active and getattr(active, "types", None)
+                else [],
+                "opponent_types": [t.name.lower() for t in opp_active.types if t]
+                if opp_active and getattr(opp_active, "types", None)
+                else [],
+                "status": "your_move",
+            }
+
+            h_dict = harness
+            if not isinstance(h_dict, Mapping) and hasattr(h_dict, "to_dict"):
+                h_dict = h_dict.to_dict()
+            elif not isinstance(h_dict, Mapping):
+                h_dict = {
+                    "harness_id": getattr(harness, "harness_id", ""),
+                    "move_selection_strategy": getattr(
+                        harness, "move_selection_strategy", "max_damage"
+                    ),
+                    "tool_policy": getattr(harness, "tool_policy", {}),
+                    "params": getattr(harness, "params", {}),
+                }
+
+            try:
+                selection = cli_select(h_dict, battle_state)
+                idx = selection.choice_index
+                if 1 <= idx <= len(moves):
+                    return moves[idx - 1]
+                elif len(moves) < idx <= len(moves) + len(switches):
+                    return switches[idx - len(moves) - 1]
+            except Exception:
+                pass
+
     moves = list(getattr(battle, "available_moves", None) or [])
     allow_switch = _allow_switch(harness)
     switches = _legal_switches(harness, battle)
