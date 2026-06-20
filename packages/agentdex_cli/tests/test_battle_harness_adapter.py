@@ -241,3 +241,18 @@ def test_non_numeric_and_out_of_bounds_params_coerced_gracefully() -> None:
     selection3 = select_codex_move(harness3, state3)
     assert selection3.choice_index == 1
     assert selection3.score == 150.0
+
+
+def test_choice_index_uses_ordinal_not_slot() -> None:
+    harness = seed_battle_harness("max_damage")
+    state = {
+        "status": "your_move",
+        "n_choices": 2,
+        "choices": [
+            {"slot": 1, "choice": "move 1", "name": "Quick Attack", "base_power": 40},
+            {"slot": 3, "choice": "move 3", "name": "Thunderbolt", "base_power": 90},
+        ],
+    }
+    selection = select_codex_move(harness, state)
+    assert selection.choice_index == 2
+    assert selection.choice == "move 3"
