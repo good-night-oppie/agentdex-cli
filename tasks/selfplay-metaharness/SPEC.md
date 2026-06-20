@@ -3,7 +3,7 @@ title: "Self-Play Meta-Harness Evolution Spec"
 status: active
 owner: harness-11
 created: 2026-06-19
-updated: 2026-06-19
+updated: 2026-06-20
 type: spec
 scope: task
 layer: cross-cutting
@@ -23,7 +23,7 @@ definition_of_done: E2E DONE_JSON contains battles_played > 0, gens_completed > 
 # SELF-PLAY META-HARNESS EVOLUTION — fleet work-order SPEC
 
 **Owner-orchestrator:** harness-11 · **Created:** 2026-06-19 · **Home repo:** agentdex-cli
-**Status:** DISPATCHED (fleet build, MCP-first)
+**Status:** EVIDENCE COMPLETE (fleet build, MCP-first)
 
 ## North star (one sentence)
 
@@ -35,11 +35,11 @@ promotes only kill-gate winners.
 
 ## Acceptance Criteria
 
-- [ ] Codex drives Showdown self-play battles via the agentdex-cli arena MCP surface.
-- [ ] Bene runs at least 1 meta-harness evolution generation mutating codex's battle harness.
-- [ ] The evolved harness beats the seed by at least +10 pp on held-out baselines.
-- [ ] The kill gate rejects a non-improving harness and asserts `battles_played > 0` plus `gens_completed > 0`.
-- [ ] The fitness vector records at least 3 dimensions, including win-rate or Elo and 2 anti-reward-hack dimensions.
+- [x] Codex drives Showdown self-play battles via the agentdex-cli arena MCP surface.
+- [x] Bene runs at least 1 meta-harness evolution generation mutating codex's battle harness.
+- [x] The evolved harness beats the seed by at least +10 pp on held-out baselines.
+- [x] The kill gate rejects a non-improving harness and asserts `battles_played > 0` plus `gens_completed > 0`.
+- [x] The fitness vector records at least 3 dimensions, including win-rate or Elo and 2 anti-reward-hack dimensions.
 
 ## Translation to Enforcement
 
