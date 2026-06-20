@@ -102,7 +102,7 @@ JSON-serializable; bene's mutation operates on `system_prompt` + `params` + `mov
 ### Contract 2 — Battle runner (Lane A exposes; codex drives over MCP)
 `run_selfplay_battle(harness_a, harness_b, seed:int, n_battles:int) -> BattleResult`
 where `BattleResult = { winner, battles: [...], trace_path, raw_dims: {wins_a, turns, forfeits, illegal_moves, ...} }`.
-Deterministic given `(seed, inputLog)` — reuse the arena's existing determinism (battle_id partition + inputLog replay).
+Seeded and reproducible-in-distribution against the live poke-env/PS runner; exact `(seed, inputLog)` byte replay remains an ADR-0014 open item.
 **MCP tool name:** `arena.selfplay_battle` on `mcp_surface.py` (codex calls this).
 
 ### Contract 3 — Multi-dim Pareto fitness (Lane A exposes; Lane B's evaluator consumes)
