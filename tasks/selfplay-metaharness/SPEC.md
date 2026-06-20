@@ -44,7 +44,7 @@ promotes only kill-gate winners.
 ## Translation to Enforcement
 
 - Contract 1 is enforced by the `BattleHarness` genome type and strict model validation.
-- Contract 2 is enforced by `run_selfplay_battle` and the `arena.selfplay_battle` MCP tool.
+- Contract 2 is enforced by `run_selfplay_battle` and the registered `selfplay_battle` MCP tool.
 - Contract 3 is enforced by `multi_dim_fitness` and held-out baseline artifacts.
 - Contract 4 is enforced by bene's `evolve_battle_harness` bridge and kill-gate report.
 - Contract 5 is enforced by the codex move adapter and MCP-over-self-play evidence artifact.
@@ -107,7 +107,7 @@ JSON-serializable; bene's mutation operates on `system_prompt` + `params` + `mov
 `run_selfplay_battle(harness_a, harness_b, seed:int, n_battles:int) -> BattleResult`
 where `BattleResult = { winner, battles: [...], trace_path, raw_dims: {wins_a, turns, forfeits, illegal_moves, ...} }`.
 Seeded and reproducible-in-distribution against the live poke-env/PS runner; exact `(seed, inputLog)` byte replay remains an ADR-0014 open item.
-**MCP tool name:** `arena.selfplay_battle` on `mcp_surface.py` (codex calls this).
+**MCP tool name:** `selfplay_battle` on `mcp_surface.py` (codex calls this).
 
 ### Contract 3 — Multi-dim Pareto fitness (Lane A exposes; Lane B's evaluator consumes)
 `multi_dim_fitness(results: BattleResult[]) -> { "win_rate": float, "elo": float, "move_legibility": float, "no_forfeit_exploit": float, "turn_efficiency": float }`
@@ -128,7 +128,7 @@ codex receives a `BattleHarness` + current battle state over MCP and returns a m
   A1 `run_selfplay_battle` over adx_showdown sim (two harness-driven players).
   A2 `BattleHarness` genome type + seed harness H0 (Contract 1).
   A3 `multi_dim_fitness` incl. win-rate/Elo + ≥2 anti-reward-hack dims; port poke-env Random/MaxBasePower/SimpleHeuristics as held-out baselines (Contract 3).
-  A4 expose `arena.selfplay_battle` MCP tool on `mcp_surface.py` (Contract 2) + (seed,inputLog) determinism.
+  A4 expose `selfplay_battle` MCP tool on `mcp_surface.py` (Contract 2) + current runner reproducibility.
 - **Lane B — bene meta-harness evolution bridge.** Owner: **bene-core-6**.
   B1 `evolve_battle_harness` driving `MetaHarnessSearch` to mutate the BattleHarness genome (Contract 4).
   B2 Pareto evaluator wired to Contract-3 fitness vectors.
