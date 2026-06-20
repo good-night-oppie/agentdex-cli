@@ -87,6 +87,46 @@ PRAUTHOR_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
 mk prauthor_thread "$PRAUTHOR_THREAD"
 run prauthor_thread || fail "PR-author's own thread should be EXEMPT (pass)"
 
+python3 - "$GATE" <<'PY' || fail "fetch() should paginate reviewThreads"
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("gate", sys.argv[1])
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
+
+
+def page(has_next, cursor, marker):
+    return {
+        "repository": {
+            "pullRequest": {
+                "author": {"login": "pa"},
+                "reviews": {"nodes": []},
+                "reviewThreads": {
+                    "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                    "nodes": [{"comments": {"nodes": [{"createdAt": marker}]}}],
+                },
+            }
+        }
+    }
+
+
+calls = []
+pages = [page(True, "next", "first"), page(False, None, "second")]
+
+
+def fake_fetch_page(owner, repo, pr, threads_after):
+    calls.append(threads_after)
+    return pages.pop(0)
+
+
+gate.fetch_page = fake_fetch_page
+data = gate.fetch("owner", "repo", 123)
+threads = data["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+assert calls == [None, "next"], calls
+assert [t["comments"]["nodes"][0]["createdAt"] for t in threads] == ["first", "second"]
+PY
+
 # --include-bots makes the bot thread gate too
 python3 "$GATE" --fixture "$TMP/bot_thread.json" --include-bots >/dev/null 2>&1 \
   && fail "--include-bots should require bot sign-off too (FAIL)"

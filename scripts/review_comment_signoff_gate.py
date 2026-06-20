@@ -38,32 +38,42 @@ from datetime import datetime
 BOT_LOGINS = {"github-actions", "github-actions[bot]", "codex", "dependabot[bot]"}
 
 QUERY = """
-query($owner:String!,$repo:String!,$pr:Int!){
+query($owner:String!,$repo:String!,$pr:Int!,$threadsAfter:String){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$pr){
       author{login}
       reviews(first:100){nodes{author{login} state submittedAt}}
-      reviewThreads(first:100){nodes{
-        isResolved
-        comments(first:40){nodes{
-          author{login __typename}
-          createdAt
-          reactions(content:THUMBS_UP,first:20){nodes{user{login} createdAt}}
+      reviewThreads(first:100,after:$threadsAfter){
+        pageInfo{hasNextPage endCursor}
+        nodes{
+          isResolved
+          comments(first:40){nodes{
+            author{login __typename}
+            createdAt
+            reactions(content:THUMBS_UP,first:20){nodes{user{login} createdAt}}
+          }}
         }}
-      }}
     }
   }
 }
 """
 
 
-def fetch(owner: str, repo: str, pr: int) -> dict:
+def fetch_page(owner: str, repo: str, pr: int, threads_after: str | None) -> dict:
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
         print("ERROR: GITHUB_TOKEN/GH_TOKEN not set", file=sys.stderr)
         sys.exit(2)
     body = json.dumps(
-        {"query": QUERY, "variables": {"owner": owner, "repo": repo, "pr": pr}}
+        {
+            "query": QUERY,
+            "variables": {
+                "owner": owner,
+                "repo": repo,
+                "pr": pr,
+                "threadsAfter": threads_after,
+            },
+        }
     ).encode()
     req = urllib.request.Request(
         "https://api.github.com/graphql",
@@ -84,6 +94,29 @@ def fetch(owner: str, repo: str, pr: int) -> dict:
         print(f"ERROR: GraphQL: {payload['errors']}", file=sys.stderr)
         sys.exit(2)
     return payload["data"]
+
+
+def fetch(owner: str, repo: str, pr: int) -> dict:
+    first_page: dict | None = None
+    thread_nodes: list[dict] = []
+    threads_after: str | None = None
+    while True:
+        page = fetch_page(owner, repo, pr, threads_after)
+        if first_page is None:
+            first_page = page
+        thread_conn = page["repository"]["pullRequest"]["reviewThreads"]
+        thread_nodes.extend(thread_conn["nodes"])
+        page_info = thread_conn.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        threads_after = page_info.get("endCursor")
+    assert first_page is not None
+    first_page["repository"]["pullRequest"]["reviewThreads"]["nodes"] = thread_nodes
+    first_page["repository"]["pullRequest"]["reviewThreads"]["pageInfo"] = {
+        "hasNextPage": False,
+        "endCursor": threads_after,
+    }
+    return first_page
 
 
 def is_bot(author: dict) -> bool:
