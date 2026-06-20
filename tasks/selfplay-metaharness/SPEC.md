@@ -15,7 +15,7 @@ verifiable_claims:
     enforced_by: tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json
   - claim: The real bene Lane-B evolver can run the loop behind the kill gate.
     enforced_by: tasks/selfplay-metaharness/artifacts/done_e2e_real_bene.json
-definition_of_done: E2E DONE_JSON contains battles_played > 0, gens_completed > 0, and killgate.passed true.
+definition_of_done: E2E DONE_JSON contains battles_played > 0, gens_completed > 0, and killgate_report.verdict == "ACCEPT".
 ---
 
 # SELF-PLAY META-HARNESS EVOLUTION — fleet work-order SPEC
