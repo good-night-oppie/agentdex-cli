@@ -4,12 +4,12 @@ COMMENT AUTHOR signs off, not when someone clicks "Resolve".
 
 DOCTRINE (Eddie, 2026-06-20). The fleet auto-resolves review threads (GraphQL
 resolveReviewThread) after pushing a fix — which turns "Resolve conversation"
-into a rubber stamp the author never saw. This gate ignores `isResolved` entirely
-and asks the only question that matters: did the person who RAISED the comment
-agree it's handled? A thread passes iff its first comment's author has EITHER
+into a rubber stamp the author never saw. This gate ignores `isResolved`
+entirely and asks one question: did the person who RAISED the comment agree it's
+handled? A thread passes iff its first comment's author has EITHER
 
-  (a) submitted an APPROVED review on the PR, OR
-  (b) added a 👍 / THUMBS_UP reaction to any comment in the thread.
+  (a) submitted an APPROVED review after their latest comment in the thread, OR
+  (b) added a 👍 / THUMBS_UP reaction after their latest comment in the thread.
 
 So merely resolving a thread does nothing; the reviewer must approve or +1.
 
@@ -33,6 +33,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime
 
 BOT_LOGINS = {"github-actions", "github-actions[bot]", "codex", "dependabot[bot]"}
 
@@ -41,12 +42,13 @@ query($owner:String!,$repo:String!,$pr:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$pr){
       author{login}
-      reviews(first:100){nodes{author{login} state}}
+      reviews(first:100){nodes{author{login} state submittedAt}}
       reviewThreads(first:100){nodes{
         isResolved
         comments(first:40){nodes{
           author{login __typename}
-          reactions(content:THUMBS_UP,first:20){nodes{user{login}}}
+          createdAt
+          reactions(content:THUMBS_UP,first:20){nodes{user{login} createdAt}}
         }}
       }}
     }
@@ -91,38 +93,67 @@ def is_bot(author: dict) -> bool:
     )
 
 
+def parse_time(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def login(author: dict | None) -> str:
+    return ((author or {}).get("login") or "").lower()
+
+
+def signed_after(event_times: list[datetime | None], threshold: datetime | None) -> bool:
+    return any(
+        threshold is None or (event_time is not None and event_time >= threshold)
+        for event_time in event_times
+    )
+
+
 def evaluate(data: dict, include_bots: bool = False) -> list[str]:
     """Return a list of human-readable reasons for unsigned threads (empty = pass)."""
     pr = data["repository"]["pullRequest"]
-    pr_author = ((pr.get("author") or {}).get("login") or "").lower()
-    approvers = {
-        (_n["author"] or {}).get("login", "").lower()
-        for _n in pr["reviews"]["nodes"]
-        if _n.get("state") == "APPROVED" and _n.get("author")
-    }
+    pr_author = login(pr.get("author"))
+    approval_times_by_author: dict[str, list[datetime | None]] = {}
+    for review in pr["reviews"]["nodes"]:
+        if review.get("state") != "APPROVED" or not review.get("author"):
+            continue
+        approval_times_by_author.setdefault(login(review["author"]), []).append(
+            parse_time(review.get("submittedAt"))
+        )
+
     unsigned: list[str] = []
     for i, t in enumerate(pr["reviewThreads"]["nodes"]):
         comments = t["comments"]["nodes"]
         if not comments:
             continue
         author = comments[0]["author"] or {}
-        login = author.get("login") or ""
-        low = login.lower()
+        author_login = author.get("login") or ""
+        low = author_login.lower()
         if not include_bots and is_bot(author):
             continue
         if low == pr_author:  # the PR author's own thread — not a review
             continue
-        thumbs = {
-            (rn["user"] or {}).get("login", "").lower()
+        author_comment_times = [
+            parse_time(c.get("createdAt")) for c in comments if login(c.get("author")) == low
+        ]
+        last_author_comment_at = max(
+            [event_time for event_time in author_comment_times if event_time is not None],
+            default=None,
+        )
+        thumb_times = [
+            parse_time(rn.get("createdAt"))
             for c in comments
             for rn in c["reactions"]["nodes"]
-            if rn.get("user")
-        }
-        if low in approvers or low in thumbs:
+            if login(rn.get("user")) == low
+        ]
+        if signed_after(
+            approval_times_by_author.get(low, []), last_author_comment_at
+        ) or signed_after(thumb_times, last_author_comment_at):
             continue
         unsigned.append(
-            f"thread #{i + 1} by @{login}: not signed off "
-            f'(needs an APPROVED review or a 👍 from @{login}; "Resolve" alone does not count)'
+            f"thread #{i + 1} by @{author_login}: not signed off "
+            f'(needs a later APPROVED review or a later 👍 from @{author_login}; "Resolve" alone does not count)'
         )
     return unsigned
 

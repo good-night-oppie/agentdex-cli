@@ -17,7 +17,8 @@ RESOLVED_NO_SIGNOFF='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[
    {"isResolved":true,"comments":{"nodes":[
-     {"author":{"login":"alice","__typename":"User"},"reactions":{"nodes":[]}}]}}]}}}}'
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
 mk resolved_no_signoff "$RESOLVED_NO_SIGNOFF"
 run resolved_no_signoff && fail "resolved-but-unsigned human thread should FAIL (resolve != signoff)"
 
@@ -25,24 +26,46 @@ SIGNOFF_THUMBS='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[
    {"isResolved":false,"comments":{"nodes":[
-     {"author":{"login":"alice","__typename":"User"},
-      "reactions":{"nodes":[{"user":{"login":"alice"}}]}}]}}]}}}}'
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[{"user":{"login":"alice"},"createdAt":"2026-06-20T02:00:00Z"}]}}]}}]}}}}'
 mk signoff_thumbs "$SIGNOFF_THUMBS"
 run signoff_thumbs || fail "author 👍 on the thread should PASS"
 
 SIGNOFF_APPROVAL='{"repository":{"pullRequest":{"author":{"login":"pa"},
- "reviews":{"nodes":[{"author":{"login":"alice"},"state":"APPROVED"}]},
+ "reviews":{"nodes":[{"author":{"login":"alice"},"state":"APPROVED","submittedAt":"2026-06-20T02:00:00Z"}]},
  "reviewThreads":{"nodes":[
    {"isResolved":false,"comments":{"nodes":[
-     {"author":{"login":"alice","__typename":"User"},"reactions":{"nodes":[]}}]}}]}}}}'
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
 mk signoff_approval "$SIGNOFF_APPROVAL"
 run signoff_approval || fail "author APPROVED review should PASS"
+
+STALE_APPROVAL='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[{"author":{"login":"alice"},"state":"APPROVED","submittedAt":"2026-06-20T01:00:00Z"}]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T02:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk stale_approval "$STALE_APPROVAL"
+run stale_approval && fail "approval before author's latest thread comment should FAIL"
+
+STALE_THUMBS='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[{"user":{"login":"alice"},"createdAt":"2026-06-20T01:30:00Z"}]}},
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T02:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk stale_thumbs "$STALE_THUMBS"
+run stale_thumbs && fail "👍 before author's latest thread comment should FAIL"
 
 BOT_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[
    {"isResolved":false,"comments":{"nodes":[
-     {"author":{"login":"github-actions[bot]","__typename":"Bot"},"reactions":{"nodes":[]}}]}}]}}}}'
+     {"author":{"login":"github-actions[bot]","__typename":"Bot"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
 mk bot_thread "$BOT_THREAD"
 run bot_thread || fail "bot-authored thread should be EXEMPT (pass)"
 
@@ -50,7 +73,8 @@ PRAUTHOR_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
  "reviews":{"nodes":[]},
  "reviewThreads":{"nodes":[
    {"isResolved":false,"comments":{"nodes":[
-     {"author":{"login":"pa","__typename":"User"},"reactions":{"nodes":[]}}]}}]}}}}'
+     {"author":{"login":"pa","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
 mk prauthor_thread "$PRAUTHOR_THREAD"
 run prauthor_thread || fail "PR-author's own thread should be EXEMPT (pass)"
 
