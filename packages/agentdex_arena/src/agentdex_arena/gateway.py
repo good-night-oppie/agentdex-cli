@@ -1221,6 +1221,14 @@ class ArenaGateway:
         agents: list[dict[str, Any]] = []
         for n in names:
             r = ladder.entrants.get(n, Rating()) if ladder is not None else Rating()
+            active_sid = next(
+                (
+                    s.battle_id
+                    for s in self.sessions.values()
+                    if s.ended is None and s.visitor_name == n
+                ),
+                None,
+            )
             agents.append(
                 {
                     "agent_name": n,
@@ -1232,6 +1240,7 @@ class ArenaGateway:
                     "ties": wl[n]["ties"],
                     "badges": ladder.badges.get(n, []) if ladder is not None else [],
                     "live": n in live_names,
+                    "live_battle_id": active_sid,
                     "genome_summary": None,
                 }
             )
