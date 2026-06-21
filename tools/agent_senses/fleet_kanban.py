@@ -12,7 +12,9 @@ import argparse
 import contextlib
 import json
 import os
+import shlex
 import shutil
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -485,8 +487,54 @@ def cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def _probe_gate_allows_done(card: dict[str, Any], card_id: str, board_path: Path) -> str | None:
+    """Return an error message if a probe-gated card may NOT move to ``done``, else ``None``.
+
+    A card carrying an authored probe (``card['probes']['probe']``) may only reach
+    ``done`` through ``kanban_probe_gate.py`` (probe ACCEPT + dual approval). This
+    closes the bypass where an agent flips ``status=done`` directly via this mover,
+    skipping the gate entirely. Cards with no authored probe are unaffected (legacy
+    behaviour). Fail-closed: a probe-gated card whose gate cannot be located or run
+    is refused, never waved through.
+    """
+    if not (card.get("probes") or {}).get("probe"):
+        return None  # ungated legacy card — no probe authored
+    override = os.environ.get("KANBAN_PROBE_GATE")
+    candidates = [override] if override else []
+    candidates += [
+        str(Path.home() / "gh/harness-engineering/scripts/kanban_probe_gate.py"),
+        str(Path.home() / "gh/eddie-agi-kb/scripts/kanban_probe_gate.py"),
+    ]
+    gate_path = next((c for c in candidates if c and Path(c).is_file()), None)
+    if not gate_path:
+        return (
+            f"{card_id} carries an authored probe but kanban_probe_gate.py was not "
+            "found; refusing un-gated done. Set KANBAN_PROBE_GATE to the gate path."
+        )
+    runner = os.environ.get(
+        "KANBAN_PROBE_GATE_RUN", "uv run --no-project --with bene==0.2.1 python"
+    )
+    proc = subprocess.run(
+        [*shlex.split(runner), gate_path, "gate-done", card_id],
+        env={**os.environ, "KANBAN_BOARD": str(board_path)},
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        lines = (proc.stdout or proc.stderr or "").strip().splitlines()
+        return f"{card_id} blocked by card-DONE gate: {lines[-1] if lines else f'rc={proc.returncode}'}"
+    return None
+
+
 def cmd_move(args: argparse.Namespace) -> int:
     path = Path(args.path)
+    if args.status == "done":
+        block = _probe_gate_allows_done(
+            find_card(load_board(path), args.card_id), args.card_id, path
+        )
+        if block:
+            print(f"REFUSED: {block}", file=sys.stderr)
+            return 13
     with board_lock(path):
         board = load_board(path)
         card = find_card(board, args.card_id)

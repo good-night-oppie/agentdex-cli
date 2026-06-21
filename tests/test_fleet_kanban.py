@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 
@@ -43,3 +44,30 @@ def test_render_markdown_accepts_legacy_string_comments():
 
     assert "legacy comment" in text
     assert "codex: structured comment" in text
+
+
+def test_probe_gate_allows_ungated_card_without_calling_gate():
+    fleet_kanban = _load_fleet_kanban()
+    card = {"id": "C1", "status": "running"}  # no authored probe
+    assert fleet_kanban._probe_gate_allows_done(card, "C1", Path("/tmp/b.json")) is None
+
+
+def test_probe_gate_allows_done_when_gate_passes(tmp_path, monkeypatch):
+    fleet_kanban = _load_fleet_kanban()
+    gate = tmp_path / "gate_ok.py"
+    gate.write_text("import sys\nsys.exit(0)\n")
+    monkeypatch.setenv("KANBAN_PROBE_GATE", str(gate))
+    monkeypatch.setenv("KANBAN_PROBE_GATE_RUN", sys.executable)
+    card = {"id": "C2", "status": "running", "probes": {"probe": "kanban-card-C2-abc"}}
+    assert fleet_kanban._probe_gate_allows_done(card, "C2", tmp_path / "b.json") is None
+
+
+def test_probe_gate_blocks_done_when_gate_fails(tmp_path, monkeypatch):
+    fleet_kanban = _load_fleet_kanban()
+    gate = tmp_path / "gate_block.py"
+    gate.write_text("import sys\nprint('BLOCK PROBE_REJECT')\nsys.exit(12)\n")
+    monkeypatch.setenv("KANBAN_PROBE_GATE", str(gate))
+    monkeypatch.setenv("KANBAN_PROBE_GATE_RUN", sys.executable)
+    card = {"id": "C3", "status": "running", "probes": {"probe": "kanban-card-C3-abc"}}
+    msg = fleet_kanban._probe_gate_allows_done(card, "C3", tmp_path / "b.json")
+    assert msg is not None and "blocked by card-DONE gate" in msg
