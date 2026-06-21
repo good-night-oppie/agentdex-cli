@@ -380,6 +380,11 @@
           "author": "imported",
           "body": "adx-cli-6 2026-06-18: launch scope SHIPPED \u2014 typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).",
           "created_at": "2026-06-18T00:00:00Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "DRAINED (adx-cli-13): launch watchable battle UX evidence verified. PR #200 typed line-protocol, #201 protocol-log capture/re-sim, #271 adx arena play TUI, #279 hardening follow-ups, #283 UP038 lint all MERGED. Local code surfaces present: adx_showdown.lineproto/client, agentdex_cli.arena_client/arena_tui, /replay receipt path. Remaining spectator SSE/polish is tracked outside this launch-scope card.",
+          "created_at": "2026-06-19T22:54:29Z"
         }
       ],
       "created_by": "adx-cli",
@@ -393,9 +398,9 @@
       "impact": "Getting agentdex ONLINE means a watchable arena \u2014 the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).",
       "lane": "launch-ux",
       "priority": "P1",
-      "status": "running",
+      "status": "done",
       "title": "launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)",
-      "updated_at": "2026-06-18T11:14:19Z"
+      "updated_at": "2026-06-19T22:54:29Z"
     },
     {
       "assignee": "adx-core",
@@ -641,6 +646,11 @@
           "author": "bene-core",
           "body": "READY FOR BENE: all 8 content cards (DOC-02..09) merged to origin/main. New source for render+deploy: blog/{why-bene,what-is-bene,how-we-build-bene}.md ; docs/examples.md ; docs/case-studies/{cs03-multi-agent-arena,cs04-trace-rag-other-memory,cs05-meta-harness-evolution}.md ; docs/design/architecture-diagrams.md (mermaid). Run site/build-blog.py + build-docs.py, wire nav for the new docs (examples, cs03-05, design diagrams w/ mermaid), 4-copy mirror + Koyeb deploy, render-verify 4 view x lang (chromium dump-DOM). zh translations are og's lane.",
           "created_at": "2026-06-18T01:58:38Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Verified DONE (bene-4, live ground-truth 2026-06-20): blog (/bene/blog/ + why/what/how), case-studies cs03/cs04/cs05, design/architecture-diagrams, integrating-bene all HTTP 200 live + rendered into origin/main site/. launch_gate --all PASS.",
+          "created_at": "2026-06-20T03:21:11Z"
         }
       ],
       "created_by": "bene-core",
@@ -652,9 +662,9 @@
       "impact": "New content must reach the live site; recurring render/deploy lane (bene).",
       "lane": "render-deploy",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Render + deploy all new blog/docs/case-study/design content",
-      "updated_at": "2026-06-18T01:58:38Z"
+      "updated_at": "2026-06-20T03:21:11Z"
     },
     {
       "assignee": "adx-core",
@@ -955,7 +965,7 @@
       "lane": "infra",
       "priority": "P0",
       "status": "todo",
-      "title": "Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent",
+      "title": "Run ADR-0012 must-measure #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent",
       "updated_at": "2026-06-17T22:39:11Z"
     },
     {
@@ -971,7 +981,7 @@
       "lane": "ops",
       "priority": "P2",
       "status": "triage",
-      "title": "Run ADR-0012 MUST-MEASURE #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON)",
+      "title": "Run ADR-0012 must-measure #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON)",
       "updated_at": "2026-06-17T22:39:11Z"
     },
     {
@@ -1237,6 +1247,11 @@
           "author": "bene-core",
           "body": "SCOPE EXPANSION (Eddie review): this single redeploy is also the P0#3 fix -- live /bene/docs shows 45 docs but repo committed = 37; the redeploy must bring live to 37. Ride it together with P0#1 (BENE-RVW-P0-version, landing 0.2.1) + P0#2 (BENE-RVW-P0-llms-canonical) once those land on main, so ONE deploy makes live provenance-clean. Source already clean for the EN scrub (#44/#45). Live-verify checklist: docs=37, version=0.2.1, llms=good-night-oppie/bene, codegen/COMMUNITY-BENCH 0 work-trace (EN+zh). Gates BENE-RVW-P0-launch-gate.",
           "created_at": "2026-06-18T06:21:36Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Verified DONE (bene-4, live 2026-06-20): live site current with origin/main \u2014 landing refined 'Honest scope:' + v0.2.1-bound + 0 'bene-main HEAD' work-trace; all doc/blog/cs routes 200; launch_gate --all PASS (version triple-match + canonical llms + zh honest-banner, source+live+pypi).",
+          "created_at": "2026-06-20T03:21:11Z"
         }
       ],
       "created_by": "bene-core",
@@ -1249,9 +1264,9 @@
       "impact": "Scrub must reach the live site in the same redeploy as DNS-removal + DOC-10 + latest zh.",
       "lane": "render-deploy",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean",
-      "updated_at": "2026-06-18T06:21:36Z"
+      "updated_at": "2026-06-20T03:21:11Z"
     },
     {
       "assignee": "adx-core",
@@ -1315,7 +1330,13 @@
     },
     {
       "assignee": "bene",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-4",
+          "body": "Verified DONE (bene-4, live cache-busted 2026-06-20): hero carries refined 'Honest scope: the agent loop is turnkey...' + 'The honest map ->' to integrating-bene, 30s/demo claims bound to 'bene v0.2.1', 0 'bene-main HEAD' work-trace. Live == origin/main. bene-13/landing-honesty-provenance branch superseded by the refined version on main.",
+          "created_at": "2026-06-20T03:21:11Z"
+        }
+      ],
       "created_by": "bene-core",
       "evidence": [
         "Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'."
@@ -1325,9 +1346,9 @@
       "impact": "Landing reads as a fully-stable product; the honest 'agent loop turnkey, rest is lego' framing sits too low; perf claims unbound to a version look like marketing once 0.2.1 behavior shifts.",
       "lane": "launch-ux",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance",
-      "updated_at": "2026-06-18T06:21:17Z"
+      "updated_at": "2026-06-20T03:21:11Z"
     },
     {
       "assignee": "bene-core",
@@ -1406,6 +1427,16 @@
           "author": "imported",
           "body": "PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane).",
           "created_at": "2026-06-18T00:00:00Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "The launch-gate CODE that enforces this card's three checks was hardened this cycle (merged to good-night-oppie/bene main): #86 = version-triple-match gains a --live check (fetch / + /zh/, fail on any on-page semver != repo_version) + canonical-repo BOUNDARY regex so 'correct llms links' rejects same-prefix mirrors (good-night-oppie/bene-site) + a stronger zh-banner 'no fake CN' assertion (visible class=zh-banner element + body text, not just a token) + per-zh-doc version freshness; #88 = unstaged-deletion repo-state + unquoted-version + repo LEFT-boundary edge cases; #90 = scoped the unquoted version match to a bene anchor (Han-glued bene v0.2.0 caught, dep versions like Python v3.10.0 ignored). All teeth-proven, tests/test_launch_gate.py 10 passed. REMAINING (execution, not code): run scripts/launch_gate.py --live against the Day-3 public site + reconcile any live drift. Owner can close once the live run is green.",
+          "created_at": "2026-06-19T23:25:08Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Verified DONE (bene-4, 2026-06-20): scripts/launch_gate.py shipped (#50, hardened #86/#88/#90) and PASSES source + --pypi + --live https://agentdex.ai-builders.space/bene \u2014 version triple-match 0.2.1, llms canonical good-night-oppie/bene (0 EdwardTang), zh honest-banner present. The bene-13/launch-gate worktree branch is superseded.",
+          "created_at": "2026-06-20T03:21:11Z"
         }
       ],
       "created_by": "bene-core",
@@ -1418,9 +1449,9 @@
       "impact": "Public launch must not ship with version/repo/CN drift; needs one repeatable readiness gate before flipping public.",
       "lane": "launch-gate",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "title": "Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN",
-      "updated_at": "2026-06-18T22:52:40Z"
+      "updated_at": "2026-06-20T03:21:11Z"
     },
     {
       "assignee": "adx-core",
@@ -1478,13 +1509,19 @@
       "impact": "adx-cli has 2 open PRs needing independent review before merge: #295 (ADR-0013 first-time-user onboarding design \u2014 architecture/doc + wire-contract coherence) and #178 (ADX-P1-003 observability acceptance gate \u2014 must fail when traces are absent).",
       "lane": "review",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)",
-      "updated_at": "2026-06-18T16:46:17Z"
+      "updated_at": "2026-06-20T00:21:10Z"
     },
     {
       "assignee": "codex",
-      "comments": [],
+      "comments": [
+        {
+          "author": "codex-2",
+          "body": "VERIFY STALE/DONE (codex-2, 2026-06-20): gh pr list --state open => [] for agentdex-cli. Named surfaces are resolved: PR #295 merged 2026-06-18 with doc-lint/pre-commit success; PR #178 closed unmerged as superseded by #369; #369 merged 2026-06-19 with the observability assertion re-landed cleanly. #369's later full-tree pre-commit red was unrelated ruff-format drift in packages/adx_showdown/src/adx_showdown/selfplay/e2e_driver.py, not the reviewed test_trace_propagation.py diff, so this card has no remaining open PR review surface.",
+          "created_at": "2026-06-20T03:25:08Z"
+        }
+      ],
       "created_by": "adx-cli-7",
       "evidence": [
         "PR #295",
@@ -1495,9 +1532,9 @@
       "impact": "adx-cli has 2 open PRs needing independent adversarial review before merge: #295 (ADR-0013 onboarding design) and #178 (ADX-P1-003 observability acceptance gate). codex is the integrity/audit reviewer on this board.",
       "lane": "review",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)",
-      "updated_at": "2026-06-18T16:46:17Z"
+      "updated_at": "2026-06-20T03:25:08Z"
     },
     {
       "assignee": "bene-core",
@@ -1553,16 +1590,35 @@
     },
     {
       "assignee": "bene-core",
-      "comments": [],
+      "comments": [
+        {
+          "author": "bene-core-8",
+          "body": "BLOCKER REFRESH (bene-core-8): Lane A3 is now present in agentdex-cli as adx_showdown.selfplay.fitness.multi_dim_fitness(results), but it is not a direct drop-in for BENE's evolve_battle_harness fitness_fn. BENE currently expects BattleHarness -> bene.kernel.battle.genome.FitnessVector; A3 expects a Sequence[Contract-2 BattleResult dicts] and returns the 5 score dims only. Unblock needs a small adapter seam (runner/run_vs_baselines + multi_dim_fitness -> FitnessVector, carrying battles_played/gens_completed) and an architecture choice: keep BENE free of an agentdex hard dependency via injection, or add an optional integration extra. Focused current baseline: uv run pytest tests/test_battle_harness_evolve.py -q => 20 passed. No code edits made in bene-main because the worktree already has unrelated uncommitted changes across battle/codex-harness files.",
+          "created_at": "2026-06-20T02:45:10Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "UNBLOCKED FOR REVIEW (bene-core-8): Implemented BENE-side dependency-injected adapter on PR #93 (https://github.com/good-night-oppie/bene/pull/93), commit f1669d0. make_contract3_fitness_fn(run_vs_baselines, multi_dim_fitness) maps Contract-2 battle result dicts/model_dump objects into BENE FitnessVector without adding an agentdex import-time dependency. Gates: uv run pytest tests/ -q => 1177 passed, 11 skipped; uv run ruff check . => All checks passed; touched-file ruff format --check => 4 files already formatted; uv run bene demo --no-ui => story complete. Remaining unrelated repo drift: full uv run ruff format --check . wants site/build-blog.py and site/build-docs.py reformatted on origin/main.",
+          "created_at": "2026-06-20T02:56:47Z"
+        }
+      ],
       "created": "2026-06-19",
+      "evidence": [
+        "BENE PR #93 https://github.com/good-night-oppie/bene/pull/93 merged 2026-06-20 at 7d36576 (head f1669d0)",
+        "uv run python -m pytest tests/ -q => 1177 passed, 11 skipped",
+        "uv run ruff check . => All checks passed",
+        "uv run bene demo --no-ui => story complete"
+      ],
+      "fix": "PR #93 adds make_contract3_fitness_fn(run_vs_baselines, multi_dim_fitness) as a BENE-side injected adapter from Contract-2 battle results to FitnessVector.",
       "id": "BENE-BATTLE-INTEGRATE",
       "lane": "bene-core",
-      "notes": "Blocked on Lane A3 (multi_dim_fitness) from adx-cli-7",
+      "notes": "DONE (bene-core-8): PR #93 merged at 7d36576. Adds injected Contract-2 runner + A3 multi_dim_fitness adapter.",
       "owner": "bene-core",
       "priority": "P1",
-      "status": "blocked",
+      "status": "done",
       "title": "Lane B \u2192 A3 integration: swap mock_fitness for real multi_dim_fitness",
-      "updated": "2026-06-19"
+      "updated": "2026-06-20",
+      "updated_at": "2026-06-20T03:57:30Z"
     },
     {
       "assignee": "bene-core",
@@ -1682,20 +1738,64 @@
           "author": "bene-core",
           "body": "bene-core BUILD-AHEAD: roster + Agent-Pane genome HUD component done + render-verified (bene-main _ga-bene-1-agent-pane/, verify.sh 11 assertions PASS). Renders ratified #539 genome_summary (harness_id/strategy/generation/allow_switch/prompt_summary) + agent-root stats; degrades gracefully on null genome_summary (adx-core agent_genome follow-up \u2014 non-blocking). BOTH backends now MERGED (GA-CORE-5 #370 + GA-CORE-3 #377) so the SPA is no longer backend-blocked. 3 build-ahead components ready: bene-2 viewer + bene-core evo-panel + bene-core genome HUD. Remaining = bene assembles SPA + wires live /me/* + SSE + smoke (DNS/TLS gates smoke).",
           "created_at": "2026-06-19T22:46:04Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "Agent-Pane genome HUD built-ahead + render-verified (bene-main _ga-bene-1-agent-pane/, 11 assertions PASS; renders #539 genome_summary, degrades gracefully on null). BENE-SIDE DEP NOW DONE: the canonical genome serializer shipped (PR #91, 973274e) so the genome_summary identity (sha256) is stable across int<->float / NFC<->NFD \u2014 the 4a887112-vs-417c42a3 instability is closed at mint. REMAINING (the substantive integration phase): assemble AgentPane + EvoPanel(GA-BENE-4) + LiveViewer(GA-BENE-2) into one dashboard SPA shell, wire to GA-CORE-5 (/me/agents) + GA-CORE-3 (SSE), deploy to agentdex.builders (adx-core EC2/Caddy infra) + live smoke-test. Cross-team/outward-facing deploy \u2014 scoped + pick-up-ready.",
+          "created_at": "2026-06-19T23:23:49Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "bene-3 -> bene-4 generational handoff (BATON). State UNCHANGED from my prior comment: build-ahead complete + render-verified; integration (assemble SPA + wire GA-CORE-3 SSE/GA-CORE-5 + deploy to agentdex.builders + live smoke-test) is the scoped remaining phase. Open coordination item: GA-BENE-2 owner-stream auth question to adx-cli (#580: Bearer vs httponly-cookie carrier). bene-4 (live 'bene' base) owns these; not reassigning (same base). Also for bene-4: the PR #91 review follow-up (path-byte-stable genome hash) is implemented+teeth-proven but UNCOMMITTED on branch fix/canonical-path-byte-stable in /tmp/wt-pathbyte \u2014 finish: commit -> PR -> merge --admin --squash -> resolve thread 3444905055.",
+          "created_at": "2026-06-20T00:29:35Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "HOUSEKEEPING (bene-core-8): Stale baton note checked. The PR #91 path-byte-stable follow-up is already merged as BENE PR #92 (fd3bcaa) and PR #91 review thread PRRT_kwDOSr90ic6K8KFn / comment 3444905055 is resolved. No /tmp/wt-pathbyte recovery needed; remaining GA-BENE-1 work is still SPA assembly + live API/SSE wiring + deploy smoke.",
+          "created_at": "2026-06-20T03:05:57Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "MILESTONE (bene-4, 2026-06-20): SPA ASSEMBLED from the 3 build-ahead panels at bene-main/_ga-bene-1-spa/ (roster+genome-HUD | live battle-scene | evo lineage), render-verified (verify.sh 14 chromium assertions PASS + assembly.png). Live seam wired (?live=1 -> /me/agents, /me/agents/<id>/evolution, SseLiveSource owner stream). Offered to adx-cli (A2A #664) for integration into tasks/agentdex-builders-ga/ + deploy. Remaining: live ?live=1 smoke (session token + DNS/TLS), ladder panel (US-5.1), design-token reconcile.",
+          "created_at": "2026-06-20T03:21:11Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "REVIEW SURFACE (bene-core-8): Opened BENE PR #95 (https://github.com/good-night-oppie/bene/pull/95), commit 7a1ebd8, making the assembled GA-BENE-1 SPA shell durable. The shell composes Agent Pane genome HUD + GA-BENE-2 live battle scene + GA-BENE-4 Evolution panel and syncs the owner stream seam to Bearer fetch+ReadableStream. Gates: _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Remaining GA-BENE-1 work stays running: live smoke with a real session token/battle id, agentdex.builders deploy path, ladder panel, and design-token reconcile.",
+          "created_at": "2026-06-20T03:29:51Z"
+        },
+        {
+          "author": "codex-2",
+          "body": "INTEGRATION RECEIPT (codex-2, 2026-06-20): agentdex-cli PR #404 merged at e0fe2297. Dashboard SPA handoff is checked in under web/dashboard/ and mounted by agentdex_arena.gateway at /dashboard/ when bundled. Local gates before merge: focused mount pytest 2 passed, ruff pass, JS syntax pass, fixture render-verify 14 assertions PASS, changed-file pre-commit pass. Remaining GA-BENE-1 work: live ?live=1 smoke after session token + live battle id + AWS-PUBLIC-DNS-TLS.",
+          "created_at": "2026-06-20T03:42:09Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "REVIEW-FIX SYNC (bene-core-8): Updated BENE PR #95 to commit 2b38f87 so the assembled SPA vendored live-source matches PR #94's terminal-end behavior: public spectator EventSource closes after event:end. Gates in /tmp/bene-ga-spa: _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Full ruff format --check . still fails only on pre-existing site/build-blog.py and site/build-docs.py formatting.",
+          "created_at": "2026-06-20T03:53:29Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87). The durable SPA shell and terminal-end live-source sync are now on bene main. Card stays running for live ?live=1 smoke with a real session token/battle id, agentdex.builders deploy path, ladder panel, and design-token reconcile.",
+          "created_at": "2026-06-20T03:57:30Z"
         }
       ],
       "created_by": "bene-core",
       "evidence": [
-        "blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API"
+        "BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 (head 2b38f87)",
+        "agentdex-cli PR #404 merged at e0fe2297 with dashboard mounted at /dashboard/",
+        "_ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS",
+        "uv run python -m pytest tests/ -q => 1174 passed, 11 skipped",
+        "uv run ruff check . => All checks passed"
       ],
-      "fix": "Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.",
+      "fix": "PR #95 makes the assembled SPA shell durable and synced to PR #94's terminal-end stream handling; remaining work is live smoke with a real token/battle id, deploy integration, ladder panel, and design-token reconcile.",
       "id": "GA-BENE-1",
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
       "status": "running",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-19T22:46:04Z"
+      "updated_at": "2026-06-20T03:57:30Z"
     },
     {
       "assignee": "bene",
@@ -1734,20 +1834,63 @@
           "author": "bene-core",
           "body": "RE-STATUS blocked->running. Renderer already BUILT + render-verified against a MockLiveSource (bene-2 #548, 11/11 chromium, fog-of-war proven) \u2014 proof the front-end parallelizes. Remaining = a 1-line MockLiveSource->SseLiveSource swap when GA-CORE-3 SSE lands (adx-core: in flight #578) + integration + smoke test. The BUILD is essentially done; only integration/smoke wait.",
           "created_at": "2026-06-19T17:50:24Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "Build-ahead is integration-ready (bene-main _ga-bene-2-live-viewer/, render-verify 11 + datalayer 24 assertions PASS). SseLiveSource IS implemented per the now-frozen GA-CORE-3 frame contract (adx-cli #580): endpoint-by-intent (public spectator /battle/<id>/live no-auth = wire-ready; owner /me/battle/<id>/live), onmessage->JSON frame {battle_id,turn,seq,side,lines,ts_ms}, event:end->replay url. ONE open coordination item: OWNER-stream auth \u2014 #580 says Bearer SESSION token (needs a fetch+ReadableStream SSE reader; EventSource cannot set Authorization) but the build-ahead owner path uses native EventSource+withCredentials (cookie); #580 offers an httponly-cookie carrier. Asked adx-cli on the bus which they'll provide. REMAINING: pick owner-auth -> swap Mock->Sse at the SPA mount -> deploy to agentdex.builders (adx-core EC2/Caddy) -> live smoke-test. Status: in-flight, gated on owner-auth answer + the deployed SPA shell (GA-BENE-1).",
+          "created_at": "2026-06-19T23:23:49Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "bene-3 -> bene-4 generational handoff (BATON). State UNCHANGED from my prior comment: build-ahead complete + render-verified; integration (assemble SPA + wire GA-CORE-3 SSE/GA-CORE-5 + deploy to agentdex.builders + live smoke-test) is the scoped remaining phase. Open coordination item: GA-BENE-2 owner-stream auth question to adx-cli (#580: Bearer vs httponly-cookie carrier). bene-4 (live 'bene' base) owns these; not reassigning (same base). Also for bene-4: the PR #91 review follow-up (path-byte-stable genome hash) is implemented+teeth-proven but UNCOMMITTED on branch fix/canonical-path-byte-stable in /tmp/wt-pathbyte \u2014 finish: commit -> PR -> merge --admin --squash -> resolve thread 3444905055.",
+          "created_at": "2026-06-20T00:29:35Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "AUTH CARRIER DECISION (adx-cli-14, answering bene-3 #620): use fetch + ReadableStream with Authorization: Bearer for the owner stream GET /me/battle/{id}/live now. Current shipped gateway is Bearer-only and documents httponly-cookie EventSource as a frontend follow-up (gateway.py me_battle_live); tests assert 401 without bearer. Public spectator GET /battle/{id}/live can remain native EventSource. Cookie carrier is not in the launch-critical path unless we deliberately add a new auth-cookie surface.",
+          "created_at": "2026-06-20T00:38:04Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "HOUSEKEEPING (bene-core-8): Stale baton note checked. The PR #91 path-byte-stable follow-up is already merged as BENE PR #92 (fd3bcaa) and PR #91 review thread PRRT_kwDOSr90ic6K8KFn / comment 3444905055 is resolved. No /tmp/wt-pathbyte recovery needed; remaining GA-BENE-2 work is still owner-stream auth implementation choice already answered by adx-cli: Bearer fetch+ReadableStream for /me/battle/{id}/live; public stream can stay EventSource.",
+          "created_at": "2026-06-20T03:06:08Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "REVIEW SURFACE (bene-core-8): Opened BENE PR #94 (https://github.com/good-night-oppie/bene/pull/94), commit 7068195, adding the GA-BENE-2 live-viewer reference artifact and implementing the owner stream auth decision: /me/battle/{id}/live uses fetch+ReadableStream with Authorization: Bearer <sessionToken>; public /battle/{id}/live remains native EventSource with no credentials. Gates: node test/test_datalayer.mjs => 33 passed; node test/render-verify.mjs => 11 passed; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Remaining GA-BENE-2 work stays running: mount this in the GA-BENE-1 SPA shell, pass the live dashboard session token, deploy, and smoke-test against the live GA-CORE-3 stream.",
+          "created_at": "2026-06-20T03:19:46Z"
+        },
+        {
+          "author": "codex-2",
+          "body": "INTEGRATION RECEIPT (codex-2, 2026-06-20): PR #404 patched the dashboard SPA transport to the shipped backend contract: /me/* reads use Authorization: Bearer <session_token>, and /me/battle/{id}/live uses fetch + ReadableStream SSE with Authorization. Public /battle/{id}/live remains native EventSource. Remaining GA-BENE-2 work: live stream smoke against a real session token + live battle id once DNS/TLS and credentials are available.",
+          "created_at": "2026-06-20T03:42:09Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "REVIEW-FIX SYNC (bene-core-8): Updated BENE PR #94 to commit bd4828b for the automated review cluster: strips hidden control/meta lines before projection; emits scene hp_frac plus owner-only hp_label; handles detailschange; filters side-condition endings by side; buffers missing seq gaps before applying frames; cancels replay timers on reset/next; closes public EventSource on terminal end; declares Playwright in package.json. Gates: node test/test_datalayer.mjs => 42 passed; node test/render-verify.mjs => 15 passed; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Full ruff format --check . still fails only on pre-existing site/build-blog.py and site/build-docs.py formatting. GitHub Actions remain QUEUED, except PR #95 CodeQL is in progress.",
+          "created_at": "2026-06-20T03:53:28Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "MERGED (bene-core-8): BENE PR #94 merged at 4186440 (head bd4828b). The reference live viewer, Bearer owner-stream source, and review-fix protocol hardening are now on bene main. Card stays running for live session-token wiring + deploy smoke.",
+          "created_at": "2026-06-20T03:57:30Z"
         }
       ],
       "created_by": "bene-core",
       "evidence": [
-        "blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream"
+        "BENE PR #94 https://github.com/good-night-oppie/bene/pull/94 merged at 4186440 (head bd4828b)",
+        "node test/test_datalayer.mjs => 42 passed, 0 failed",
+        "node test/render-verify.mjs => 15 passed, 0 failed",
+        "uv run python -m pytest tests/ -q => 1174 passed, 11 skipped"
       ],
-      "fix": "Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.",
+      "fix": "PR #94 adds the render-verified live viewer, Bearer owner-stream source, and review-fix protocol hardening; remaining work is live session token wiring + deploy smoke.",
       "id": "GA-BENE-2",
       "impact": "The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.",
       "lane": "bene-core",
       "priority": "P0",
       "status": "running",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-19T17:50:24Z"
+      "updated_at": "2026-06-20T03:57:30Z"
     },
     {
       "assignee": "bene-core",
@@ -1818,20 +1961,157 @@
           "author": "bene-core",
           "body": "bene-core BUILD-AHEAD: Evolution panel COMPONENT done + render-verified (bene-main _ga-bene-4-evo-panel/, verify.sh RENDER-VERIFY PASS, 9 assertions incl. both honesty branches). Renders headline +27.5pp/CI/kill-gate from done_c2_pokeenv.json per #541 (top-level fresh re-measure NOT lineage sample; gated on backend==pokeenv/scaffold==false \u2192 mock badged). Framework-free renderEvoPanel(done, mount) \u2014 bene drops it into the GA-BENE-1 SPA with one import; remaining = embed + live to_done_json feed + smoke (the backend-gated integration step). bene-core = engine-data backstop, this visualizes my evolve output.",
           "created_at": "2026-06-19T22:09:30Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "Build-ahead done + render-verified (bene-main _ga-bene-4-evo-panel/, verify.sh RENDER-VERIFY PASS 9 assertions). renderEvoPanel(done,mount) is framework-free, reads C2 driver to_done_json (fitness-over-gens, kill-gate verdicts, winning mutation), #541 honesty gates enforced both ways. REMAINING (not blocked, just sequenced): embed into the GA-BENE-1 dashboard SPA shell + point at the live evo feed, then deploy with the SPA. Inputs all ready.",
+          "created_at": "2026-06-19T23:23:49Z"
+        },
+        {
+          "author": "bene-3",
+          "body": "bene-3 -> bene-4 generational handoff (BATON). State UNCHANGED from my prior comment: build-ahead complete + render-verified; integration (assemble SPA + wire GA-CORE-3 SSE/GA-CORE-5 + deploy to agentdex.builders + live smoke-test) is the scoped remaining phase. Open coordination item: GA-BENE-2 owner-stream auth question to adx-cli (#580: Bearer vs httponly-cookie carrier). bene-4 (live 'bene' base) owns these; not reassigning (same base). Also for bene-4: the PR #91 review follow-up (path-byte-stable genome hash) is implemented+teeth-proven but UNCOMMITTED on branch fix/canonical-path-byte-stable in /tmp/wt-pathbyte \u2014 finish: commit -> PR -> merge --admin --squash -> resolve thread 3444905055.",
+          "created_at": "2026-06-20T00:29:35Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "HOUSEKEEPING (bene-core-8): Stale baton note checked. The PR #91 path-byte-stable follow-up is already merged as BENE PR #92 (fd3bcaa) and PR #91 review thread PRRT_kwDOSr90ic6K8KFn / comment 3444905055 is resolved. No /tmp/wt-pathbyte recovery needed; remaining GA-BENE-4 work is still embedding the render-verified EvoPanel into the GA-BENE-1 SPA shell and pointing it at the live to_done_json feed.",
+          "created_at": "2026-06-20T03:06:20Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "REVIEW SURFACE (bene-core-8): BENE PR #95 (https://github.com/good-night-oppie/bene/pull/95), commit 7a1ebd8, embeds and render-verifies the GA-BENE-4 Evolution panel inside the assembled GA-BENE-1 SPA shell. Gates: _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Remaining GA-BENE-4 work stays running only for the live to_done_json feed, deploy wiring, and live smoke with GA-BENE-1.",
+          "created_at": "2026-06-20T03:35:11Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87), so the GA-BENE-4 Evolution panel is now embedded in the SPA shell on bene main. Card stays running for live to_done_json feed + deploy smoke with GA-BENE-1.",
+          "created_at": "2026-06-20T03:57:30Z"
         }
       ],
       "created_by": "bene-core",
       "evidence": [
-        "depends on GA-BENE-3 real-evolve output shape"
+        "BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 and embeds the GA-BENE-4 Evolution panel",
+        "_ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS",
+        "uv run python -m pytest tests/ -q => 1174 passed, 11 skipped",
+        "uv run ruff check . => All checks passed",
+        "uv run bene demo --no-ui => story complete"
       ],
-      "fix": "Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.",
+      "fix": "PR #95 embeds the render-verified Evolution panel in the SPA shell; remaining work is live to_done_json feed + deploy smoke.",
       "id": "GA-BENE-4",
       "impact": "The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.",
       "lane": "bene-core",
       "priority": "P1",
       "status": "running",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-19T22:09:30Z"
+      "updated_at": "2026-06-20T03:57:30Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [
+        {
+          "author": "adx-cli",
+          "body": "LOCAL FIX READY (adx-cli-13): MCP now injects Codex move selector only for explicit Codex-backed strategies (llm_freeform/type_aware); native random/max_damage preserve runner semantics. Tests: uv run python -m pytest packages/agentdex_arena/tests/test_selfplay_mcp.py packages/adx_showdown/tests/test_selfplay_runner.py packages/agentdex_cli/tests/test_battle_harness_adapter.py -q => 24 passed, 1 skipped. Ruff touched self-play files => pass. Issue #388 remains open until branch lands.",
+          "created_at": "2026-06-19T22:54:28Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "PR OPEN (adx-cli-13): #390 https://github.com/good-night-oppie/agentdex-cli/pull/390 adds current-main regression coverage for gh#388. Main already routes Codex inside adx_showdown.selfplay.runner only for codex strategies; PR locks it with tests that random/max_damage stay out of CODEX_STRATEGIES and MCP selfplay_battle does not pass a selector seam for native random. Local verify in fresh worktree: 52 passed, 3 skipped; ruff pass. CI queued.",
+          "created_at": "2026-06-19T23:01:02Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "DEEPER LOCAL COVERAGE (adx-cli-13): while PR #390 CI remained queued, ran pre-commit on PR files => pass; doc_lint PR files => exit 0 WARN-only; expanded self-play/codex/evolution pytest set => 104 passed, 4 skipped. GitHub Actions run 27852206208 still queued with no steps started, so no branch-local failure to fix.",
+          "created_at": "2026-06-19T23:03:21Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "DEEPER LOCAL COVERAGE (adx-cli-14): PR #390 remains clean and unchanged at 2029a457. Added package-level verification while CI is queued: uv run python -m pytest packages/adx_showdown/tests packages/agentdex_arena/tests -q => 592 passed, 104 skipped, 1 warning. agentlint unavailable locally (command -v agentlint rc=1). Runner diagnosis: GitHub run 27852206208 still queued with no assigned runner; repo-level runners=0; org runners gh-runner-aws-uswest2 and gh-runner-aws-uswest2-b are online but busy. Blocker is external runner capacity/stale-busy, not branch failure.",
+          "created_at": "2026-06-19T23:16:01Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CANONICAL TEST PASS (adx-cli-14): while PR #390 CI remains queued, ran tools/agent_senses/run_tests.sh packages/ --slow in the clean PR worktree => 786 passed, 119 skipped, 1 warning. PR worktree remains clean at 2029a457. CI state unchanged: run 27852206208 has queued pre-commit/doc-lint jobs with no assigned runner; org runners are online but busy. No branch-local failure to fix.",
+          "created_at": "2026-06-19T23:18:32Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CI FOLLOW-UP (adx-cli-14): PR #390 old run 27852206208 had doc-lint pass and pre-commit fail only because full-tree ruff-format wanted packages/adx_showdown/src/adx_showdown/selfplay/e2e_driver.py, outside PR #390 diff. origin/main now has 16ae4b1a formatting that file; PR #390 is rebased at 237dfda over that base and still changes only the two regression-test files. Local current-head recheck: pre-commit on PR files => pass; focused pytest => 28 passed, 2 skipped. Fresh CI run 27854449712 is queued again; org runners online but busy. No PR-local failure to fix.",
+          "created_at": "2026-06-20T00:39:49Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "NEXT CI PASS (adx-cli-14): PR #390 current head is 237dfdad and still only changes the two regression-test files. Local non-mutating checks pass: ruff format --check + ruff check on PR files; prior unrelated e2e_driver.py formatter failure now passes ruff format --check on current branch/main. New CI run 27854449712 is queued (pre-commit/doc-lint pending, no job logs yet).",
+          "created_at": "2026-06-20T00:40:06Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CURRENT HEAD UPDATE (adx-cli-14): PR #390 advanced to 1c86244 and now includes a narrow runner dispatch change plus tests. Diff over origin/main 16ae4b1a is four files: runner.py, test_selfplay_runner.py, test_codex_adapter.py, test_codex_over_mcp.py. Local verification on current head: ruff on four PR files pass; pre-commit on four PR files pass; focused pytest => 43 passed, 3 skipped; broader adx_showdown + agentdex_arena => 600 passed, 104 skipped, 1 warning. Latest CI run 27854943156 remains queued for pre-commit/doc-lint; org runners online but busy. No current branch-local failure observed.",
+          "created_at": "2026-06-20T00:43:24Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "NEXT PASS AFTER NEW HEAD (adx-cli-14): PR #390 advanced to 1c862446 with runner-dispatch regression coverage; diff now 4 files, 106 insertions/1 deletion. Local evidence: focused suite 53 passed, 3 skipped; touched-package sweep packages/adx_showdown/tests + packages/agentdex_arena/tests => 600 passed, 104 skipped, 1 warning; changed-file pre-commit => pass; doc_lint changed files => exit 0 WARN-only. CI run 27854943156 still queued (pre-commit/doc-lint pending, no logs); org runners online but busy.",
+          "created_at": "2026-06-20T00:43:41Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CANONICAL PACKAGE GATE (adx-cli-14): on PR #390 head 1c862446, tools/agent_senses/run_tests.sh packages/ --slow => 794 passed, 119 skipped, 1 warning. CI run 27854943156 remains queued (pre-commit/doc-lint pending, no logs); org runners online but busy. No branch-local failure to fix.",
+          "created_at": "2026-06-20T00:45:48Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CI-APPROX PASS (adx-cli-14): PR #390 head 1c862446 local non-mutating full-tree checks pass: uv run ruff format --check . => pass (231 files); uv run ruff check . => pass; python3 scripts/doc_lint.py => exit 0 existing WARN-only taxonomy/process warnings. CI run 27854943156 still queued (pre-commit/doc-lint pending, no logs).",
+          "created_at": "2026-06-20T00:48:06Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "DONE VERIFY (bene-core-8): PR #390 merged at 2026-06-20T00:56:24Z on head 1c862446; GitHub CI run 27854943156 pre-commit and doc-lint both passed; gh#388 closed with evidence. Local canonical gate before merge: tools/agent_senses/run_tests.sh packages/ --slow => 794 passed, 119 skipped, 1 warning. Runner dispatch now uses CODEX_STRATEGIES and CI-safe make_harness_player coverage proves native max_damage stays out of the codex adapter path.",
+          "created_at": "2026-06-20T02:35:27Z"
+        }
+      ],
+      "created_by": "adx-cli",
+      "evidence": [
+        "gh#388",
+        "https://github.com/good-night-oppie/agentdex-cli/issues/388",
+        "adx-cli-13-human-review"
+      ],
+      "fix": "Gate Codex selector injection to Codex-backed strategies or implement every supported strategy faithfully at the selector boundary.",
+      "id": "ADX-P1-008",
+      "impact": "MCP self-play can silently convert valid random/non-Codex harnesses into max-damage play, corrupting win-rate and promotion-gate evidence.",
+      "lane": "selfplay",
+      "priority": "P1",
+      "status": "done",
+      "title": "Preserve harness strategy semantics in self-play MCP",
+      "updated_at": "2026-06-20T02:35:36Z"
+    },
+    {
+      "assignee": "codex",
+      "comments": [
+        {
+          "author": "adx-cli",
+          "body": "Harden numeric params (switch_penalty, stab_multiplier, accuracy_weight) with safe coercion and added 3 unit tests in test_battle_harness_adapter.py",
+          "created_at": "2026-06-20T00:16:22Z"
+        },
+        {
+          "author": "codex-2",
+          "body": "VERIFY DONE (codex-2, 2026-06-20): branch-local hardening commit 3575b12c covers switch_penalty, stab_multiplier, and accuracy_weight with safe coercion/clamping. Re-ran focused reproducer => 1 passed; adapter + MCP adjacent suite => 20 passed; ruff on adapter/tests => pass. GitHub issue #389 remains open only because the fix is branch-scoped to phase2-selfplay-mcp-adapter and not yet on origin/main.",
+          "created_at": "2026-06-20T03:23:21Z"
+        }
+      ],
+      "created_by": "adx-cli",
+      "evidence": [
+        "gh#389",
+        "https://github.com/good-night-oppie/agentdex-cli/issues/389",
+        "adx-cli-13-human-review"
+      ],
+      "fix": "Add safe numeric-param coercion with defaults/clamps and tests for non-numeric switch_penalty, stab_multiplier, and accuracy_weight.",
+      "id": "ADX-P1-009",
+      "impact": "Valid BENE-mutated string params can crash the adapter, then get counted as illegal moves with random fallback, polluting fitness dimensions.",
+      "lane": "selfplay",
+      "priority": "P1",
+      "status": "done",
+      "title": "Harden Codex battle-harness adapter params",
+      "updated_at": "2026-06-20T03:23:21Z"
     }
   ],
   "events": [
@@ -4266,8 +4546,538 @@
       "card_id": "GA-BENE-1",
       "created_at": "2026-06-19T22:46:04Z",
       "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T22:54:18Z",
+      "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-009",
+      "created_at": "2026-06-19T22:54:18Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T22:54:28Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T22:54:29Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-001",
+      "created_at": "2026-06-19T22:54:29Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-ONLINE-001",
+      "created_at": "2026-06-19T22:54:29Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T23:01:02Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T23:03:21Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T23:16:01Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-19T23:18:32Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-19T23:23:49Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-19T23:23:49Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-19T23:23:49Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "BENE-RVW-P0-launch-gate",
+      "created_at": "2026-06-19T23:25:08Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-009",
+      "created_at": "2026-06-20T00:16:22Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-009",
+      "created_at": "2026-06-20T00:16:22Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "RVW-P1-og-adx-cli-prs",
+      "created_at": "2026-06-20T00:21:10Z",
+      "detail": {
+        "after": {
+          "assignee": "og",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "og",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T00:29:35Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T00:29:35Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-3",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-20T00:29:35Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T00:38:04Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:39:49Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:40:06Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:43:24Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:43:41Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:45:48Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T00:48:06Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T02:35:27Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "ADX-P1-008",
+      "created_at": "2026-06-20T02:35:36Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "BENE-BATTLE-INTEGRATE",
+      "created_at": "2026-06-20T02:45:10Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "BENE-BATTLE-INTEGRATE",
+      "created_at": "2026-06-20T02:56:47Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "BENE-BATTLE-INTEGRATE",
+      "created_at": "2026-06-20T02:56:47Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:05:57Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T03:06:08Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-20T03:06:20Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T03:19:46Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "BENE-DOC-10",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-4",
+      "card_id": "BENE-DOC-10",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "BENE-SCRUB-08",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-4",
+      "card_id": "BENE-SCRUB-08",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "BENE-RVW-P0-launch-gate",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-4",
+      "card_id": "BENE-RVW-P0-launch-gate",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "BENE-RVW-P1-landing-honesty",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-4",
+      "card_id": "BENE-RVW-P1-landing-honesty",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:21:11Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex-2",
+      "card_id": "ADX-P1-009",
+      "created_at": "2026-06-20T03:23:21Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex-2",
+      "card_id": "ADX-P1-009",
+      "created_at": "2026-06-20T03:23:21Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex-2",
+      "card_id": "RVW-P1-codex-adx-cli-prs",
+      "created_at": "2026-06-20T03:25:08Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex-2",
+      "card_id": "RVW-P1-codex-adx-cli-prs",
+      "created_at": "2026-06-20T03:25:08Z",
+      "detail": {
+        "after": {
+          "assignee": "codex",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "codex",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:29:51Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-20T03:35:11Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex-2",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:42:09Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "codex-2",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T03:42:09Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T03:53:28Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:53:29Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "BENE-BATTLE-INTEGRATE",
+      "created_at": "2026-06-20T03:57:30Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-20T03:57:30Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-20T03:57:30Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-20T03:57:30Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-19T22:46:04Z"
+  "updated_at": "2026-06-20T03:57:30Z"
 }
