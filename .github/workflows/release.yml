@@ -2,7 +2,7 @@ name: release
 
 on:
   schedule:
-    # Run nightly at 2:00 AM UTC
+    # Nightly at 02:00 UTC (aborts cleanly if no new commits in 24h).
     - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
@@ -12,11 +12,15 @@ on:
         type: string
   push:
     tags:
-      - "v[0-9].*"
+      # v[0-9]* so v10.0.0 fires too (v[0-9].* required a literal dot after the
+      # first digit and never matched double-digit majors).
+      - "v[0-9]*"
 
 concurrency:
+  # A release must NEVER be cancelled mid-flight (a cancel between PyPI publish
+  # and the GitHub release leaves a partial release with no resume).
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -34,7 +38,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
+          # Pinned (not "latest") so the release toolchain is reproducible.
+          version: "0.11.21"
           enable-cache: true
 
       - name: Set up Python
@@ -47,111 +52,189 @@ jobs:
         if: github.event_name == 'schedule'
         run: |
           if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
-            echo "No new commits in the last 24 hours. Skipping nightly release."
-            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "No new commits in the last 24h — skipping nightly release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
           else
-            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Determine Version
+      - name: Determine version & metadata
         id: get_version
+        # M4: untrusted inputs (dispatch version, tag ref) come in via env, NOT
+        # via ${{ }} interpolated into the shell — env vars are not evaluated, so
+        # they cannot inject commands into this id-token:write/contents:write job.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+          GH_REF: ${{ github.ref_name }}
+          SHOULD_RELEASE: ${{ steps.check_commits.outputs.should_release }}
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "${{ steps.check_commits.outputs.should_release }}" = "false" ]; then
-              exit 0
-            fi
-            # Dev version format: X.Y.Z.devYYYYMMDD
-            BASE_VERSION=$(python3 -c "import tomllib; print(tomllib.loads(open('packages/agentdex_cli/pyproject.toml').read())['project']['version'])")
-            DATE_SUFFIX=$(date -u +%Y%m%d)
-            VERSION="${BASE_VERSION}.dev${DATE_SUFFIX}"
+          set -euo pipefail
+          IS_STABLE="false"
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            if [ "$SHOULD_RELEASE" = "false" ]; then exit 0; fi
+            BASE_VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('packages/agentdex_cli/pyproject.toml','rb'))['project']['version'])")"
+            VERSION="${BASE_VERSION}.dev$(date -u +%Y%m%d)"
             TAG="dev-nightly"
             IS_PRERELEASE="true"
-            RELEASE_NAME="Nightly Dev Build (${DATE_SUFFIX})"
-            RELEASE_NOTES="Automated pre-release build of the main branch."
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+            RELEASE_NAME="Nightly Dev Build ($(date -u +%Y%m%d))"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$VERSION_INPUT"
             TAG="v${VERSION}"
-            IS_PRERELEASE="false"
+            IS_PRERELEASE="false"; IS_STABLE="true"
             RELEASE_NAME="Release v${VERSION}"
-            RELEASE_NOTES="Stable release v${VERSION}."
           else
-            # Triggered by tag push
-            TAG="${{ github.ref_name }}"
+            TAG="$GH_REF"
             VERSION="${TAG#v}"
-            IS_PRERELEASE="false"
+            IS_PRERELEASE="false"; IS_STABLE="true"
             RELEASE_NAME="Release ${TAG}"
-            RELEASE_NOTES="Stable release ${TAG}."
+          fi
+          {
+            echo "VERSION=$VERSION"
+            echo "TAG=$TAG"
+            echo "IS_PRERELEASE=$IS_PRERELEASE"
+            echo "IS_STABLE=$IS_STABLE"
+            echo "RELEASE_NAME=$RELEASE_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Assert tag matches committed version (provenance)
+        # On a STABLE release (tag-push or manual dispatch), the published wheel
+        # version MUST exist in the committed tree. Fail fast if the tree was not
+        # bumped+committed first, so we never publish a version that's in no commit.
+        # (Nightly dev builds are exempt — they are intentionally ephemeral.)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          COMMITTED="$(python3 -c "import tomllib; print(tomllib.load(open('packages/agentdex_cli/pyproject.toml','rb'))['project']['version'])")"
+          if [ "$COMMITTED" != "$VERSION" ]; then
+            echo "::error::tag v$VERSION does not match committed agentdex-cli version $COMMITTED."
+            echo "Bump + commit the version (scripts/prepare_release.py) before tagging."
+            exit 1
           fi
 
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG=$TAG" >> $GITHUB_OUTPUT
-          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
-          echo "RELEASE_NOTES=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+      - name: Setup workspace dependencies
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: uv sync --all-packages --group dev
 
-      - name: Bump Version in workspace pyprojects
+      - name: Bump versions & pin internal deps
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: python3 scripts/prepare_release.py --version "$VERSION"
+
+      - name: Lint & format
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          echo "Bumping all workspace packages to version $VERSION"
-
-          # Use inline python to cleanly rewrite the version in root and all subproject tomls
-          python3 -c "
-          import re, glob
-          paths = ['pyproject.toml'] + glob.glob('packages/*/pyproject.toml')
-          for path in paths:
-              content = open(path).read()
-              updated = re.sub(r'(version\s*=\s*\")[^\"]+(\")', r'\g<1>'$VERSION'\g<2>', content, count=1)
-              open(path, 'w').write(updated)
-          "
-
-      - name: Validate Lint and Formatting
-        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
-        run: |
-          uv sync --group dev
-          # Verify the code meets structural and style gates
           uv run ruff check .
           uv run ruff format --check .
 
-      - name: Run Test Suites
+      - name: Typecheck
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
-        run: |
-          # Run the pytest suite for the workspace packages
-          PYTHONPATH=packages/agentdex_cli/src:packages/adx_showdown/src:packages/kaos/src uv run pytest packages/
+        # Scoped to the typed surface; this is a real (passing) gate, not a
+        # "strict mypy over all packages" claim (the social copy no longer says so).
+        run: uv run mypy packages/agentdex_engine/src/agentdex_engine/cards/
 
-      - name: Build All Workspace Packages
+      - name: Test
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
-        run: |
-          # Build source distributions and wheels for all 9 workspace packages
-          uv build --all --clear
+        run: uv run pytest packages/
 
-      - name: Verify Package Metadata (Twine Check)
+      - name: Verify release integrity
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          IS_STABLE: ${{ steps.get_version.outputs.IS_STABLE }}
         run: |
-          # Use uvx to run twine checks on generated wheel/sdist packages
-          uvx twine check dist/*
+          set -euo pipefail
+          STABLE_FLAG=""
+          [ "$IS_STABLE" = "true" ] && STABLE_FLAG="--stable"
+          python3 scripts/verify_release_integrity.py --version "$VERSION" $STABLE_FLAG
 
-      - name: Publish to GitHub Releases
+      - name: Build packages
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        # release_notes/social live in release-assets/ (NOT dist/), so --clear
+        # cannot destroy them before the GitHub release step consumes them.
+        run: uv build --all --clear
+
+      - name: Twine metadata check
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: uvx twine check dist/*
+
+      - name: Install smoke test (clean venv)
+        # G13/EVAL ground-truth gate BEFORE the irreversible publish: the built
+        # wheel must actually install and expose its console entry point.
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet --upgrade pip
+          # Internal deps are pinned to ==VERSION and live in dist/; external deps
+          # come from PyPI. --find-links lets pip resolve both pre-publish.
+          /tmp/smoke/bin/pip install --find-links dist/ "agentdex-cli==$VERSION"
+          /tmp/smoke/bin/adx --help
+
+      - name: Publish to PyPI
+        # PyPI FIRST (eddie #7): PyPI is the canonical immutable artifact. The
+        # GitHub release is the advertisement and comes after a successful publish,
+        # so we never advertise an uninstallable version.
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: uv publish
+
+      - name: Publish GitHub release
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
+          RELEASE_NAME: ${{ steps.get_version.outputs.RELEASE_NAME }}
+          IS_PRERELEASE: ${{ steps.get_version.outputs.IS_PRERELEASE }}
         run: |
-          TAG="${{ steps.get_version.outputs.TAG }}"
-          PRERELEASE_FLAG=""
-          if [ "${{ steps.get_version.outputs.IS_PRERELEASE }}" = "true" ]; then
-            PRERELEASE_FLAG="--prerelease"
+          set -euo pipefail
+          test -f release-assets/release_notes.md || {
+            echo "::error::release-assets/release_notes.md missing (prepare_release.py did not run?)"; exit 1; }
+          # No --clobber anywhere (it is not a valid `gh release create` flag —
+          # passing it halts the job).
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # Nightly: the dev-nightly tag is mutable by design. Replace the prior
+            # release+tag (create alone would fail once it exists) and re-point it
+            # at this commit. No --verify-tag (gh creates the tag here).
+            gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$TAG" dist/* \
+              --prerelease --target "$GITHUB_SHA" \
+              --title "$RELEASE_NAME" \
+              --notes-file release-assets/release_notes.md
+          else
+            # Stable: immutable, create exactly once. --verify-tag only when the
+            # tag already exists on the remote (tag-push); a manual dispatch
+            # creates the tag at this commit.
+            VERIFY=""
+            [ "$EVENT_NAME" = "push" ] && VERIFY="--verify-tag"
+            gh release create "$TAG" dist/* \
+              $VERIFY \
+              --title "$RELEASE_NAME" \
+              --notes-file release-assets/release_notes.md
           fi
 
-          # Create or update the release
-          gh release create "$TAG" dist/* \
-            $PRERELEASE_FLAG \
-            --title "${{ steps.get_version.outputs.RELEASE_NAME }}" \
-            --notes "${{ steps.get_version.outputs.RELEASE_NOTES }}" \
-            --generate-notes \
-            --clobber
-
-      - name: Publish to PyPI
-        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+      - name: Deploy to Spaces (stable only)
+        if: |
+          (github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true') &&
+          steps.get_version.outputs.IS_STABLE == 'true'
+        env:
+          AI_BUILDER_TOKEN: ${{ secrets.AI_BUILDER_TOKEN }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
         run: |
-          # Use OIDC Trusted Publishing natively supported by uv publish to publish all built wheels
-          uv publish
+          set -euo pipefail
+          if [ -n "${AI_BUILDER_TOKEN:-}" ]; then
+            echo "Deploying $TAG to Spaces subdomain agentdex..."
+            uv run adx deploy \
+              --service-name agentdex \
+              --branch "$TAG" \
+              --token "$AI_BUILDER_TOKEN" \
+              --poll-interval 15 \
+              --poll-timeout 300
+          else
+            echo "AI_BUILDER_TOKEN not configured — skipping deploy."
+          fi
