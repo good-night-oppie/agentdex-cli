@@ -141,6 +141,35 @@ Short-list:
 4. detect-secrets `generated_at` timestamp drift → DEFERRED
    `BASELINE-DRIFT` row.
 
+## Dev-Main Workflow (Dev vs. Stable Clones)
+
+To keep development and production/stable states cleanly separated:
+
+- **Stable Clone (`agentdex-cli-main`):** Kept on the stable release/production state. Houses design prototypes (`design/`) and primary production credentials (`oppie`).
+- **Dev Clone (`agentdex-cli`):** Used for active feature work, debugging, running tests, and PR review follow-ups. Uses dev credentials (`codex-audit`).
+
+### Push Enforcement
+Direct push to the remote `main` branch from the **Dev Clone** is blocked by a local git hook to prevent accidental main-branch clutter. You must push to feature/fix branches, open a PR, and squash-merge it.
+
+To set up the pre-push enforcement in your dev clone, run:
+```bash
+cat << 'EOF' > .git/hooks/pre-push
+#!/usr/bin/env bash
+# Prevent pushing directly to main from the dev clone.
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "=========================================================="
+    echo "ERROR: Direct push to 'main' from the DEV clone is BLOCKED!"
+    echo "Please push to a feature/fix branch or use the STABLE clone."
+    echo "=========================================================="
+    exit 1
+  fi
+done
+exit 0
+EOF
+chmod +x .git/hooks/pre-push
+```
+
 ## Cross-references
 
 - `agents/ops/AGENTS.md` — env vars + secrets + ports detail
