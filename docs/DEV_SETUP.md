@@ -176,6 +176,18 @@ EOF
 chmod +x .git/hooks/pre-push
 ```
 
+### PyPI Trusted Publishing (OIDC)
+The release workflow `.github/workflows/release.yml` uses OpenID Connect (OIDC) to securely publish built packages to PyPI without needing to store passwords or API secrets in GitHub.
+
+To enable this on the PyPI side:
+1. Go to your PyPI dashboard.
+2. Register a new **Pending Publisher** with these parameters:
+   - **PyPI Project Name:** `agentdex-cli`
+   - **Owner:** `good-night-oppie`
+   - **Repository Name:** `agentdex-cli`
+   - **Workflow Name:** `release.yml`
+   - **Environment Name:** (Leave blank)
+
 ## Cross-references
 
 - `agents/ops/AGENTS.md` — env vars + secrets + ports detail
