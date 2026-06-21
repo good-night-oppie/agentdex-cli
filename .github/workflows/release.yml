@@ -181,7 +181,9 @@ jobs:
         # GitHub release is the advertisement and comes after a successful publish,
         # so we never advertise an uninstallable version.
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
-        run: uv publish
+        # --check-url makes the upload idempotent: a re-dispatch of the same
+        # version skips already-published files instead of dying on a PyPI 400.
+        run: uv publish --check-url https://pypi.org/simple/
 
       - name: Publish GitHub release
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
