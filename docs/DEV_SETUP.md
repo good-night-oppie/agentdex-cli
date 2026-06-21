@@ -146,7 +146,13 @@ Short-list:
 To keep development and production/stable states cleanly separated:
 
 - **Stable Clone (`agentdex-cli-main`):** Kept on the stable release/production state. Houses design prototypes (`design/`) and primary production credentials (`oppie`).
+  - **Golden Play Tests:** The stable clone/branch contains a set of golden play tests (e.g., [test_teams_golden.py](file:///home/admin/gh/agentdex-cli/packages/adx_showdown/tests/test_teams_golden.py) validating Showdown replay logs) that must **never** be changed or updated unless specifically fixing bugs.
 - **Dev Clone (`agentdex-cli`):** Used for active feature work, debugging, running tests, and PR review follow-ups. Uses dev credentials (`codex-audit`).
+
+### Branching Rules
+1. **Features:** Always go to feature branches created from the dev clone, then merge into `main` via PRs.
+2. **Bugfixes:** Go directly to `main` (either committed directly to `main` or PRed directly to `main` from dev/stable clone).
+3. **Rebase Requirement:** The dev clone/branches **must** be rebased with `main` immediately after any bugfixes are merged into `main`.
 
 ### Push Enforcement
 Direct push to the remote `main` branch from the **Dev Clone** is blocked by a local git hook to prevent accidental main-branch clutter. You must push to feature/fix branches, open a PR, and squash-merge it.
