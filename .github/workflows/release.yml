@@ -1,0 +1,131 @@
+name: release
+
+on:
+  schedule:
+    # Run nightly at 2:00 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable version to release (e.g. 0.2.0)"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v[0-9].*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check for nightly commits
+        id: check_commits
+        if: github.event_name == 'schedule'
+        run: |
+          # Check if there are commits in the last 24 hours
+          if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
+            echo "No new commits in the last 24 hours. Skipping nightly release."
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ steps.check_commits.outputs.should_release }}" = "false" ]; then
+              exit 0
+            fi
+            # Dev version format: 0.1.0.devYYYYMMDD
+            BASE_VERSION=$(python3 -c "import tomli if 'tomli' in dir() else None; import tomllib; print(tomllib.loads(open('packages/agentdex_cli/pyproject.toml').read())['project']['version'])")
+            DATE_SUFFIX=$(date -u +%Y%m%d)
+            VERSION="${BASE_VERSION}.dev${DATE_SUFFIX}"
+            TAG="dev-nightly"
+            IS_PRERELEASE="true"
+            RELEASE_NAME="Nightly Dev Build (${DATE_SUFFIX})"
+            RELEASE_NOTES="Automated pre-release build of the main branch."
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            TAG="v${VERSION}"
+            IS_PRERELEASE="false"
+            RELEASE_NAME="Release v${VERSION}"
+            RELEASE_NOTES="Stable release v${VERSION}."
+          else
+            # Triggered by tag push
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
+            IS_PRERELEASE="false"
+            RELEASE_NAME="Release ${TAG}"
+            RELEASE_NOTES="Stable release ${TAG}."
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          echo "RELEASE_NOTES=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+
+      - name: Bump Version in pyproject.toml
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          echo "Bumping version to $VERSION"
+
+          # Use inline python to cleanly rewrite the version in subproject and workspace tomls
+          python3 -c "
+          import re
+          for path in ['packages/agentdex_cli/pyproject.toml', 'pyproject.toml']:
+              content = open(path).read()
+              updated = re.sub(r'(version\s*=\s*\")[^\"]+(\")', r'\g<1>'$VERSION'\g<2>', content, count=1)
+              open(path, 'w').write(updated)
+          "
+
+      - name: Run Tests
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          uv sync --group dev
+          # Run the pytest runner
+          PYTHONPATH=packages/agentdex_cli/src:packages/adx_showdown/src:packages/kaos/src uv run pytest packages/agentdex_cli/tests/
+
+      - name: Build Package
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          uv build --package agentdex-cli
+
+      - name: Publish to GitHub Releases
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.get_version.outputs.TAG }}"
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.get_version.outputs.IS_PRERELEASE }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Create or update the release
+          gh release create "$TAG" dist/* \
+            $PRERELEASE_FLAG \
+            --title "${{ steps.get_version.outputs.RELEASE_NAME }}" \
+            --notes "${{ steps.get_version.outputs.RELEASE_NOTES }}" \
+            --clobber
