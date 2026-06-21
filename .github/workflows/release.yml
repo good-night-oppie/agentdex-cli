@@ -14,12 +14,16 @@ on:
     tags:
       - "v[0-9].*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  build-and-release:
+  validate-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -42,7 +46,6 @@ jobs:
         id: check_commits
         if: github.event_name == 'schedule'
         run: |
-          # Check if there are commits in the last 24 hours
           if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
             echo "No new commits in the last 24 hours. Skipping nightly release."
             echo "should_release=false" >> $GITHUB_OUTPUT
@@ -57,8 +60,8 @@ jobs:
             if [ "${{ steps.check_commits.outputs.should_release }}" = "false" ]; then
               exit 0
             fi
-            # Dev version format: 0.1.0.devYYYYMMDD
-            BASE_VERSION=$(python3 -c "import tomli if 'tomli' in dir() else None; import tomllib; print(tomllib.loads(open('packages/agentdex_cli/pyproject.toml').read())['project']['version'])")
+            # Dev version format: X.Y.Z.devYYYYMMDD
+            BASE_VERSION=$(python3 -c "import tomllib; print(tomllib.loads(open('packages/agentdex_cli/pyproject.toml').read())['project']['version'])")
             DATE_SUFFIX=$(date -u +%Y%m%d)
             VERSION="${BASE_VERSION}.dev${DATE_SUFFIX}"
             TAG="dev-nightly"
@@ -86,32 +89,47 @@ jobs:
           echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
           echo "RELEASE_NOTES=$RELEASE_NOTES" >> $GITHUB_OUTPUT
 
-      - name: Bump Version in pyproject.toml
+      - name: Bump Version in workspace pyprojects
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
-          echo "Bumping version to $VERSION"
+          echo "Bumping all workspace packages to version $VERSION"
 
-          # Use inline python to cleanly rewrite the version in subproject and workspace tomls
+          # Use inline python to cleanly rewrite the version in root and all subproject tomls
           python3 -c "
-          import re
-          for path in ['packages/agentdex_cli/pyproject.toml', 'pyproject.toml']:
+          import re, glob
+          paths = ['pyproject.toml'] + glob.glob('packages/*/pyproject.toml')
+          for path in paths:
               content = open(path).read()
               updated = re.sub(r'(version\s*=\s*\")[^\"]+(\")', r'\g<1>'$VERSION'\g<2>', content, count=1)
               open(path, 'w').write(updated)
           "
 
-      - name: Run Tests
+      - name: Validate Lint and Formatting
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         run: |
           uv sync --group dev
-          # Run the pytest runner
-          PYTHONPATH=packages/agentdex_cli/src:packages/adx_showdown/src:packages/kaos/src uv run pytest packages/agentdex_cli/tests/
+          # Verify the code meets structural and style gates
+          uv run ruff check .
+          uv run ruff format --check .
 
-      - name: Build Package
+      - name: Run Test Suites
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         run: |
-          uv build --package agentdex-cli
+          # Run the pytest suite for the workspace packages
+          PYTHONPATH=packages/agentdex_cli/src:packages/adx_showdown/src:packages/kaos/src uv run pytest packages/
+
+      - name: Build All Workspace Packages
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          # Build source distributions and wheels for all 9 workspace packages
+          uv build --all --clear
+
+      - name: Verify Package Metadata (Twine Check)
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          # Use uvx to run twine checks on generated wheel/sdist packages
+          uvx twine check dist/*
 
       - name: Publish to GitHub Releases
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
@@ -129,10 +147,11 @@ jobs:
             $PRERELEASE_FLAG \
             --title "${{ steps.get_version.outputs.RELEASE_NAME }}" \
             --notes "${{ steps.get_version.outputs.RELEASE_NOTES }}" \
+            --generate-notes \
             --clobber
 
       - name: Publish to PyPI
         if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
         run: |
-          # Use OIDC Trusted Publishing natively supported by uv publish
+          # Use OIDC Trusted Publishing natively supported by uv publish to publish all built wheels
           uv publish
