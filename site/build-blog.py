@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import html
 import re
-import shutil
 from pathlib import Path
 
 import markdown
@@ -293,10 +292,8 @@ def build() -> None:
     # Clear stale output first so a renamed/deleted post's old <slug>.html can't
     # linger and keep being deployed (the index would no longer list it). Keeps
     # the build reproducible from sources alone, like site/build-docs.py.
-    for out_dir in (OUT, ZH_OUT):
-        if out_dir.exists():
-            shutil.rmtree(out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
+    OUT.mkdir(parents=True, exist_ok=True)
+    ZH_OUT.mkdir(parents=True, exist_ok=True)
 
     en_posts = collect(BLOG)
     zh_posts = collect(BLOG / "zh")
