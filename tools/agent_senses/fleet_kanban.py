@@ -271,7 +271,12 @@ def render_markdown(board: dict[str, Any]) -> str:
             lines.append(
                 "- Recent comments: "
                 + " / ".join(
-                    f"{comment.get('author')}: {comment.get('body')}" for comment in comments[-3:]
+                    (
+                        f"{comment.get('author')}: {comment.get('body')}"
+                        if isinstance(comment, dict)
+                        else str(comment)
+                    )
+                    for comment in comments[-3:]
                 )
             )
         lines.append("")

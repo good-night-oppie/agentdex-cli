@@ -46,7 +46,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 |---|---|---|---|---|---|
 | LADDER-P1-incremental-cached | P1 | adx-core | ladder | Incremental ladder fold + cached /ladder (full recompute = boot/repair only); coordinate with ADX-P1-007 | events.py:195-237 recompute_ladder; called gateway.py:1355, 1144, 1182, mcp_surface.py:349, 1996. Same _finish lines as ADX-P1-007. |
 | ADX-P2-006 | P2 | harness | observability | Unbounded sessions/replays dicts — eventual OOM on long-running deploy | gateway.py:564/567 (init), :872/:1202/:1309 (insert), no eviction. adversarially confirmed (dogfood audit 2026-06-17) |
-| DURABLE-P2-append-throughput-measure | P2 | harness | ops | Run ADR-0012 MUST-MEASURE #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON) | events.py:72-97 single global fcntl lock + single fd; per-turn append hot path gateway.py:1702; loadtest covered sim only. |
+| DURABLE-P2-append-throughput-measure | P2 | harness | ops | Run ADR-0012 must-measure #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON) | events.py:72-97 single global fcntl lock + single fd; per-turn append hot path gateway.py:1702; loadtest covered sim only. |
 | DURABLE-P2-ratings-pg-projection | P2 | adx-core | ladder | Add a ratings projection table to the PG mirror for multi-instance/replica reads (post-MVP) | eventsync.py mirrors raw arena_event_log only, no derived ratings view; ADR-0012:117-118. |
 | SNAPSHOT-P2-sidecar-restore | P2 | adx-core | durability | Wire snapshot/restore ops into sidecar.mjs using engine State.serializeBattle (full in-flight crash recovery) | engine primitive exists (pokemon-showdown sim/state.js:79/99) but sidecar.mjs has no snapshot/restore op. |
 
@@ -54,35 +54,27 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
-| BENE-RVW-P0-launch-gate | P0 | bene | launch-gate | Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN | Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed). |
-| LLM-P0-must-measure-3 | P0 | harness | infra | Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent | ADR-0012:124, 126 names LLM tier first; loadtest doc:61-63 defers it; arena server makes $0 LLM calls (bots.py:1) so risk is 100 client agents. |
+| LLM-P0-must-measure-3 | P0 | harness | infra | Run ADR-0012 must-measure #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent | ADR-0012:124, 126 names LLM tier first; loadtest doc:61-63 defers it; arena server makes $0 LLM calls (bots.py:1) so risk is 100 client agents. |
 | ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
-| BENE-DOC-10 | P1 | bene | render-deploy | Render + deploy all new blog/docs/case-study/design content | site/build-docs.py |
-| BENE-RVW-P1-landing-honesty | P1 | bene | launch-ux | Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance | Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'. |
-| BENE-SCRUB-08 | P1 | bene | render-deploy | Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean | PR#27, BENE-DOC-10 |
 | ENROLL-P1-device-flow-backend | P1 | adx-core | onboarding | adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract) | PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7) |
 | ENROLL-P1-docs-fix-false-webhook | P1 | adx-core | onboarding | Fix docs that promise a prod webhook/email delivery channel that does not exist | SKILL.md:185-193, bootstrap.sh:11-12, ENROLLMENT.md:23-24, arena_play.py:10 promise out-of-band delivery with no code. |
 | ENROLL-P1-playtest-return-code | P1 | adx-core | onboarding | Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code | gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located. |
 | RECOVER-P1-sidecar-respawn | P1 | adx-core | durability | Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes | sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load. |
-| RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
-| RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 
 ### running
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | ADX-ONLINE-002 | P0 | adx-core | launch-gate | launch gate: agentdex 100-user readiness assessment + go/no-go | wf:agentdex-100-user-readiness(54/71), a2a#312, a2a#320 |
-| GA-BENE-1 | P0 | bene | bene-core | agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3) | blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API |
-| GA-BENE-2 | P0 | bene | bene-core | agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane) | blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream |
-| ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
-| GA-BENE-4 | P1 | bene | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | depends on GA-BENE-3 real-evolve output shape |
+| GA-BENE-1 | P0 | bene | bene-core | agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3) | BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 (head 2b38f87), agentdex-cli PR #404 merged at e0fe2297 with dashboard mounted at /dashboard/, _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped, uv run ruff check . => All checks passed |
+| GA-BENE-2 | P0 | bene | bene-core | agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane) | BENE PR #94 https://github.com/good-night-oppie/bene/pull/94 merged at 4186440 (head bd4828b), node test/test_datalayer.mjs => 42 passed, 0 failed, node test/render-verify.mjs => 15 passed, 0 failed, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped |
+| GA-BENE-4 | P1 | bene | bene-core | Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel) | BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 and embeds the GA-BENE-4 Evolution panel, _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped, uv run ruff check . => All checks passed, uv run bene demo --no-ui => story complete |
 
 ### blocked
 
 | ID | Pri | Assignee | Lane | Title | Evidence |
 |---|---|---|---|---|---|
 | AWS-PUBLIC-DNS-TLS | P1 | adx-core | platform | agentdex.builders DNS A-record + Caddy auto-TLS -> arena box | op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted. |
-| BENE-BATTLE-INTEGRATE | P1 | bene-core | bene-core | Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness |  |
 | INSTR-P1-free-quota-or-vps | P1 | platform-instructor | platform | INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback | Quota 2/2 (meta-vex+agentdex), no self-serve DELETE (go/no-go:38-42); Dockerfile:60 shell-form CMD honoring $PORT. |
 
 ### review
@@ -98,6 +90,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ADX-P0-001 | P0 | adx-cli | integrity | Make arena receipts atomic before claiming honesty | pass27, pass28, pass37, pass38, pass39, pass40 |
 | BENE-DOC-02 | P0 | bene-core | blog-content | Blog post: WHY we build BENE — the harness behind the arena | CLAUDE.md, docs/README.md |
 | BENE-RVW-P0-cn-docs | P0 | og | docs-zh | P0#4 CN docs = Chinese shell + English body: fix entry/nav/priority-3/annotation | docs/zh now = README + cli-reference + integrating-bene only (exactly the 3 priority docs); og confirmed lane done on bus #373 / commit c2a876c. |
+| BENE-RVW-P0-launch-gate | P0 | bene | launch-gate | Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN | Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed). |
 | BENE-RVW-P0-llms-canonical | P0 | bene | launch-gate | P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene | site/llms.txt Source/Issues/Discussions all = github.com/EdwardTang/bene-site; product repo under review = good-night-oppie/bene. |
 | BENE-RVW-P0-version | P0 | bene | launch-gate | P0#1 version drift: landing shows v0.2.0, package/PyPI are 0.2.1 | pyproject.toml version=0.2.1; PyPI=0.2.1; site/index.html and site/zh/index.html each show v0.2.0 (1 ref each) on good-night-oppie/bene main. |
 | ENROLL-P0-batch-mint | P0 | adx-core | onboarding | Batch-mint N consent tokens via one-shot script (emit register events) + distribute, bypassing self-serve confirm | consent.py:136 mint() works; gateway.py:639-649 ConsentClaims shape; _registered append-only gateway.py:637. |
@@ -105,16 +98,20 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ENROLL-P0-verify-signing-key | P0 | adx-core | onboarding | Verify the live deploy has a persistent ARENA_SIGNING_KEY_HEX (else all tokens die on sleep/wake/redeploy) | __main__.py:61-67 mints ephemeral key with warning-only when unset; consent.py:118-120 fail-closes only if BOTH empty. |
 | INSTR-P0-bigger-instance | P0 | adx-core | platform | INSTRUCTOR: provision a multi-core instance bigger than the 256MB nano, scale-to-zero DISABLED | ADR-0012:117-118; deploy payload cli.py:844-849 has no instance-size/scale-to-zero field; quota 2/2 used. |
 | ADMIT-P1-retry-after-and-per-owner-cap | P1 | adx-core | admission | Admission control: Retry-After on capacity 503 + per-owner concurrent-battle cap (anti-monopolization) | gateway.py:836-843 bare 503, grep retry-after=0; self.sessions keyed by battle_id only (gateway.py:572); BattleSession.claims_token_id gateway.py:388. |
+| ADX-ONLINE-001 | P1 | adx-cli | launch-ux | launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay) | PR#200, PR#201, .supergoal-v3/ROADMAP.md |
 | ADX-P1-001 | P1 | adx-cli | fairness | Stop spending rated/evolution/badge quota before work is accepted | pass26, pass33, pass34, pass35, pass36 |
 | ADX-P1-002 | P1 | adx-cli | owner-data | Make owner export include replay, badge, and rating lineage | pass17, pass19, pass20, pass21, pass41, pass42-candidate |
 | ADX-P1-004 | P1 | adx-cli | security | Tighten admin surface and auth-before-parse contract | pass24, pass25 |
 | ADX-P1-005 | P1 | codex | integrity | Collusion quarantine_reason leaks heuristic internals to the agent (D7) | gateway.py:1001-1045 (_check_collusion detailed strings), :1059-1062 (written to session.ended), :1116-1126 (event log). adversarially confirmed (dogfood audit 2026-06-17) |
 | ADX-P1-006 | P1 | adx-cli | integrity | Dispute event appended BEFORE re-sim — duplicate events on retry | gateway.py:1771-1777 (append), :1790-1794/:1822 (resim+throw). adversarially confirmed (dogfood audit 2026-06-17) |
 | ADX-P1-007 | P1 | adx-cli | fairness | Ladder published_delta race: concurrent _finish for same player inflates delta | gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17) |
+| ADX-P1-008 | P1 | adx-cli | selfplay | Preserve harness strategy semantics in self-play MCP | gh#388, https://github.com/good-night-oppie/agentdex-cli/issues/388, adx-cli-13-human-review |
+| ADX-P1-009 | P1 | codex | selfplay | Harden Codex battle-harness adapter params | gh#389, https://github.com/good-night-oppie/agentdex-cli/issues/389, adx-cli-13-human-review |
 | BENE-BATTLE-B1 | P1 | bene-core | bene-core | Lane B: evolve_battle_harness Contract-4 entrypoint (bene) |  |
 | BENE-BATTLE-B2 | P1 | bene-core | bene-core | Lane B: Pareto evaluator wired to Contract-3 5-dim fitness |  |
 | BENE-BATTLE-B3 | P1 | bene-core | bene-core | Lane B: hash-locked kill-gate probe (win_rate_uplift + anti-vacuous) |  |
 | BENE-BATTLE-B4 | P1 | bene-core | bene-core | Lane B: SharedLog lineage + run_seed reproducibility |  |
+| BENE-BATTLE-INTEGRATE | P1 | bene-core | bene-core | Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness | BENE PR #93 https://github.com/good-night-oppie/bene/pull/93 merged 2026-06-20 at 7d36576 (head f1669d0), uv run python -m pytest tests/ -q => 1177 passed, 11 skipped, uv run ruff check . => All checks passed, uv run bene demo --no-ui => story complete |
 | BENE-CODEX-EVO-G1 | P1 | bene-core | bene-core | SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1) | PR#64 merged 1e3ea0c; full suite 1082 |
 | BENE-CODEX-EVO-HELDOUT | P1 | bene-core | bene-core | SECH held-out anti-overfit gate: disjointness + VOID + hash-stamping (bene-core) | PR#65 merged 9b508e9; full suite 1087 |
 | BENE-DOC-01 | P1 | bene | blog | Scaffold the new /blog section on bene-site (index + post template + nav) | site/build-docs.py, site/index.html |
@@ -122,19 +119,24 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | BENE-DOC-04 | P1 | bene-core | blog-content | Blog post: HOW we build BENE — harness engineering + eval-gated evolution | bene/kernel/eval, bene/metaharness, docs/meta-harness.md |
 | BENE-DOC-05 | P1 | bene-core | docs-examples | Surface real runnable examples per pillar in the docs | examples/, docs/architecture.md, docs/cli-reference.md |
 | BENE-DOC-06 | P1 | bene-core | case-study | Case study: multi-agent coding arena on BENE (ABSTRACT) | docs/case-studies/cs02-ci-self-healing-refactor-swarm.md |
+| BENE-DOC-10 | P1 | bene | render-deploy | Render + deploy all new blog/docs/case-study/design content | site/build-docs.py |
 | BENE-RVW-P1-docs-honesty-tone | P1 | bene-core | docs | Pull Integrating-BENE turnkey-vs-lego honesty into README; align tone with benchmark honesty | Eddie review Docs (Integrating BENE best doc) + Benchmark-report honesty. |
+| BENE-RVW-P1-landing-honesty | P1 | bene | launch-ux | Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance | Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'. |
 | BENE-RVW-P1-readme-restructure | P1 | bene-core | readme | Day-2 README restructure: user-success path first, lore + 16 papers down | Eddie review Repo-README + Day-2 sequence. |
 | BENE-SCRUB-01 | P1 | bene-core | unpublish | UN-PUBLISH docs/design/ + docs/research/ (relocate out of docs/, delete published HTML) | PR#27, docs/design/v0.3-roadmap-spec.md |
 | BENE-SCRUB-02 | P1 | bene-core | scrub | Scrub work-trace from docs/tutorials/t02-e2e-self-healing.md | docs/tutorials/t02-e2e-self-healing.md |
 | BENE-SCRUB-03 | P1 | bene-core | scrub | Scrub work-trace from docs/tutorials/t07-regression-guard.md | docs/tutorials/t07-regression-guard.md |
 | BENE-SCRUB-04 | P1 | bene-core | scrub | Scrub work-trace from docs/tutorials/t08-hundred-agents-scale.md | docs/tutorials/t08-hundred-agents-scale.md |
 | BENE-SCRUB-07 | P1 | og | scrub-zh | ZH scrub: all docs/zh/ counterparts (design+research unpublish + reader-doc scrub) | docs/zh/design/v0.3-roadmap-spec.md, PR#28 |
+| BENE-SCRUB-08 | P1 | bene | render-deploy | Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean | PR#27, BENE-DOC-10 |
 | GA-BENE-3 | P1 | bene-core | bene-core | Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver | done_e2e_real_bene.json proves real bene evolve e2e; _mock_evolve at e2e_driver.py:276/451 |
 | OPS-P1-forward-scale-envvars | P1 | adx-core | ops | Forward ADX_SIDECAR_POOL_SIZE + ADX_SIDECAR_MAX_OLD_SPACE_MB in `adx deploy` (only ARENA_* forwarded today) | cli.py:821 forwards only k.startswith('ARENA_'); __main__.py:179 reads ADX_SIDECAR_POOL_SIZE; sidecar.py:76 reads OLD_SPACE_MB. |
 | OPS-P1-healthz-readiness | P1 | adx-core | observability | Make /healthz a real readiness probe (sidecar alive + RSS) instead of static {ok:true} | gateway.py:1406/1418-1420 static _ARENA_HEALTH; Sidecar.rss_mb adx_showdown/sidecar.py:153; SidecarPool.rss_mb pool.py:108. |
 | OPS-P1-metrics-stats | P1 | adx-core | observability | Add /metrics (or /debug/stats): RSS, active battles, 503 count (queue depth when queue lands) | no /metrics/counters (grep none); len(self.sessions) gateway.py:572 + rss_mb already exist. |
 | PLAY-P1-bene-e2e-live | P1 | bene-core | e2e-play | bene-core: e2e side-by-side LIVE play on the cloud arena — surface real issues for immediate fix | ADX-ONLINE-001 (battle UX) + PR #295 (onboarding) + ADX-ONLINE-002 (100-user launch gate) |
 | RECOVER-P1-interrupted-signal | P1 | adx-core | durability | Return a clear 409 'interrupted by restart' for begin-without-end battles after gateway restart (vs opaque 403) | self.sessions={} on boot gateway.py:572; boot replay rebuilds only names/memberships gateway.py:544-565; /choose 403 gateway.py:1663-1664. |
+| RVW-P1-codex-adx-cli-prs | P1 | codex | review | codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
+| RVW-P1-og-adx-cli-prs | P1 | og | review | og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance) | PR #295, PR #178 |
 | ADX-P2-001 | P2 | codex | agent-ux | Reduce starter and CLI footguns for visiting agents | pass14, pass15, pass16, pass29 |
 | ADX-P2-002 | P2 | codex | gameplay | Make arena gameplay feedback more legible and less first-legal | pass2, pass3, pass4, pass6, pass7, pass8, pass12, pass13 |
 | ADX-P2-003 | P2 | harness | regression-guard | Preserve verified strengths while fixing gaps | pass5, pass11, pass22, pass23, pass30 |
@@ -155,18 +157,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 ## Card Detail
 
-### BENE-RVW-P0-launch-gate - Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN
-
-- Priority: `P0`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `launch-gate`
-- Impact: Public launch must not ship with version/repo/CN drift; needs one repeatable readiness gate before flipping public.
-- Suggested fix: On a fresh machine: pipx install bene && bene demo --no-ui && bene --version -> landing version = PyPI = repo, all 0.2.1; /bene/llms.txt repo links = good-night-oppie/bene; CN docs promise no untranslated content; live /bene/docs index = 37 not 45. Gate runs AFTER BENE-SCRUB-08 deploy.
-- Evidence: Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed).
-- Recent comments: imported: PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane).
-
-### LLM-P0-must-measure-3 - Run ADR-0012 MUST-MEASURE #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent
+### LLM-P0-must-measure-3 - Run ADR-0012 must-measure #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent
 
 - Priority: `P0`
 - Status: `todo`
@@ -194,9 +185,9 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Assignee: `bene`
 - Lane: `bene-core`
 - Impact: No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).
-- Suggested fix: Build the SPA from adx-cli A-CLI-1 design; deploy on agentdex.builders via the bene site pipeline.
-- Evidence: blocked on A-CLI-1 final hi-fi design (follow-up PR) + GA-CORE-5 dashboard API
-- Recent comments: bene-core: Reassigned bene-core -> bene (front-end lineage). GA-BENE-1 is a dashboard SPA = bene's lane (owns site+deploy). bene-core's engine/data is locked: GA-CORE-5 envelope RATIFIED (#539, widened genome_summary). Blocked on adx-core GA-CORE-5 API build. bene-core = engine-data backstop. Per coordination #555/#573 (harness re-point un-actioned over ~5h; acting on it to reflect the true builder). / bene-core: RE-STATUS blocked->ready (correcting the framing). Front-end is BUILD-AHEAD-ABLE in parallel NOW — not blocked. adx-core confirms GA-CORE-5 (/me/agents,/me/battles,/me/ladder) is LIVE on main via #370 (#578), so the SPA can BUILD + INTEGRATION-TEST against the real API today against the ratified #539 envelope. ONLY gated: smoke-test on the live deploy (agentdex.builders parked on DNS/TLS). bene to drive the SPA build now. / bene-core: bene-core BUILD-AHEAD: roster + Agent-Pane genome HUD component done + render-verified (bene-main _ga-bene-1-agent-pane/, verify.sh 11 assertions PASS). Renders ratified #539 genome_summary (harness_id/strategy/generation/allow_switch/prompt_summary) + agent-root stats; degrades gracefully on null genome_summary (adx-core agent_genome follow-up — non-blocking). BOTH backends now MERGED (GA-CORE-5 #370 + GA-CORE-3 #377) so the SPA is no longer backend-blocked. 3 build-ahead components ready: bene-2 viewer + bene-core evo-panel + bene-core genome HUD. Remaining = bene assembles SPA + wires live /me/* + SSE + smoke (DNS/TLS gates smoke).
+- Suggested fix: PR #95 makes the assembled SPA shell durable and synced to PR #94's terminal-end stream handling; remaining work is live smoke with a real token/battle id, deploy integration, ladder panel, and design-token reconcile.
+- Evidence: BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 (head 2b38f87), agentdex-cli PR #404 merged at e0fe2297 with dashboard mounted at /dashboard/, _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped, uv run ruff check . => All checks passed
+- Recent comments: codex-2: INTEGRATION RECEIPT (codex-2, 2026-06-20): agentdex-cli PR #404 merged at e0fe2297. Dashboard SPA handoff is checked in under web/dashboard/ and mounted by agentdex_arena.gateway at /dashboard/ when bundled. Local gates before merge: focused mount pytest 2 passed, ruff pass, JS syntax pass, fixture render-verify 14 assertions PASS, changed-file pre-commit pass. Remaining GA-BENE-1 work: live ?live=1 smoke after session token + live battle id + AWS-PUBLIC-DNS-TLS. / bene-core-8: REVIEW-FIX SYNC (bene-core-8): Updated BENE PR #95 to commit 2b38f87 so the assembled SPA vendored live-source matches PR #94's terminal-end behavior: public spectator EventSource closes after event:end. Gates in /tmp/bene-ga-spa: _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Full ruff format --check . still fails only on pre-existing site/build-blog.py and site/build-docs.py formatting. / bene-core-8: MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87). The durable SPA shell and terminal-end live-source sync are now on bene main. Card stays running for live ?live=1 smoke with a real session token/battle id, agentdex.builders deploy path, ladder panel, and design-token reconcile.
 
 ### GA-BENE-2 - agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)
 
@@ -205,9 +196,9 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Assignee: `bene`
 - Lane: `bene-core`
 - Impact: The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.
-- Suggested fix: Render the live viewer per LIVE_VIEWER_CONTRACT.md, consuming GA-CORE-3 frames.
-- Evidence: blocked on A-CLI-2 frame schema + adx-core GA-CORE-3 stream
-- Recent comments: bene-core: Still blocked on adx-core GA-CORE-3 SSE emitter. bene-2 BUILT + render-verified the viewer renderer (build-ahead, #548). Escalated to harness-13 (#555) to re-point this card to bene-2 (builder); bene-core stands on the data/engine seam only. / bene-core: Reassigned bene-core -> bene. bene-2 BUILT + render-verified the live-viewer renderer (#548, 11/11 chromium, fog-of-war proven) — it is bene's deliverable. Blocked on adx-core GA-CORE-3 SSE. bene-core = engine backstop. Per #573. / bene-core: RE-STATUS blocked->running. Renderer already BUILT + render-verified against a MockLiveSource (bene-2 #548, 11/11 chromium, fog-of-war proven) — proof the front-end parallelizes. Remaining = a 1-line MockLiveSource->SseLiveSource swap when GA-CORE-3 SSE lands (adx-core: in flight #578) + integration + smoke test. The BUILD is essentially done; only integration/smoke wait.
+- Suggested fix: PR #94 adds the render-verified live viewer, Bearer owner-stream source, and review-fix protocol hardening; remaining work is live session token wiring + deploy smoke.
+- Evidence: BENE PR #94 https://github.com/good-night-oppie/bene/pull/94 merged at 4186440 (head bd4828b), node test/test_datalayer.mjs => 42 passed, 0 failed, node test/render-verify.mjs => 15 passed, 0 failed, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped
+- Recent comments: codex-2: INTEGRATION RECEIPT (codex-2, 2026-06-20): PR #404 patched the dashboard SPA transport to the shipped backend contract: /me/* reads use Authorization: Bearer <session_token>, and /me/battle/{id}/live uses fetch + ReadableStream SSE with Authorization. Public /battle/{id}/live remains native EventSource. Remaining GA-BENE-2 work: live stream smoke against a real session token + live battle id once DNS/TLS and credentials are available. / bene-core-8: REVIEW-FIX SYNC (bene-core-8): Updated BENE PR #94 to commit bd4828b for the automated review cluster: strips hidden control/meta lines before projection; emits scene hp_frac plus owner-only hp_label; handles detailschange; filters side-condition endings by side; buffers missing seq gaps before applying frames; cancels replay timers on reset/next; closes public EventSource on terminal end; declares Playwright in package.json. Gates: node test/test_datalayer.mjs => 42 passed; node test/render-verify.mjs => 15 passed; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Full ruff format --check . still fails only on pre-existing site/build-blog.py and site/build-docs.py formatting. GitHub Actions remain QUEUED, except PR #95 CodeQL is in progress. / bene-core-8: MERGED (bene-core-8): BENE PR #94 merged at 4186440 (head bd4828b). The reference live viewer, Bearer owner-stream source, and review-fix protocol hardening are now on bene main. Card stays running for live session-token wiring + deploy smoke.
 
 ### ADX-P0-001 - Make arena receipts atomic before claiming honesty
 
@@ -240,6 +231,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Entry is 'BENE 文档' but most body is English; users expect Chinese content. CN docs scored 3/10.
 - Suggested fix: Rename entry -> 中文索引/翻译中; translate 3 priority docs FIRST (README, cli-reference, integrating-bene) [DONE on main c2a876c]; localize CN nav (01 Gap/02 Contract -> 中文); first-occurrence-only annotations; restrain first-screen voice. og: self-verify nav-localization + annotation density vs Eddie's asks, then move to done.
 - Evidence: docs/zh now = README + cli-reference + integrating-bene only (exactly the 3 priority docs); og confirmed lane done on bus #373 / commit c2a876c.
+
+### BENE-RVW-P0-launch-gate - Day-3 public-launch gate: version-triple-match + correct llms links + no fake CN
+
+- Priority: `P0`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `launch-gate`
+- Impact: Public launch must not ship with version/repo/CN drift; needs one repeatable readiness gate before flipping public.
+- Suggested fix: On a fresh machine: pipx install bene && bene demo --no-ui && bene --version -> landing version = PyPI = repo, all 0.2.1; /bene/llms.txt repo links = good-night-oppie/bene; CN docs promise no untranslated content; live /bene/docs index = 37 not 45. Gate runs AFTER BENE-SCRUB-08 deploy.
+- Evidence: Eddie review Day-3 + total readiness 6.5/10 (private-preview yes, public-launch no until P0s fixed).
+- Recent comments: imported: PARTIAL VERIFY (bene-core-6, 2026-06-18T22:52:40Z): criteria 1 v0.2.1=PASS, 2 llms-canonical=PASS, 4 work-trace-0=PASS, 5 integrating-bene-0.2.1=PASS. Criterion 3 docs=37 PENDING -- live site has 75 HTML in docs (BENE-SCRUB-08 must deploy first to prune to 37). Gate explicitly blocked on BENE-SCRUB-08 deploy (bene lane). / bene-3: The launch-gate CODE that enforces this card's three checks was hardened this cycle (merged to good-night-oppie/bene main): #86 = version-triple-match gains a --live check (fetch / + /zh/, fail on any on-page semver != repo_version) + canonical-repo BOUNDARY regex so 'correct llms links' rejects same-prefix mirrors (good-night-oppie/bene-site) + a stronger zh-banner 'no fake CN' assertion (visible class=zh-banner element + body text, not just a token) + per-zh-doc version freshness; #88 = unstaged-deletion repo-state + unquoted-version + repo LEFT-boundary edge cases; #90 = scoped the unquoted version match to a bene anchor (Han-glued bene v0.2.0 caught, dep versions like Python v3.10.0 ignored). All teeth-proven, tests/test_launch_gate.py 10 passed. REMAINING (execution, not code): run scripts/launch_gate.py --live against the Day-3 public site + reconcile any live drift. Owner can close once the live run is green. / bene-4: Verified DONE (bene-4, 2026-06-20): scripts/launch_gate.py shipped (#50, hardened #86/#88/#90) and PASSES source + --pypi + --live https://agentdex.ai-builders.space/bene — version triple-match 0.2.1, llms canonical good-night-oppie/bene (0 EdwardTang), zh honest-banner present. The bene-13/launch-gate worktree branch is superseded.
 
 ### BENE-RVW-P0-llms-canonical - P0#2 canonical repo: llms.txt + GitHub links point to EdwardTang/bene-site, not good-night-oppie/bene
 
@@ -327,38 +329,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Require actual trace context/link presence in acceptance tests; document fallback mode separately.
 - Evidence: pass31, pass32
 
-### BENE-DOC-10 - Render + deploy all new blog/docs/case-study/design content
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `render-deploy`
-- Impact: New content must reach the live site; recurring render/deploy lane (bene).
-- Suggested fix: Regen HTML via build-docs.py, sync the 4-copy mirror chain, Koyeb deploy, render-verify all 4 view x lang per the bilingual-render lesson; coordinate with og translation pass.
-- Evidence: site/build-docs.py
-- Recent comments: bene-core: READY FOR BENE: all 8 content cards (DOC-02..09) merged to origin/main. New source for render+deploy: blog/{why-bene,what-is-bene,how-we-build-bene}.md ; docs/examples.md ; docs/case-studies/{cs03-multi-agent-arena,cs04-trace-rag-other-memory,cs05-meta-harness-evolution}.md ; docs/design/architecture-diagrams.md (mermaid). Run site/build-blog.py + build-docs.py, wire nav for the new docs (examples, cs03-05, design diagrams w/ mermaid), 4-copy mirror + Koyeb deploy, render-verify 4 view x lang (chromium dump-DOM). zh translations are og's lane.
-
-### BENE-RVW-P1-landing-honesty - Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `launch-ux`
-- Impact: Landing reads as a fully-stable product; the honest 'agent loop turnkey, rest is lego' framing sits too low; perf claims unbound to a version look like marketing once 0.2.1 behavior shifts.
-- Suggested fix: On site/index.html (+ zh): surface the turnkey-vs-wire-yourself line near the first screen; annotate the 30s/0.3s/real-HEAD-run claims with version 0.2.1 + recording provenance. Sequence AFTER BENE-RVW-P0-version (same file).
-- Evidence: Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'.
-
-### BENE-SCRUB-08 - Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `bene`
-- Lane: `render-deploy`
-- Impact: Scrub must reach the live site in the same redeploy as DNS-removal + DOC-10 + latest zh.
-- Suggested fix: Rebuild build-docs.py + build-blog.py, purge stale design/research sidebar links, 4-copy mirror + ONE arena Koyeb redeploy, live-verify docs no longer show Status/LOC/Verdict/Scene-04:32 (chromium dump-DOM).
-- Evidence: PR#27, BENE-DOC-10
-- Recent comments: bene-core: SCOPE EXPANSION (Eddie review): this single redeploy is also the P0#3 fix -- live /bene/docs shows 45 docs but repo committed = 37; the redeploy must bring live to 37. Ride it together with P0#1 (BENE-RVW-P0-version, landing 0.2.1) + P0#2 (BENE-RVW-P0-llms-canonical) once those land on main, so ONE deploy makes live provenance-clean. Source already clean for the EN scrub (#44/#45). Live-verify checklist: docs=37, version=0.2.1, llms=good-night-oppie/bene, codegen/COMMUNITY-BENCH 0 work-trace (EN+zh). Gates BENE-RVW-P0-launch-gate.
-
 ### ENROLL-P1-device-flow-backend - adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract)
 
 - Priority: `P1`
@@ -399,37 +369,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: On Node death, respawn the pool member and purge its _owner/_load entries so _least_loaded stops routing to it.
 - Evidence: sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load.
 
-### RVW-P1-codex-adx-cli-prs - codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `codex`
-- Lane: `review`
-- Impact: adx-cli has 2 open PRs needing independent adversarial review before merge: #295 (ADR-0013 onboarding design) and #178 (ADX-P1-003 observability acceptance gate). codex is the integrity/audit reviewer on this board.
-- Suggested fix: Adversarially review both PRs (gh pr view/diff 295 + 178). For #295 stress the wire-contract + anti-pay-to-rank + secrets-discipline invariants (OAuth secret never reaches CLI). For #178 confirm the gate cannot false-green when traces are absent + that it does not flake on the live-bridge/Langfuse gating. Cascade genuine follow-ups per the usual /tmp/pr_comment_followup_*.md pattern; post a kanban comment with the verdict.
-- Evidence: PR #295, PR #178
-
-### RVW-P1-og-adx-cli-prs - og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)
-
-- Priority: `P1`
-- Status: `todo`
-- Assignee: `og`
-- Lane: `review`
-- Impact: adx-cli has 2 open PRs needing independent review before merge: #295 (ADR-0013 first-time-user onboarding design — architecture/doc + wire-contract coherence) and #178 (ADX-P1-003 observability acceptance gate — must fail when traces are absent).
-- Suggested fix: Review both PRs: gh pr view 295 / 178 + gh pr diff. For #295 check ADR coherence with the adx-cli<->adx-core wire contract + doc-lint reachability + release-last sequencing. For #178 verify the acceptance gate actually fails on absent traces (no false-green). Post findings as PR comments and a kanban comment here; move to review-clear or file follow-ups.
-- Evidence: PR #295, PR #178
-
-### ADX-ONLINE-001 - launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)
-
-- Priority: `P1`
-- Status: `running`
-- Assignee: `adx-cli`
-- Lane: `launch-ux`
-- Impact: Getting agentdex ONLINE means a watchable arena — the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).
-- Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
-- Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
-- Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate).
-
 ### GA-BENE-4 - Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)
 
 - Priority: `P1`
@@ -437,9 +376,9 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Assignee: `bene`
 - Lane: `bene-core`
 - Impact: The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.
-- Suggested fix: Shape evolve output (lineage + killgate_report + DGM archive) into the dashboard Evolution-panel data contract.
-- Evidence: depends on GA-BENE-3 real-evolve output shape
-- Recent comments: bene-core: Reassigned bene-core -> bene (front-end evo-panel). Build input fully provided: done_c2_pokeenv.json (adx-cli) + #541 field map + gate-on-backend==pokeenv. bene-core engine/data confirmed gap-free (e2e_driver owns to_done_json). Blocked on the GA-BENE-1 SPA host. Per #573. / bene-core: RE-STATUS blocked->ready. The Evolution panel is BUILD-AHEAD-ABLE NOW against the committed sample tasks/selfplay-metaharness/artifacts/done_c2_pokeenv.json (full envelope) + #541 field map — no backend needed to BUILD the panel. ONLY gated: final integration (live to_done_json feed) + smoke test, and the GA-BENE-1 SPA host. bene can build it in parallel today. / bene-core: bene-core BUILD-AHEAD: Evolution panel COMPONENT done + render-verified (bene-main _ga-bene-4-evo-panel/, verify.sh RENDER-VERIFY PASS, 9 assertions incl. both honesty branches). Renders headline +27.5pp/CI/kill-gate from done_c2_pokeenv.json per #541 (top-level fresh re-measure NOT lineage sample; gated on backend==pokeenv/scaffold==false → mock badged). Framework-free renderEvoPanel(done, mount) — bene drops it into the GA-BENE-1 SPA with one import; remaining = embed + live to_done_json feed + smoke (the backend-gated integration step). bene-core = engine-data backstop, this visualizes my evolve output.
+- Suggested fix: PR #95 embeds the render-verified Evolution panel in the SPA shell; remaining work is live to_done_json feed + deploy smoke.
+- Evidence: BENE PR #95 https://github.com/good-night-oppie/bene/pull/95 merged at a4e75f5 and embeds the GA-BENE-4 Evolution panel, _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS, uv run python -m pytest tests/ -q => 1174 passed, 11 skipped, uv run ruff check . => All checks passed, uv run bene demo --no-ui => story complete
+- Recent comments: bene-core-8: HOUSEKEEPING (bene-core-8): Stale baton note checked. The PR #91 path-byte-stable follow-up is already merged as BENE PR #92 (fd3bcaa) and PR #91 review thread PRRT_kwDOSr90ic6K8KFn / comment 3444905055 is resolved. No /tmp/wt-pathbyte recovery needed; remaining GA-BENE-4 work is still embedding the render-verified EvoPanel into the GA-BENE-1 SPA shell and pointing it at the live to_done_json feed. / bene-core-8: REVIEW SURFACE (bene-core-8): BENE PR #95 (https://github.com/good-night-oppie/bene/pull/95), commit 7a1ebd8, embeds and render-verifies the GA-BENE-4 Evolution panel inside the assembled GA-BENE-1 SPA shell. Gates: _ga-bene-1-spa/verify.sh => RENDER-VERIFY PASS; uv run python -m pytest tests/ -q => 1174 passed, 11 skipped; uv run ruff check . => All checks passed; uv run bene demo --no-ui => story complete. Remaining GA-BENE-4 work stays running only for the live to_done_json feed, deploy wiring, and live smoke with GA-BENE-1. / bene-core-8: MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87), so the GA-BENE-4 Evolution panel is now embedded in the SPA shell on bene main. Card stays running for live to_done_json feed + deploy smoke with GA-BENE-1.
 
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
@@ -450,16 +389,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: Public play endpoint per Eddie: agentdex.builders = arena (users play via agentdex-cli); ai-builders.space stays landing+docs and redirects login/signup here.
 - Suggested fix: Namecheap setHosts agentdex.builders @ A -> 54.203.252.69 (preserve existing records); install Caddy reverse_proxy :8889 with auto-TLS once DNS resolves.
 - Evidence: op service-account rate-limited / openclaw vault access for namecheap-api creds (op://openclaw/namecheap-api); egress 54.202.180.208 already whitelisted.
-
-### BENE-BATTLE-INTEGRATE - Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness
-
-- Priority: `P1`
-- Status: `blocked`
-- Assignee: `bene-core`
-- Lane: `bene-core`
-- Impact: 
-- Suggested fix: 
-- Evidence: 
 
 ### INSTR-P1-free-quota-or-vps - INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback
 
@@ -492,6 +421,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Add Retry-After header to the capacity 503; cap concurrent battles per claims_token_id. ADR-0012 sec7. (bounded queue deferred.)
 - Evidence: gateway.py:836-843 bare 503, grep retry-after=0; self.sessions keyed by battle_id only (gateway.py:572); BattleSession.claims_token_id gateway.py:388.
 - Recent comments: adx-core: MERGED as PR #243. Per-owner cap (default 3, 429+Retry-After, keyed on normalized owner) + Retry-After on the pool-full 503.
+
+### ADX-ONLINE-001 - launch: watchable Human-vs-AI battle UX (line-protocol + sim/client/view + spectator/TUI/replay)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `adx-cli`
+- Lane: `launch-ux`
+- Impact: Getting agentdex ONLINE means a watchable arena — the whole pitch is spectating agents fight. Without the typed protocol + state-reducer + spectator/replay, the online arena is unwatchable (raw |move| rows, no fog-of-war, no replay).
+- Suggested fix: Ship the digest 2026-06-17 P1->P3 backlog as tiny PRs. P1 protocol foundation MERGED today (PR #200 typed lineproto, PR #201 full protocol-log capture + (seed,inputLog) re-sim parity). Next: state-reducer (client.py), {reason,action} schema + |-reasoning|, then TUI/spectator/replay.
+- Evidence: PR#200, PR#201, .supergoal-v3/ROADMAP.md
+- Recent comments: adx-cli: Battle-UX foundation merged: PR #200 (typed line-protocol) + #201 (full protocol-log capture, byte-identical re-sim). Side quest: drained the SidecarPool review cascade (#197/#198/#203/#204) as 6 tiny PRs #202-#207 — fixes the pool capacity-leak + routing bugs relevant to ADX-ONLINE-002's 100-user push. Next: adx-client state-reducer, then {reason,action} + spectator/TUI/replay. / imported: adx-cli-6 2026-06-18: launch scope SHIPPED — typed line-protocol (#200/#201), state reducer (client.py), watchable human-playable TUI `adx arena play` (#271 + #279). Per the AWS wire contract /replay is the launch watch surface; live spectator stream (P2-b/c) deferred by design. Remaining backlog: P2-d/e reasoning+replay-scrub, P3 polish. Lint follow-up: arena_tui UP038 fixed #283 (unblocked the fleet pre-commit gate). / adx-cli: DRAINED (adx-cli-13): launch watchable battle UX evidence verified. PR #200 typed line-protocol, #201 protocol-log capture/re-sim, #271 adx arena play TUI, #279 hardening follow-ups, #283 UP038 lint all MERGED. Local code surfaces present: adx_showdown.lineproto/client, agentdex_cli.arena_client/arena_tui, /replay receipt path. Remaining spectator SSE/polish is tracked outside this launch-scope card.
 
 ### ADX-P1-001 - Stop spending rated/evolution/badge quota before work is accepted
 
@@ -559,6 +499,28 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: gateway.py:1131 (before snapshot), :1160 (append), :1169 (after). adversarially confirmed (dogfood audit 2026-06-17)
 - Recent comments: imported: adx-cli-6 2026-06-18: DONE — ladder published_delta race fixed via the finish-lock window (PR #269).
 
+### ADX-P1-008 - Preserve harness strategy semantics in self-play MCP
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `adx-cli`
+- Lane: `selfplay`
+- Impact: MCP self-play can silently convert valid random/non-Codex harnesses into max-damage play, corrupting win-rate and promotion-gate evidence.
+- Suggested fix: Gate Codex selector injection to Codex-backed strategies or implement every supported strategy faithfully at the selector boundary.
+- Evidence: gh#388, https://github.com/good-night-oppie/agentdex-cli/issues/388, adx-cli-13-human-review
+- Recent comments: adx-cli: CANONICAL PACKAGE GATE (adx-cli-14): on PR #390 head 1c862446, tools/agent_senses/run_tests.sh packages/ --slow => 794 passed, 119 skipped, 1 warning. CI run 27854943156 remains queued (pre-commit/doc-lint pending, no logs); org runners online but busy. No branch-local failure to fix. / adx-cli: CI-APPROX PASS (adx-cli-14): PR #390 head 1c862446 local non-mutating full-tree checks pass: uv run ruff format --check . => pass (231 files); uv run ruff check . => pass; python3 scripts/doc_lint.py => exit 0 existing WARN-only taxonomy/process warnings. CI run 27854943156 still queued (pre-commit/doc-lint pending, no logs). / bene-core-8: DONE VERIFY (bene-core-8): PR #390 merged at 2026-06-20T00:56:24Z on head 1c862446; GitHub CI run 27854943156 pre-commit and doc-lint both passed; gh#388 closed with evidence. Local canonical gate before merge: tools/agent_senses/run_tests.sh packages/ --slow => 794 passed, 119 skipped, 1 warning. Runner dispatch now uses CODEX_STRATEGIES and CI-safe make_harness_player coverage proves native max_damage stays out of the codex adapter path.
+
+### ADX-P1-009 - Harden Codex battle-harness adapter params
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `codex`
+- Lane: `selfplay`
+- Impact: Valid BENE-mutated string params can crash the adapter, then get counted as illegal moves with random fallback, polluting fitness dimensions.
+- Suggested fix: Add safe numeric-param coercion with defaults/clamps and tests for non-numeric switch_penalty, stab_multiplier, and accuracy_weight.
+- Evidence: gh#389, https://github.com/good-night-oppie/agentdex-cli/issues/389, adx-cli-13-human-review
+- Recent comments: adx-cli: Harden numeric params (switch_penalty, stab_multiplier, accuracy_weight) with safe coercion and added 3 unit tests in test_battle_harness_adapter.py / codex-2: VERIFY DONE (codex-2, 2026-06-20): branch-local hardening commit 3575b12c covers switch_penalty, stab_multiplier, and accuracy_weight with safe coercion/clamping. Re-ran focused reproducer => 1 passed; adapter + MCP adjacent suite => 20 passed; ruff on adapter/tests => pass. GitHub issue #389 remains open only because the fix is branch-scoped to phase2-selfplay-mcp-adapter and not yet on origin/main.
+
 ### BENE-BATTLE-B1 - Lane B: evolve_battle_harness Contract-4 entrypoint (bene)
 
 - Priority: `P1`
@@ -598,6 +560,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: 
 - Suggested fix: 
 - Evidence: 
+
+### BENE-BATTLE-INTEGRATE - Lane B → A3 integration: swap mock_fitness for real multi_dim_fitness
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene-core`
+- Lane: `bene-core`
+- Impact: 
+- Suggested fix: PR #93 adds make_contract3_fitness_fn(run_vs_baselines, multi_dim_fitness) as a BENE-side injected adapter from Contract-2 battle results to FitnessVector.
+- Evidence: BENE PR #93 https://github.com/good-night-oppie/bene/pull/93 merged 2026-06-20 at 7d36576 (head f1669d0), uv run python -m pytest tests/ -q => 1177 passed, 11 skipped, uv run ruff check . => All checks passed, uv run bene demo --no-ui => story complete
+- Recent comments: bene-core-8: BLOCKER REFRESH (bene-core-8): Lane A3 is now present in agentdex-cli as adx_showdown.selfplay.fitness.multi_dim_fitness(results), but it is not a direct drop-in for BENE's evolve_battle_harness fitness_fn. BENE currently expects BattleHarness -> bene.kernel.battle.genome.FitnessVector; A3 expects a Sequence[Contract-2 BattleResult dicts] and returns the 5 score dims only. Unblock needs a small adapter seam (runner/run_vs_baselines + multi_dim_fitness -> FitnessVector, carrying battles_played/gens_completed) and an architecture choice: keep BENE free of an agentdex hard dependency via injection, or add an optional integration extra. Focused current baseline: uv run pytest tests/test_battle_harness_evolve.py -q => 20 passed. No code edits made in bene-main because the worktree already has unrelated uncommitted changes across battle/codex-harness files. / bene-core-8: UNBLOCKED FOR REVIEW (bene-core-8): Implemented BENE-side dependency-injected adapter on PR #93 (https://github.com/good-night-oppie/bene/pull/93), commit f1669d0. make_contract3_fitness_fn(run_vs_baselines, multi_dim_fitness) maps Contract-2 battle result dicts/model_dump objects into BENE FitnessVector without adding an agentdex import-time dependency. Gates: uv run pytest tests/ -q => 1177 passed, 11 skipped; uv run ruff check . => All checks passed; touched-file ruff format --check => 4 files already formatted; uv run bene demo --no-ui => story complete. Remaining unrelated repo drift: full uv run ruff format --check . wants site/build-blog.py and site/build-docs.py reformatted on origin/main.
 
 ### BENE-CODEX-EVO-G1 - SECH Contract G: evolve_codex_harness + DGM archive + hash-locked kill-gate (bene-core B1)
 
@@ -676,6 +649,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: docs/case-studies/cs02-ci-self-healing-refactor-swarm.md
 - Recent comments: bene-core: MERGED as PR #23. Abstract arena case study; hard-constraint leak-scan clean.
 
+### BENE-DOC-10 - Render + deploy all new blog/docs/case-study/design content
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `render-deploy`
+- Impact: New content must reach the live site; recurring render/deploy lane (bene).
+- Suggested fix: Regen HTML via build-docs.py, sync the 4-copy mirror chain, Koyeb deploy, render-verify all 4 view x lang per the bilingual-render lesson; coordinate with og translation pass.
+- Evidence: site/build-docs.py
+- Recent comments: bene-core: READY FOR BENE: all 8 content cards (DOC-02..09) merged to origin/main. New source for render+deploy: blog/{why-bene,what-is-bene,how-we-build-bene}.md ; docs/examples.md ; docs/case-studies/{cs03-multi-agent-arena,cs04-trace-rag-other-memory,cs05-meta-harness-evolution}.md ; docs/design/architecture-diagrams.md (mermaid). Run site/build-blog.py + build-docs.py, wire nav for the new docs (examples, cs03-05, design diagrams w/ mermaid), 4-copy mirror + Koyeb deploy, render-verify 4 view x lang (chromium dump-DOM). zh translations are og's lane. / bene-4: Verified DONE (bene-4, live ground-truth 2026-06-20): blog (/bene/blog/ + why/what/how), case-studies cs03/cs04/cs05, design/architecture-diagrams, integrating-bene all HTTP 200 live + rendered into origin/main site/. launch_gate --all PASS.
+
 ### BENE-RVW-P1-docs-honesty-tone - Pull Integrating-BENE turnkey-vs-lego honesty into README; align tone with benchmark honesty
 
 - Priority: `P1`
@@ -686,6 +670,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Surface the turnkey-vs-wire-yourself split in README near the top; keep README/docs claims 'strong, not fully-supersedes' per docs/benchmarks. Files: README.md (+ docs/README.md if needed). bene owns the site/index.html landing twin (BENE-RVW-P1-landing-honesty) -> non-overlapping.
 - Evidence: Eddie review Docs (Integrating BENE best doc) + Benchmark-report honesty.
 - Recent comments: bene-core: DONE at source: the turnkey-vs-lego honesty is now near the README first screen + tone stays grounded (no 'fully supersedes') via PR #47; version drift in docs/integrating-bene.md ('still 0.2.0' -> in published 0.2.1) fixed in PR #48 (90f2ae1). The (v0.2.0) tags in meta-harness.md/t01 left as-is (historical feature-intro tags, not drift). The integrating-bene HTML re-render rides bene-12's BENE-SCRUB-08 deploy. / bene-core: DONE — both card deliverables (pull turnkey-vs-lego honesty into README + align tone to benchmark 'strong, not fully-supersedes') are README changes, GitHub-live via #47. The extra docs/integrating-bene.md version fix (#48, still-0.2.0 -> in published 0.2.1) is merged at source; its site-HTML render rides bene-12's BENE-SCRUB-08 deploy (deploy-target is 2 commits behind -> bene-12 push deploy-target + re-POST, fleet-fixable, NOT an Eddie blocker — corrected my earlier #382). Not gating this card.
+
+### BENE-RVW-P1-landing-honesty - Landing: move turnkey-vs-wire-yourself honesty up; bind 30s/0.3s/HEAD claims to version+provenance
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `launch-ux`
+- Impact: Landing reads as a fully-stable product; the honest 'agent loop turnkey, rest is lego' framing sits too low; perf claims unbound to a version look like marketing once 0.2.1 behavior shifts.
+- Suggested fix: On site/index.html (+ zh): surface the turnkey-vs-wire-yourself line near the first screen; annotate the 30s/0.3s/real-HEAD-run claims with version 0.2.1 + recording provenance. Sequence AFTER BENE-RVW-P0-version (same file).
+- Evidence: Eddie review: 'honesty in landing but position too low'; Integrating-BENE 'agent loop turnkey; everything else is lego'.
+- Recent comments: bene-4: Verified DONE (bene-4, live cache-busted 2026-06-20): hero carries refined 'Honest scope: the agent loop is turnkey...' + 'The honest map ->' to integrating-bene, 30s/demo claims bound to 'bene v0.2.1', 0 'bene-main HEAD' work-trace. Live == origin/main. bene-13/landing-honesty-provenance branch superseded by the refined version on main.
 
 ### BENE-RVW-P1-readme-restructure - Day-2 README restructure: user-success path first, lore + 16 papers down
 
@@ -753,6 +748,17 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: docs/zh/design/v0.3-roadmap-spec.md, PR#28
 - Recent comments: bene-core: Mostly mooted by og's zh reset (c2a876c): docs/zh now = only README + cli-reference + integrating-bene (the 3 priority translations); the zh design/research/tutorials/codegen/COMMUNITY-BENCH counterparts were deleted from source, and #45 regenerated their committed site/zh/docs HTML as clean EN-fallback pages. og: confirm nothing zh-side still carries work-trace, then close. Tracked alongside BENE-RVW-P0-cn-docs.
 
+### BENE-SCRUB-08 - Rebuild site + ride pending redeploy (DNS+DOC-10+zh+scrub); live-verify clean
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `bene`
+- Lane: `render-deploy`
+- Impact: Scrub must reach the live site in the same redeploy as DNS-removal + DOC-10 + latest zh.
+- Suggested fix: Rebuild build-docs.py + build-blog.py, purge stale design/research sidebar links, 4-copy mirror + ONE arena Koyeb redeploy, live-verify docs no longer show Status/LOC/Verdict/Scene-04:32 (chromium dump-DOM).
+- Evidence: PR#27, BENE-DOC-10
+- Recent comments: bene-core: SCOPE EXPANSION (Eddie review): this single redeploy is also the P0#3 fix -- live /bene/docs shows 45 docs but repo committed = 37; the redeploy must bring live to 37. Ride it together with P0#1 (BENE-RVW-P0-version, landing 0.2.1) + P0#2 (BENE-RVW-P0-llms-canonical) once those land on main, so ONE deploy makes live provenance-clean. Source already clean for the EN scrub (#44/#45). Live-verify checklist: docs=37, version=0.2.1, llms=good-night-oppie/bene, codegen/COMMUNITY-BENCH 0 work-trace (EN+zh). Gates BENE-RVW-P0-launch-gate. / bene-4: Verified DONE (bene-4, live 2026-06-20): live site current with origin/main — landing refined 'Honest scope:' + v0.2.1-bound + 0 'bene-main HEAD' work-trace; all doc/blog/cs routes 200; launch_gate --all PASS (version triple-match + canonical llms + zh honest-banner, source+live+pypi).
+
 ### GA-BENE-3 - Lane B evolve de-mock: replace _mock_evolve with real evolve_battle_harness in the C2 driver
 
 - Priority: `P1`
@@ -818,6 +824,27 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Evidence: self.sessions={} on boot gateway.py:572; boot replay rebuilds only names/memberships gateway.py:544-565; /choose 403 gateway.py:1663-1664.
 - Recent comments: adx-core: MERGED as PR #246. Boot rebuilds begin-minus-end set; /choose returns owner-scoped 409 on restart-dropped battles (non-owners 403).
 
+### RVW-P1-codex-adx-cli-prs - codex: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `codex`
+- Lane: `review`
+- Impact: adx-cli has 2 open PRs needing independent adversarial review before merge: #295 (ADR-0013 onboarding design) and #178 (ADX-P1-003 observability acceptance gate). codex is the integrity/audit reviewer on this board.
+- Suggested fix: Adversarially review both PRs (gh pr view/diff 295 + 178). For #295 stress the wire-contract + anti-pay-to-rank + secrets-discipline invariants (OAuth secret never reaches CLI). For #178 confirm the gate cannot false-green when traces are absent + that it does not flake on the live-bridge/Langfuse gating. Cascade genuine follow-ups per the usual /tmp/pr_comment_followup_*.md pattern; post a kanban comment with the verdict.
+- Evidence: PR #295, PR #178
+- Recent comments: codex-2: VERIFY STALE/DONE (codex-2, 2026-06-20): gh pr list --state open => [] for agentdex-cli. Named surfaces are resolved: PR #295 merged 2026-06-18 with doc-lint/pre-commit success; PR #178 closed unmerged as superseded by #369; #369 merged 2026-06-19 with the observability assertion re-landed cleanly. #369's later full-tree pre-commit red was unrelated ruff-format drift in packages/adx_showdown/src/adx_showdown/selfplay/e2e_driver.py, not the reviewed test_trace_propagation.py diff, so this card has no remaining open PR review surface.
+
+### RVW-P1-og-adx-cli-prs - og: review all open adx-cli PRs (#295 ADR-0013, #178 observability acceptance)
+
+- Priority: `P1`
+- Status: `done`
+- Assignee: `og`
+- Lane: `review`
+- Impact: adx-cli has 2 open PRs needing independent review before merge: #295 (ADR-0013 first-time-user onboarding design — architecture/doc + wire-contract coherence) and #178 (ADX-P1-003 observability acceptance gate — must fail when traces are absent).
+- Suggested fix: Review both PRs: gh pr view 295 / 178 + gh pr diff. For #295 check ADR coherence with the adx-cli<->adx-core wire contract + doc-lint reachability + release-last sequencing. For #178 verify the acceptance gate actually fails on absent traces (no false-green). Post findings as PR comments and a kanban comment here; move to review-clear or file follow-ups.
+- Evidence: PR #295, PR #178
+
 ### ROUTE-P1-dispute-pool - Route dispute replay op through SidecarPool (start <id>-dispute or special-case replay as battle-less) + regression test
 
 - Priority: `P1`
@@ -839,7 +866,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Bounded LRU/OrderedDict (cap N most-recent) for sessions+replays, or a TTL sweep that evicts ended sessions; replays should fall back to the durable EventLog/store rather than living in RAM forever.
 - Evidence: gateway.py:564/567 (init), :872/:1202/:1309 (insert), no eviction. adversarially confirmed (dogfood audit 2026-06-17)
 
-### DURABLE-P2-append-throughput-measure - Run ADR-0012 MUST-MEASURE #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON)
+### DURABLE-P2-append-throughput-measure - Run ADR-0012 must-measure #2: EventLog append throughput at ~100x turns/s (single fcntl-lock NDJSON)
 
 - Priority: `P2`
 - Status: `triage`
@@ -993,18 +1020,18 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-19T14:57:42Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "blocked"}, "before": {"assignee": "bene-core", "status": "blocked"}} |
-| 2026-06-19T14:57:42Z | comment | bene-core | GA-BENE-4 | {} |
-| 2026-06-19T17:50:24Z | move | admin | GA-BENE-1 | {"after": {"assignee": "bene", "status": "ready"}, "before": {"assignee": "bene", "status": "blocked"}} |
-| 2026-06-19T17:50:24Z | comment | bene-core | GA-BENE-1 | {} |
-| 2026-06-19T17:50:24Z | move | admin | GA-BENE-2 | {"after": {"assignee": "bene", "status": "running"}, "before": {"assignee": "bene", "status": "blocked"}} |
-| 2026-06-19T17:50:24Z | comment | bene-core | GA-BENE-2 | {} |
-| 2026-06-19T17:50:24Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "ready"}, "before": {"assignee": "bene", "status": "blocked"}} |
-| 2026-06-19T17:50:25Z | comment | bene-core | GA-BENE-4 | {} |
-| 2026-06-19T22:09:30Z | move | admin | GA-BENE-4 | {"after": {"assignee": "bene", "status": "running"}, "before": {"assignee": "bene", "status": "ready"}} |
-| 2026-06-19T22:09:30Z | comment | bene-core | GA-BENE-4 | {} |
-| 2026-06-19T22:46:04Z | move | admin | GA-BENE-1 | {"after": {"assignee": "bene", "status": "running"}, "before": {"assignee": "bene", "status": "ready"}} |
-| 2026-06-19T22:46:04Z | comment | bene-core | GA-BENE-1 | {} |
+| 2026-06-20T03:25:08Z | comment | codex-2 | RVW-P1-codex-adx-cli-prs | {} |
+| 2026-06-20T03:25:08Z | move | codex-2 | RVW-P1-codex-adx-cli-prs | {"after": {"assignee": "codex", "status": "done"}, "before": {"assignee": "codex", "status": "todo"}} |
+| 2026-06-20T03:29:51Z | comment | bene-core-8 | GA-BENE-1 | {} |
+| 2026-06-20T03:35:11Z | comment | bene-core-8 | GA-BENE-4 | {} |
+| 2026-06-20T03:42:09Z | comment | codex-2 | GA-BENE-1 | {} |
+| 2026-06-20T03:42:09Z | comment | codex-2 | GA-BENE-2 | {} |
+| 2026-06-20T03:53:28Z | comment | bene-core-8 | GA-BENE-2 | {} |
+| 2026-06-20T03:53:29Z | comment | bene-core-8 | GA-BENE-1 | {} |
+| 2026-06-20T03:57:30Z | move | bene-core-8 | BENE-BATTLE-INTEGRATE | {"after": {"assignee": "bene-core", "status": "done"}, "before": {"assignee": "bene-core", "status": "review"}} |
+| 2026-06-20T03:57:30Z | comment | bene-core-8 | GA-BENE-2 | {} |
+| 2026-06-20T03:57:30Z | comment | bene-core-8 | GA-BENE-1 | {} |
+| 2026-06-20T03:57:30Z | comment | bene-core-8 | GA-BENE-4 | {} |
 
 ## Source Pattern
 
