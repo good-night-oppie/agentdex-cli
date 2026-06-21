@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-and-release:
@@ -129,3 +130,9 @@ jobs:
             --title "${{ steps.get_version.outputs.RELEASE_NAME }}" \
             --notes "${{ steps.get_version.outputs.RELEASE_NOTES }}" \
             --clobber
+
+      - name: Publish to PyPI
+        if: github.event_name != 'schedule' || steps.check_commits.outputs.should_release == 'true'
+        run: |
+          # Use OIDC Trusted Publishing natively supported by uv publish
+          uv publish
