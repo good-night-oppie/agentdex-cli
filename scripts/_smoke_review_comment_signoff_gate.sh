@@ -96,6 +96,45 @@ PRAUTHOR_THREAD='{"repository":{"pullRequest":{"author":{"login":"pa"},
 mk prauthor_thread "$PRAUTHOR_THREAD"
 run prauthor_thread || fail "PR-author's own thread should be EXEMPT (pass)"
 
+# --- #730: EVERY human commenter must sign off, not just the thread-opener ---
+# alice opens + 👍s her own comment (signed); bob adds a DISTINCT later concern, unsigned.
+# Old first-commenter-only keying (comments[0]) passed this; the gate MUST now FAIL it,
+# else a 2nd reviewer's concern is merge-eligible without their sign-off (joint review).
+SECOND_COMMENTER_UNSIGNED='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":true,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[{"user":{"login":"alice"},"createdAt":"2026-06-20T02:00:00Z"}]}},
+     {"author":{"login":"bob","__typename":"User"},"createdAt":"2026-06-20T03:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk second_commenter_unsigned "$SECOND_COMMENTER_UNSIGNED"
+run second_commenter_unsigned && fail "a 2nd human commenter's unsigned concern should FAIL (#730 all-commenters)"
+
+# both commenters sign off after their own latest comment → PASS.
+ALL_COMMENTERS_SIGNED='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[{"author":{"login":"alice"},"state":"APPROVED","submittedAt":"2026-06-20T04:00:00Z"}]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[]}},
+     {"author":{"login":"bob","__typename":"User"},"createdAt":"2026-06-20T02:00:00Z",
+      "reactions":{"nodes":[{"user":{"login":"bob"},"createdAt":"2026-06-20T04:30:00Z"}]}}]}}]}}}}'
+mk all_commenters_signed "$ALL_COMMENTERS_SIGNED"
+run all_commenters_signed || fail "thread where ALL human commenters signed off should PASS (#730)"
+
+# a bot's follow-up comment on an otherwise-signed thread does NOT re-open it.
+SIGNED_PLUS_BOT_COMMENT='{"repository":{"pullRequest":{"author":{"login":"pa"},
+ "reviews":{"nodes":[]},
+ "reviewThreads":{"nodes":[
+   {"isResolved":false,"comments":{"nodes":[
+     {"author":{"login":"alice","__typename":"User"},"createdAt":"2026-06-20T01:00:00Z",
+      "reactions":{"nodes":[{"user":{"login":"alice"},"createdAt":"2026-06-20T02:00:00Z"}]}},
+     {"author":{"login":"github-actions[bot]","__typename":"Bot"},"createdAt":"2026-06-20T03:00:00Z",
+      "reactions":{"nodes":[]}}]}}]}}}}'
+mk signed_plus_bot_comment "$SIGNED_PLUS_BOT_COMMENT"
+run signed_plus_bot_comment || fail "a bot follow-up on a signed thread should still PASS (#730 bot-exempt per commenter)"
+
 python3 - "$GATE" <<'PY' || fail "fetch() should paginate reviewThreads"
 import importlib.util
 import sys
