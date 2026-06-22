@@ -2569,6 +2569,23 @@
       "status": "running",
       "title": "JOINT PR review (codex + og + eddie-agi-kb) \u2014 comment-author sign-off gate",
       "updated_at": "2026-06-22T02:07:06Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "comments": [],
+      "created_by": "adx-cli",
+      "evidence": [
+        "harness-19 #ADX-track 2026-06-22: 4 SOC2 headers shipped to box Caddyfile; CSP permissive",
+        "tracked for adx-cli tightening."
+      ],
+      "fix": "Audit web/index.html + web/dashboard asset surface (inline scripts/styles; eval in _ds_bundle/React-Babel-standalone); move to nonce/hash CSP or external assets; tighten box Caddyfile CSP; verify no UI breakage.",
+      "id": "ADX-PX-csp-hardening",
+      "impact": "Box Caddyfile CSP is PERMISSIVE (allows 'unsafe-inline'+'unsafe-eval' for UI compat, shipped by harness-19 2026-06-22). The GA web UI XSS-injection surface stays open until CSP is tightened.",
+      "lane": "durability",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited",
+      "updated_at": "2026-06-22T22:17:59Z"
     }
   ],
   "events": [
@@ -5736,8 +5753,15 @@
       "card_id": "GA-DEPLOY",
       "created_at": "2026-06-22T02:33:14Z",
       "detail": {}
+    },
+    {
+      "action": "add",
+      "actor": "adx-cli",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-22T22:17:59Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-22T02:33:14Z"
+  "updated_at": "2026-06-22T22:17:59Z"
 }
