@@ -66,6 +66,12 @@ class SidecarPool:
         best: Sidecar | None = None
         best_load: int | None = None
         for s in self._sidecars:
+            if s.returncode is not None:
+                # Never assign a new battle to a crashed member. Its live-battle
+                # count is 0, so without this skip it looks MOST available and
+                # would attract every new battle — the corpse-routing bug
+                # (RECOVER-P1-sidecar-respawn). reclaim_dead() respawns it on touch.
+                continue
             ld = self._load.get(id(s), 0)
             if self._cap is not None and ld >= self._cap:
                 continue
@@ -187,7 +193,40 @@ class SidecarPool:
         Synchronous + IPC-free — reads each member's cached ``returncode`` (``None``
         while running), so it is safe to call from the ``/healthz`` readiness probe
         without risking a hang on a wedged sidecar. A never-started member reports
-        ``returncode is None`` (not dead). Auto-respawn is a separate concern
-        (RECOVER-P1-sidecar-respawn); this only *reports* liveness.
+        ``returncode is None`` (not dead). Auto-respawn is :meth:`reclaim_dead`;
+        this only *reports* liveness.
         """
         return any(s.returncode is not None for s in self._sidecars)
+
+    async def reclaim_dead(self) -> int:
+        """Touch-driven crash recovery: respawn any exited sidecar in place and
+        evict the routes that pointed at it. Returns the number respawned.
+
+        Called ON TOUCH — the gateway's ``/healthz`` readiness probe + before a
+        new battle is assigned — NOT a background reaper: the arena is
+        sleeping-tolerant and all lifecycle runs on touch (the touch-driven
+        doctrine). Idempotent: a fully live pool is a no-op (returns 0).
+
+        A crashed node process takes its in-process (share-nothing) battle state
+        with it, so those battles are unrecoverable — their ``_owner`` rows are
+        dropped (the battle_id then 404s on its next touch instead of routing into
+        a dead pipe) and the member is replaced with a fresh :class:`Sidecar` so
+        capacity is restored. The fresh member is started BEFORE any routing state
+        is mutated, so a failed respawn leaves the pool untouched (it retries on
+        the next touch); meanwhile :meth:`_least_loaded` already refuses to route
+        new battles to the still-dead member, so no battle hits the corpse either way.
+        """
+        respawned = 0
+        async with self._lock:
+            for i, s in enumerate(self._sidecars):
+                if s.returncode is None:
+                    continue  # alive, or never started — leave it
+                fresh = Sidecar(max_battles=self._cap)
+                await fresh.start()  # may raise → pool unchanged, retried next touch
+                # respawn succeeded: evict the dead member's routes + swap it out
+                self._owner = {b: o for b, o in self._owner.items() if o is not s}
+                self._load.pop(id(s), None)
+                self._sidecars[i] = fresh
+                self._load[id(fresh)] = 0
+                respawned += 1
+        return respawned
