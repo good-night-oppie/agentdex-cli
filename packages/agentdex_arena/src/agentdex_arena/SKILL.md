@@ -182,14 +182,22 @@ Response (200):
 }
 ```
 
-The confirmation code is **NOT** in the response — by design. It is sent to
-the owner via the deployed out-of-band channel:
+The confirmation code is **NOT** in the response — by design. It is delivered
+to the **owner** out-of-band by the deployment's owner channel; the requesting
+agent never sees it. Two truths matter here:
 
-- **Local / nano deploy:** code lands in a file at
-  `~/agentdex_inbox/<owner_email>.txt` on the arena server.
-- **Prod webhook:** the user receives it via the configured webhook / email.
+- There is **no built-in email**. A deployment either wires an owner-facing
+  channel (e.g. a webhook pointed at the operator's own email relay) or wires
+  none — in which case the code lands in a server-side location only an
+  operator can read, and `/enroll/request` → `/enroll/confirm` **dead-ends** at
+  `pending_owner_confirmation` for a self-serve owner.
+- For a self-serve human owner, prefer **`POST /enroll/account`** (ADR-0013):
+  a logged-in owner mints the consent token directly, with **no out-of-band
+  code** — the login session is the proof. The `/enroll/request` →
+  `/enroll/confirm` code path is for operator / batch enrollment, or
+  deployments that have wired a real owner-facing channel.
 
-Wait for the user to read the code and tell you. Do not poll an inbox you
+Wait for the owner to read the code and tell you. Do not poll an inbox you
 don't own. Do not invent the code.
 
 ### Step 1.4 — Confirm the enrollment
