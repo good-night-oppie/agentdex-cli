@@ -20,6 +20,7 @@ class FakeSidecar:
         self.started = False
         self.ops: list[tuple[str, dict]] = []
         self._rss = 12.0
+        self.returncode: int | None = None  # None = alive; set to simulate a crash
         FakeSidecar.instances.append(self)
 
     async def start(self) -> None:
@@ -382,3 +383,57 @@ def test_battleless_ops_round_robin():
     _run(go())
     # both sidecars saw a pack op (round-robin)
     assert all(any(o[0] == "pack" for o in s.ops) for s in FakeSidecar.instances)
+
+
+# ---- RECOVER-P1-sidecar-respawn: dead-member skip + touch-driven respawn ----
+
+
+def test_least_loaded_skips_dead_sidecar():
+    """A crashed member (returncode set) must never be assigned a new battle — its
+    live count is 0 so it would otherwise look most-available (the corpse-routing
+    bug RECOVER-P1-sidecar-respawn fixes)."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+
+    async def go():
+        dead, live = p._sidecars[0], p._sidecars[1]
+        dead.returncode = 1  # simulate an OOM/crash
+        await p.request("start", battle="b1")
+        await p.request("start", battle="b2")
+        # both battles landed on the LIVE sidecar, none on the corpse
+        assert p._owner["b1"] is live and p._owner["b2"] is live
+        assert p._load.get(id(dead), 0) == 0
+
+    _run(go())
+
+
+def test_reclaim_dead_respawns_and_evicts_routes():
+    """A dead sidecar is replaced in place; its battle routes are evicted and the
+    fresh member is live with zeroed load; capacity is restored."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        await p.request("start", battle="b1")
+        dead = p._owner["b1"]
+        dead.returncode = 137  # OOM-killed
+
+        assert await p.reclaim_dead() == 1
+        # b1's route is evicted (its state died with the process)
+        assert "b1" not in p._owner
+        # a fresh, live member sits in the slot; the corpse + its load are gone
+        fresh = p._sidecars[0]
+        assert fresh is not dead and fresh.returncode is None and fresh.started
+        assert p._load[id(fresh)] == 0
+        assert id(dead) not in p._load
+        # capacity restored: a new battle routes to the fresh member
+        await p.request("start", battle="b2")
+        assert p._owner["b2"] is fresh
+
+    _run(go())
+
+
+def test_reclaim_dead_is_noop_when_all_alive():
+    p = SidecarPool(size=2)
+    _run(p.start())
+    assert _run(p.reclaim_dead()) == 0
