@@ -1562,7 +1562,7 @@
       "impact": "ADR-0013 landed (PR #295). The adx-cli onboarding journey (adx login GitHub device-flow -> adx onboard wizard -> account-authed enroll -> adx status) is blocked on the backend half of the FROZEN wire contract: POST /auth/device/start + /auth/device/poll (GitHub OAuth app, operator-held secret), POST /enroll/account (session-authed token mint), the github_id<->owner account datastore, and the account->agents join that feeds /status. Until these ship, adx-cli P1-P3 can only build against stubs.",
       "lane": "onboarding",
       "priority": "P1",
-      "status": "verify",
+      "status": "review",
       "title": "adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract)",
       "updated_at": "2026-06-22T21:42:07Z"
     },
