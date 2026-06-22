@@ -60,6 +60,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | ADX-P1-003 | P1 | harness | observability | Make observability acceptance fail when traces are absent | pass31, pass32 |
 | GA-ARENA-MODES | P1 | bene-core | ga-selfserve | arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend) |  |
 | GA-PAID-STRIPE | P1 | adx-core | ga-selfserve | Stripe paid + invite-code (100 -> $0 / 3-mo full); op-vault creds (GNO LLC) |  |
+| ADX-PX-csp-hardening | P2 | adx-cli | durability | Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited | harness-19 #ADX-track 2026-06-22: 4 SOC2 headers shipped to box Caddyfile; CSP permissive, tracked for adx-cli tightening. |
 
 ### running
 
@@ -436,7 +437,7 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Impact: One OOM permanently degrades a fraction of 100 users: dead sidecar stays in routing map, new battles routed to the corpse.
 - Suggested fix: On Node death, respawn the pool member and purge its _owner/_load entries so _least_loaded stops routing to it.
 - Evidence: sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load.
-- Recent comments: harness: reconciled by harness-19 per adx-core shared_log#765: PR #442 (8390aa7a) MERGED on dev (PART 1/2: pool reclaim_dead + dead-skip). PART 2/2 (gateway touch-wiring) sequenced AFTER #442 lands per adx-core — open a follow-up card if needed. Moving todo→done for Part 1; Part 2 spawn-on-demand.
+- Recent comments: harness: reconciled by harness-19 per adx-core shared_log#765: PR #442 (8390aa7a) MERGED on dev (PART 1/2: pool reclaim_dead + dead-skip). PART 2/2 (gateway touch-wiring) sequenced AFTER #442 lands per adx-core — open a follow-up card if needed. Moving todo→done for Part 1; Part 2 spawn-on-demand. / adx-cli: Reopened to running (codex PR #448 review #3455746098); the prior 'moving todo->done for Part 1' is superseded. REMAINING (Part 2): reclaim_dead() (pool reclaim + dead-skip) is merged + tested in PR #442 but is NOT called from the gateway/pool touch path -> wire it in (pool request / /state / /choose) so a dead sidecar is auto-respawned + its _owner/_load routes evicted ON TOUCH. Do NOT redo Part 1 (already merged #442). Owner: adx-core.
 
 ### AWS-PUBLIC-DNS-TLS - agentdex.builders DNS A-record + Caddy auto-TLS -> arena box
 
@@ -999,6 +1000,16 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 - Suggested fix: Add snapshot/restore ops to sidecar.mjs on top of the existing engine primitive + WAL replay rail.
 - Evidence: engine primitive exists (pokemon-showdown sim/state.js:79/99) but sidecar.mjs has no snapshot/restore op.
 
+### ADX-PX-csp-hardening - Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited
+
+- Priority: `P2`
+- Status: `todo`
+- Assignee: `adx-cli`
+- Lane: `durability`
+- Impact: Box Caddyfile CSP is PERMISSIVE (allows 'unsafe-inline'+'unsafe-eval' for UI compat, shipped by harness-19 2026-06-22). The GA web UI XSS-injection surface stays open until CSP is tightened.
+- Suggested fix: Audit web/index.html + web/dashboard asset surface (inline scripts/styles; eval in _ds_bundle/React-Babel-standalone); move to nonce/hash CSP or external assets; tighten box Caddyfile CSP; verify no UI breakage.
+- Evidence: harness-19 #ADX-track 2026-06-22: 4 SOC2 headers shipped to box Caddyfile; CSP permissive, tracked for adx-cli tightening.
+
 ### ADX-P2-001 - Reduce starter and CLI footguns for visiting agents
 
 - Priority: `P2`
@@ -1123,8 +1134,6 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 
 | Time | Action | Actor | Card | Detail |
 |---|---|---|---|---|
-| 2026-06-22T00:25:04Z | move | admin | GA-SELFPLAY-EVOLVE | {"after": {"assignee": "bene", "status": "blocked"}, "before": {"assignee": "bene", "status": "todo"}} |
-| 2026-06-22T01:37:28Z | move | admin | GA-DESIGN | {"after": {"assignee": "adx-cli", "status": "review"}, "before": {"assignee": "adx-cli", "status": "running"}} |
 | 2026-06-22T01:37:28Z | comment | adx-cli | GA-DESIGN | {} |
 | 2026-06-22T01:37:46Z | comment | adx-cli | GA-DEPLOY | {} |
 | 2026-06-22T01:55:03Z | comment | bene-4 | GA-SELFPLAY-EVOLVE | {} |
@@ -1135,6 +1144,8 @@ python3 tools/agent_senses/fleet_kanban.py comment ADX-P0-001 --author codex --b
 | 2026-06-22T02:31:29Z | move | admin | GA-DEPLOY | {"after": {"assignee": "adx-cli", "status": "blocked"}, "before": {"assignee": "adx-cli", "status": "todo"}} |
 | 2026-06-22T02:31:29Z | comment | adx-cli | GA-DEPLOY | {} |
 | 2026-06-22T02:33:14Z | comment | adx-cli | GA-DEPLOY | {} |
+| 2026-06-22T22:17:59Z | add | adx-cli | ADX-PX-csp-hardening | {} |
+| 2026-06-22T23:13:01Z | comment | adx-cli | RECOVER-P1-sidecar-respawn | {} |
 
 ## Source Pattern
 

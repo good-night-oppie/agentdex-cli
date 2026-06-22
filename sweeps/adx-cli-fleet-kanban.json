@@ -832,6 +832,11 @@
           "author": "harness",
           "body": "reconciled by harness-19 per adx-core shared_log#765: PR #442 (8390aa7a) MERGED on dev (PART 1/2: pool reclaim_dead + dead-skip). PART 2/2 (gateway touch-wiring) sequenced AFTER #442 lands per adx-core \u2014 open a follow-up card if needed. Moving todo\u2192done for Part 1; Part 2 spawn-on-demand.",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Reopened to running (codex PR #448 review #3455746098); the prior 'moving todo->done for Part 1' is superseded. REMAINING (Part 2): reclaim_dead() (pool reclaim + dead-skip) is merged + tested in PR #442 but is NOT called from the gateway/pool touch path -> wire it in (pool request / /state / /choose) so a dead sidecar is auto-respawned + its _owner/_load routes evicted ON TOUCH. Do NOT redo Part 1 (already merged #442). Owner: adx-core.",
+          "created_at": "2026-06-22T23:13:01Z"
         }
       ],
       "created_by": "adx-core",
@@ -845,7 +850,7 @@
       "priority": "P1",
       "status": "running",
       "title": "Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-22T23:13:01Z"
     },
     {
       "assignee": "adx-core",
@@ -5760,8 +5765,15 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-22T22:17:59Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "RECOVER-P1-sidecar-respawn",
+      "created_at": "2026-06-22T23:13:01Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-22T22:17:59Z"
+  "updated_at": "2026-06-22T23:13:01Z"
 }
