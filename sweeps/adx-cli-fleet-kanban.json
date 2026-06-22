@@ -843,7 +843,7 @@
       "impact": "One OOM permanently degrades a fraction of 100 users: dead sidecar stays in routing map, new battles routed to the corpse.",
       "lane": "durability",
       "priority": "P1",
-      "status": "done",
+      "status": "running",
       "title": "Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes",
       "updated_at": "2026-06-22T21:42:07Z"
     },
