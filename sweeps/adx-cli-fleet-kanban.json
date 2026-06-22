@@ -426,6 +426,11 @@
           "author": "codex",
           "body": "DEPLOY RELAY (harness-11 #401 was redirected into codex's pane, but it names adx-core as owner). codex VERIFIED the deploy is needed + declines to run it (wrong actor): live /bene/ last-modified=06:36:33 GMT (stale pre-reboot build, etag 18bfcaf6...); origin/main=6d4c0444 IS current (site/blog/ why+what+how-we-build-bene+index present, sweeps #48-#53 + review fixes thru #286). adx-core: you are the named owner + hold the on-disk Spaces key + are alive \u2014 please execute note-36 (push deploy-target +origin/main:main + POST Spaces) then verify live last-modified advances past 06:36:33 + headless 0.2.1 #root render. codex is NOT running the prod force-push/Spaces POST: prod credential is assigned to you (secrets discipline), there is active deploy contention (#342 bene-11 POSTed, #402 stale dup reaped), and it is hard-to-reverse + outside codex's lane. Flagging to Eddie per harness-11's escape clause.",
           "created_at": "2026-06-18T11:36:33Z"
+        },
+        {
+          "author": "harness",
+          "body": "reconciled by harness-19: largely subsumed by the GA wave per adx-core; stays running as the assessment lineage but no new spawn \u2014 net progress under the GA-* cards.",
+          "created_at": "2026-06-22T21:42:07Z"
         }
       ],
       "created_by": "adx-cli",
@@ -441,7 +446,7 @@
       "priority": "P0",
       "status": "running",
       "title": "launch gate: agentdex 100-user readiness assessment + go/no-go",
-      "updated_at": "2026-06-18T11:36:33Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "bene",
@@ -743,7 +748,13 @@
         "packages/agentdex_arena/src/agentdex_arena/gateway.py",
         "packages/agentdex_arena/tests/test_enroll_account.py"
       ],
-      "comments": [],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "reconciled by harness-19 per adx-core shared_log#765: PR #440 (8e9ebb96) MERGED on dev \u2014 moving todo\u2192done. Probe-gate ACCEPT recorded.",
+          "created_at": "2026-06-22T21:42:07Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "gateway.py:599-626 stores pending_enrollments[code] but never returns it; arena_play.py:61-77 only works co-located."
@@ -753,9 +764,9 @@
       "impact": "Self-service onboarding alternative to batch-mint for a curated launch; default-off preserves A1 out-of-band invariant.",
       "lane": "onboarding",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Env-gated playtest enroll path (ARENA_ENROLL_RETURN_CODE, off by default) that returns the code",
-      "updated_at": "2026-06-17T22:39:10Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "adx-core",
@@ -764,7 +775,13 @@
         "packages/agentdex_arena/src/agentdex_arena/ENROLLMENT.md",
         "site/SKILL.md"
       ],
-      "comments": [],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "reconciled by harness-19 per adx-core shared_log#765: PR #439 (4028b0a9) MERGED on dev \u2014 moving todo\u2192done. Probe-gate ACCEPT recorded.",
+          "created_at": "2026-06-22T21:42:07Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "SKILL.md:185-193",
@@ -777,9 +794,9 @@
       "impact": "SKILL.md/bootstrap.sh/ENROLLMENT.md dead-end users at pending_owner_confirmation with no real channel.",
       "lane": "onboarding",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Fix docs that promise a prod webhook/email delivery channel that does not exist",
-      "updated_at": "2026-06-17T22:39:10Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "adx-cli",
@@ -810,7 +827,13 @@
         "packages/agentdex_arena/src/agentdex_arena/gateway.py",
         "packages/agentdex_arena/tests/test_healthz.py"
       ],
-      "comments": [],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "reconciled by harness-19 per adx-core shared_log#765: PR #442 (8390aa7a) MERGED on dev (PART 1/2: pool reclaim_dead + dead-skip). PART 2/2 (gateway touch-wiring) sequenced AFTER #442 lands per adx-core \u2014 open a follow-up card if needed. Moving todo\u2192done for Part 1; Part 2 spawn-on-demand.",
+          "created_at": "2026-06-22T21:42:07Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "sidecar.py:117-126 fails pending futures with no respawn; pool.py:96-106 keeps dead sidecar in _owner/_load."
@@ -820,9 +843,9 @@
       "impact": "One OOM permanently degrades a fraction of 100 users: dead sidecar stays in routing map, new battles routed to the corpse.",
       "lane": "durability",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "title": "Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "adx-core",
@@ -1523,7 +1546,13 @@
         "packages/agentdex_arena/src/agentdex_arena/session.py",
         "packages/agentdex_arena/tests/test_enroll_account.py"
       ],
-      "comments": [],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "reconciled by harness-19 per adx-core shared_log#765: code-complete on main (ADR-0013 #304-309). Moving todo\u2192verify (awaits harness verify pass).",
+          "created_at": "2026-06-22T21:42:07Z"
+        }
+      ],
       "created_by": "adx-cli-7",
       "evidence": [
         "PR #295 docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md (Sections D2/D3/D7)"
@@ -1533,9 +1562,9 @@
       "impact": "ADR-0013 landed (PR #295). The adx-cli onboarding journey (adx login GitHub device-flow -> adx onboard wizard -> account-authed enroll -> adx status) is blocked on the backend half of the FROZEN wire contract: POST /auth/device/start + /auth/device/poll (GitHub OAuth app, operator-held secret), POST /enroll/account (session-authed token mint), the github_id<->owner account datastore, and the account->agents join that feeds /status. Until these ship, adx-cli P1-P3 can only build against stubs.",
       "lane": "onboarding",
       "priority": "P1",
-      "status": "todo",
+      "status": "verify",
       "title": "adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract)",
-      "updated_at": "2026-06-18T16:45:58Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "bene-core",
@@ -2318,6 +2347,11 @@
           "author": "harness",
           "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
           "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19 (2026-06-22T21:27Z product probe = 1/7; GA-DESIGN done + signed off by all 4 reviewers). This card is now ready-to-start (no longer gated). adx-core, adx-cli \u2014 pick up.",
+          "created_at": "2026-06-22T21:42:07Z"
         }
       ],
       "created": "2026-06-22",
@@ -2328,7 +2362,7 @@
       "priority": "P0",
       "status": "todo",
       "title": "signup -> login -> connect GitHub (OAuth)",
-      "updated_at": "2026-06-22T00:20:00Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "adx-core",
@@ -2343,6 +2377,11 @@
           "author": "harness",
           "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
           "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19. Ready-to-start.",
+          "created_at": "2026-06-22T21:42:07Z"
         }
       ],
       "created": "2026-06-22",
@@ -2353,7 +2392,7 @@
       "priority": "P0",
       "status": "todo",
       "title": "enroll open-source coding agent (codex / opencode / claw-code)",
-      "updated_at": "2026-06-22T00:20:00Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "bene-core",
@@ -2443,6 +2482,11 @@
           "author": "harness",
           "body": "op Stripe blocker RESOLVED 2026-06-22: item ref op://pkuopfl5o3mz6hakcqpnzphh6i/cshj5i5m2fthbkfwza4cyq3yqi (acct MWN2IPTKVFFDZJD6YOGMIRAX6E). op is currently RATE-LIMITED so live-verify is deferred to point-of-use \u2014 op read with backoff, NEVER echo the value into a pane/log/commit. Stripe CLI: https://docs.stripe.com/projects.",
           "created_at": "2026-06-22T01:05:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19. Ready-to-start (Stripe ops still needs the op item per BLOCKERS doc).",
+          "created_at": "2026-06-22T21:42:07Z"
         }
       ],
       "created": "2026-06-22",
@@ -2453,7 +2497,7 @@
       "priority": "P1",
       "status": "todo",
       "title": "Stripe paid + invite-code (100 -> $0 / 3-mo full); op-vault creds (GNO LLC)",
-      "updated_at": "2026-06-22T01:05:00Z"
+      "updated_at": "2026-06-22T21:42:07Z"
     },
     {
       "assignee": "adx-cli",
