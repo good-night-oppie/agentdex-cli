@@ -248,3 +248,34 @@ def test_email_oob_round_trip_unchanged(tmp_path):
     claims = gw.authority.verify(out["token"], scope="battle")
     assert claims.agent_name == "legacybot"
     assert claims.owner == "a@x.com"
+
+
+# ---- ENROLL-P1-playtest-return-code: env-gated code return (default OFF) ----
+
+
+def test_enroll_request_omits_code_by_default(tmp_path, monkeypatch):
+    """A1 out-of-band invariant: /enroll/request NEVER echoes the code by default."""
+    monkeypatch.delenv("ARENA_ENROLL_RETURN_CODE", raising=False)
+    gw = _gateway(tmp_path)
+    out = gw.enroll_request(
+        EnrollRequest(owner="a@x.com", agent_name="defaultbot", agent_pubkey_hex=_PUBKEY)
+    )
+    assert out["status"] == "pending_owner_confirmation"
+    assert "confirmation_code" not in out
+
+
+def test_enroll_request_returns_code_when_playtest_flag_on(tmp_path, monkeypatch):
+    """ARENA_ENROLL_RETURN_CODE=1 echoes a REAL pending code that confirms end-to-end."""
+    monkeypatch.setenv("ARENA_ENROLL_RETURN_CODE", "1")
+    gw = _gateway(tmp_path)
+    out = gw.enroll_request(
+        EnrollRequest(owner="a@x.com", agent_name="playtestbot", agent_pubkey_hex=_PUBKEY)
+    )
+    assert out["status"] == "pending_owner_confirmation"
+    code = out.get("confirmation_code")
+    assert isinstance(code, str) and code
+    confirmed = gw.enroll_confirm(code)
+    assert "token" in confirmed
+    claims = gw.authority.verify(confirmed["token"], scope="battle")
+    assert claims.agent_name == "playtestbot"
+    assert claims.owner == "a@x.com"
