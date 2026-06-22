@@ -2577,7 +2577,13 @@
     },
     {
       "assignee": "adx-cli",
-      "comments": [],
+      "comments": [
+        {
+          "author": "adx-cli",
+          "body": "AUDIT COMPLETE + adversarially verified (adx-cli-16). The card's gate (\"once asset surface audited\") is satisfied. Finding: the asset surface is ALREADY CSP-clean for scripts \u2014 the box Caddyfile CSP is simply over-broad vs what the assets need. The card's premise (\"eval in _ds_bundle/React-Babel-standalone\") does NOT hold: there is NO Babel/React-standalone/transpiler and NO build step. All 11 assets read verbatim (web/index.html + web/dashboard/index.html + app.js + 8 vendor JS).\n\nAUDIT (3 independent adversarial-falsification lenses + 1 synthesis, all converged, zero blocking findings; synthesizer independently re-grepped live repo):\n- Scripts: ZERO inline <script>, ZERO on*= handlers, ZERO javascript: URIs, ZERO eval/new Function/setTimeout('string')/document.write/dynamic-script-injection/WASM/Worker/dynamic-import. Every <script> is external + same-origin (dashboard: 6x vendor/live/*.js + app.js ES module; landing: none). => script-src 'self' is SAFE (drop unsafe-inline + unsafe-eval).\n- Cross-origin resources: exactly TWO hosts, both Google Fonts \u2014 fonts.googleapis.com (CSS, style-src) + fonts.gstatic.com (woff2, font-src). Nothing else.\n- Network: every fetch()/XHR is relative; the LIVE BATTLE VIEWER SSE both paths (owner Bearer fetch text/event-stream -> /me/battle/<id>/live ; spectator native EventSource -> /battle/<id>/live) are same-origin relative. NO WebSocket exists. => connect-src 'self' keeps the live viewer working; wss: + blanket https: unneeded.\n- Images: none external (visuals are CSS gradients + inline <svg>). style-src 'unsafe-inline' KEPT (inline <style> blocks + style= attrs; low severity).\n\nVERIFIED TIGHTENED CSP (ui_breakage_risk: none, no relaxations needed):\n  default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'\n\nDIFF vs current permissive (live on box):\n  script-src 'self' 'unsafe-inline' 'unsafe-eval' https:  ->  script-src 'self'              (DROP unsafe-inline + unsafe-eval + blanket https:)\n  default-src 'self' https:                               ->  default-src 'self'             (drop blanket https:)\n  style-src 'self' 'unsafe-inline' https:                 ->  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com  (scope https->fonts host)\n  font-src 'self' data: https:                            ->  font-src 'self' https://fonts.gstatic.com data:               (scope https->gstatic)\n  img-src 'self' data: https:                             ->  img-src 'self' data:           (drop blanket https:)\n  connect-src 'self' https: wss:                          ->  connect-src 'self'             (drop https:+wss:)\n  + base-uri 'self'; object-src 'none'; form-action 'self'  (NEW hardening \u2014 no <base>/<object>/<form> present)\nCompanion headers (referrer-policy / HSTS / x-content-type-options) UNCHANGED.\n\nOWNERSHIP: the box Caddyfile is adx-core/adx-server infra (adx-cli=correctness produced the verified policy; adx-core=infra applies). Routing the apply to adx-core via A2A.\n\nROLLOUT (Report-Only-first, zero-risk canary): (1) add Content-Security-Policy-Report-Only with the tightened value alongside the existing enforced permissive CSP; (2) wire a report sink (report-to / report-uri); (3) caddy reload + curl -skI re-verify both headers; (4) drive full surface (landing, dashboard, /me/agents, evolution panel, live battle as owner+spectator, /replay) watching for violations; (5) observe 24-72h; (6) promote: swap enforced value to tightened, drop Report-Only; (7) re-verify; (8) rollback = revert the single CSP line + reload (instant, no asset changes).\n\nRESIDUAL (separate follow-up card, NOT this one): innerHTML DOM-XSS sinks (app.js:92/106, agent_hud.js:41, evo_panel.js:99) \u2014 CSP mitigates injected <script>/handlers but unescaped attacker-controlled fields remain DOM-XSS. Recommend a follow-up to route every innerHTML write through esc()/textContent + consider Trusted Types (require-trusted-types-for 'script').",
+          "created_at": "2026-06-22T23:55:31Z"
+        }
+      ],
       "created_by": "adx-cli",
       "evidence": [
         "harness-19 #ADX-track 2026-06-22: 4 SOC2 headers shipped to box Caddyfile; CSP permissive",
@@ -2590,7 +2596,7 @@
       "priority": "P2",
       "status": "todo",
       "title": "Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited",
-      "updated_at": "2026-06-22T22:17:59Z"
+      "updated_at": "2026-06-22T23:55:31Z"
     }
   ],
   "events": [
@@ -5772,8 +5778,15 @@
       "card_id": "RECOVER-P1-sidecar-respawn",
       "created_at": "2026-06-22T23:13:01Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-22T23:55:31Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-22T23:13:01Z"
+  "updated_at": "2026-06-22T23:55:31Z"
 }
