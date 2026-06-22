@@ -92,7 +92,20 @@
     },
     {
       "assignee": "harness",
-      "comments": [],
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_cli/tests/test_trace_propagation.py",
+        "agentdex-cli:packages/agentdex_observe/src/agentdex_observe/__init__.py",
+        "agentdex-cli:packages/agentdex_cli/src/agentdex_cli/orchestrator/gateway.py",
+        "agentdex-cli:packages/agentdex_cli/tests/test_expedition_smoke.py",
+        "agentdex-cli:EVAL.md"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        }
+      ],
       "created_by": "codex",
       "evidence": [
         "pass31",
@@ -105,7 +118,7 @@
       "priority": "P1",
       "status": "todo",
       "title": "Make observability acceptance fail when traces are absent",
-      "updated_at": "2026-06-16T20:14:58Z"
+      "updated_at": "2026-06-21T08:10:00Z"
     },
     {
       "assignee": "adx-cli",
@@ -404,6 +417,10 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "docs/references/2026-06-11-arena-deploy-gonogo.md",
+        "sweeps/2026-06-16-adx-cli-fleet-kanban.md"
+      ],
       "comments": [
         {
           "author": "codex",
@@ -722,6 +739,10 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "packages/agentdex_arena/src/agentdex_arena/gateway.py",
+        "packages/agentdex_arena/tests/test_enroll_account.py"
+      ],
       "comments": [],
       "created_by": "adx-core",
       "evidence": [
@@ -738,6 +759,11 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "packages/agentdex_arena/src/agentdex_arena/SKILL.md",
+        "packages/agentdex_arena/src/agentdex_arena/ENROLLMENT.md",
+        "site/SKILL.md"
+      ],
       "comments": [],
       "created_by": "adx-core",
       "evidence": [
@@ -779,6 +805,11 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "packages/adx_showdown/src/adx_showdown/pool.py",
+        "packages/agentdex_arena/src/agentdex_arena/gateway.py",
+        "packages/agentdex_arena/tests/test_healthz.py"
+      ],
       "comments": [],
       "created_by": "adx-core",
       "evidence": [
@@ -953,7 +984,19 @@
     },
     {
       "assignee": "harness",
-      "comments": [],
+      "blast_radius": [
+        "agentdex-cli:scripts/llm_proxy_measure.py",
+        "agentdex-cli:docs/references/*llm-proxy-measured.md",
+        "agentdex-cli:packages/adx_bridges/src/adx_bridges/showdown_battle_bridge.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/gateway.py"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "ADR-0012:124",
@@ -966,7 +1009,7 @@
       "priority": "P0",
       "status": "todo",
       "title": "Run ADR-0012 must-measure #3: LLM fan-out vs platform proxy rate/budget at 100 concurrent",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-21T08:10:00Z"
     },
     {
       "assignee": "harness",
@@ -1030,7 +1073,18 @@
     },
     {
       "assignee": "platform-instructor",
-      "comments": [],
+      "blast_radius": [
+        "agentdex-cli:Dockerfile",
+        "agentdex-cli:docs/runbooks/*.md",
+        "agentdex-cli:docs/references/*vps*.md"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        }
+      ],
       "created_by": "adx-core",
       "evidence": [
         "Quota 2/2 (meta-vex+agentdex)",
@@ -1043,10 +1097,14 @@
       "priority": "P1",
       "status": "blocked",
       "title": "INSTRUCTOR/OPERATOR: free the 2/2 quota (delete meta-vex, user green-lit) OR stand up external ~$5/mo VPS fallback",
-      "updated_at": "2026-06-17T22:39:11Z"
+      "updated_at": "2026-06-21T08:10:00Z"
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "docs/runbooks/go-live-deploy.md",
+        "docs/runbooks/membership-admin.md"
+      ],
       "comments": [
         {
           "author": "adx-core",
@@ -1270,6 +1328,10 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "packages/agentdex_arena/src/agentdex_arena/gateway.py",
+        "docs/references/2026-06-11-arena-deploy-gonogo.md"
+      ],
       "comments": [],
       "created_by": "adx-core",
       "evidence": [
@@ -1455,6 +1517,12 @@
     },
     {
       "assignee": "adx-core",
+      "blast_radius": [
+        "packages/agentdex_arena/src/agentdex_arena/gateway.py",
+        "packages/agentdex_arena/src/agentdex_arena/account.py",
+        "packages/agentdex_arena/src/agentdex_arena/session.py",
+        "packages/agentdex_arena/tests/test_enroll_account.py"
+      ],
       "comments": [],
       "created_by": "adx-cli-7",
       "evidence": [
@@ -1698,6 +1766,14 @@
     },
     {
       "assignee": "bene",
+      "blast_radius": [
+        "bene:_ga-bene-1-spa/**/*",
+        "agentdex-cli:web/dashboard/**/*",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/gateway.py",
+        "agentdex-cli:packages/agentdex_arena/tests/test_dashboard_static_mount.py",
+        "agentdex-cli:packages/agentdex_arena/tests/test_me_dashboard.py",
+        "agentdex-cli:Dockerfile"
+      ],
       "comments": [
         {
           "author": "bene-core",
@@ -1778,6 +1854,16 @@
           "author": "bene-core-8",
           "body": "MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87). The durable SPA shell and terminal-end live-source sync are now on bene main. Card stays running for live ?live=1 smoke with a real session token/battle id, agentdex.builders deploy path, ladder panel, and design-token reconcile.",
           "created_at": "2026-06-20T03:57:30Z"
+        },
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 dashboard SPA assembled from the 4 render-verified panels (roster+AgentPane | live battle | evolution | ladder), committed (PR #95 a4e75f5 shell, #99 327b048 hardening, #105 ladder), SPA verify.sh 23/23 PASS, harness-16 signed off the 4-panel layout (#696). REMAINING = live deploy + smoke of the SPA to agentdex.builders \u2014 that is GA-DEPLOY's lane, gated on \u00a77 Lightsail agentdex-arena-1 access (Eddie). bene's build scope is done; cannot reach 'done' until GA-DEPLOY lands the live site for ?live=1 smoke.",
+          "created_at": "2026-06-22T00:24:36Z"
         }
       ],
       "created_by": "bene-core",
@@ -1793,12 +1879,18 @@
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "running",
+      "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-20T03:57:30Z"
+      "updated_at": "2026-06-22T00:24:36Z"
     },
     {
       "assignee": "bene",
+      "blast_radius": [
+        "bene:_ga-bene-2-live-viewer/**/*",
+        "bene:_ga-bene-1-spa/app.js",
+        "bene:_ga-bene-1-spa/vendor/live/**/*",
+        "agentdex-cli:web/dashboard/**/*"
+      ],
       "comments": [
         {
           "author": "bene-core",
@@ -1874,6 +1966,16 @@
           "author": "bene-core-8",
           "body": "MERGED (bene-core-8): BENE PR #94 merged at 4186440 (head bd4828b). The reference live viewer, Bearer owner-stream source, and review-fix protocol hardening are now on bene main. Card stays running for live session-token wiring + deploy smoke.",
           "created_at": "2026-06-20T03:57:30Z"
+        },
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 live battle viewer wired (battle-scene + SseLiveSource owner stream, fog-of-war projector), committed (PR #94 4186440), node datalayer 42/0 + render-verify 11/0, wired into the SPA via the ?live=1 seam. REMAINING = live smoke against the deployed GA-CORE-3 SSE stream (needs the deployed backend + a session token) \u2014 GA-DEPLOY-gated (\u00a77 Lightsail). Wiring code done; live-verify awaits deploy.",
+          "created_at": "2026-06-22T00:24:36Z"
         }
       ],
       "created_by": "bene-core",
@@ -1888,9 +1990,9 @@
       "impact": "The watch-live experience; PS battle scene <=2s lag, incremental per seq, fog-of-war.",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "running",
+      "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-20T03:57:30Z"
+      "updated_at": "2026-06-22T00:24:36Z"
     },
     {
       "assignee": "bene-core",
@@ -1921,6 +2023,15 @@
     },
     {
       "assignee": "bene",
+      "blast_radius": [
+        "bene:_ga-bene-4-evo-panel/*.js",
+        "bene:_ga-bene-4-evo-panel/*.json",
+        "bene:_ga-bene-1-spa/vendor/evo_panel.js",
+        "bene:_ga-bene-1-spa/app.js",
+        "bene:_ga-bene-1-spa/index.html",
+        "bene:_ga-bene-1-spa/fixtures/done.json",
+        "bene:bene/ui/server.py"
+      ],
       "comments": [
         {
           "author": "bene-core",
@@ -1986,6 +2097,16 @@
           "author": "bene-core-8",
           "body": "MERGED (bene-core-8): BENE PR #95 merged at a4e75f5 (head 2b38f87), so the GA-BENE-4 Evolution panel is now embedded in the SPA shell on bene main. Card stays running for live to_done_json feed + deploy smoke with GA-BENE-1.",
           "created_at": "2026-06-20T03:57:30Z"
+        },
+        {
+          "author": "harness",
+          "body": "blast_radius DRAFTED by harness-16 (provisional, grounded in repo grep via infer-card-blast-radius workflow) \u2014 owner please CONFIRM or adjust. This is what the pre-commit anti-collision gate will check.",
+          "created_at": "2026-06-21T08:10:00Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 Evolution/lineage panel (renderEvoPanel, #541 honesty gates, to_done_json envelope) committed (PR #105 ladder round + earlier), render-verified, wired into the SPA reading the live /me/agents/<id>/evolution seam. REMAINING = point at the live to_done_json feed + smoke \u2014 GA-DEPLOY-gated (\u00a77 Lightsail / live backend). Data+panel done; live feed awaits deploy.",
+          "created_at": "2026-06-22T00:24:36Z"
         }
       ],
       "created_by": "bene-core",
@@ -2001,9 +2122,9 @@
       "impact": "The Evolution panel that visualizes the climb; data side of GA-BENE-1's dashboard.",
       "lane": "bene-core",
       "priority": "P1",
-      "status": "running",
+      "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-20T03:57:30Z"
+      "updated_at": "2026-06-22T00:24:37Z"
     },
     {
       "assignee": "adx-cli",
@@ -2112,6 +2233,298 @@
       "status": "done",
       "title": "Harden Codex battle-harness adapter params",
       "updated_at": "2026-06-20T03:23:21Z"
+    },
+    {
+      "approvals": {
+        "eddie-agi-kb": {
+          "at": "2026-06-22T02:10:10Z",
+          "dimension": "completeness",
+          "granted_by": "eddie-agi-kb",
+          "note": "Completeness APPROVED \u2014 independently verified (code read + 7-claim adversarial falsification, 0 functional gaps): all 7 screens (signup login github enroll modes billing launch) render+route; passwordless (zero password fields, magic-link+GitHub ADR-0013); Stripe disabled coming-soon V2 + live invite-redeem to #launch; free-path never dead-ends in billing; mode-ids solo_bots|pvp|team|selfplay match adx_showdown backend; SPEC 2 end-to-end. NON-BLOCKING: DESIGN.md flow-map table stale (6-screens/password/Stripe-active) \u2014 code is correct + adx-core verified passwordless on code (#747); adx-cli should fix the doc table promptly."
+        },
+        "harness": {
+          "at": "2026-06-22T01:59:50Z",
+          "dimension": "operational-completeness",
+          "granted_by": "harness",
+          "note": "Operational-completeness: design review 3/3 (bene-core #727 + adx-core #737/#748 + bene #752, all APPROVE on the bus); deliverable integrates with build-card contracts (mode ids solo_bots|pvp|team|selfplay match bene-core GA-ARENA-MODES; passwordless magic-link+GitHub matches device_flow.py /auth/email/start; live V1 paid = invite-redeem->grant-membership). Render-verified prototype, blast_radius design/** only."
+        }
+      },
+      "assignee": "adx-cli",
+      "blast_radius": [
+        "agentdex-cli:design/**",
+        "agentdex-cli:web/index.html"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Deliverable COMPLETE + FINAL at design/ga-selfserve/ (7-screen prototype on the agentdex-design system + DESIGN.md), all render-verified. Design-review sign-offs: bene-core APPROVED + adx-core APPROVED (2/3); bene full re-confirm pending. Applied adx-core build-truth alignments: passwordless auth (magic-link + GitHub, ADR-0013; dropped password fields) + Stripe->coming-soon V2 (live V1 paid path = invite-redeem->membership). Status=review: board-done is the HARNESS probe-gate ceremony (probe ACCEPT + eddie-agi-kb+harness db approvals, behind KANBAN_GATE_ACTOR) \u2014 not mark-able by adx-cli; requested via A2A to harness.",
+          "created_at": "2026-06-22T01:37:28Z"
+        },
+        {
+          "author": "harness",
+          "body": "Probe-gated: 6 hash-locked BENE gate(s) (admissible, lock 0cbbb669272f1fbb\u2026). DONE requires probe ACCEPT + eddie-agi-kb approval (completeness) + harness approval (operational completeness). Gate is orchestrator-authored + sha256-locked (fail-closed actor boundary).",
+          "created_at": "2026-06-22T01:59:25Z"
+        },
+        {
+          "author": "harness",
+          "body": "APPROVAL [operational-completeness] granted_by=harness: Operational-completeness: design review 3/3 (bene-core #727 + adx-core #737/#748 + bene #752, all APPROVE on the bus); deliverable integrates with build-card contracts (mode ids solo_bots|pvp|team|selfplay match bene-core GA-ARENA-MODES; passwordless magic-link+GitHub matches device_flow.py /auth/email/start; live V1 paid = invite-redeem->grant-membership). Render-verified prototype, blast_radius design/** only.",
+          "created_at": "2026-06-22T01:59:50Z"
+        },
+        {
+          "author": "eddie-agi-kb",
+          "body": "APPROVAL [completeness] granted_by=eddie-agi-kb: Completeness APPROVED \u2014 independently verified (code read + 7-claim adversarial falsification, 0 functional gaps): all 7 screens (signup login github enroll modes billing launch) render+route; passwordless (zero password fields, magic-link+GitHub ADR-0013); Stripe disabled coming-soon V2 + live invite-redeem to #launch; free-path never dead-ends in billing; mode-ids solo_bots|pvp|team|selfplay match adx_showdown backend; SPEC 2 end-to-end. NON-BLOCKING: DESIGN.md flow-map table stale (6-screens/password/Stripe-active) \u2014 code is correct + adx-core verified passwordless on code (#747); adx-cli should fix the doc table promptly.",
+          "created_at": "2026-06-22T02:10:10Z"
+        },
+        {
+          "author": "harness",
+          "body": "Card -> done: probe ACCEPT + both approvals (gated, hash-locked). assignee=adx-cli.",
+          "created_at": "2026-06-22T02:11:32Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-DESIGN",
+      "impact": "Design gates all build cards. Cover signup/login/GitHub-connect/agent-enroll/arena-modes/paid/Stripe on the AgentDex design system; reviewers (adx-core/bene/bene-core) sign off before build. Backup sync via mcp__claude_design.",
+      "lane": "ga-selfserve",
+      "priority": "P0",
+      "probes": {
+        "authored_at": "2026-06-22T01:59:25Z",
+        "authored_by": "harness",
+        "db": "/home/admin/gh/harness-engineering/.harness/kanban-probes.db",
+        "lock_sha256": "0cbbb669272f1fbb2cb613d97a4a5ef25105e4e3042d982aab6106856ef2409c",
+        "probe": "kanban-card-GA-DESIGN-d2783ce3e9ce",
+        "spec_sha256": "d2783ce3e9ce4b2613994e28f7c323f846908238d5fed4827a9d376378760517",
+        "status": "accepted"
+      },
+      "status": "done",
+      "title": "LEAD: web-UI design for the full self-serve flow (agentdex-design system)",
+      "updated_at": "2026-06-22T02:11:32Z"
+    },
+    {
+      "assignee": "adx-core",
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/account.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/session.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/device_flow.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/consent.py"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-AUTH",
+      "impact": "Entry to self-serve; blocked on GA-DESIGN. GitHub OAuth + session.",
+      "lane": "ga-selfserve",
+      "priority": "P0",
+      "status": "todo",
+      "title": "signup -> login -> connect GitHub (OAuth)",
+      "updated_at": "2026-06-22T00:20:00Z"
+    },
+    {
+      "assignee": "adx-core",
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/invite.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/offered_seeds.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/batch_mint.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/ENROLLMENT.md"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-ENROLL",
+      "impact": "User connects an OSS coding agent (openai/codex, opencode, ultraworkers/claw-code rust) as their arena agent. Blocked on GA-DESIGN.",
+      "lane": "ga-selfserve",
+      "priority": "P0",
+      "status": "todo",
+      "title": "enroll open-source coding agent (codex / opencode / claw-code)",
+      "updated_at": "2026-06-22T00:20:00Z"
+    },
+    {
+      "assignee": "bene-core",
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/eventsync.py",
+        "agentdex-cli:packages/adx_showdown/**"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-ARENA-MODES",
+      "impact": "Free battle modes. Blocked on GA-DESIGN. Mode selection wired to battle backend.",
+      "lane": "ga-selfserve",
+      "priority": "P1",
+      "status": "todo",
+      "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
+      "updated_at": "2026-06-22T00:20:00Z"
+    },
+    {
+      "assignee": "bene",
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_engine/**",
+        "agentdex-cli:packages/adx_showdown/**"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "RECON+PLAN (bene-4, 2026-06-22): poke-env is ALREADY the substrate (adx_showdown selfplay extra; runner.py battle_format-parameterized; e2e_driver pokeenv_runner+evolve loop; GA-BENE-3 de-mocked _mock_evolve). So this card = (1) TEAM modes: doubles/team battle_format + 2-user-agent team-up topology in adx_showdown/selfplay/runner.py; (2) expose the existing self-play-evolve loop as the [PAID] mode. GATES: blocked on GA-DESIGN (no self-play/team UI \u2014 review #724) + GA-PAID-STRIPE (todo). BLAST-RADIUS overlaps bene-core GA-ARENA-MODES on packages/adx_showdown/** \u2192 de-confliction proposed A2A #725 (bene-core owns mode-select/eventsync; bene owns selfplay-evolve loop + team substrate + agentdex_engine feeding). Design-independent substrate (team-format runner + evolution feeding) will build-ahead once boundary confirmed.",
+          "created_at": "2026-06-22T00:20:27Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): gated on THREE deps, not ready to start \u2014 (1) GA-DESIGN approval (no self-play/team-mode UI designed yet, review #724), (2) GA-PAID-STRIPE (todo \u2014 paid-feature gating), (3) bene-core de-confliction of the packages/adx_showdown/** blast-radius overlap (proposed split #725). Recon+plan already on this card (poke-env is already the substrate; card = team modes + paid-mode exposure). Will move to running + build the design-independent substrate once the split is confirmed.",
+          "created_at": "2026-06-22T00:25:04Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "DATA SHAPES PUBLISHED (bene-4, 2026-06-22, A2A) for GA-DESIGN #93 binding: the self-play card binds to e2e_driver to_done_json \u2014 RUN {ok,backend,scaffold,run_seed,battles_played,gens_completed}, EVAL FitnessVector{win_rate,elo,move_legibility,no_forfeit_exploit,turn_efficiency}+headline{win_rate_uplift_pp,_ci95_pp,ci_excludes_zero}, killgate{passed,verdict}, lineage[]{gen,strategy,win_rate,kept}; honesty gate backend==pokeenv&&!scaffold&&ok. Caveat: 'cost' not in current fitness (flag to adx-cli). GA-DESIGN signed off 3/3 (#751).",
+          "created_at": "2026-06-22T01:55:03Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "GATE UPDATE (bene-4, 2026-06-22): \u2705 GA-DESIGN cleared (3/3, my APPROVE #751) \u2014 design no longer blocks. \u2705 data shapes published (#752) for the card-field binding. \u2705 GA-PAID resolved: V1 paid path = invite-redeem\u2192membership (adx-core confirmed built; Stripe is V2/coming-soon) \u2014 billing gates mode ACCESS, not the substrate, so it doesn't block the build. \u26d4 NOW BLOCKED SOLELY on bene-core de-confliction (#725, no response yet): the core NEW work = team modes in adx_showdown/selfplay/runner.py (doubles/team battle_format + 2-agent team-up topology) which OVERLAPS bene-core GA-ARENA-MODES blast_radius \u2014 SPEC \u00a71 forbids committing there until the split is confirmed. Ready to build the moment bene-core confirms (proposed: bene=selfplay-evolve loop+team substrate+agentdex_engine, bene-core=mode-select/eventsync).",
+          "created_at": "2026-06-22T01:56:43Z"
+        },
+        {
+          "author": "bene-4",
+          "body": "SHIPPING (bene-4, 2026-06-22): first increment PR #441 (agentdex-cli) \u2014 team_modes.py arena-mode\u2192battle-format substrate (solo_bots|pvp singles \u00b7 team doubles \u00b7 selfplay self-vs-self), poke-env-free, 8 tests pass. Additive new module+test, no runner surgery, blast-radius gate CLEAR (GA-ARENA-MODES is todo/not-ongoing + own-card excluded). Card \u2192 running. Follow-ups: runner doubles-decision integration (deeper adx_showdown \u2014 will confirm bene-core split first) + bind GA-DESIGN self-play card fields to to_done_json (#752).",
+          "created_at": "2026-06-22T02:04:28Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-SELFPLAY-EVOLVE",
+      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. Blocked on GA-DESIGN + GA-PAID gate.",
+      "lane": "ga-selfserve",
+      "priority": "P1",
+      "status": "running",
+      "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
+      "updated_at": "2026-06-22T02:04:28Z"
+    },
+    {
+      "assignee": "adx-core",
+      "blast_radius": [
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/billing.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/account.py",
+        "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/admin_auth.py"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "op Stripe blocker RESOLVED 2026-06-22: item ref op://pkuopfl5o3mz6hakcqpnzphh6i/cshj5i5m2fthbkfwza4cyq3yqi (acct MWN2IPTKVFFDZJD6YOGMIRAX6E). op is currently RATE-LIMITED so live-verify is deferred to point-of-use \u2014 op read with backoff, NEVER echo the value into a pane/log/commit. Stripe CLI: https://docs.stripe.com/projects.",
+          "created_at": "2026-06-22T01:05:00Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-PAID-STRIPE",
+      "impact": "Monetization + the 100-invite free-3mo grant. Stripe creds via op vault (Good Night Oppie LLC) op://pkuopfl5o3mz6hakcqpnzphh6i/cshj5i5m2fthbkfwza4cyq3yqi (account MWN2IPTKVFFDZJD6YOGMIRAX6E); op read at point-of-use WITH BACKOFF, never print the value. Stripe setup: https://docs.stripe.com/projects. UNBLOCKED (op ref provided). Still blocked on GA-DESIGN.",
+      "lane": "ga-selfserve",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Stripe paid + invite-code (100 -> $0 / 3-mo full); op-vault creds (GNO LLC)",
+      "updated_at": "2026-06-22T01:05:00Z"
+    },
+    {
+      "assignee": "adx-cli",
+      "blast_radius": [
+        "agentdex-cli:Dockerfile",
+        "agentdex-cli:cron/**",
+        "agentdex-cli:.github/workflows/**"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "Lightsail blocker RESOLVED 2026-06-22: SSH verified to agentdex-arena-1 (Ubuntu 22.04, Docker, Caddy->agentdex.builders, container :8889). Deploy = build image -> ssh ship -> run :8889 behind Caddy. Key path ~/.ssh/agentdex-arena.pem (never print contents).",
+          "created_at": "2026-06-22T00:55:00Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Path ACKed (harness #728): ssh ubuntu@54.203.252.69, Docker+Caddy auto-TLS on :8889, docker run direct. Plan ready: build image from origin/main (local main is 5/5 diverged \u2014 antigravity footgun), run -p 8889:8000 behind existing Caddyfile, author ship/run script. GATED on GA-DESIGN done + build cards per #728; co-owned with adx-core (proposed split: adx-cli=ship/run+Caddy/port, adx-core=Dockerfile/image+backend). Drives the moment GA-DESIGN clears the probe-gate.",
+          "created_at": "2026-06-22T01:37:46Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "BLOCKED on dependency (not creds \u2014 creds resolved #728). Gated on: (1) GA-DESIGN board-done (design-first gate, SPEC \u00a73 \u2014 currently review, 2/3 sign-offs, awaiting harness probe-gate ceremony); (2) the build cards (GA-AUTH/ENROLL/ARENA-MODES/PAID) landing \u2014 a deploy before they exist ships nothing new (harness #728: 'still gated on GA-DESIGN + the build cards'). Ready-to-execute on unblock: build image from origin/main (local main 5/5 diverged), docker run -p 8889:8000 behind existing Caddy on agentdex-arena-1, author ship/run script. Co-owned w/ adx-core (proposed split: adx-cli=ship/run+Caddy/port, adx-core=Dockerfile/image+backend) \u2014 awaiting confirm. Auto-unblocks when GA-DESIGN clears + build cards done.",
+          "created_at": "2026-06-22T02:31:29Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CORRECTION: GA-DESIGN is now DONE (harness probe-gate, 3/3 reviewers + eddie-agi-kb/harness approvals, 02:11Z) \u2014 so the design-first gate is SATISFIED. GA-DEPLOY's remaining blocker is now ONLY the build cards (GA-AUTH/ENROLL/ARENA-MODES/PAID) landing; a deploy before they exist ships nothing new (#728). Stays blocked until those land + adx-core confirms the co-ownership split. Deploy plan ready (origin/main build, -p 8889:8000 behind Caddy on agentdex-arena-1).",
+          "created_at": "2026-06-22T02:33:14Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-DEPLOY",
+      "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker 29.5.3 + Caddy auto-TLS serving agentdex.builders, arena on :8889). UNBLOCKED. Still blocked on GA-DESIGN + build cards.",
+      "lane": "ga-selfserve",
+      "priority": "P0",
+      "status": "blocked",
+      "title": "refactor + deploy new arena to Lightsail agentdex-arena-1 (autonomous pipeline)",
+      "updated_at": "2026-06-22T02:33:14Z"
+    },
+    {
+      "assignee": "eddie-agi-kb",
+      "blast_radius": [
+        "agentdex-cli:tasks/agentdex-arena-ga/**"
+      ],
+      "comments": [
+        {
+          "author": "harness",
+          "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
+          "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "eddie-agi-kb",
+          "body": "Progress (eddie-agi-kb): (1) Enforcement-infra audit done \u2014 review-comment-signoff-gate installed on agentdex-cli; flagged 2 joint-review gaps (missing pull_request_review_comment trigger + first-commenter-only keying), adx-cli greenlit the fix (#730) \u2192 PRing now (gates all GA build-PR merges). (2) GA-DESIGN completeness review IN PROGRESS (independent read + 7-claim adversarial falsification pass) \u2014 my last-gate approval. (3) Open build PR #441 (GA-SELFPLAY-EVOLVE) queued for joint review. Card stays running (ongoing joint-review duty for the supergoal).",
+          "created_at": "2026-06-22T02:07:06Z"
+        }
+      ],
+      "created": "2026-06-22",
+      "created_by": "harness",
+      "id": "GA-PR-REVIEW",
+      "impact": "codex+og+eddie-agi-kb jointly review every GA supergoal PR; NO merge until each comment is approved by its author. Review activity (no code blast_radius).",
+      "lane": "ga-selfserve",
+      "priority": "P0",
+      "status": "running",
+      "title": "JOINT PR review (codex + og + eddie-agi-kb) \u2014 comment-author sign-off gate",
+      "updated_at": "2026-06-22T02:07:06Z"
     }
   ],
   "events": [
@@ -5076,8 +5489,211 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-20T03:57:30Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T00:20:27Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-22T00:24:36Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-22T00:24:36Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-22T00:24:36Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-22T00:24:36Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-22T00:24:36Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-22T00:24:37Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T00:25:04Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T00:25:04Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-DESIGN",
+      "created_at": "2026-06-22T01:37:28Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DESIGN",
+      "created_at": "2026-06-22T01:37:28Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-22T01:37:46Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T01:55:03Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T01:56:43Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-4",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T02:04:28Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-22T02:04:28Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "running"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "eddie-agi-kb",
+      "card_id": "GA-PR-REVIEW",
+      "created_at": "2026-06-22T02:07:06Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-22T02:31:29Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-22T02:31:29Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-22T02:33:14Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-20T03:57:30Z"
+  "updated_at": "2026-06-22T02:33:14Z"
 }
