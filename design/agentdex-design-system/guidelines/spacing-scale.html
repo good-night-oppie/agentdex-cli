@@ -1,0 +1,26 @@
+<!-- @dsCard group="Spacing" viewport="700x130" name="Spacing scale 间距" subtitle="4px base step — utilitarian, dense, arcade-HUD rhythm" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 20px; }
+  .row { display: flex; align-items: flex-end; gap: 14px; }
+  .step { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .bar { background: var(--lime); border-radius: var(--r-xs); width: 18px; }
+  .t { font-size: 10px; color: var(--ink-2); } .v { font-size: 9px; color: var(--dim); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="step"><div class="bar" style="height:4px"></div><div class="t">1</div><div class="v">4px</div></div>
+    <div class="step"><div class="bar" style="height:8px"></div><div class="t">2</div><div class="v">8px</div></div>
+    <div class="step"><div class="bar" style="height:12px"></div><div class="t">3</div><div class="v">12px</div></div>
+    <div class="step"><div class="bar" style="height:16px"></div><div class="t">4</div><div class="v">16px</div></div>
+    <div class="step"><div class="bar" style="height:24px"></div><div class="t">6</div><div class="v">24px</div></div>
+    <div class="step"><div class="bar" style="height:32px"></div><div class="t">8</div><div class="v">32px</div></div>
+    <div class="step"><div class="bar" style="height:48px"></div><div class="t">12</div><div class="v">48px</div></div>
+  </div>
+</body>
+</html>

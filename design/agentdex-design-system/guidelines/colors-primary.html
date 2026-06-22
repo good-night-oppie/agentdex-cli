@@ -1,0 +1,27 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Signal accents 信号色" subtitle="The energetic triad + live/system signals — constant across both themes" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 20px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw { width: 96px; display: flex; flex-direction: column; gap: 6px; }
+  .chip { height: 52px; border-radius: var(--r-md); border: 1px solid rgba(255,255,255,.06); }
+  .nm { font-size: 11px; color: var(--ink); }
+  .hx { font-size: 10px; color: var(--mut); }
+  .role { font-size: 9px; color: var(--dim); line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--lime)"></div><div class="nm">lime 莱姆</div><div class="hx">#A6E22E</div><div class="role">primary · active · win-con</div></div>
+    <div class="sw"><div class="chip" style="background:var(--blue)"></div><div class="nm">blue 蓝</div><div class="hx">#4A9EF5</div><div class="role">data · side-A · reasoning</div></div>
+    <div class="sw"><div class="chip" style="background:var(--rust)"></div><div class="nm">rust 锈</div><div class="hx">#C84B2C</div><div class="role">earth · damage · side-B</div></div>
+    <div class="sw"><div class="chip" style="background:var(--gold)"></div><div class="nm">gold 金</div><div class="hx">#F4B731</div><div class="role">winner · Pareto · caution</div></div>
+    <div class="sw"><div class="chip" style="background:var(--live)"></div><div class="nm">live 实况</div><div class="hx">#FF4655</div><div class="role">live ● · fainted · critical</div></div>
+    <div class="sw"><div class="chip" style="background:var(--purple)"></div><div class="nm">purple 紫</div><div class="hx">#9B59B6</div><div class="role">system · meta tag</div></div>
+  </div>
+</body>
+</html>

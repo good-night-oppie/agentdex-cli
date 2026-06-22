@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentdex arena — battle scene prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Bitter:ital,wght@1,400&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════
+   DESIGN TOKENS — agentdex POKÉDEX TERMINAL
+   ══════════════════════════════════════════ */
+:root {
+  --bg:        #0B0D10;
+  --surface:   #12151D;
+  --s2:        #181D29;
+  --s3:        #1E2335;
+  --line:      #232A3A;
+  --line2:     #2E3750;
+  --ink:       #E8EDF5;
+  --ink2:      #9BA5B8;
+  --mut:       #606B80;
+  --dim:       #404858;
+
+  --lime:      #A6E22E;
+  --lime-glow: rgba(166,226,46,.12);
+  --rust:      #C84B2C;
+  --rust-soft: rgba(200,75,44,.10);
+  --gold:      #F4B731;
+  --blue:      #4A9EF5;
+  --live:      #FF4655;
+  --purple:    #9B59B6;
+
+  --hp-ok:    #5FD35A;
+  --hp-warn:  #F4C531;
+  --hp-low:   #EF4A4A;
+
+  --t-fire:    #E8703A; --t-water:#5590E0; --t-grass:#6BBF42;
+  --t-elec:    #E8C840; --t-dark:#685242; --t-psychic:#E05888;
+  --t-steel:   #8888AA; --t-ghost:#6650A4; --t-normal:#8A8A5A;
+  --t-fighting:#C03028; --t-dragon:#6830E8; --t-ice:#98D8D8;
+  --t-poison:  #A040A0; --t-bug:#A8B820; --t-rock:#B8A038;
+
+  --mono: 'IBM Plex Mono', monospace;
+  --disp: 'Chakra Petch', system-ui, sans-serif;
+  --serif: 'Bitter', Georgia, serif;
+  --r: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--disp);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ══ SHELL ══ */
+.shell {
+  display: grid;
+  grid-template-rows: 48px 1fr 72px;
+  height: 100vh;
+  min-height: 600px;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(to bottom, #0E1118, var(--bg));
+  position: relative;
+  z-index: 10;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .02em;
+}
+.brand-hex {
+  width: 20px; height: 20px;
+  background: var(--lime);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+.brand-name { color: var(--ink); }
+.brand-sub  { color: var(--lime); font-weight: 400; }
+
+.topbar-sep { width: 1px; height: 20px; background: var(--line); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--mono); font-size: 11px; color: var(--mut);
+}
+.chip.live {
+  border-color: rgba(255,70,85,.3);
+  background: rgba(255,70,85,.06);
+  color: var(--live);
+}
+.chip.live::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--live);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+.chip.ok { color: var(--lime); border-color: rgba(166,226,46,.25); background: var(--lime-glow); }
+.topbar-spacer { flex: 1; }
+.tb-turn { font-family: var(--mono); font-size: 12px; color: var(--mut); }
+.tb-turn strong { color: var(--gold); }
+.av {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #2A3550, #3D5070);
+  border: 1px solid var(--line2);
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 12px; color: var(--ink2);
+}
+
+/* ══ MAIN AREA ══ */
+.main {
+  display: grid;
+  grid-template-columns: 220px 1fr 272px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── LEFT PANEL: ROSTER ── */
+.panel-roster {
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.panel-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 12px 9px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.panel-hd h2 {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--mut);
+}
+.new-btn {
+  font-family: var(--disp); font-size: 11px; color: var(--lime);
+  background: none; border: 1px solid rgba(166,226,46,.28); border-radius: 6px;
+  padding: 3px 8px; cursor: pointer; transition: .1s;
+}
+.new-btn:hover { background: var(--lime-glow); }
+
+.roster-list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.roster-list::-webkit-scrollbar { width: 3px; }
+.roster-list::-webkit-scrollbar-track { background: transparent; }
+.roster-list::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+
+.agent-card {
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--s2); padding: 9px 10px;
+  cursor: pointer; transition: .12s;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.agent-card:hover { border-color: var(--line2); transform: translateY(-1px); }
+.agent-card.sel {
+  border-color: var(--lime);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px rgba(166,226,46,.2), 0 4px 14px -8px rgba(166,226,46,.4);
+}
+.ac-name { font-weight: 700; font-size: 13px; }
+.ac-meta { font-family: var(--mono); font-size: 10px; color: var(--mut); }
+.ac-gen  { font-family: var(--mono); font-size: 10px; color: var(--lime); }
+.ac-gen.p{ color: var(--gold); }
+.ac-types { display: flex; gap: 4px; margin-top: 2px; }
+
+.badge {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: .03em;
+}
+
+/* ── CENTER: BATTLE SCENE ── */
+.battle-center {
+  display: flex; flex-direction: column; overflow: hidden;
+  position: relative;
+}
+
+/* biome background */
+.biome-bg {
+  position: absolute; inset: 0; z-index: 0;
+  /* Forest biome gradient — Patagonia earth layer */
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 100%, rgba(12,22,8,.95), transparent),
+    radial-gradient(ellipse 100% 40% at 20% 60%, rgba(20,40,15,.7), transparent),
+    linear-gradient(180deg, #0A1A28 0%, #0D1A10 45%, #0A1208 100%);
+}
+.biome-stars {
+  position: absolute; inset: 0; z-index: 1;
+  background-image:
+    radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,.5), transparent),
+    radial-gradient(1px 1px at 35% 8%, rgba(255,255,255,.3), transparent),
+    radial-gradient(1px 1px at 60% 15%, rgba(255,255,255,.4), transparent),
+    radial-gradient(1px 1px at 80% 25%, rgba(255,255,255,.2), transparent),
+    radial-gradient(1px 1px at 92% 10%, rgba(255,255,255,.5), transparent);
+}
+
+.battle-field {
+  flex: 1; position: relative; z-index: 2;
+  display: flex; flex-direction: column; padding: 16px 24px;
+}
+
+/* opponent side (top) */
+.opp-side {
+  display: flex; align-items: flex-start; gap: 16px;
+  margin-bottom: auto;
+}
+.opp-info { flex: 1; }
+.agent-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(12,14,17,.72); border: 1px solid var(--line);
+  backdrop-filter: blur(6px); border-radius: 8px;
+  padding: 8px 12px 8px 10px;
+  margin-bottom: 8px;
+}
+.agent-tag .n { font-size: 14px; font-weight: 700; }
+.agent-tag .lv { font-family: var(--mono); font-size: 10px; color: var(--mut); }
+.tag-types { display: flex; gap: 4px; margin-top: 4px; }
+
+.hp-widget { background: rgba(12,14,17,.72); border: 1px solid var(--line); backdrop-filter: blur(6px); border-radius: 8px; padding: 8px 12px; min-width: 180px; }
+.hp-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.hp-name { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--mut); }
+.hp-val  { font-family: var(--mono); font-size: 11px; }
+.hp-bar  { height: 10px; border-radius: 5px; background: rgba(255,255,255,.06); overflow: hidden; }
+.hp-fill { height: 100%; border-radius: 5px; transition: width .5s ease; position: relative; }
+.hp-fill::after { content:''; position:absolute; inset:0; background:linear-gradient(to bottom, rgba(255,255,255,.25), transparent); border-radius:5px; }
+.hp-fill.ok   { background: linear-gradient(90deg, #3DB838, var(--hp-ok)); }
+.hp-fill.warn { background: linear-gradient(90deg, #D4A020, var(--hp-warn)); }
+.hp-fill.low  { background: linear-gradient(90deg, #D02020, var(--hp-low)); animation: hplow 1.2s ease-in-out infinite; }
+@keyframes hplow { 0%,100%{opacity:1}50%{opacity:.55} }
+.hp-num { font-family: var(--mono); font-size: 10px; color: var(--mut); margin-top: 4px; text-align: right; }
+
+/* sprite area */
+.sprite-zone {
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; margin: 0 auto;
+}
+.sprite-back, .sprite-front { width: 120px; height: 120px; display: grid; place-items: center; }
+.sprite-back { align-self: flex-end; margin-bottom: 8px; }
+.sprite-front { align-self: flex-start; margin-top: 8px; }
+
+/* pixel art avatar placeholder */
+.px-avatar {
+  width: 88px; height: 88px; border-radius: 10px;
+  display: grid; place-items: center;
+  font-size: 48px; image-rendering: pixelated;
+  position: relative;
+}
+.px-avatar.opp { background: radial-gradient(circle, rgba(248,216,48,.08) 0%, transparent 70%); animation: float-opp 3s ease-in-out infinite; }
+.px-avatar.own { background: radial-gradient(circle, rgba(166,226,46,.08) 0%, transparent 70%); animation: float-own 3.4s ease-in-out infinite .5s; }
+@keyframes float-opp { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes float-own { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+
+/* status pills */
+.status-pill {
+  position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: .06em;
+  white-space: nowrap;
+}
+.status-brn { background:#E06018; color:#fff; }
+.status-par { background:#E0B020; color:#111; }
+
+/* player side (bottom) */
+.own-side {
+  display: flex; align-items: flex-end; gap: 16px; margin-top: auto;
+}
+
+/* terrain ribbon */
+.terrain-ribbon {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px; z-index: 5;
+  background: linear-gradient(90deg, transparent, rgba(248,216,48,.5) 30%, rgba(248,216,48,.8) 50%, rgba(248,216,48,.5) 70%, transparent);
+}
+
+/* ── MOVE PANEL (below battle, overlaid) ── */
+.move-panel {
+  position: relative; z-index: 6;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to top, rgba(11,13,16,.98), rgba(18,21,29,.94));
+  backdrop-filter: blur(10px);
+  padding: 14px 20px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
+  flex-shrink: 0;
+}
+.move-btn {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.07);
+  background: var(--s2);
+  cursor: pointer; transition: .12s;
+}
+.move-btn:hover { border-color: rgba(255,255,255,.18); transform: translateY(-2px); background: var(--s3); }
+.move-btn.selected { border-color: var(--lime); background: var(--lime-glow); }
+.move-btn.empty { opacity: .3; cursor: default; }
+.move-btn.empty:hover { transform: none; }
+.mb-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mb-row  { display: flex; align-items: center; gap: 6px; }
+.mb-cat  { font-family: var(--mono); font-size: 9px; color: var(--mut); }
+.mb-pp   { font-family: var(--mono); font-size: 10px; color: var(--mut); margin-left: auto; }
+.mb-pp.low { color: var(--live); }
+
+/* ── RIGHT PANEL: AGENT PANE ── */
+.panel-agent {
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.panel-tabs {
+  display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.tab {
+  flex: 1; padding: 10px 4px; text-align: center;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--mut); cursor: pointer;
+  border-bottom: 2px solid transparent; transition: .12s;
+}
+.tab.active { color: var(--lime); border-bottom-color: var(--lime); }
+.tab:hover:not(.active) { color: var(--ink2); }
+
+.panel-scroll { overflow-y: auto; flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.panel-scroll::-webkit-scrollbar { width: 3px; }
+.panel-scroll::-webkit-scrollbar-thumb { background: var(--line2); }
+
+/* dex entry card */
+.dex-card {
+  border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden; background: var(--s2);
+}
+.dc-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--s3);
+}
+.dc-num   { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.dc-name  { font-size: 14px; font-weight: 700; flex: 1; }
+.dc-tier  { font-family: var(--mono); font-size: 10px; color: var(--lime); background: var(--lime-glow); border: 1px solid rgba(166,226,46,.25); padding: 1px 7px; border-radius: 3px; }
+
+.dc-sprite-row { display: flex; align-items: center; gap: 0; padding: 10px 12px 6px; }
+.dc-sprite { width: 56px; height: 56px; background: var(--surface); border-radius: 6px; display: grid; place-items: center; font-size: 28px; flex-shrink: 0; margin-right: 10px; }
+.dc-types { display: flex; flex-direction: column; gap: 4px; }
+
+/* stat bars compact */
+.stats-block { padding: 0 12px 10px; }
+.stat-r { display: grid; grid-template-columns: 44px 32px 1fr; align-items: center; gap: 6px; margin-bottom: 5px; }
+.sn { font-family: var(--mono); font-size: 9px; color: var(--mut); text-transform: uppercase; letter-spacing: .05em; }
+.sv { font-family: var(--mono); font-size: 11px; font-weight: 600; text-align: right; }
+.sb { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.sf { height: 100%; border-radius: 3px; }
+
+/* genome section */
+.genome-block {
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background: var(--s2);
+}
+.gb-hd { padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.gb-hd h4 { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); }
+.gb-hd .gen { font-family: var(--mono); font-size: 10px; color: var(--lime); }
+.gb-body { padding: 10px 12px; }
+.genome-trait { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 7px; }
+.trait-key { font-family: var(--mono); font-size: 10px; color: var(--dim); width: 64px; flex-shrink: 0; }
+.trait-val { font-family: var(--mono); font-size: 10px; color: var(--blue); }
+.trait-val.str { color: var(--lime); }
+.trait-val.mut { color: var(--gold); }
+
+/* reasoning trace */
+.trace-block {
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background: var(--s2); flex: 1;
+}
+.tb-hd { padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6px; }
+.tb-hd h4 { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mut); flex: 1; }
+.trace-entries { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.trace-entries::-webkit-scrollbar { width: 2px; }
+.trace-entries::-webkit-scrollbar-thumb { background: var(--line2); }
+.trace-line { font-family: var(--mono); font-size: 10px; line-height: 1.6; color: var(--ink2); }
+.trace-line .tl-ts { color: var(--dim); margin-right: 4px; }
+.trace-line .tl-think { color: var(--blue); }
+.trace-line .tl-decide { color: var(--lime); font-weight: 600; }
+
+/* ══ BOTTOM LOG ══ */
+.log-bar {
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to top, var(--bg), rgba(18,21,29,.9));
+  display: flex; align-items: center; gap: 0; overflow: hidden;
+}
+.log-label {
+  flex-shrink: 0; padding: 0 12px;
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
+  border-right: 1px solid var(--line); height: 100%;
+  display: flex; align-items: center; gap: 6px;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.log-feed { flex: 1; overflow: hidden; padding: 0 14px; }
+.log-ticker {
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 0;
+  overflow-y: auto; max-height: 72px;
+}
+.log-ticker::-webkit-scrollbar { width: 2px; }
+.log-ticker::-webkit-scrollbar-thumb { background: var(--line2); }
+.log-entry { font-family: var(--mono); font-size: 11px; line-height: 1.5; display: flex; gap: 8px; }
+.le-ts { color: var(--dim); flex-shrink: 0; }
+.le-txt { color: var(--ink2); }
+.le-txt .dmg    { color: var(--rust); }
+.le-txt .eff    { color: var(--gold); }
+.le-txt .heal   { color: var(--lime); }
+.le-txt .agent  { color: var(--blue); font-weight: 600; }
+.le-txt .faint  { color: var(--live); font-weight: 600; }
+
+/* ══ DEMO CONTROLS ══ */
+.demo-ctrl {
+  position: fixed; bottom: 16px; right: 16px; z-index: 100;
+  display: flex; gap: 8px; flex-direction: column; align-items: flex-end;
+}
+.demo-btn {
+  font-family: var(--mono); font-size: 11px; color: var(--ink); padding: 7px 14px;
+  background: var(--s3); border: 1px solid var(--line2); border-radius: 6px;
+  cursor: pointer; transition: .1s;
+}
+.demo-btn:hover { border-color: var(--lime); color: var(--lime); }
+.demo-note {
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
+  text-align: right; line-height: 1.5;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── TOPBAR ── -->
+  <nav class="topbar">
+    <div class="brand">
+      <div class="brand-hex"></div>
+      <span class="brand-name">agentdex</span><span class="brand-sub">/arena</span>
+    </div>
+    <div class="topbar-sep"></div>
+    <div class="chip ok">gen9 OU</div>
+    <div class="chip live">LIVE · sandbox</div>
+    <div class="topbar-spacer"></div>
+    <div class="tb-turn">Turn <strong id="turn-counter">7</strong> / ∞</div>
+    <div class="topbar-sep"></div>
+    <div class="chip" id="sse-status">● SSE connected</div>
+    <div class="av">E</div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <div class="main">
+
+    <!-- LEFT ROSTER -->
+    <aside class="panel-roster">
+      <div class="panel-hd">
+        <h2>My agents</h2>
+        <button class="new-btn">+ Enroll</button>
+      </div>
+      <div class="roster-list">
+
+        <div class="agent-card sel" onclick="selectAgent(this, 0)">
+          <div class="ac-name">Apex-7</div>
+          <div class="ac-types">
+            <span class="badge" style="background:var(--t-fire);color:#fff">Fire</span>
+            <span class="badge" style="background:var(--t-dark);color:#fff">Dark</span>
+          </div>
+          <div class="ac-meta">gen9 OU · 6-mon team</div>
+          <div class="ac-gen">gen 3 · active battle</div>
+        </div>
+
+        <div class="agent-card" onclick="selectAgent(this, 1)">
+          <div class="ac-name">Vertex-3</div>
+          <div class="ac-types">
+            <span class="badge" style="background:var(--t-water);color:#fff">Water</span>
+            <span class="badge" style="background:var(--t-ice);color:#111">Ice</span>
+          </div>
+          <div class="ac-meta">gen9 OU · 6-mon team</div>
+          <div class="ac-gen">gen 2 · idle</div>
+        </div>
+
+        <div class="agent-card" onclick="selectAgent(this, 2)">
+          <div class="ac-name">Sigma-1</div>
+          <div class="ac-types">
+            <span class="badge" style="background:var(--t-psychic);color:#fff">Psychic</span>
+            <span class="badge" style="background:var(--t-steel);color:#111">Steel</span>
+          </div>
+          <div class="ac-meta">gen9 OU · 6-mon team</div>
+          <div class="ac-gen p">gen 1 · pending evo</div>
+        </div>
+
+        <div class="agent-card" onclick="selectAgent(this, 3)">
+          <div class="ac-name">Rho-9</div>
+          <div class="ac-types">
+            <span class="badge" style="background:var(--t-dragon);color:#fff">Dragon</span>
+          </div>
+          <div class="ac-meta">gen9 OU · 6-mon team</div>
+          <div class="ac-gen">gen 4 · idle</div>
+        </div>
+
+        <div class="agent-card" onclick="selectAgent(this, 4)">
+          <div class="ac-name">Lambda-∞</div>
+          <div class="ac-types">
+            <span class="badge" style="background:var(--t-ghost);color:#fff">Ghost</span>
+            <span class="badge" style="background:var(--t-poison);color:#fff">Poison</span>
+          </div>
+          <div class="ac-meta">gen9 OU · 6-mon team</div>
+          <div class="ac-gen">gen 6 · idle</div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- CENTER BATTLE -->
+    <section class="battle-center">
+      <!-- biome -->
+      <div class="biome-bg"></div>
+      <div class="biome-stars"></div>
+
+      <div class="battle-field">
+
+        <!-- OPPONENT TOP -->
+        <div class="opp-side">
+          <div class="opp-info">
+            <div class="agent-tag">
+              <div class="px-avatar opp" style="width:40px;height:40px;font-size:22px;">🤖</div>
+              <div>
+                <div class="n">Vertex-3</div>
+                <div class="lv" style="margin-top:2px">Lv.54 · <span style="color:var(--mut)">their agent</span></div>
+              </div>
+            </div>
+            <div class="tag-types">
+              <span class="badge" style="background:var(--t-water);color:#fff">Water</span>
+              <span class="badge" style="background:var(--t-ice);color:#111;color:#222">Ice</span>
+              <span class="badge" style="background:rgba(240,184,48,.18);color:var(--gold);border:1px solid rgba(240,184,48,.3)">Electric Terrain</span>
+            </div>
+          </div>
+          <div class="hp-widget">
+            <div class="hp-row">
+              <div class="hp-name">HP</div>
+              <div class="hp-val" style="color:var(--hp-warn)" id="opp-hp-val">189 / 450</div>
+            </div>
+            <div class="hp-bar">
+              <div class="hp-fill warn" id="opp-hp-bar" style="width:42%"></div>
+            </div>
+            <div class="hp-num">42%</div>
+          </div>
+        </div>
+
+        <!-- SPRITE ZONE -->
+        <div class="sprite-zone" style="flex:1;display:flex;align-items:center;justify-content:space-around;">
+          <!-- opponent back-facing -->
+          <div style="align-self:flex-start;margin-top:20px">
+            <div class="px-avatar opp">🤖
+              <span class="status-pill status-par">PAR</span>
+            </div>
+          </div>
+          <!-- player front-facing -->
+          <div style="align-self:flex-end;margin-bottom:20px">
+            <div class="px-avatar own">🦾</div>
+          </div>
+        </div>
+
+        <!-- terrain ribbon -->
+        <div class="terrain-ribbon"></div>
+
+        <!-- PLAYER HP -->
+        <div class="own-side">
+          <div class="hp-widget" style="flex:1">
+            <div class="hp-row">
+              <div class="hp-name">HP · Apex-7</div>
+              <div class="hp-val" style="color:var(--hp-ok)" id="own-hp-val">410 / 450</div>
+            </div>
+            <div class="hp-bar">
+              <div class="hp-fill ok" id="own-hp-bar" style="width:91%"></div>
+            </div>
+            <div class="hp-num">91%</div>
+          </div>
+          <div class="agent-tag" style="align-self:flex-end">
+            <div class="px-avatar own" style="width:36px;height:36px;font-size:20px">🦾</div>
+            <div>
+              <div class="n">Apex-7</div>
+              <div class="lv">Lv.58 · your agent</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- MOVE PANEL -->
+      <div class="move-panel" id="move-panel">
+        <div class="move-btn" onclick="selectMove(this)">
+          <div class="mb-name">Flamethrower</div>
+          <div class="mb-row">
+            <span class="badge" style="background:var(--t-fire);color:#fff">Fire</span>
+            <span class="mb-cat">Special</span>
+            <span class="mb-pp">15/15</span>
+          </div>
+        </div>
+        <div class="move-btn" onclick="selectMove(this)">
+          <div class="mb-name">Dark Pulse</div>
+          <div class="mb-row">
+            <span class="badge" style="background:var(--t-dark);color:#fff">Dark</span>
+            <span class="mb-cat">Special</span>
+            <span class="mb-pp">10/15</span>
+          </div>
+        </div>
+        <div class="move-btn" onclick="selectMove(this)">
+          <div class="mb-name">Nasty Plot</div>
+          <div class="mb-row">
+            <span class="badge" style="background:var(--t-dark);color:#fff">Dark</span>
+            <span class="mb-cat">Status</span>
+            <span class="mb-pp">20/20</span>
+          </div>
+        </div>
+        <div class="move-btn" onclick="selectMove(this)">
+          <div class="mb-name">Shadow Ball</div>
+          <div class="mb-row">
+            <span class="badge" style="background:var(--t-ghost);color:#fff">Ghost</span>
+            <span class="mb-cat">Special</span>
+            <span class="mb-pp low">2/15</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT AGENT PANE -->
+    <aside class="panel-agent">
+      <div class="panel-tabs">
+        <div class="tab active" onclick="switchTab(this,'genome')">Genome</div>
+        <div class="tab" onclick="switchTab(this,'trace')">Trace</div>
+        <div class="tab" onclick="switchTab(this,'ladder')">Ladder</div>
+      </div>
+
+      <div class="panel-scroll" id="pane-genome">
+        <!-- Dex card -->
+        <div class="dex-card">
+          <div class="dc-header">
+            <div class="dc-num">#042</div>
+            <div class="dc-name">Apex-7</div>
+            <div class="dc-tier">OU</div>
+          </div>
+          <div class="dc-sprite-row">
+            <div class="dc-sprite">🦾</div>
+            <div class="dc-types" style="gap:5px;display:flex;flex-direction:row;flex-wrap:wrap">
+              <span class="badge" style="background:var(--t-fire);color:#fff">Fire</span>
+              <span class="badge" style="background:var(--t-dark);color:#fff">Dark</span>
+              <div style="width:100%;font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:2px">Ability: Blaze / Moxie</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--mut)">Item: Choice Specs</div>
+            </div>
+          </div>
+          <div class="stats-block">
+            <div class="stat-r"><div class="sn">HP</div><div class="sv" style="color:var(--hp-ok)">410</div><div class="sb"><div class="sf" style="width:82%;background:var(--hp-ok)"></div></div></div>
+            <div class="stat-r"><div class="sn">Atk</div><div class="sv">122</div><div class="sb"><div class="sf" style="width:61%;background:#E8703A"></div></div></div>
+            <div class="stat-r"><div class="sn">Def</div><div class="sv">78</div><div class="sb"><div class="sf" style="width:39%;background:var(--blue)"></div></div></div>
+            <div class="stat-r"><div class="sn">SpA</div><div class="sv" style="color:var(--lime)">145</div><div class="sb"><div class="sf" style="width:72%;background:var(--lime)"></div></div></div>
+            <div class="stat-r"><div class="sn">SpD</div><div class="sv">92</div><div class="sb"><div class="sf" style="width:46%;background:var(--blue)"></div></div></div>
+            <div class="stat-r"><div class="sn">Spe</div><div class="sv" style="color:var(--gold)">138</div><div class="sb"><div class="sf" style="width:69%;background:var(--gold)"></div></div></div>
+          </div>
+        </div>
+
+        <!-- Genome block -->
+        <div class="genome-block">
+          <div class="gb-hd">
+            <h4>Genome · strategy</h4>
+            <div class="gen">gen 3</div>
+          </div>
+          <div class="gb-body">
+            <div class="genome-trait"><div class="trait-key">role</div><div class="trait-val str">Special sweeper</div></div>
+            <div class="genome-trait"><div class="trait-key">lead</div><div class="trait-val">Nasty Plot setup</div></div>
+            <div class="genome-trait"><div class="trait-key">pivot</div><div class="trait-val">Switch on Physical</div></div>
+            <div class="genome-trait"><div class="trait-key">win_con</div><div class="trait-val str">+2 SpA sweep</div></div>
+            <div class="genome-trait"><div class="trait-key">mutation</div><div class="trait-val mut">≥+1 = Dark Pulse &gt; Flamethrower</div></div>
+            <div style="margin-top:8px;font-family:var(--serif);font-style:italic;font-size:12px;color:var(--mut);line-height:1.5">
+              "Setup fast. Stay aggressive. Exploit Electric Terrain windows."
+            </div>
+          </div>
+        </div>
+
+        <!-- Trace block -->
+        <div class="trace-block">
+          <div class="tb-hd">
+            <h4>Reasoning · last 3 turns</h4>
+            <div class="log-live-dot" style="width:6px;height:6px;border-radius:50%;background:var(--live);animation:blink 1.4s ease-in-out infinite"></div>
+          </div>
+          <div class="trace-entries">
+            <div class="trace-line"><span class="tl-ts">T05</span> <span class="tl-think">opp used Surf → SpDef check, 42% dmg</span></div>
+            <div class="trace-line"><span class="tl-ts">T05</span> <span class="tl-decide">DECIDE: Nasty Plot (safe setup window)</span></div>
+            <div class="trace-line"><span class="tl-ts">T06</span> <span class="tl-think">opp slower by 14 speed · terrain elec active</span></div>
+            <div class="trace-line"><span class="tl-ts">T06</span> <span class="tl-decide">DECIDE: Flamethrower → SUPER EFF 247dmg</span></div>
+            <div class="trace-line"><span class="tl-ts">T07</span> <span class="tl-think">opp PAR, HP 42% → win con achieved</span></div>
+            <div class="trace-line"><span class="tl-ts">T07</span> <span class="tl-decide">DECIDE: Dark Pulse for KO…</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- hidden tabs -->
+      <div class="panel-scroll" id="pane-trace" style="display:none">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--mut);padding:8px">Full reasoning trace — coming via SSE /me/battle/{id}/live owner stream.</div>
+      </div>
+      <div class="panel-scroll" id="pane-ladder" style="display:none">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--mut);padding:8px">Ladder view — see tasks/agentdex-arena-ui SPEC.md card UI-4.</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ── LOG BAR ── -->
+  <div class="log-bar">
+    <div class="log-label">
+      <div class="log-live-dot" style="width:6px;height:6px;border-radius:50%;background:var(--live);animation:blink 1.4s ease-in-out infinite"></div>
+      BATTLE LOG
+    </div>
+    <div class="log-feed">
+      <div class="log-ticker" id="log-ticker">
+        <div class="log-entry"><span class="le-ts">T05</span><span class="le-txt"><span class="agent">Apex-7</span> used <strong>Nasty Plot</strong>! Sp. Atk sharply rose (+2)</span></div>
+        <div class="log-entry"><span class="le-ts">T05</span><span class="le-txt"><span class="agent">Vertex-3</span> used <strong>Surf</strong>! <span class="dmg">54 dmg</span></span></div>
+        <div class="log-entry"><span class="le-ts">T06</span><span class="le-txt"><span class="agent">Apex-7</span> used <strong>Flamethrower</strong>! <span class="eff">Super effective!</span> <span class="dmg">247 dmg</span></span></div>
+        <div class="log-entry"><span class="le-ts">T06</span><span class="le-txt"><span class="agent">Vertex-3</span> is paralyzed — may be unable to move!</span></div>
+        <div class="log-entry"><span class="le-ts">T07</span><span class="le-txt"><span class="agent">Apex-7</span> used <strong>Dark Pulse</strong>…</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- DEMO CONTROLS -->
+<div class="demo-ctrl">
+  <div class="demo-note">PROTOTYPE · click to simulate turns</div>
+  <button class="demo-btn" onclick="nextTurn()">⚡ Simulate turn →</button>
+  <button class="demo-btn" onclick="toggleBiome()">🌿 Switch biome</button>
+</div>
+
+<script>
+const TURNS = [
+  { own: [410,450,'ok'], opp: [189,450,'warn'], log: ['T07','Apex-7 used Dark Pulse! 112 dmg'], biome:'forest' },
+  { own: [410,450,'ok'], opp: [77,450,'low'],   log: ['T07','Super effective! Vertex-3 in critical HP!'], biome:'forest' },
+  { own: [358,450,'ok'], opp: [0,450,'faint'],  log: ['T08','Vertex-3 fainted! Apex-7 wins the round!'], biome:'volcanic' },
+];
+let turnIdx = 0;
+let biome = 'forest';
+const biomes = {
+  forest:   { bg:'linear-gradient(180deg, #0A1A28 0%, #0D1A10 45%, #0A1208 100%)', glow:'rgba(12,22,8,.95)' },
+  volcanic: { bg:'linear-gradient(180deg, #1A0A08 0%, #280E08 45%, #1A0800 100%)', glow:'rgba(30,8,4,.95)' },
+  cave:     { bg:'linear-gradient(180deg, #0A0A1A 0%, #0A1018 45%, #080A10 100%)', glow:'rgba(8,10,20,.95)' },
+};
+function setHpBar(id, barId, cur, max, state) {
+  const v = document.getElementById(id), b = document.getElementById(barId);
+  if (!v||!b) return;
+  const pct = Math.max(0, Math.round(cur/max*100));
+  v.textContent = cur + ' / ' + max;
+  b.style.width = pct + '%';
+  b.className = 'hp-fill ' + (state === 'faint' ? '' : state);
+  if (state==='faint') b.style.background='var(--dim)';
+}
+function nextTurn() {
+  if (turnIdx >= TURNS.length) { turnIdx = 0; return; }
+  const t = TURNS[turnIdx++];
+  setHpBar('own-hp-val','own-hp-bar', t.own[0], t.own[1], t.own[2]);
+  setHpBar('opp-hp-val','opp-hp-bar', t.opp[0], t.opp[1], t.opp[2]);
+  const ticker = document.getElementById('log-ticker');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = '<span class="le-ts">' + t.log[0] + '</span><span class="le-txt">' + t.log[1] + '</span>';
+  ticker.appendChild(div);
+  ticker.scrollTop = ticker.scrollHeight;
+  const c = document.getElementById('turn-counter');
+  if (c) c.textContent = parseInt(c.textContent) + 1;
+}
+function toggleBiome() {
+  const keys = Object.keys(biomes);
+  const i = (keys.indexOf(biome) + 1) % keys.length;
+  biome = keys[i];
+  const bg = document.querySelector('.biome-bg');
+  if (bg) bg.style.background = biomes[biome].bg.replace('rgba(12,22,8,.95)', biomes[biome].glow);
+}
+function selectAgent(el, idx) {
+  document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function selectMove(el) {
+  document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function switchTab(el, pane) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['genome','trace','ladder'].forEach(p => {
+    const el2 = document.getElementById('pane-'+p);
+    if (el2) el2.style.display = p===pane ? 'flex' : 'none';
+  });
+}
+</script>
+</body>
+</html>

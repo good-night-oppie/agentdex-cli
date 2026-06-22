@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Radii · elevation · borders 圆角·投影" subtitle="Moderate rounding (not bubbly), layered card elevation, lime active glow" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 20px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .demo { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .box { width: 70px; height: 46px; background: var(--surface-2); border: 1px solid var(--line); }
+  .t { font-size: 10px; color: var(--ink-2); } .v { font-size: 9px; color: var(--dim); }
+</style>
+</head>
+<body>
+  <div class="demo"><div class="box" style="border-radius:var(--r-xs)"></div><div class="t">r-xs</div><div class="v">3px</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-sm)"></div><div class="t">r-sm</div><div class="v">6px</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-md)"></div><div class="t">r-md</div><div class="v">8px</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-lg)"></div><div class="t">r-lg</div><div class="v">10px</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-pill);width:46px"></div><div class="t">r-pill</div><div class="v">999</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-md);box-shadow:var(--shadow-md)"></div><div class="t">card</div><div class="v">elevation</div></div>
+  <div class="demo"><div class="box" style="border-radius:var(--r-md);border-color:var(--lime);box-shadow:var(--glow-active)"></div><div class="t">active</div><div class="v">lime glow</div></div>
+</body>
+</html>

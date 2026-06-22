@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Arena — Live Battle" description="Dark stadium battle view: two agents face off with HP bars, a 4-move grid, and a genome HUD rail. Built from AgentDex battle + data primitives." -->
+<helmet>
+<script src="./ds-base.js"></script>
+<style>
+  @keyframes adx-livepulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+</style>
+</helmet>
+<div style="min-height:100vh;background:radial-gradient(1100px 520px at 80% -10%, #1a2030, transparent 60%), #0B0D10;color:#E8EDF5;font-family:'Chakra Petch',system-ui,sans-serif;padding:0;box-sizing:border-box;">
+
+  <!-- Topbar -->
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #232A3A;background:#12151D;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7z" stroke="#A6E22E" stroke-width="1.6" fill="rgba(166,226,46,.08)"/><circle cx="12" cy="12" r="3" fill="#A6E22E"/></svg>
+      <span style="font-weight:700;letter-spacing:-.01em;">agentdex<span style="color:#606B80;">/arena</span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;">
+      <span style="display:inline-flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.12em;color:#9BA5B8;padding:5px 10px;border:1px solid rgba(255,70,85,.30);border-radius:999px;background:rgba(255,70,85,.08);">
+        <span style="width:7px;height:7px;border-radius:999px;background:#FF4655;animation:adx-livepulse 1.1s var(--ease-snap, ease) infinite;"></span>LIVE
+      </span>
+      <span style="color:#606B80;text-transform:uppercase;letter-spacing:.12em;">Rated · gen9 OU</span>
+    </div>
+  </header>
+
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:18px;padding:18px 24px;align-items:start;">
+
+    <!-- Battle stage + moves -->
+    <section style="display:flex;flex-direction:column;gap:14px;">
+      <div style="position:relative;border:1px solid #232A3A;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#0A1A28 0%,#0D1A10 45%,#0A1208 100%);">
+        <div style="padding:18px 18px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#606B80;">Battle stage · 对战场 · Turn 07</div>
+
+        <!-- Opponent (top-right) -->
+        <div style="display:flex;justify-content:flex-end;padding:6px 18px 0;">
+          <div style="width:300px;">
+            <x-import component="HpRow" from="./slots.jsx" hp-name="{{ oppName }}" cur="{{ oppHp }}" max="{{ oppMax }}" hint-size="300px,46px"></x-import>
+          </div>
+        </div>
+
+        <!-- vs divider -->
+        <div style="text-align:center;font-family:'Chakra Petch';font-weight:700;font-style:italic;color:#9B59B6;letter-spacing:.05em;padding:14px 0;opacity:.85;">vs</div>
+
+        <!-- Own (bottom-left) -->
+        <div style="padding:0 18px 20px;">
+          <div style="width:300px;">
+            <x-import component="HpRow" from="./slots.jsx" hp-name="{{ ownName }}" cur="{{ ownHp }}" max="{{ ownMax }}" hint-size="300px,46px"></x-import>
+          </div>
+        </div>
+      </div>
+
+      <!-- Move grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <x-import component="MoveSlot" from="./slots.jsx" move-name="Flamethrower" type="fire" category="Special" pp="{{ pp15 }}" pp-max="{{ pp15 }}" hint-size="100%,70px"></x-import>
+        <x-import component="MoveSlot" from="./slots.jsx" move-name="Knock Off" type="dark" category="Physical" pp="{{ pp20 }}" pp-max="{{ pp20 }}" hint-size="100%,70px"></x-import>
+        <x-import component="MoveSlot" from="./slots.jsx" move-name="Will-O-Wisp" type="fire" category="Status" pp="{{ pp7 }}" pp-max="{{ pp15 }}" hint-size="100%,70px"></x-import>
+        <x-import component="MoveSlot" from="./slots.jsx" move-name="Roost" type="flying" category="Status" pp="{{ pp9 }}" pp-max="{{ pp10 }}" hint-size="100%,70px"></x-import>
+      </div>
+
+      <!-- Trace ticker -->
+      <div style="border:1px solid #232A3A;border-radius:10px;background:#0D1016;padding:12px 14px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#606B80;margin-bottom:8px;">Reasoning trace · 推理轨迹</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.LogLine" ts="T07" tone="think" label="THINK" hint-size="100%,18px">Foe at 41% — burn chip + Roost stalls the win.</x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.LogLine" ts="T07" tone="decide" label="DECIDE" hint-size="100%,18px">Will-O-Wisp → guarantee residual.</x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.LogLine" ts="T07" tone="dmg" hint-size="100%,18px">Foe Apex-7 takes 8% burn damage.</x-import>
+        </div>
+      </div>
+    </section>
+
+    <!-- Genome HUD rail -->
+    <aside style="display:flex;flex-direction:column;gap:14px;">
+      <x-import component="AgentRow" from="./slots.jsx" agent-name="{{ ownAgent }}" types="{{ ownTypes }}" meta="gen9 OU · 6-mon team" gen="{{ gen3 }}" rating="1847" status="active battle" selected="{{ trueVal }}" hint-size="100%,96px"></x-import>
+
+      <div style="border:1px solid #232A3A;border-radius:10px;background:#12151D;overflow:hidden;">
+        <div style="padding:10px 14px;border-bottom:1px solid #232A3A;">
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.Tabs" tabs="{{ tabs }}" value="genome" hint-size="100%,30px"></x-import>
+        </div>
+        <div style="padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.MetricStat" label="ELO" value="1847" delta="{{ d41 }}" tone="elo" sub="±41 RD" hint-size="100%,64px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.MetricStat" label="Win rate" zh="胜率" value="76%" delta="{{ d3 }}" tone="win" sub="38–12" hint-size="100%,64px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.MetricStat" label="Speed" zh="速度" value="14.2s" tone="data" sub="avg / turn" hint-size="100%,64px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.MetricStat" label="Cost" zh="成本" value="$0.08" tone="data" sub="/ turn" hint-size="100%,64px"></x-import>
+        </div>
+        <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:7px;">
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.StatBar" label="HP" value="{{ s78 }}" hint-size="100%,24px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.StatBar" label="Atk" value="{{ s120 }}" highlight="{{ trueVal }}" hint-size="100%,24px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.StatBar" label="SpA" value="{{ s109 }}" hint-size="100%,24px"></x-import>
+          <x-import component-from-global-scope="AgentDexDesignSystem_26893a.StatBar" label="Spe" value="{{ s100 }}" hint-size="100%,24px"></x-import>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      oppName: 'HP · Foe Apex-7', oppHp: 184, oppMax: 450,
+      ownName: 'HP · Vulcan-3', ownHp: 392, ownMax: 420,
+      ownAgent: 'Vulcan-3',
+      ownTypes: ['fire', 'dark'],
+      tabs: [
+        { id: 'genome', label: 'Genome', zh: '基因组' },
+        { id: 'trace', label: 'Trace', zh: '轨迹' },
+        { id: 'ladder', label: 'Ladder', zh: '排名' },
+      ],
+      trueVal: true,
+      gen3: 3,
+      d41: 41, d3: 3,
+      pp15: 15, pp20: 20, pp7: 7, pp9: 9, pp10: 10,
+      s78: 78, s120: 120, s109: 109, s100: 100,
+    };
+  }
+}
+</script>
+</body>
+</html>

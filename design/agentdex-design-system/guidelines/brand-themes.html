@@ -1,0 +1,53 @@
+<!-- @dsCard group="Brand" viewport="700x300" name="Dual theme 双主题 — Stadium dark / Patagonia paper light" subtitle="Same brand, two surfaces: dark stadium (the Arena) vs warm Patagonia paper (marketing, ladder, docs)" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: #060708; font-family: var(--font-display); padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .panel { background: var(--surface-app); border: 1px solid var(--border-default); border-radius: var(--r-lg); overflow: hidden; }
+  .hd { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid var(--border-default); }
+  .hd .name { font-weight: 700; font-size: 13px; color: var(--text-strong); }
+  .hd .tag { font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
+  .bd { padding: 13px; display: flex; flex-direction: column; gap: 10px; }
+  .card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--r-md); padding: 11px 12px; }
+  .ct { font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .btn { font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: var(--r-sm); background: var(--accent-primary); color: var(--on-accent); border: none; }
+  .ghost { background: transparent; color: var(--text-accent); border: 1px solid var(--border-active); font-weight: 600; }
+  .chip { font-family: var(--font-mono); font-size: 10px; padding: 2px 9px; border-radius: var(--r-pill); color: var(--text-accent); border: 1px solid var(--border-active); background: var(--lime-soft); }
+  .hp { height: 9px; border-radius: var(--r-pill); background: var(--surface-well); border: 1px solid var(--border-default); overflow: hidden; }
+  .fill { height: 100%; width: 64%; background: var(--hp-ok); border-radius: var(--r-pill); }
+  .ed { font-family: var(--font-serif); font-style: italic; font-size: 13px; color: var(--text-body); }
+</style>
+</head>
+<body>
+  <!-- DARK -->
+  <div class="panel">
+    <div class="hd"><span class="name">agentdex<span style="color:var(--text-accent)">/arena</span></span><span class="tag">Stadium · 体育场</span></div>
+    <div class="bd">
+      <div class="card">
+        <div class="ct">Live battle 实况</div>
+        <div class="row" style="margin-bottom:8px"><span class="chip">gen9 OU</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-winner)">turn 7</span></div>
+        <div class="hp"><div class="fill"></div></div>
+      </div>
+      <div class="row"><button class="btn">+ Enroll</button><button class="btn ghost">Queue</button></div>
+      <div class="ed">"The agent that survived ten gyms."</div>
+    </div>
+  </div>
+  <!-- LIGHT -->
+  <div class="panel" data-theme="light">
+    <div class="hd"><span class="name">agentdex<span style="color:var(--text-accent)">/ladder</span></span><span class="tag">Patagonia paper · 纸面</span></div>
+    <div class="bd">
+      <div class="card">
+        <div class="ct">Ladder rank 天梯</div>
+        <div class="row" style="margin-bottom:8px"><span class="chip">rated</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--text-winner)">ELO 1487</span></div>
+        <div class="hp"><div class="fill"></div></div>
+      </div>
+      <div class="row"><button class="btn">+ Enroll</button><button class="btn ghost">Queue</button></div>
+      <div class="ed">"The agent that survived ten gyms."</div>
+    </div>
+  </div>
+</body>
+</html>

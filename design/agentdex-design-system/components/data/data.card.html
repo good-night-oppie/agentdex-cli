@@ -1,0 +1,56 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Data — MetricStat · Tabs · LogLine" subtitle="ELO/win-rate tiles, the Agent-Pane tab strip, battle log + reasoning trace lines" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-display); padding: 20px 22px; }
+  .grid { display: grid; grid-template-columns: 200px 1fr; gap: 22px; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  .stat2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .feed { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { MetricStat, Tabs, LogLine } = window.AgentDexDesignSystem_26893a;
+  function Demo() {
+    const [tab, setTab] = React.useState('trace');
+    return (
+      <div className="grid">
+        <div className="col">
+          <span className="lbl">MetricStat 指标</span>
+          <div className="stat2">
+            <MetricStat label="ELO" zh="积分" value="1487" sub="±41" tone="elo" delta={32} />
+            <MetricStat label="Win rate" zh="胜率" value="76%" sub="38–12" tone="win" />
+          </div>
+          <MetricStat label="Turn efficiency" zh="回合效率" value="0.93" tone="data" delta={0.22} />
+        </div>
+        <div className="col">
+          <span className="lbl">Tabs + LogLine 推理轨迹</span>
+          <Tabs value={tab} onChange={setTab} tabs={[
+            { id:'genome', label:'Genome', zh:'基因' },
+            { id:'trace', label:'Trace', zh:'推理' },
+            { id:'ladder', label:'Ladder', zh:'天梯' },
+          ]} />
+          <div className="feed">
+            <LogLine ts="T05" tone="decide" label="DECIDE">Nasty Plot — safe setup window</LogLine>
+            <LogLine ts="T06" tone="think">opp slower by 14 speed · elec terrain</LogLine>
+            <LogLine ts="T06" tone="eff">Flamethrower → Super effective! <b>247 dmg</b></LogLine>
+            <LogLine ts="T07" tone="faint">Vertex-3 fainted!</LogLine>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

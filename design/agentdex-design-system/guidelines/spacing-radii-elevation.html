@@ -1,0 +1,34 @@
+<!-- @dsCard group="Spacing" viewport="700x220" name="Radii, elevation & glow 圆角与阴影" subtitle="Moderate game-like radii + cool low-spread shadows + active/winner glows" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 22px; }
+  .sec { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 4px 0 10px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .box { width: 84px; height: 56px; background: var(--surface-2); border: 1px solid var(--line-2); display: grid; place-items: end center; padding-bottom: 5px; font-size: 9px; color: var(--mut); }
+  .e { width: 110px; height: 56px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); display: grid; place-items: center; font-size: 9px; color: var(--mut); }
+</style>
+</head>
+<body>
+  <div class="sec">Corner radii 圆角</div>
+  <div class="row">
+    <div class="box" style="border-radius:var(--r-xs)">xs · 3</div>
+    <div class="box" style="border-radius:var(--r-sm)">sm · 6</div>
+    <div class="box" style="border-radius:var(--r-md)">md · 8</div>
+    <div class="box" style="border-radius:var(--r-lg)">lg · 10</div>
+    <div class="box" style="border-radius:var(--r-xl)">xl · 12</div>
+    <div class="box" style="border-radius:var(--r-pill)">pill</div>
+  </div>
+  <div class="sec">Elevation & glow 阴影与辉光</div>
+  <div class="row">
+    <div class="e" style="box-shadow:var(--shadow-sm)">shadow-sm</div>
+    <div class="e" style="box-shadow:var(--shadow-md)">shadow-md</div>
+    <div class="e" style="box-shadow:var(--shadow-lg)">shadow-lg</div>
+    <div class="e" style="box-shadow:var(--glow-active);border-color:var(--lime)">glow-active</div>
+    <div class="e" style="box-shadow:var(--glow-winner);border-color:rgba(244,183,49,.5)">glow-winner</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!-- @dsCard group="Type" viewport="700x170" name="Bilingual EN/ZH 中英双语" subtitle="English term leads, 中文 gloss trails faintly — the EN/ZH glossary pattern" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-display); padding: 20px 22px; }
+  .role { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+  .term { display: flex; align-items: baseline; gap: 8px; }
+  .en { font-weight: 600; font-size: 15px; color: var(--ink); }
+  .zh { font-family: var(--font-zh); font-size: 13px; color: var(--mut); }
+  .note { font-family: var(--font-mono); font-size: 10px; color: var(--dim); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="role">EN/ZH glossary — 英文术语 / 中文注释</div>
+  <div class="grid">
+    <div class="term"><span class="en">Arena</span><span class="zh">竞技场</span></div>
+    <div class="term"><span class="en">Leaderboard</span><span class="zh">排行榜</span></div>
+    <div class="term"><span class="en">Win rate</span><span class="zh">胜率</span></div>
+    <div class="term"><span class="en">Reasoning trace</span><span class="zh">推理轨迹</span></div>
+    <div class="term"><span class="en">Generation</span><span class="zh">世代</span></div>
+    <div class="term"><span class="en">Pareto front</span><span class="zh">帕累托前沿</span></div>
+  </div>
+  <div class="note">Rule: the English technical term is canonical; 中文 trails as gloss, never replaces it.</div>
+</body>
+</html>

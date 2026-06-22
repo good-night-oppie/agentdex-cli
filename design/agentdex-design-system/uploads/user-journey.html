@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentdex arena — user journey</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Bitter:ital,wght@1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0B0D10; --s:#12151D; --s2:#181D29; --line:#232A3A; --line2:#2E3750;
+  --ink:#E8EDF5; --ink2:#9BA5B8; --mut:#606B80;
+  --lime:#A6E22E; --rust:#C84B2C; --gold:#F4B731; --blue:#4A9EF5; --live:#FF4655;
+  --mono:'IBM Plex Mono',monospace; --disp:'Chakra Petch',sans-serif; --serif:'Bitter',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--disp);background:var(--bg);color:var(--ink);min-height:100vh;padding:48px 32px 80px;-webkit-font-smoothing:antialiased}
+
+.page-hd{text-align:center;margin-bottom:56px}
+.page-hd h1{font-size:28px;font-weight:700;letter-spacing:.02em}
+.page-hd h1 em{font-style:italic;color:var(--lime);font-family:var(--serif)}
+.page-hd p{font-family:var(--mono);font-size:12px;color:var(--mut);margin-top:8px}
+
+/* ── JOURNEY MAP ── */
+.journey{max-width:1100px;margin:0 auto}
+
+/* phase row */
+.phase{display:grid;grid-template-columns:140px 1fr;gap:0 32px;margin-bottom:48px;align-items:start}
+.phase-label{
+  padding-top:4px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--mut);text-align:right;border-right:2px solid var(--line);padding-right:16px;
+}
+.phase-label strong{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:4px;letter-spacing:.02em}
+
+.phase-body{padding-left:0}
+
+/* nodes row */
+.nodes{display:flex;gap:0;align-items:stretch;position:relative}
+.nodes::before{
+  content:'';position:absolute;top:28px;left:28px;right:28px;height:2px;
+  background:linear-gradient(90deg, var(--line2), var(--lime) 50%, var(--line2));
+  z-index:0;
+}
+
+.node{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;
+  position:relative;z-index:1;
+}
+
+.node-icon{
+  width:56px;height:56px;border-radius:50%;
+  display:grid;place-items:center;
+  border:2px solid var(--line2);
+  background:var(--s2);
+  font-size:22px;
+  flex-shrink:0;
+  transition:.15s;
+  cursor:default;
+}
+.node-icon:hover{border-color:var(--lime);box-shadow:0 0 0 4px rgba(166,226,46,.12)}
+.node-icon.active{border-color:var(--lime);background:rgba(166,226,46,.06)}
+.node-icon.warn{border-color:var(--gold);background:rgba(244,183,49,.06)}
+.node-icon.auth{border-color:var(--blue);background:rgba(74,158,245,.06)}
+.node-icon.live{border-color:var(--live);background:rgba(255,70,85,.06)}
+
+.node-body{text-align:center;max-width:100px}
+.node-name{font-size:11px;font-weight:700;line-height:1.3;margin-bottom:4px}
+.node-sub{font-family:var(--mono);font-size:9px;color:var(--mut);line-height:1.4}
+
+/* emotion track */
+.emotion-row{
+  display:flex;gap:0;align-items:center;
+  margin-top:16px;
+}
+.emotion-cell{flex:1;text-align:center}
+.emotion-dot{
+  display:inline-block;width:12px;height:12px;border-radius:50%;
+  background:var(--lime);margin-bottom:4px;
+}
+.emotion-dot.neutral{background:var(--mut)}
+.emotion-dot.friction{background:var(--gold)}
+.emotion-dot.delight{background:var(--lime);box-shadow:0 0 6px rgba(166,226,46,.5)}
+.emotion-dot.critical{background:var(--live);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.emotion-label{font-family:var(--mono);font-size:9px;color:var(--mut)}
+
+/* opportunity boxes */
+.opps{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.opp-tag{
+  font-family:var(--mono);font-size:10px;
+  padding:4px 10px;border-radius:4px;
+  display:flex;align-items:center;gap:5px;
+  border:1px solid;
+}
+.opp-tag.ui{border-color:rgba(74,158,245,.3);color:var(--blue);background:rgba(74,158,245,.06)}
+.opp-tag.ux{border-color:rgba(166,226,46,.3);color:var(--lime);background:rgba(166,226,46,.06)}
+.opp-tag.fix{border-color:rgba(244,183,49,.3);color:var(--gold);background:rgba(244,183,49,.06)}
+.opp-tag.risk{border-color:rgba(255,70,85,.3);color:var(--live);background:rgba(255,70,85,.06)}
+
+/* divider */
+.phase-divider{
+  max-width:1100px;margin:0 auto 40px;
+  border:0;border-top:1px dashed var(--line2);
+}
+
+/* quote block */
+.quote{
+  max-width:1100px;margin:0 auto 56px;
+  padding:16px 24px;
+  border-left:3px solid var(--lime);
+  background:rgba(166,226,46,.04);
+  border-radius:0 8px 8px 0;
+}
+.quote p{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--ink2);line-height:1.7}
+.quote cite{display:block;margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--mut)}
+
+/* legend */
+.legend{max-width:1100px;margin:48px auto 0;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--mut)}
+.leg-dot{width:10px;height:10px;border-radius:50%}
+</style>
+</head>
+<body>
+
+<div class="page-hd">
+  <h1>agentdex arena · <em>User Journey</em></h1>
+  <p>visitor → spectator → enrolled trainer → live battle owner — POKÉDEX TERMINAL design direction</p>
+</div>
+
+<div class="journey">
+
+  <!-- ── PHASE 1: DISCOVERY ── -->
+  <div class="phase">
+    <div class="phase-label">
+      <strong>Phase 1</strong>
+      Discovery &<br>first impression
+    </div>
+    <div class="phase-body">
+      <div class="nodes">
+        <div class="node">
+          <div class="node-icon">🌐</div>
+          <div class="node-body">
+            <div class="node-name">Landing /</div>
+            <div class="node-sub">Warm charcoal hero · enrollment CTA · "Watch live" nav</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon warn">🎮</div>
+          <div class="node-body">
+            <div class="node-name">Watch Live nav</div>
+            <div class="node-sub">Missing today! → UI-2 gap. Must be in header</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">⚡</div>
+          <div class="node-body">
+            <div class="node-name">/dashboard/</div>
+            <div class="node-sub">Fixture demo autoplays — no auth needed</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">🔴</div>
+          <div class="node-body">
+            <div class="node-name">Battle scene live</div>
+            <div class="node-sub">HP bars animate, type badges pulse, log scrolls</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="emotion-row">
+        <div class="emotion-cell"><div class="emotion-dot neutral"></div><div class="emotion-label">neutral</div></div>
+        <div class="emotion-cell"><div class="emotion-dot friction"></div><div class="emotion-label">friction: no nav link</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">delight</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">delight</div></div>
+      </div>
+
+      <div class="opps">
+        <div class="opp-tag fix">UI-2 · Add "Watch live" → /dashboard/ link</div>
+        <div class="opp-tag ui">Auto-select fixture battle_id on load (no blank state)</div>
+        <div class="opp-tag ux">Demo badge: "🎭 Demo · your agent could be here"</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="phase-divider">
+
+  <!-- ── PHASE 2: SPECTATOR ── -->
+  <div class="phase">
+    <div class="phase-label">
+      <strong>Phase 2</strong>
+      Spectator mode<br>(no auth)
+    </div>
+    <div class="phase-body">
+      <div class="nodes">
+        <div class="node">
+          <div class="node-icon active">👁</div>
+          <div class="node-body">
+            <div class="node-name">Public SSE</div>
+            <div class="node-sub">/battle/{id}/live redacted fog-of-war</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">🧬</div>
+          <div class="node-body">
+            <div class="node-name">Dex entry HUD</div>
+            <div class="node-sub">Stats · types · moveset visible for both agents</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">📜</div>
+          <div class="node-body">
+            <div class="node-name">Battle log</div>
+            <div class="node-sub">Turn ticker · damage numbers · super-eff! calls</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon warn">🔒</div>
+          <div class="node-body">
+            <div class="node-name">Reasoning locked</div>
+            <div class="node-sub">Agent pane shows "enroll to see trace"</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="emotion-row">
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">engaged</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">informed</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">entertained</div></div>
+        <div class="emotion-cell"><div class="emotion-dot friction"></div><div class="emotion-label">curiosity hook</div></div>
+      </div>
+
+      <div class="opps">
+        <div class="opp-tag ux">Fog-of-war trace teaser: blurred reasoning lines → "enroll to unlock"</div>
+        <div class="opp-tag ui">Replay scrubber always visible (no auth required for ended battles)</div>
+        <div class="opp-tag fix">UI-5 · server-side scene snapshot so foggy frames still render correctly</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="phase-divider">
+
+  <!-- ── PHASE 3: AUTH ── -->
+  <div class="phase">
+    <div class="phase-label">
+      <strong>Phase 3</strong>
+      Auth &<br>enrollment
+    </div>
+    <div class="phase-body">
+      <div class="nodes">
+        <div class="node">
+          <div class="node-icon auth">🔑</div>
+          <div class="node-body">
+            <div class="node-name">In-page login</div>
+            <div class="node-sub">/auth/device/start → browser tab → /poll → session</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon warn">⚠</div>
+          <div class="node-body">
+            <div class="node-name">503 today</div>
+            <div class="node-sub">ARENA_SESSION_SIGNING_KEY_HEX missing on prod</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon auth">🤖</div>
+          <div class="node-body">
+            <div class="node-name">Enroll agent</div>
+            <div class="node-sub">POST /me/agents · genome JSON · strategy fields</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon auth">📋</div>
+          <div class="node-body">
+            <div class="node-name">Roster</div>
+            <div class="node-sub">GET /me/agents · Gen · tier badge · active battle</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="emotion-row">
+        <div class="emotion-cell"><div class="emotion-dot neutral"></div><div class="emotion-label">expected</div></div>
+        <div class="emotion-cell"><div class="emotion-dot critical"></div><div class="emotion-label">BLOCKER</div></div>
+        <div class="emotion-cell"><div class="emotion-dot friction"></div><div class="emotion-label">effort</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">ownership</div></div>
+      </div>
+
+      <div class="opps">
+        <div class="opp-tag risk">UI-3 · Fix 503: set ARENA_SESSION_SIGNING_KEY_HEX + OAuth config on prod</div>
+        <div class="opp-tag ux">In-page modal (don't navigate away) — keep battle playing behind auth overlay</div>
+        <div class="opp-tag fix">UI-3 · Playwright e2e: login → roster without page reload</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="phase-divider">
+
+  <!-- ── PHASE 4: LIVE BATTLE ── -->
+  <div class="phase">
+    <div class="phase-label">
+      <strong>Phase 4</strong>
+      Live battle<br>(owner view)
+    </div>
+    <div class="phase-body">
+      <div class="nodes">
+        <div class="node">
+          <div class="node-icon active">⚔</div>
+          <div class="node-body">
+            <div class="node-name">Pick active agent</div>
+            <div class="node-sub">Roster card shows live_battle_id badge</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon live">🔴</div>
+          <div class="node-body">
+            <div class="node-name">Owner SSE</div>
+            <div class="node-sub">/me/battle/{id}/live fog-of-war lifted · full trace</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon live">🧠</div>
+          <div class="node-body">
+            <div class="node-name">Reasoning trace</div>
+            <div class="node-sub">Agent pane streams move thoughts in real-time</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">🏁</div>
+          <div class="node-body">
+            <div class="node-name">event:end</div>
+            <div class="node-sub">Replay scrubber · evolution delta · ELO change</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="emotion-row">
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">anticipation</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">excitement</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">insight</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">closure</div></div>
+      </div>
+
+      <div class="opps">
+        <div class="opp-tag fix">UI-6 · Wire reasoning trace → Agent Pane (move scratchpad source)</div>
+        <div class="opp-tag ui">Turn flash animation on battle-scene when SSE frame arrives</div>
+        <div class="opp-tag ux">Post-battle: "Your agent mutated: +SpA on Flamethrower KO" evolution delta card</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="phase-divider">
+
+  <!-- ── PHASE 5: LADDER + EVOLUTION ── -->
+  <div class="phase">
+    <div class="phase-label">
+      <strong>Phase 5</strong>
+      Progression &<br>mastery loop
+    </div>
+    <div class="phase-body">
+      <div class="nodes">
+        <div class="node">
+          <div class="node-icon active">🧬</div>
+          <div class="node-body">
+            <div class="node-name">Evolution panel</div>
+            <div class="node-sub">/me/agents/{id}/evolution · genome diff across gens</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon warn">❓</div>
+          <div class="node-body">
+            <div class="node-name">Route gap</div>
+            <div class="node-sub">app.js references wrong path today → UI-4 fix</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">🏆</div>
+          <div class="node-body">
+            <div class="node-name">Ladder</div>
+            <div class="node-sub">ELO rank · win/loss ratio · matchup history</div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-icon active">⚡</div>
+          <div class="node-body">
+            <div class="node-name">Queue next battle</div>
+            <div class="node-sub">Matchmake → new live_battle_id → loop to Phase 4</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="emotion-row">
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">growth</div></div>
+        <div class="emotion-cell"><div class="emotion-dot critical"></div><div class="emotion-label">BLOCKER</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">competition</div></div>
+        <div class="emotion-cell"><div class="emotion-dot delight"></div><div class="emotion-label">compulsion loop</div></div>
+      </div>
+
+      <div class="opps">
+        <div class="opp-tag fix">UI-4 · Reconcile evolution route in app.js</div>
+        <div class="opp-tag ux">Genome diff view: side-by-side gen N vs gen N-1 stat bars</div>
+        <div class="opp-tag ui">Ladder badge on roster card updates live after each battle</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- QUOTE -->
+<div class="quote" style="max-width:1100px;margin:48px auto 0">
+  <p>"A visitor opens one URL and watches an AI agent battle live — the battle scene animating turn-by-turn on the left, the agent's genome + reasoning trace streaming in a pane on the right — and can drill into the ladder + their own agents."</p>
+  <cite>— agentdex arena north star · SPEC.md §0 ideal</cite>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot" style="background:var(--lime)"></div> delight / working</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--gold)"></div> friction / gap</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--live)"></div> critical blocker</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--mut)"></div> neutral / expected</div>
+  <div class="leg-item" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--dim);color:var(--mut)">POKÉDEX TERMINAL · 2026-06-20</div>
+</div>
+
+</body>
+</html>

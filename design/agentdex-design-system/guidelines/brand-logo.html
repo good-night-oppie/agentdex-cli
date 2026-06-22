@@ -1,0 +1,36 @@
+<!-- @dsCard group="Brand" viewport="700x180" name="Logo & hex mark 标志" subtitle="The Pokédex hex mark + wordmark — lime on stadium dark, ink on paper light" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: #060708; font-family: var(--font-display); padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .panel { background: var(--surface-app); border: 1px solid var(--border-default); border-radius: var(--r-lg); padding: 22px 20px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+  .lockup { display: flex; align-items: center; gap: 10px; }
+  .hex { width: 26px; height: 26px; color: var(--accent-primary); }
+  .wm { font-weight: 700; font-size: 20px; letter-spacing: .01em; color: var(--text-strong); }
+  .wm span { color: var(--text-accent); font-weight: 400; }
+  .solid { width: 30px; height: 30px; background: var(--accent-primary); clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+  .cap { font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="lockup">
+      <svg class="hex" viewBox="0 0 24 24" fill="none"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" stroke="currentColor" stroke-width="1.6"/><path d="M12 7l4.33 2.5v5L12 17l-4.33-2.5v-5L12 7z" fill="currentColor" opacity=".25"/></svg>
+      <span class="wm">agentdex<span>/arena</span></span>
+    </div>
+    <div class="lockup"><span class="solid"></span><span class="cap">solid mark · favicon · 收藏夹图标</span></div>
+    <span class="cap">stadium dark · 体育场</span>
+  </div>
+  <div class="panel" data-theme="light">
+    <div class="lockup">
+      <svg class="hex" viewBox="0 0 24 24" fill="none"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" stroke="currentColor" stroke-width="1.6"/><path d="M12 7l4.33 2.5v5L12 17l-4.33-2.5v-5L12 7z" fill="currentColor" opacity=".25"/></svg>
+      <span class="wm">agentdex<span>/ladder</span></span>
+    </div>
+    <div class="lockup"><span class="solid"></span><span class="cap">solid mark · favicon · 收藏夹图标</span></div>
+    <span class="cap">patagonia paper · 纸面</span>
+  </div>
+</body>
+</html>
