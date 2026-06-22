@@ -953,10 +953,20 @@ class ArenaGateway:
         self.pending_enrollments[code] = clean
         # the code goes to the OWNER out-of-band — never into this response
         self.notify_owner(clean.owner, code)
-        return {
+        resp: dict[str, Any] = {
             "status": "pending_owner_confirmation",
             "detail": "confirmation code sent to the owner out-of-band",
         }
+        if self._enroll_return_code():
+            # Playtest escape hatch (ARENA_ENROLL_RETURN_CODE=1, OFF by default):
+            # echo the code so a curated self-serve owner with NO out-of-band
+            # channel can still confirm (cf. ENROLLMENT.md). Default-off preserves
+            # the A1 out-of-band invariant for every normal deployment + test.
+            resp["confirmation_code"] = code
+            resp["detail"] = (
+                "confirmation code returned in response (ARENA_ENROLL_RETURN_CODE playtest mode)"
+            )
+        return resp
 
     def enroll_confirm(self, code: str) -> dict[str, Any]:
         # Peek (not pop) first so a rejected confirm does not consume the pending
@@ -1100,6 +1110,17 @@ class ArenaGateway:
         """Whether the beta invite gate is on (``ARENA_INVITE_REQUIRED=1``). Default
         off so every existing enroll flow + test is unaffected (optional-at-boot)."""
         return os.environ.get("ARENA_INVITE_REQUIRED") == "1"
+
+    @staticmethod
+    def _enroll_return_code() -> bool:
+        """Whether the playtest escape hatch is on (``ARENA_ENROLL_RETURN_CODE=1``).
+        Default OFF, preserving the A1 out-of-band invariant: the confirmation code
+        is NOT returned to the requester (it goes to the owner out-of-band). Turn ON
+        only for a curated playtest/dogfood deployment that has no real owner-delivery
+        channel — the code is then echoed in the ``/enroll/request`` response so a
+        self-serve owner can confirm without one (optional-at-boot, like the invite
+        gate)."""
+        return os.environ.get("ARENA_ENROLL_RETURN_CODE") == "1"
 
     def mint_invites(self, count: int, *, actor_hash: str) -> list[str]:
         """Operator-only: mint ``count`` fresh single-use invite codes, returning the
