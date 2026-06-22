@@ -56,12 +56,19 @@ def _ci_signature(secret: str, body: bytes) -> str:
     return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
+# Test fixtures — NOT real secrets; allowlisted for the detect-secrets pre-commit hook.
+_TEST_SECRET = "test-secret-not-a-real-key"  # pragma: allowlist secret
+_FAKE_SHA = (
+    "0123456789abcdef0123456789abcdef01234567"  # git-sha-shaped tag  # pragma: allowlist secret
+)
+
+
 # ---------------------------------------------------------------------------------
 # 1. scheme correctness: the CI signature must verify on the box, and only then
 # ---------------------------------------------------------------------------------
 def test_ci_signature_is_accepted_by_listener() -> None:
-    secret = "test-secret-not-a-real-key"
-    tag = "0123456789abcdef0123456789abcdef01234567"  # git-sha shape
+    secret = _TEST_SECRET
+    tag = _FAKE_SHA
     body = _ci_body(tag)
     sig = _ci_signature(secret, body)
     assert _listener_verify(secret.encode(), body, sig), (
@@ -70,15 +77,15 @@ def test_ci_signature_is_accepted_by_listener() -> None:
 
 
 def test_tampered_body_is_rejected() -> None:
-    secret = "test-secret-not-a-real-key"
+    secret = _TEST_SECRET
     sig = _ci_signature(secret, _ci_body("abc123"))
     assert not _listener_verify(secret.encode(), _ci_body("def456"), sig)
 
 
 def test_wrong_secret_is_rejected() -> None:
     body = _ci_body("abc123")
-    sig = _ci_signature("right-secret", body)
-    assert not _listener_verify(b"wrong-secret", body, sig)
+    sig = _ci_signature(_TEST_SECRET, body)
+    assert not _listener_verify(b"totally-different", body, sig)
 
 
 def test_missing_signature_header_is_rejected() -> None:
@@ -95,7 +102,7 @@ def test_ci_body_is_valid_json_with_expected_tag() -> None:
 
 
 def test_git_sha_tag_is_listener_valid() -> None:
-    assert _listener_tag_ok("0123456789abcdef0123456789abcdef01234567")
+    assert _listener_tag_ok(_FAKE_SHA)
 
 
 def test_branch_slash_tag_is_rejected_by_listener() -> None:
