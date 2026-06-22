@@ -5,13 +5,18 @@ COMMENT AUTHOR signs off, not when someone clicks "Resolve".
 DOCTRINE (Eddie, 2026-06-20). The fleet auto-resolves review threads (GraphQL
 resolveReviewThread) after pushing a fix — which turns "Resolve conversation"
 into a rubber stamp the author never saw. This gate ignores `isResolved`
-entirely and asks one question: did the person who RAISED the comment agree it's
-handled? A thread passes iff its first comment's author has EITHER
+entirely and asks one question: did the people who RAISED the comments agree it's
+handled? A thread passes iff EVERY distinct human commenter in it has EITHER
 
   (a) submitted an APPROVED review after their latest comment in the thread, OR
   (b) added a 👍 / THUMBS_UP reaction after their latest comment in the thread.
 
-So merely resolving a thread does nothing; the reviewer must approve or +1.
+Not just the thread-opener: in a joint review a 2nd reviewer routinely adds a
+distinct concern onto an existing thread; keying only off the first commenter
+would let that 2nd concern be merged over. Each human commenter signs off for
+their own contribution, measured against THEIR OWN latest comment.
+
+So merely resolving a thread does nothing; every commenter must approve or +1.
 
 Scope: HUMAN reviewers only. Bot/app authors (`__typename == "Bot"`, a
 `*[bot]` login, or a known-automation login) and the PR author's own threads are
@@ -166,34 +171,56 @@ def evaluate(data: dict, include_bots: bool = False) -> list[str]:
         comments = t["comments"]["nodes"]
         if not comments:
             continue
-        author = comments[0]["author"] or {}
-        author_login = author.get("login") or ""
-        low = author_login.lower()
-        if not include_bots and is_bot(author):
-            continue
-        if low == pr_author:  # the PR author's own thread — not a review
-            continue
-        author_comment_times = [
-            parse_time(c.get("createdAt")) for c in comments if login(c.get("author")) == low
-        ]
-        last_author_comment_at = max(
-            [event_time for event_time in author_comment_times if event_time is not None],
-            default=None,
-        )
-        thumb_times = [
-            parse_time(rn.get("createdAt"))
-            for c in comments
-            for rn in c["reactions"]["nodes"]
-            if login(rn.get("user")) == low
-        ]
-        if signed_after(
-            approval_times_by_author.get(low, []), last_author_comment_at
-        ) or signed_after(thumb_times, last_author_comment_at):
-            continue
-        unsigned.append(
-            f"thread #{i + 1} by @{author_login}: not signed off "
-            f'(needs a later APPROVED review or a later 👍 from @{author_login}; "Resolve" alone does not count)'
-        )
+        # EVERY distinct human commenter must sign off — not just comments[0] (the
+        # thread-opener). In a joint review a 2nd reviewer adds a distinct concern onto
+        # an existing thread; first-commenter-only keying would let it be merged over.
+        # PR-author and bot comments are excluded. Order-preserving dedupe by login.
+        commenters: list[str] = []
+        seen: set[str] = set()
+        for c in comments:
+            ca = c.get("author") or {}
+            low = login(ca)
+            if not low or low in seen:
+                continue
+            if low == pr_author:  # the PR author's own remarks are not a review
+                continue
+            if not include_bots and is_bot(ca):
+                continue
+            seen.add(low)
+            commenters.append(low)
+        for low in commenters:
+            # display login (original case) for the message
+            display = next(
+                (
+                    (c["author"] or {}).get("login") or low
+                    for c in comments
+                    if login(c.get("author")) == low
+                ),
+                low,
+            )
+            # temporal model: signed off iff approval/👍 POSTDATES this commenter's OWN
+            # latest comment in the thread (per-author last_author_comment_at — kept).
+            author_comment_times = [
+                parse_time(c.get("createdAt")) for c in comments if login(c.get("author")) == low
+            ]
+            last_author_comment_at = max(
+                [event_time for event_time in author_comment_times if event_time is not None],
+                default=None,
+            )
+            thumb_times = [
+                parse_time(rn.get("createdAt"))
+                for c in comments
+                for rn in c["reactions"]["nodes"]
+                if login(rn.get("user")) == low
+            ]
+            if signed_after(
+                approval_times_by_author.get(low, []), last_author_comment_at
+            ) or signed_after(thumb_times, last_author_comment_at):
+                continue
+            unsigned.append(
+                f"thread #{i + 1} by @{display}: not signed off "
+                f'(needs a later APPROVED review or a later 👍 from @{display}; "Resolve" alone does not count)'
+            )
     return unsigned
 
 

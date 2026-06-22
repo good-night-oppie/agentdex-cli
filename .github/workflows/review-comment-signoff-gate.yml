@@ -2,14 +2,18 @@ name: review-comment-signoff-gate
 
 # A review thread turns this gate green ONLY when its comment author signs off
 # (an APPROVED review or a 👍 reaction) — clicking "Resolve" alone does not.
-# Re-runs on review submit/dismiss so an approval flips it green; for a 👍-only
-# sign-off, re-trigger with a push or close+reopen (reactions aren't a CI event).
+# Re-runs on review submit/dismiss AND on a NEW review comment, so a freshly-added
+# concern is re-evaluated immediately (without the trigger, a 2nd reviewer's new
+# comment would sit un-gated until some other event fired). For a 👍-only sign-off,
+# re-trigger with a push or close+reopen (reactions aren't a CI event).
 
 on:
   pull_request:
     branches: [main]
   pull_request_review:
     types: [submitted, dismissed]
+  pull_request_review_comment:
+    types: [created]
 
 permissions:
   contents: read
