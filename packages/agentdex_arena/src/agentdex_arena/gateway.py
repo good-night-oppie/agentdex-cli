@@ -68,7 +68,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -3750,6 +3750,40 @@ def create_app(
             StaticFiles(directory=str(_dashboard_site), html=True),
             name="dashboard",
         )
+
+    # agentdex.builders SELF-SERVE funnel — GET /signup + GET /login page routes
+    # (ADX-Online Track A, GA-AUTH steps 2-3). They serve the GA self-serve screens
+    # (design/ga-selfserve/) which read the design system (design/agentdex-design-
+    # system/); both are served read-only under /ga-assets so the page's relative
+    # asset paths resolve. Mounted only when design/ is bundled into the image
+    # (graceful on local/API-only runs that don't ship it — same posture as
+    # /bene + /dashboard above). Passwordless per ADR-0013: the screens drive the
+    # existing /auth/email/* + /auth/device/* backends; no password field exists.
+    _ga_design = Path("design")
+    _ga_index = _ga_design / "ga-selfserve" / "index.html"
+    if _ga_index.is_file():
+        app.mount("/ga-assets", StaticFiles(directory=str(_ga_design)), name="ga-assets")
+
+        def _ga_page(initial: str) -> HTMLResponse:
+            # Serve the GA self-serve SPA rewritten so (a) its relative assets
+            # resolve to the /ga-assets static mount via <base>, and (b) the client
+            # lands on `initial` (#signup/#login). The SPA is hash-routed, so
+            # setting the hash before its scripts run selects the screen WITHOUT
+            # editing the design files (design/** is the design lead's surface).
+            html = _ga_index.read_text(encoding="utf-8")
+            inject = (
+                '<base href="/ga-assets/ga-selfserve/">'
+                f'<script>if(!location.hash)location.hash="#{initial}";</script>'
+            )
+            return HTMLResponse(html.replace("<head>", "<head>" + inject, 1))
+
+        @app.get("/signup", include_in_schema=False)
+        async def signup_page() -> HTMLResponse:
+            return _ga_page("signup")
+
+        @app.get("/login", include_in_schema=False)
+        async def login_page() -> HTMLResponse:
+            return _ga_page("login")
 
     return app
 
