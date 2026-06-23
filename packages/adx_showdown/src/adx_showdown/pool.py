@@ -21,6 +21,7 @@ raised ``ADX_SIDECAR_MAX_OLD_SPACE_MB`` covers ~100 concurrent.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 from adx_showdown.sidecar import Sidecar, SidecarError
@@ -222,7 +223,18 @@ class SidecarPool:
                 if s.returncode is None:
                     continue  # alive, or never started — leave it
                 fresh = Sidecar(max_battles=self._cap)
-                await fresh.start()  # may raise → pool unchanged, retried next touch
+                try:
+                    await fresh.start()  # may raise → pool unchanged, retried next touch
+                except BaseException:
+                    # Sidecar.start() can spawn the Node child and THEN raise (ready-event
+                    # timeout) without stopping it. Tear the half-started process down so a
+                    # failed respawn doesn't leak a Node child on every /healthz touch (the
+                    # any_dead() flag stays set → reclaim_dead re-runs each touch → OOM
+                    # spiral). Routing state below is untouched, so the pool is unchanged
+                    # and retries next touch — only the orphaned child is reaped.
+                    with contextlib.suppress(Exception):
+                        await fresh.stop()
+                    raise
                 # respawn succeeded: evict the dead member's routes + swap it out
                 self._owner = {b: o for b, o in self._owner.items() if o is not s}
                 self._load.pop(id(s), None)
