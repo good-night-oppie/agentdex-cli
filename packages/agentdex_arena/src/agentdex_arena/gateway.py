@@ -509,6 +509,8 @@ class BattleSession:
     # Mutated only from the asyncio event loop, so the +=/-= are atomic (no await between
     # read and write).
     live_viewers: int = 0
+    # GA-ARENA-MODES PvP: P2's claims_token_id for pvp-choose bearer binding.
+    pvp_p2_claims_token_id: str = ""
 
 
 class EnrollRequest(BaseModel):
@@ -1555,6 +1557,8 @@ class ArenaGateway:
         """battle_begin's team-pack → sidecar-start → durable-append → publish body,
         run while the owner-slot reservation is held (PR #243). Split out so the
         reservation's try/finally wraps every await + the self.sessions publish."""
+        if req.mode == "pvp":
+            raise _opaque_error(400, "pvp battles must use POST /me/battle/queue")
         if req.lane == "rated":
             if req.gym_leader is not None:
                 raise _opaque_error(400, "cannot select gym leader in rated lane")
@@ -1912,6 +1916,7 @@ class ArenaGateway:
                 if not vis_req.wait and legal_choices(vis_req):
                     session.pending = vis_req
                     session.turns = int(state.get("turns", 0))
+                    self.pvp_choice_router.mark_turn_advanced(session.battle_id)
                     return self._render(session, state)
             if not choices:
                 raise _opaque_error(500, f"{session.battle_id}: protocol stall")
@@ -3463,6 +3468,8 @@ def create_app(
     class PvPQueueRequest(BaseModel):
         model_config = ConfigDict(extra="forbid", strict=False)
         token: str
+        battle_nonce: str
+        pop_signature_hex: str
         mode: Literal["pvp"] = "pvp"
         team: str | None = None
 
@@ -3474,9 +3481,16 @@ def create_app(
         a sidecar battle is started.  P1 (first joiner) gets ``role='p1'``
         and drives moves via the standard ``POST /battle/{id}/choose``.  P2
         gets ``role='p2'`` and submits moves via
-        ``POST /battle/{id}/pvp-choose``.  Free tier — no quota spend."""
+        ``POST /battle/{id}/pvp-choose``.  Free tier — no quota spend.
+
+        Proof-of-possession gate (mirrors /battle/begin A1): caller must
+        supply a battle_nonce from POST /battle/start and sign the PoP
+        challenge with their enrolled Ed25519 key."""
         try:
             claims = gateway.authority.verify(req.token, scope="battle")
+            if gateway.battle_nonces.pop(req.battle_nonce, None) != claims.token_id:
+                raise ConsentError("unknown battle nonce")
+            gateway.authority.verify_pop(claims, req.battle_nonce, req.pop_signature_hex)
         except ConsentError as e:
             raise _opaque_error(403, e) from None
 
@@ -3484,6 +3498,9 @@ def create_app(
         try:
             gateway._reserve_owner_slot(owner_norm)
         except HTTPException:
+            # Transient admission failure: restore the nonce so a client
+            # retrying with the same nonce+sig after Retry-After doesn't 403.
+            gateway.battle_nonces[req.battle_nonce] = claims.token_id
             raise
 
         released = [False]
@@ -3494,7 +3511,12 @@ def create_app(
                 gateway._release_owner_slot(owner_norm)
 
         try:
-            pairing = await gateway.pvp_queue.enqueue(owner_norm)
+            pairing = await gateway.pvp_queue.enqueue(
+                owner_norm,
+                agent_name=claims.agent_name,
+                token_id=claims.token_id,
+                team=req.team,
+            )
         except ValueError as e:
             _hand_off()
             raise _opaque_error(409, e) from None
@@ -3509,7 +3531,7 @@ def create_app(
 
             if pairing.role == "p1":
                 # P1 starts the sidecar battle; P2's policy waits for explicit choices.
-                opponent_name = pairing.opponent_owner
+                opponent_name = pairing.opponent_agent_name or pairing.opponent_owner
                 p2_policy = gateway.pvp_choice_router.make_p2_policy(battle_id)
                 team = req.team
                 if team is None:
@@ -3519,7 +3541,14 @@ def create_app(
                     valid, errors = await validate_team(sidecar, team)
                     if not valid:
                         raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
-                opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
+                # Use P2's requested team if provided; otherwise default starter pack.
+                if pairing.p2_team is not None:
+                    opp_team = sanitize_packed_team(pairing.p2_team)
+                    valid, errors = await validate_team(sidecar, opp_team)
+                    if not valid:
+                        opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
+                else:
+                    opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
                 seed = [
                     int.from_bytes(
                         hashlib.blake2b(battle_id.encode(), digest_size=2).digest(), "big"
@@ -3548,6 +3577,8 @@ def create_app(
                     opponent_policy=p2_policy,
                 )
                 session.p1_team, session.p2_team = team, opp_team
+                # Bind P2's token_id for pvp-choose authentication.
+                session.pvp_p2_claims_token_id = pairing.p2_claims_token_id
                 await gateway._append_or_fail_closed(
                     "battle_begin",
                     {
@@ -3572,17 +3603,33 @@ def create_app(
                     **state,
                 }
             else:
-                # P2: the sidecar battle is already started by P1; return queue receipt.
-                # P2 submits moves via POST /battle/{id}/pvp-choose.
-                _hand_off()
-                return {
+                # P2: owner slot is kept until the session is published so P2 counts
+                # against the per-owner concurrency cap for the lifetime of the battle.
+                # Wait (with timeout) for P1 to publish the session before returning,
+                # so P2 isn't racing a session that might not exist yet (TOCTOU).
+                for _ in range(50):  # up to 5 s
+                    if battle_id in gateway.sessions:
+                        break
+                    await asyncio.sleep(0.1)
+                _hand_off()  # release slot after session is confirmed published
+                result: dict = {
                     "battle_id": battle_id,
                     "role": "p2",
-                    "opponent": pairing.opponent_owner,
+                    "opponent": pairing.opponent_agent_name or pairing.opponent_owner,
                     "mode": "pvp",
                     "status": "matched",
                 }
+                return result
         except HTTPException:
+            _hand_off()
+            raise
+        except asyncio.CancelledError:
+            # Client disconnect during sidecar setup / _advance: release PvP resources.
+            if (  # noqa: F821
+                "battle_id" in dir() and battle_id and "pairing" in dir() and pairing.role == "p1"
+            ):
+                gateway.pvp_choice_router.cleanup(battle_id)
+                gateway.pvp_queue.cancel(owner_norm)
             _hand_off()
             raise
         except Exception as e:  # noqa: BLE001
@@ -3611,9 +3658,16 @@ def create_app(
         if session is None:
             raise _opaque_error(403, "no such battle for this token") from None
 
-        # P2 is NOT the session owner; validate they are the named opponent.
-        if sanitize_name(claims.agent_name) != sanitize_name(session.opponent):
+        # Token binding: P2's token_id must match what was stored at queue time.
+        # Falls back to agent_name comparison for sessions started before this fix.
+        if session.pvp_p2_claims_token_id:
+            if claims.token_id != session.pvp_p2_claims_token_id:
+                raise _opaque_error(403, "not the P2 agent for this battle") from None
+        elif sanitize_name(claims.agent_name) != sanitize_name(session.opponent):
             raise _opaque_error(403, "not the P2 agent for this battle") from None
+
+        # Expire stale turns before accepting P2 choices (mirrors /battle/choose).
+        await gateway._expire_if_stale(session, allow_forfeit=True)
 
         if session.ended is not None:
             return {"status": "ended", **session.ended}
@@ -3636,7 +3690,12 @@ def create_app(
                 400, f"choice_index {req.choice_index} out of range (P2 has {len(choices)} choices)"
             )
         choice_str = choices[idx]
-        accepted = gateway.pvp_choice_router.submit_p2_choice(battle_id, choice_str)
+        try:
+            accepted = gateway.pvp_choice_router.submit_p2_choice(battle_id, choice_str)
+        except ValueError:
+            raise _opaque_error(
+                409, "duplicate P2 choice — prior choice not yet consumed"
+            ) from None
         return {"status": "submitted", "choice": choice_str, "accepted": accepted}
 
     @app.get("/battle/{battle_id}/live")

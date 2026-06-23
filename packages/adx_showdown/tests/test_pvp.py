@@ -121,6 +121,34 @@ def test_pvp_pairing_frozen():
         p.role = "p2"  # type: ignore[misc]
 
 
+def test_pvp_pairing_identity_fields_default_empty():
+    p = PvPPairing(battle_id="pvp-abc", role="p1", opponent_owner="bob")
+    assert p.opponent_agent_name == ""
+    assert p.p2_claims_token_id == ""
+    assert p.p2_team is None
+
+
+def test_pvp_queue_carries_identity_through_pairing():
+    """enqueue() with agent_name/token_id/team propagates to opponent's PvPPairing."""
+
+    async def _go():
+        q = PvPQueue()
+        fut_a = asyncio.ensure_future(
+            q.enqueue("alice", agent_name="AgentA", token_id="tokA", team="TeamX")
+        )
+        await asyncio.sleep(0)
+        pairing_b = await q.enqueue("bob", agent_name="AgentB", token_id="tokB", team="TeamY")
+        pairing_a = await fut_a
+        # P1 sees P2's identity (P2 is the opponent)
+        assert pairing_a.opponent_agent_name == "AgentB"
+        assert pairing_a.p2_claims_token_id == "tokB"
+        assert pairing_a.p2_team == "TeamY"
+        # P2 sees P1's agent_name (stored as opponent_agent_name)
+        assert pairing_b.opponent_agent_name == "AgentA"
+
+    _run(_go())
+
+
 # ── PvPChoiceRouter ───────────────────────────────────────────────────────────
 
 
@@ -170,3 +198,29 @@ def test_pvp_choice_router_cleanup():
         assert not router.is_waiting_for_p2("b4")
 
     _run(_clean())
+
+
+def test_pvp_choice_router_duplicate_buffered_raises():
+    """A second submit while a buffered choice is unconsumed raises ValueError."""
+    router = PvPChoiceRouter()
+    router.submit_p2_choice("dup", "move 1")  # buffers
+    with pytest.raises(ValueError, match="duplicate"):
+        router.submit_p2_choice("dup", "move 2")  # duplicate → ValueError
+
+
+def test_pvp_choice_router_rejects_retry_until_gateway_advances_turn():
+    """After policy consumption, HTTP retries are rejected until gateway advances."""
+
+    async def _go():
+        router = PvPChoiceRouter()
+        policy = router.make_p2_policy("seq")
+        router.submit_p2_choice("seq", "move 1")  # buffers
+        result1 = await policy(None)  # consumes buffer; state reset
+        assert result1 == "move 1"
+        with pytest.raises(ValueError, match="duplicate"):
+            router.submit_p2_choice("seq", "move 2")
+        router.mark_turn_advanced("seq")
+        accepted = router.submit_p2_choice("seq", "move 2")
+        assert accepted is False  # buffered again, not a duplicate
+
+    _run(_go())
