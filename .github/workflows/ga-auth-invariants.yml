@@ -5,13 +5,18 @@
 # release.yml (nightly). But day-to-day work lands via PRs to `dev`, which had
 # NO test gate at all — so a regression in the GA-AUTH security invariants
 # (passwordless per ADR-0013, strict-CSP-safe assets, rate-limit fail-closed,
-# anti-enumeration opaque errors, double-submit CSRF, anti-pay-to-rank) would
-# slip silently to the nightly release instead of being caught when it merges.
+# anti-enumeration opaque errors, double-submit CSRF, anti-pay-to-rank,
+# operator-surface-invisible-to-agents) would slip silently to the nightly
+# release instead of being caught when it merges.
 #
-# This job runs ONLY the fast (~4s), deterministic, sidecar-free GA-AUTH
+# This job runs ONLY the fast (~5s), deterministic, sidecar-free GA-AUTH
 # invariant modules on every dev/main PR. Scope is deliberate: a REAL, narrow
 # security gate — not a full-suite green-chase (AGENTS.md §CI-POLICY: merge
 # UNSTABLE on the real gates; don't chase full-green over vendor/aaop drift).
+#
+# NOTE: the module list below is hand-maintained — a new GA-AUTH invariant
+# module is NOT gated until it is added here. Follow-up (tracked): switch to a
+# `-m ga_invariant` pytest marker so the gate is self-maintaining.
 
 name: ga-auth-invariants
 
@@ -20,9 +25,16 @@ on:
     branches: [dev, main]
   workflow_dispatch:
 
+# Only the latest commit per ref needs gating; supersede in-flight runs on
+# push-spam so the shared self-hosted runner is not held by stale commits.
+concurrency:
+  group: ga-auth-invariants-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ga-auth-invariants:
     runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -53,4 +65,8 @@ jobs:
             packages/agentdex_arena/tests/test_admin_auth.py \
             packages/agentdex_arena/tests/test_email_login.py \
             packages/agentdex_arena/tests/test_badge_auth.py \
+            packages/agentdex_arena/tests/test_membership_primitive.py \
+            packages/agentdex_arena/tests/test_device_flow_endpoints.py \
+            packages/agentdex_arena/tests/test_enroll_account.py \
+            packages/agentdex_arena/tests/test_account_quota.py \
             packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py
