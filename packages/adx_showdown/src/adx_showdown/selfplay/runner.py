@@ -43,6 +43,17 @@ from adx_showdown.selfplay.codex_adapter import CODEX_STRATEGIES
 DEFAULT_FORMAT = "gen9randombattle"
 
 
+class RunnerNotReadyForFormat(NotImplementedError):
+    """Format is substrate-valid but the runner/player isn't ready for it yet.
+
+    Distinct from :class:`team_modes.UnsupportedFormat` (substrate-level — unknown
+    or topology-incompatible). Runner-level guard: ``HarnessPlayer.choose_move``
+    is singles-shaped (one ``BattleOrder`` per turn, no per-slot decision) and no
+    team-builder is wired, so a doubles or ``team_required`` battle would silently
+    produce broken matchups. Fail loud here until the deeper increment lands.
+    """
+
+
 def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT) -> str:
     """Resolve the poke-env ``battle_format`` for an arena ``mode`` (team_modes).
 
@@ -56,13 +67,38 @@ def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT
     - ``mode`` set + a non-default ``battle_format`` → that format as an *override*,
       validated topology-compatible with the mode.
 
-    Raises ``team_modes.UnknownMode`` / ``UnsupportedFormat`` on a bad mode or a
-    topology-incompatible override (a team mode can never silently run singles).
+    Raises:
+      - ``team_modes.UnknownMode`` — unknown ``mode``.
+      - ``team_modes.UnsupportedFormat`` — substrate-incompatible override
+        (e.g. a team mode given a singles format → would drop the 2nd agent).
+      - ``RunnerNotReadyForFormat`` — substrate is fine but the runner/player
+        cannot drive the format yet: doubles topology needs a per-slot
+        ``HarnessPlayer.choose_move`` rewrite, and ``team_required`` formats
+        need a team-builder. Both are tracked as the next GA-SELFPLAY-EVOLVE
+        increments. Until they ship, the bridge refuses rather than silently
+        spinning up broken matchups.
     """
     if mode is None:
         return battle_format
     override = battle_format if battle_format != DEFAULT_FORMAT else None
-    return team_modes.resolve_format(mode, override=override).id
+    fmt = team_modes.resolve_format(mode, override=override)
+    if fmt.topology == team_modes.DOUBLES:
+        raise RunnerNotReadyForFormat(
+            f"mode={mode!r} resolves to doubles format {fmt.id!r}, but "
+            "HarnessPlayer.choose_move is singles-shaped (one BattleOrder per "
+            "turn, no per-slot decision). Tracked as the next GA-SELFPLAY-EVOLVE "
+            "increment; raising rather than silently spinning up a broken doubles "
+            "battle."
+        )
+    if fmt.team_required:
+        raise RunnerNotReadyForFormat(
+            f"mode={mode!r} resolves to team-required format {fmt.id!r}, but no "
+            "team-builder is wired into run_selfplay_battle (both players are "
+            "constructed without a team= kwarg). Tracked as a follow-up "
+            "increment; raising rather than silently dropping into Showdown's "
+            "default-team fallback."
+        )
+    return fmt.id
 
 
 _PS_HOST = os.environ.get("ADX_PS_HOST", "127.0.0.1")
