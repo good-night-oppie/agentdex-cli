@@ -103,6 +103,8 @@ OPAQUE_PAYLOAD_TYPES: dict[str, int] = {
     "chat": 1,  # |chat|USER|MESSAGE
     "c": 1,  # |c|USER|MESSAGE
     "c:": 2,  # |c:|TIMESTAMP|USER|MESSAGE
+    REASONING_TYPE: 1,  # |-reasoning|SIDE|TEXT
+    SAY_TYPE: 1,  # |say|SIDE|TEXT
 }
 
 
@@ -568,18 +570,45 @@ def _parse_hpstatus(hpstatus: str) -> tuple[float, str]:
 
 def scene_initial() -> dict:
     """Return a default scene state dict for incremental accumulation."""
+    def mon() -> dict:
+        return {
+            "species": None,
+            "hpFrac": None,
+            "status": None,
+            "name": None,
+            "gender": None,
+            "fainted": False,
+        }
+
     return {
-        "p1": {"name": "", "hpFrac": 1.0, "status": ""},
-        "p2": {"name": "", "hpFrac": 1.0, "status": ""},
-        "weather": "",
+        "p1": mon(),
+        "p2": mon(),
+        "players": {"p1": None, "p2": None},
+        "weather": None,
+        "field": [],
+        "teams": {"p1": {}, "p2": {}},
+        "turn": 0,
+        "winner": None,
     }
+
+
+def _parse_details(details: str) -> tuple[str | None, str | None]:
+    """Parse ``'Species, L50, M'`` details into ``(species, gender)``."""
+    toks = [tok.strip() for tok in str(details or "").split(",")]
+    species = toks[0] or None
+    gender = next((tok for tok in toks[1:] if tok in ("M", "F")), None)
+    return species, gender
+
+
+def _field_entry(effect: str, side: str | None = None) -> dict:
+    return {"effect": effect, "side": side}
 
 
 def fold_scene(lines: list[str], state: dict) -> None:
     """Update mutable *state* in-place from PROJECTED protocol lines.
 
     Caller passes the same dict on every frame to get a running cumulative
-    scene snapshot (name + hpFrac + status per side + weather).
+    scene snapshot matching ``web/dashboard/vendor/live/scene.js``.
     """
     for raw_line in lines:
         lt = line_type(raw_line)
@@ -592,19 +621,24 @@ def fold_scene(lines: list[str], state: dict) -> None:
             if len(parts) >= 4:
                 player_side = parts[2]
                 if player_side in ("p1", "p2"):
-                    state[player_side]["name"] = parts[3]
+                    state["players"][player_side] = sanitize_name(parts[3])
 
         elif lt in ("switch", "drag", "replace", "detailschange"):
             if len(ev.args) >= 3:
                 ident = ev.idents[0] if ev.idents else None
+                species, gender = _parse_details(ev.args[1])
                 hp_frac, status = _parse_hpstatus(ev.args[2])
                 if ident and ident.side in ("p1", "p2"):
-                    s = state[ident.side]
-                    if ident.name:
-                        s["name"] = ident.name
-                    s["hpFrac"] = hp_frac
-                    if status:
-                        s["status"] = status
+                    state[ident.side] = {
+                        "species": species,
+                        "gender": gender,
+                        "name": ident.name or species,
+                        "hpFrac": hp_frac,
+                        "status": status or None,
+                        "fainted": status == "fnt" or hp_frac <= 0,
+                    }
+                    if species:
+                        state["teams"][ident.side].setdefault(species, {"fainted": False})
 
         elif lt in ("-damage", "-heal", "-sethp"):
             if len(ev.args) >= 2:
@@ -612,15 +646,25 @@ def fold_scene(lines: list[str], state: dict) -> None:
                 hp_frac, status = _parse_hpstatus(ev.args[1])
                 if ident and ident.side in ("p1", "p2"):
                     s = state[ident.side]
+                    if lt == "-heal" and s.get("name") and ident.name and ident.name != s["name"]:
+                        continue
                     s["hpFrac"] = hp_frac
                     if status:
                         s["status"] = status
+                    if status == "fnt" or hp_frac <= 0:
+                        s["fainted"] = True
+                        if s.get("species"):
+                            state["teams"][ident.side].setdefault(s["species"], {})["fainted"] = True
 
         elif lt == "faint":
             ident = ev.idents[0] if ev.idents else None
             if ident and ident.side in ("p1", "p2"):
                 state[ident.side]["hpFrac"] = 0.0
                 state[ident.side]["status"] = "fnt"
+                state[ident.side]["fainted"] = True
+                species = state[ident.side].get("species")
+                if species:
+                    state["teams"][ident.side].setdefault(species, {})["fainted"] = True
 
         elif lt == "-status":
             if len(ev.args) >= 2:
@@ -631,12 +675,45 @@ def fold_scene(lines: list[str], state: dict) -> None:
         elif lt == "-curestatus":
             ident = ev.idents[0] if ev.idents else None
             if ident and ident.side in ("p1", "p2"):
-                state[ident.side]["status"] = ""
+                state[ident.side]["status"] = None
 
         elif lt == "-weather":
             if ev.args:
                 w = ev.args[0]
-                state["weather"] = "" if w.lower() == "none" else w
+                state["weather"] = None if w.lower() == "none" else w
+
+        elif lt == "-fieldstart":
+            if ev.args:
+                entry = _field_entry(ev.args[0])
+                if entry not in state["field"]:
+                    state["field"].append(entry)
+
+        elif lt == "-fieldend":
+            if ev.args:
+                state["field"] = [entry for entry in state["field"] if entry["effect"] != ev.args[0]]
+
+        elif lt == "-sidestart":
+            if len(ev.args) >= 2:
+                entry = _field_entry(ev.args[1], ev.args[0])
+                if entry not in state["field"]:
+                    state["field"].append(entry)
+
+        elif lt == "-sideend":
+            if len(ev.args) >= 2:
+                state["field"] = [
+                    entry
+                    for entry in state["field"]
+                    if not (entry["effect"] == ev.args[1] and entry["side"] == ev.args[0])
+                ]
+
+        elif lt == "turn":
+            turn_no = getattr(ev, "turn_no", getattr(ev, "turnNo", None))
+            if turn_no is not None:
+                state["turn"] = turn_no
+
+        elif lt == "win":
+            if ev.args:
+                state["winner"] = sanitize_name(ev.args[0])
 
 
 # ---------------------------------------------------------------------------

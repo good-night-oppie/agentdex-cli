@@ -18,9 +18,13 @@ from adx_showdown.lineproto import (
 def test_scene_initial_has_both_sides():
     s = scene_initial()
     assert "p1" in s and "p2" in s
-    assert s["p1"]["hpFrac"] == 1.0
-    assert s["p2"]["hpFrac"] == 1.0
-    assert s["weather"] == ""
+    assert s["p1"]["hpFrac"] is None
+    assert s["p2"]["hpFrac"] is None
+    assert s["players"] == {"p1": None, "p2": None}
+    assert s["field"] == []
+    assert s["turn"] == 0
+    assert s["winner"] is None
+    assert s["weather"] is None
 
 
 # ── _parse_hpstatus (via fold_scene) ──────────────────────────────────────────
@@ -51,18 +55,64 @@ def test_fold_scene_status_and_cure():
     fold_scene(["|-status|p1a: Pikachu|par"], s)
     assert s["p1"]["status"] == "par"
     fold_scene(["|-curestatus|p1a: Pikachu|par"], s)
-    assert s["p1"]["status"] == ""
+    assert s["p1"]["status"] is None
 
 
-def test_fold_scene_player_sets_name():
+def test_fold_scene_player_sets_player_label():
     s = scene_initial()
     fold_scene(["|player|p1|Alice||1500"], s)
-    assert s["p1"]["name"] == "Alice"
+    assert s["players"]["p1"] == "Alice"
 
 
 def test_fold_scene_switch_sets_name_and_hp():
     s = scene_initial()
     fold_scene(["|switch|p1a: Garchomp|Garchomp, L50|176/298"], s)
+    assert s["p1"]["name"] == "Garchomp"
+    assert s["p1"]["species"] == "Garchomp"
+    assert s["p1"]["gender"] is None
+    assert abs(s["p1"]["hpFrac"] - 176 / 298) < 1e-6
+    assert s["p1"]["status"] is None
+
+
+def test_fold_scene_switch_clears_stale_status_when_healthy_mon_enters():
+    s = scene_initial()
+    fold_scene(["|switch|p1a: Pikachu|Pikachu, L50|0 fnt"], s)
+    assert s["p1"]["status"] == "fnt"
+    assert s["p1"]["fainted"] is True
+    fold_scene(["|switch|p1a: Raichu|Raichu, L50|100/100"], s)
+    assert s["p1"]["name"] == "Raichu"
+    assert s["p1"]["status"] is None
+    assert s["p1"]["fainted"] is False
+
+
+def test_fold_scene_has_full_renderer_snapshot_shape():
+    s = scene_initial()
+    fold_scene(
+        [
+            "|player|p1|Alice||",
+            "|player|p2|Bob||",
+            "|switch|p1a: Garchomp|Garchomp, L50, M|176/298",
+            "|-fieldstart|move: Trick Room",
+            "|-sidestart|p1|move: Reflect",
+            "|turn|3",
+            "|win|Alice",
+        ],
+        s,
+    )
+    assert set(s) >= {"p1", "p2", "players", "weather", "field", "teams", "turn", "winner"}
+    assert s["p1"]["species"] == "Garchomp"
+    assert s["p1"]["gender"] == "M"
+    assert s["players"] == {"p1": "Alice", "p2": "Bob"}
+    assert {"effect": "move: Trick Room", "side": None} in s["field"]
+    assert {"effect": "move: Reflect", "side": "p1"} in s["field"]
+    assert s["turn"] == 3
+    assert s["winner"] == "Alice"
+
+
+def test_fold_scene_skips_revival_blessing_bench_heal():
+    s = scene_initial()
+    fold_scene(["|switch|p1a: Garchomp|Garchomp, L50|176/298"], s)
+    fold_scene(["|-heal|p1a: Pawmot|50/100|[from] move: Revival Blessing"], s)
     assert s["p1"]["name"] == "Garchomp"
     assert abs(s["p1"]["hpFrac"] - 176 / 298) < 1e-6
 
@@ -77,7 +127,7 @@ def test_fold_scene_weather_none_clears():
     s = scene_initial()
     s["weather"] = "Rain"
     fold_scene(["|-weather|none"], s)
-    assert s["weather"] == ""
+    assert s["weather"] is None
 
 
 def test_fold_scene_accumulates_across_calls():
@@ -85,8 +135,8 @@ def test_fold_scene_accumulates_across_calls():
     fold_scene(["|player|p1|Alice||", "|player|p2|Bob||"], s)
     fold_scene(["|-damage|p1a: Garchomp|120/298"], s)
     fold_scene(["|-damage|p2a: Rotom|35/100"], s)
-    assert s["p1"]["name"] == "Alice"
-    assert s["p2"]["name"] == "Bob"
+    assert s["players"]["p1"] == "Alice"
+    assert s["players"]["p2"] == "Bob"
     assert abs(s["p1"]["hpFrac"] - 120 / 298) < 1e-6
     assert abs(s["p2"]["hpFrac"] - 0.35) < 1e-6
 
@@ -125,6 +175,12 @@ def test_extract_trace_reasoning_line():
     assert len(result) == 1
     assert result[0]["side"] == "p1"
     assert "Earthquake" in result[0]["text"]
+
+
+def test_extract_trace_preserves_pipes_inside_text():
+    lines = ["|-reasoning|p1|line one | line two | quoted protocol"]
+    result = extract_trace_lines(lines)
+    assert result == [{"side": "p1", "text": "line one | line two | quoted protocol"}]
 
 
 def test_extract_trace_say_line():

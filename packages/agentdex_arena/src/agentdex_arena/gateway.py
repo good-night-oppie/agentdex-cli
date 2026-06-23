@@ -2513,6 +2513,8 @@ async def _sse_battle_stream(
     spectator must not decide when a rated battle is durably committed (PR #377 review
     3443669242). Frame-buffer reclamation still runs either way.
     """
+    import copy
+
     from adx_showdown.lineproto import extract_trace_lines, fold_scene, scene_initial
 
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
@@ -2540,18 +2542,14 @@ async def _sse_battle_stream(
             # UI-5: update cumulative scene state from this frame's projected lines.
             fold_scene(projected, _scene)
             # UI-6: extract per-move reasoning/say trace from this frame.
-            trace_lines = extract_trace_lines(projected)
+            trace_lines = [] if side == "spectator" else extract_trace_lines(projected)
             payload = {
                 "battle_id": session.battle_id,
                 "turn": fr.get("turn", 0),
                 "seq": fr.get("seq", sent),
                 "side": side,
                 "lines": projected,
-                "scene": {
-                    "p1": dict(_scene["p1"]),
-                    "p2": dict(_scene["p2"]),
-                    "weather": _scene["weather"],
-                },
+                "scene": copy.deepcopy(_scene),
                 "trace_lines": trace_lines,
                 "ts_ms": int(gateway.now() * 1000),
             }

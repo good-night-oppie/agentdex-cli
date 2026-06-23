@@ -92,6 +92,11 @@ def _seed(gw: ArenaGateway, frames: list[dict], *, battle_id: str = "b_ui56") ->
     return sess.battle_id
 
 
+def _auth(gw: ArenaGateway) -> dict[str, str]:
+    token = gw.session_auth.mint_session(_OWNER, "github:eddie")
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _parse_sse(text: str) -> tuple[list[dict], bool]:
     frames: list[dict] = []
     saw_end = False
@@ -130,6 +135,10 @@ def test_sse_scene_has_p1_p2_weather(tmp_path: Path):
     frames, _ = _parse_sse(r.text)
     last = frames[-1]["scene"]
     assert "p1" in last and "p2" in last
+    assert "players" in last
+    assert "field" in last
+    assert "turn" in last
+    assert "winner" in last
     assert "weather" in last
 
 
@@ -152,10 +161,10 @@ def test_sse_scene_player_names_populated(tmp_path: Path):
     client = TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
     r = client.get(f"/battle/{bid}/live")
     frames, _ = _parse_sse(r.text)
-    # After frame 1 (the |player| preamble) names should be set.
+    # After frame 1 (the |player| preamble) player labels should be set.
     scene_after_preamble = frames[0]["scene"]
-    assert scene_after_preamble["p1"]["name"] == "Alpha"
-    assert scene_after_preamble["p2"]["name"] == "Bravo"
+    assert scene_after_preamble["players"]["p1"] == "Alpha"
+    assert scene_after_preamble["players"]["p2"] == "Bravo"
 
 
 def test_sse_scene_accumulates_across_frames(tmp_path: Path):
@@ -165,9 +174,9 @@ def test_sse_scene_accumulates_across_frames(tmp_path: Path):
     client = TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
     r = client.get(f"/battle/{bid}/live")
     frames, _ = _parse_sse(r.text)
-    # Even the second frame (damage) retains the player names set in the first frame.
+    # Even the second frame (damage) retains the player labels set in the first frame.
     assert len(frames) >= 2
-    assert frames[1]["scene"]["p1"]["name"] == "Alpha"
+    assert frames[1]["scene"]["players"]["p1"] == "Alpha"
 
 
 # ── UI-6: reasoning trace ─────────────────────────────────────────────────────
@@ -198,7 +207,7 @@ def test_sse_trace_lines_populated_on_reasoning_frame(tmp_path: Path):
     gw = _gateway(tmp_path)
     bid = _seed(gw, _FRAMES_WITH_REASONING, battle_id="b_trace_pop")
     client = TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
-    r = client.get(f"/battle/{bid}/live")
+    r = client.get(f"/me/battle/{bid}/live", headers=_auth(gw))
     frames, _ = _parse_sse(r.text)
     reasoning_frames = [fr for fr in frames if fr["trace_lines"]]
     assert reasoning_frames, "expected at least one frame with trace_lines populated"
@@ -207,11 +216,22 @@ def test_sse_trace_lines_populated_on_reasoning_frame(tmp_path: Path):
     assert "Earthquake" in entry["text"]
 
 
+def test_sse_trace_lines_redacted_for_public_spectator(tmp_path: Path):
+    gw = _gateway(tmp_path)
+    bid = _seed(gw, _FRAMES_WITH_REASONING, battle_id="b_trace_public_redacted")
+    client = TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
+    r = client.get(f"/battle/{bid}/live")
+    frames, _ = _parse_sse(r.text)
+    assert frames
+    assert all(fr["side"] == "spectator" for fr in frames)
+    assert all(fr["trace_lines"] == [] for fr in frames)
+
+
 def test_sse_trace_lines_have_side_and_text_keys(tmp_path: Path):
     gw = _gateway(tmp_path)
     bid = _seed(gw, _FRAMES_WITH_REASONING, battle_id="b_trace_schema")
     client = TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
-    r = client.get(f"/battle/{bid}/live")
+    r = client.get(f"/me/battle/{bid}/live", headers=_auth(gw))
     frames, _ = _parse_sse(r.text)
     for fr in frames:
         for entry in fr["trace_lines"]:
