@@ -137,7 +137,7 @@
     }
 
     bindEnd(detail) {
-      this.replayUrl = (detail && detail.replay_url) || this.replayUrl;
+      this.replayUrl = (detail && (detail.replay || detail.replay_url)) || this.replayUrl;
       this.elLive.textContent = "■ ENDED";
       this.elLive.classList.add("ended");
       this._showReplayControls();
