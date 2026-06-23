@@ -1923,6 +1923,11 @@
           "author": "bene",
           "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
           "created_at": "2026-06-23T19:04:55Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:52Z, 4th babysit cycle). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Probe-gate=NO_SPEC for all 3 cards, and probe-spec authorship is harness-only (kanban_probe_gate.py:301 _require_actor restricts to {'harness'}); bene cannot self-author. Card correctly blocked on (a) GA-DEPLOY landing live agentdex.builders backend AND (b) harness probe-spec authorship. This is the 4th refresh-cycle in 6hr; durable fix requires harness action (author probe specs OR exempt cross-team-blocked cards from babysit hook). See A2A trail + memories: [[kanban-probe-authorship-harness-only]] [[fleet-kanban-board-needs-git-commit]] [[fleet-kanban-agent-must-match-assignee]].",
+          "created_at": "2026-06-23T19:53:23Z"
         }
       ],
       "created_by": "bene-core",
@@ -1940,7 +1945,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-23T19:04:55Z"
+      "updated_at": "2026-06-23T19:53:23Z"
     },
     {
       "assignee": "bene",
@@ -2040,6 +2045,11 @@
           "author": "bene",
           "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
           "created_at": "2026-06-23T19:04:55Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:52Z, 4th babysit cycle). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Probe-gate=NO_SPEC for all 3 cards, and probe-spec authorship is harness-only (kanban_probe_gate.py:301 _require_actor restricts to {'harness'}); bene cannot self-author. Card correctly blocked on (a) GA-DEPLOY landing live agentdex.builders backend AND (b) harness probe-spec authorship. This is the 4th refresh-cycle in 6hr; durable fix requires harness action (author probe specs OR exempt cross-team-blocked cards from babysit hook). See A2A trail + memories: [[kanban-probe-authorship-harness-only]] [[fleet-kanban-board-needs-git-commit]] [[fleet-kanban-agent-must-match-assignee]].",
+          "created_at": "2026-06-23T19:53:24Z"
         }
       ],
       "created_by": "bene-core",
@@ -2056,7 +2066,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-23T19:04:55Z"
+      "updated_at": "2026-06-23T19:53:24Z"
     },
     {
       "assignee": "bene-core",
@@ -2176,6 +2186,11 @@
           "author": "bene",
           "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
           "created_at": "2026-06-23T19:04:55Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:52Z, 4th babysit cycle). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Probe-gate=NO_SPEC for all 3 cards, and probe-spec authorship is harness-only (kanban_probe_gate.py:301 _require_actor restricts to {'harness'}); bene cannot self-author. Card correctly blocked on (a) GA-DEPLOY landing live agentdex.builders backend AND (b) harness probe-spec authorship. This is the 4th refresh-cycle in 6hr; durable fix requires harness action (author probe specs OR exempt cross-team-blocked cards from babysit hook). See A2A trail + memories: [[kanban-probe-authorship-harness-only]] [[fleet-kanban-board-needs-git-commit]] [[fleet-kanban-agent-must-match-assignee]].",
+          "created_at": "2026-06-23T19:53:24Z"
         }
       ],
       "created_by": "bene-core",
@@ -2193,7 +2208,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-23T19:04:55Z"
+      "updated_at": "2026-06-23T19:53:24Z"
     },
     {
       "assignee": "adx-cli",
@@ -6263,8 +6278,29 @@
       "card_id": "GA-SELFPLAY-EVOLVE",
       "created_at": "2026-06-23T19:50:01Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T19:53:23Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-23T19:53:24Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-23T19:53:24Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T19:50:01Z"
+  "updated_at": "2026-06-23T19:53:24Z"
 }
