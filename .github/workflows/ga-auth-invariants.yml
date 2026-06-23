@@ -23,6 +23,11 @@ name: ga-auth-invariants
 on:
   pull_request:
     branches: [dev, main]
+  push:
+    # Run on every push to main so the DEPLOYED commit carries a push-to-main
+    # success run — the north-star probe's ga_auth_ci_attest attests the live
+    # deployed sha against exactly that (event=push, branch=main).
+    branches: [main]
   workflow_dispatch:
 
 # Only the latest commit per ref needs gating; supersede in-flight runs on
