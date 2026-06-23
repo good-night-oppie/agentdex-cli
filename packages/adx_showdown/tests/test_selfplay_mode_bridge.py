@@ -5,9 +5,10 @@ raw format string. Pure resolution (no poke-env battle), so it runs offline.
 
 The bridge has TWO guard layers: the substrate (``team_modes``) rejects unknown
 modes + topology-incompatible overrides, and the *runner-level* guard refuses
-formats the player can't drive yet (doubles + ``team_required``) — see Codex
-review on PR #485: enabling team mode while ``HarnessPlayer`` is singles-only
-would silently produce broken matchups.
+formats the runner can't drive yet (``team_required`` — no team-builder wired).
+The doubles topology rail used to also be guarded; that guard was LIFTED in this
+increment because ``HarnessPlayer.choose_move`` now drives doubles via the
+topology-agnostic ``valid_orders`` path (see ``_is_doubles_battle`` deferral).
 """
 
 import pytest
@@ -29,33 +30,31 @@ def test_singles_modes_resolve_to_singles():
         assert tm.FORMATS[battle_format_for_mode(mode)].topology == tm.SINGLES
 
 
-def test_team_mode_blocked_until_doubles_decision_lands():
-    # The substrate-level resolve_format STILL returns the doubles format (the
-    # contract stays honest); the runner-level bridge refuses because the player
-    # can't drive doubles yet. Codex P1 fix.
+def test_team_mode_resolves_to_doubles_format():
+    # The doubles guard was LIFTED — HarnessPlayer.choose_move now defers to the
+    # seeded random path on a DoubleBattle (valid_orders returns DoubleBattleOrder
+    # transparently). The substrate-level resolve_format stays honest.
     assert tm.resolve_format("team").topology == tm.DOUBLES
-    with pytest.raises(RunnerNotReadyForFormat, match="doubles"):
-        battle_format_for_mode("team")
+    assert battle_format_for_mode("team") == tm.DEFAULT_TEAM  # gen9randomdoublesbattle
 
 
-def test_doubles_override_blocked_until_doubles_decision_lands():
-    # A valid doubles OVERRIDE on a doubles-mode would expose the singles-only
-    # player, so the runner-level guard fires.
-    with pytest.raises(RunnerNotReadyForFormat, match="doubles"):
-        battle_format_for_mode("team", "gen9randomdoublesbattle")
+def test_doubles_override_now_allowed():
+    # A valid doubles OVERRIDE on a doubles-mode is now allowed; the player
+    # handles it via the doubles-defer path.
+    assert battle_format_for_mode("team", "gen9randomdoublesbattle") == "gen9randomdoublesbattle"
 
 
 def test_team_required_singles_override_blocked_until_teambuilder_lands():
-    # Codex P2 #3: ``gen9ou`` is singles + team_required; the doubles guard
-    # passes, the team-builder guard fires (no team= kwarg into the players).
+    # ``gen9ou`` is singles + team_required; the team-builder guard still fires
+    # (no team= kwarg into the players).
     with pytest.raises(RunnerNotReadyForFormat, match="team-required"):
         battle_format_for_mode("solo_bots", "gen9ou")
 
 
 def test_team_required_doubles_override_blocked():
-    # ``gen9vgc2024regh`` is doubles + team_required; the doubles guard fires
-    # first (it's the bigger blocker).
-    with pytest.raises(RunnerNotReadyForFormat, match="doubles"):
+    # ``gen9vgc2024regh`` is doubles + team_required; doubles no longer guards,
+    # but team_required still does.
+    with pytest.raises(RunnerNotReadyForFormat, match="team-required"):
         battle_format_for_mode("team", "gen9vgc2024regh")
 
 

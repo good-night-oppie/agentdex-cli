@@ -47,10 +47,15 @@ class RunnerNotReadyForFormat(NotImplementedError):
     """Format is substrate-valid but the runner/player isn't ready for it yet.
 
     Distinct from :class:`team_modes.UnsupportedFormat` (substrate-level — unknown
-    or topology-incompatible). Runner-level guard: ``HarnessPlayer.choose_move``
-    is singles-shaped (one ``BattleOrder`` per turn, no per-slot decision) and no
-    team-builder is wired, so a doubles or ``team_required`` battle would silently
-    produce broken matchups. Fail loud here until the deeper increment lands.
+    or topology-incompatible). Runner-level guard for the **team-required** rail:
+    no team-builder is wired into ``run_selfplay_battle`` yet (both players are
+    constructed without a ``team=`` kwarg), so a ``gen9ou`` / ``gen9doublesou`` /
+    ``gen9vgc2024regh`` matchup would silently drop into Showdown's default-team
+    fallback. The **doubles** rail no longer raises — ``HarnessPlayer.choose_move``
+    routes through ``valid_orders``, which returns ``DoubleBattleOrder`` on a
+    ``DoubleBattle``, so the seeded random + abstain-fallback paths handle doubles
+    transparently; ``max_damage`` / ``codex`` defer to the seeded random when the
+    battle is doubles (see ``_is_doubles_battle``).
     """
 
 
@@ -71,25 +76,17 @@ def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT
       - ``team_modes.UnknownMode`` — unknown ``mode``.
       - ``team_modes.UnsupportedFormat`` — substrate-incompatible override
         (e.g. a team mode given a singles format → would drop the 2nd agent).
-      - ``RunnerNotReadyForFormat`` — substrate is fine but the runner/player
-        cannot drive the format yet: doubles topology needs a per-slot
-        ``HarnessPlayer.choose_move`` rewrite, and ``team_required`` formats
-        need a team-builder. Both are tracked as the next GA-SELFPLAY-EVOLVE
-        increments. Until they ship, the bridge refuses rather than silently
-        spinning up broken matchups.
+      - ``RunnerNotReadyForFormat`` — substrate is fine but ``run_selfplay_battle``
+        cannot drive the format yet: ``team_required`` formats need a team-builder
+        (both players are constructed without a ``team=`` kwarg). The doubles
+        topology rail is now drivable — ``HarnessPlayer.choose_move`` routes
+        through ``valid_orders`` which returns ``DoubleBattleOrder`` on a
+        ``DoubleBattle``, so doubles formats no longer raise.
     """
     if mode is None:
         return battle_format
     override = battle_format if battle_format != DEFAULT_FORMAT else None
     fmt = team_modes.resolve_format(mode, override=override)
-    if fmt.topology == team_modes.DOUBLES:
-        raise RunnerNotReadyForFormat(
-            f"mode={mode!r} resolves to doubles format {fmt.id!r}, but "
-            "HarnessPlayer.choose_move is singles-shaped (one BattleOrder per "
-            "turn, no per-slot decision). Tracked as the next GA-SELFPLAY-EVOLVE "
-            "increment; raising rather than silently spinning up a broken doubles "
-            "battle."
-        )
     if fmt.team_required:
         raise RunnerNotReadyForFormat(
             f"mode={mode!r} resolves to team-required format {fmt.id!r}, but no "
@@ -180,6 +177,24 @@ def _fallback_orders(filtered: list[Any]) -> list[Any] | None:
       satisfied by the ``force_switch`` route, not by restoring excluded switches here).
     """
     return filtered or None
+
+
+def _is_doubles_battle(battle: Any) -> bool:
+    """Whether ``battle`` is a poke-env ``DoubleBattle`` (vs the singles ``Battle``).
+
+    Shape probe — keeps the module poke-env-free at import. In poke-env's API,
+    ``Battle.force_switch`` is a ``bool`` and ``Battle.available_moves`` is a
+    ``list[Move]``; on ``DoubleBattle`` they are a ``list[bool]`` (one per active
+    slot) and a ``list[list[Move]]`` respectively. Either signal alone is
+    sufficient + cheap; checking ``force_switch`` first because it is always
+    present + never empty, while ``available_moves`` can be ``[]`` on a forced
+    switch in either topology.
+    """
+    fs = getattr(battle, "force_switch", None)
+    if isinstance(fs, list):
+        return True
+    am = getattr(battle, "available_moves", None)
+    return isinstance(am, list) and bool(am) and isinstance(am[0], list)
 
 
 def _defer_to_default(
@@ -295,6 +310,16 @@ def make_harness_player(
             # is async ONLY to keep the live-codex subprocess off the event loop
             # (below); the synchronous strategies just return inline.
             self.total_moves += 1
+            # Doubles defer: ``valid_orders`` is topology-agnostic (returns
+            # ``DoubleBattleOrder`` on a ``DoubleBattle``), so the seeded random
+            # path drives doubles transparently. The ``max_damage`` + ``codex``
+            # paths below are singles-shaped (``available_moves`` is ``list[Move]``
+            # on singles, ``list[list[Move]]`` on doubles), so route doubles to the
+            # seeded fallback rather than misfeeding ``max_base_power_choice`` or
+            # the singles-only ``select_codex_move``. Per-slot ``max_damage`` /
+            # codex are a follow-up increment.
+            if _is_doubles_battle(battle):
+                return self._seeded_order(battle)
             moves = list(getattr(battle, "available_moves", None) or [])
             if self.strategy == "random":
                 return self._seeded_order(battle)
