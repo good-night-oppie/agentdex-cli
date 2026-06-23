@@ -92,6 +92,12 @@ expeditions/test-smoke-exp-001/
 # (weekly-harness-audit.md) stay tracked because they encode policy
 # decisions a human reviews.
 sweeps/*-dream-consolidate.md
+# Kanban Markdown renders are a DERIVED view of sweeps/adx-cli-fleet-kanban.json
+# (the source of truth). Tracking them caused dual-state drift + a blast-radius
+# collision (the .md sat in ADX-ONLINE-002's radius), recurring on every JSON-only
+# board PR. fleet_kanban.py still writes a LOCAL render here for humans; git just
+# never tracks it. Render on demand with `fleet_kanban.py render`.
+sweeps/*-fleet-kanban.md
 sweeps/_kaos-digests/
 
 # pytest / lint / type-check caches
