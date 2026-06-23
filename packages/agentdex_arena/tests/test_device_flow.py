@@ -231,3 +231,42 @@ def test_poll_user_endpoint_failure_raises():
     )
     with pytest.raises(DeviceFlowError, match="/user failed"):
         flow.poll("dev-123")
+
+
+# ---- web OAuth (browser code exchange) ----
+
+
+def test_exchange_web_code_requires_client_secret():
+    """GitHub's web ``/login/oauth/access_token`` requires ``client_secret``; a
+    deployment configured with only the device-flow client id would silently
+    omit it and then 502 every callback with no access_token, sending users
+    into the OAuth dance and back to a broken page. Fail-closed at the broker
+    so the route's entry guard and any future caller cannot bypass it
+    (PR #499 review PRRT_kwDOS0FXt86LrpL8)."""
+    flow, _ = _flow({}, client_secret="")
+    with pytest.raises(DeviceFlowError, match="GITHUB_OAUTH_CLIENT_SECRET not set"):
+        flow.exchange_web_code(
+            code="abc123",
+            redirect_uri="https://arena.example/oauth/github",
+            code_verifier="v" * 43,
+        )
+
+
+def test_exchange_web_code_sends_client_secret_when_set():
+    """When configured, the secret rides POST /login/oauth/access_token as
+    GitHub documents. The access token returned drives identity resolution
+    (mirrors the authorized poll() branch)."""
+    flow, t = _flow(
+        _authorized_scripts([{"email": "e@x.com", "primary": True, "verified": True}]),
+        client_secret="web-sekret",  # pragma: allowlist secret  # fake test value
+    )
+    result = flow.exchange_web_code(
+        code="abc123",
+        redirect_uri="https://arena.example/oauth/github",
+        code_verifier="v" * 43,
+    )
+    assert result.status == "authorized"
+    body = t.calls[0][3]
+    assert body["client_secret"] == "web-sekret"  # pragma: allowlist secret  # fake test value
+    assert body["code"] == "abc123"
+    assert body["code_verifier"] == "v" * 43

@@ -197,17 +197,29 @@ class GitHubDeviceFlow:
         The access token is used only to read GitHub identity/email and is not
         persisted. The returned shape intentionally matches ``poll()``'s
         authorized branch so the gateway can mint the existing session token
-        and write the same account_link event."""
+        and write the same account_link event.
+
+        GitHub's web OAuth ``POST /login/oauth/access_token`` requires
+        ``client_secret``; a deployment configured with only the device-flow
+        client id would silently omit it here and then 502 every callback with
+        no ``access_token``, sending users into the OAuth dance and back to a
+        broken page. Fail-closed at the broker so /auth/github's entry guard +
+        any future caller cannot bypass this contract (PR #499 review
+        PRRT_kwDOS0FXt86LrpL8)."""
         if not code or not redirect_uri or not code_verifier:
             raise DeviceFlowError("code, redirect_uri, and code_verifier are required")
+        if not self.client_secret:
+            raise DeviceFlowError(
+                f"{OAUTH_CLIENT_SECRET_ENV} not set — browser OAuth unconfigured "
+                "(GitHub's web access-token exchange requires client_secret)"
+            )
         payload = {
             "client_id": self.client_id,
             "code": code,
             "redirect_uri": redirect_uri,
             "code_verifier": code_verifier,
+            "client_secret": self.client_secret,
         }
-        if self.client_secret:
-            payload["client_secret"] = self.client_secret
         status, body = self._transport(
             "POST", GITHUB_ACCESS_TOKEN_URL, self._json_headers(), payload
         )

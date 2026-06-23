@@ -3278,15 +3278,32 @@ def create_app(
         digest = hashlib.sha256(verifier.encode("ascii")).digest()
         return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
+    def _browser_oauth_unconfigured() -> bool:
+        """True when the GA "Continue with GitHub" flow cannot complete end-to-end.
+
+        Web OAuth needs BOTH the device-flow client id (for the authorize
+        redirect) AND ``GITHUB_OAUTH_CLIENT_SECRET`` (for GitHub's
+        ``/login/oauth/access_token`` exchange). Without the secret, /auth/github
+        would happily redirect users to GitHub and the callback would always 502
+        — a worse UX than refusing the dance up front. Device-flow login
+        (``/auth/device/*``) is unaffected: that flow does not require the
+        secret. PR #499 review PRRT_kwDOS0FXt86LrpL8.
+        """
+        return (
+            gateway.device_flow is None
+            or gateway.session_auth is None
+            or not gateway.device_flow.client_secret
+        )
+
     @app.get("/auth/github/status", include_in_schema=False)
     async def auth_github_status() -> Response:
-        if gateway.device_flow is None or gateway.session_auth is None:
+        if _browser_oauth_unconfigured():
             raise _opaque_error(503, "session auth not configured")
         return Response(status_code=204)
 
     @app.get("/auth/github", include_in_schema=False)
     async def auth_github(request: Request) -> RedirectResponse:
-        if gateway.device_flow is None or gateway.session_auth is None:
+        if _browser_oauth_unconfigured():
             raise _opaque_error(503, "session auth not configured")
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(32)
