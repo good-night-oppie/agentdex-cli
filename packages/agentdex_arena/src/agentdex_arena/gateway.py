@@ -92,6 +92,42 @@ from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
 
+
+class _FilteredStaticFiles(StaticFiles):
+    """StaticFiles that 404s internal design artifacts so the public ``/ga-assets``
+    surface serves only what the GA self-serve page needs (ga-selfserve/* + the
+    design-system CSS/JS/SVG assets), NOT the design lead's authoring material —
+    per-component ``*.prompt.md`` / ``*.d.ts``, manifests/READMEs, and especially
+    the ``uploads/`` planning docs (e.g. ``prd.html`` with internal blocker notes).
+    Narrows the mount per the PR #453 review so bundling ``design/`` to fix the
+    prod 404 cannot also publish unrelated internal artifacts.
+    """
+
+    _DENY_NAME_SUFFIXES = (".prompt.md", ".d.ts")
+    _DENY_NAMES = frozenset(
+        {"readme.md", "skill.md", "_ds_manifest.json", "_adherence.oxlintrc.json", ".thumbnail"}
+    )
+
+    @staticmethod
+    def _denied(path: str) -> bool:
+        norm = path.replace("\\", "/").lower().strip("/")
+        segs = norm.split("/")
+        if "uploads" in segs:  # any uploads/ dir segment — planning docs, never page assets
+            return True
+        name = segs[-1] if segs else ""
+        return (
+            name.endswith(_FilteredStaticFiles._DENY_NAME_SUFFIXES)
+            or name in _FilteredStaticFiles._DENY_NAMES
+        )
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        if self._denied(path):
+            from fastapi.responses import PlainTextResponse
+
+            return PlainTextResponse("Not Found", status_code=404)
+        return await super().get_response(path, scope)
+
+
 Lane = Literal["sandbox", "rated"]
 GYM_LEADERS = (
     "anchor-random",
@@ -3762,7 +3798,10 @@ def create_app(
     _ga_design = Path("design")
     _ga_index = _ga_design / "ga-selfserve" / "index.html"
     if _ga_index.is_file():
-        app.mount("/ga-assets", StaticFiles(directory=str(_ga_design)), name="ga-assets")
+        # _FilteredStaticFiles (not bare StaticFiles): deny internal design artifacts
+        # (uploads/ planning docs, *.prompt.md/*.d.ts, manifests/READMEs) so the public
+        # surface is narrowed to the page's assets — PR #453 review (P2).
+        app.mount("/ga-assets", _FilteredStaticFiles(directory=str(_ga_design)), name="ga-assets")
 
         def _ga_page(initial: str) -> HTMLResponse:
             # Serve the GA self-serve SPA rewritten so (a) its relative assets
