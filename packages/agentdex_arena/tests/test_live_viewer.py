@@ -389,6 +389,100 @@ async def test_forfeit_clears_frame_buffer_immediately_not_deferred(tmp_path):
     assert sess.frames_evict_after is None  # deferral deadline NOT stamped on forfeit
 
 
+class _ForfeitRecordingSidecar:
+    """Minimal async sidecar stub that records every `stop` kwarg, so a test can
+    assert which side `_expire_if_stale` actually charged the turn-budget timeout
+    to (PR #508 review). `request("stop", ..., forfeit_side=X)` is the single
+    wire signal the engine sees."""
+
+    def __init__(self) -> None:
+        self.stops: list[dict] = []
+
+    async def request(self, cmd: str, **kwargs):
+        if cmd == "stop":
+            self.stops.append(dict(kwargs))
+        return {}
+
+
+@pytest.mark.asyncio
+async def test_stale_pvp_forfeit_charges_p2_when_p2_is_on_the_clock(tmp_path):
+    """PvP-aware forfeit side. When the engine is suspended awaiting P2's explicit
+    choice (PvPChoiceRouter has a pending future for this battle), a turn-budget
+    timeout MUST be charged to P2 — `forfeit_side="p2"` on the sidecar stop AND
+    the visitor (P1) wins the receipt. The pre-fix code always charged P1 because
+    `_expire_if_stale` reused `session.visitor_side` regardless of who was actually
+    waiting, inverting PvP outcomes (PR #508 review)."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 11_000.0}
+    gw.now = lambda: clock["t"]
+    sidecar = _ForfeitRecordingSidecar()
+    sess = BattleSession(
+        battle_id="pvp-stale-p2",
+        claims_token_id="tok",
+        visitor_name="AgentP1",
+        lane="sandbox",
+        opponent="AgentP2",
+        seed=[0, 1],
+        sidecar=sidecar,  # type: ignore[arg-type]
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.last_touch = clock["t"]
+    gw.sessions[sess.battle_id] = sess
+
+    # Park the P2 policy on a pending future so `is_waiting_for_p2` returns True
+    # — this is exactly the state the engine sits in while it awaits P2's move.
+    policy = gw.pvp_choice_router.make_p2_policy(sess.battle_id)
+    waiter = asyncio.create_task(policy(req=None))
+    await asyncio.sleep(0)  # let the policy register its future
+    assert gw.pvp_choice_router.is_waiting_for_p2(sess.battle_id)
+    try:
+        clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+        await gw._expire_if_stale(sess)
+    finally:
+        gw.pvp_choice_router.cleanup(sess.battle_id)
+        with pytest.raises((asyncio.CancelledError, BaseException)):  # noqa: BLE001
+            await waiter
+
+    assert sess.ended is not None
+    assert sess.ended.get("forfeit") == "turn budget exceeded"
+    assert sess.ended.get("winner") == "AgentP1"  # P2 timed out → visitor wins
+    assert sidecar.stops, "sidecar.stop was never called"
+    assert sidecar.stops[-1].get("forfeit_side") == "p2"  # P2 charged, not P1
+
+
+@pytest.mark.asyncio
+async def test_stale_forfeit_charges_visitor_when_no_p2_waiter(tmp_path):
+    """Non-PvP (or PvP-with-no-P2-waiter) path is unchanged: the visitor side
+    forfeits and the opponent wins. Guards the PR #508 fix from over-rotating
+    every stale forfeit to P2."""
+    gw = _gateway(tmp_path)
+    clock = {"t": 12_000.0}
+    gw.now = lambda: clock["t"]
+    sidecar = _ForfeitRecordingSidecar()
+    sess = BattleSession(
+        battle_id="solo-stale",
+        claims_token_id="tok",
+        visitor_name="AgentP1",
+        lane="sandbox",
+        opponent="anchor-random",
+        seed=[0, 1],
+        sidecar=sidecar,  # type: ignore[arg-type]
+        opponent_policy=None,
+    )
+    sess.visitor_side = "p1"
+    sess.last_touch = clock["t"]
+    gw.sessions[sess.battle_id] = sess
+
+    assert not gw.pvp_choice_router.is_waiting_for_p2(sess.battle_id)
+    clock["t"] = sess.last_touch + gw.turn_budget_s + 1.0
+    await gw._expire_if_stale(sess)
+
+    assert sess.ended is not None
+    assert sess.ended.get("winner") == "anchor-random"
+    assert sidecar.stops[-1].get("forfeit_side") == "p1"
+
+
 @pytest.mark.asyncio
 async def test_finish_tolerates_malformed_evict_grace_env(tmp_path, monkeypatch):
     """A malformed ARENA_SSE_EVICT_GRACE_SEC must NOT raise out of the battle-commit path
