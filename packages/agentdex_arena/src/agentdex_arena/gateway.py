@@ -680,6 +680,21 @@ class GrantMembershipRequest(BaseModel):
         return v
 
 
+class PvPQueueRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=False)
+    token: str
+    battle_nonce: str
+    pop_signature_hex: str
+    mode: Literal["pvp"] = "pvp"
+    team: str | None = None
+
+
+class PvPChooseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=False)
+    token: str
+    choice_index: int = Field(ge=1, le=64)
+
+
 class ArenaGateway:
     def __init__(
         self,
@@ -2685,6 +2700,15 @@ def create_app(
         # instance to read a returncode from, so the sticky flag carries it. Liveness
         # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
+        if isinstance(sc, SidecarPool) and sc.any_dead():
+            try:
+                evicted = await sc.reclaim_dead()
+            except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
+                evicted = []
+            for bid in evicted:
+                sess = gateway.sessions.pop(bid, None)
+                if sess is not None and sess.ended is None:
+                    gateway._interrupted[bid] = sess.claims_token_id
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read
@@ -3473,14 +3497,6 @@ def create_app(
         filtered to the caller's agents. Free read."""
         return gateway.me_ladder(_require_session(authorization))
 
-    class PvPQueueRequest(BaseModel):
-        model_config = ConfigDict(extra="forbid", strict=False)
-        token: str
-        battle_nonce: str
-        pop_signature_hex: str
-        mode: Literal["pvp"] = "pvp"
-        team: str | None = None
-
     @app.post("/me/battle/queue")
     async def me_battle_queue(req: PvPQueueRequest) -> dict:
         """GA-ARENA-MODES: enqueue for UserAgent-vs-UserAgent (pvp) mode.
@@ -3643,11 +3659,6 @@ def create_app(
         except Exception as e:  # noqa: BLE001
             _hand_off()
             raise _opaque_error(400, e) from None
-
-    class PvPChooseRequest(BaseModel):
-        model_config = ConfigDict(extra="forbid", strict=False)
-        token: str
-        choice_index: int = Field(ge=1, le=64)
 
     @app.post("/battle/{battle_id}/pvp-choose")
     async def battle_pvp_choose(battle_id: str, req: PvPChooseRequest) -> dict:

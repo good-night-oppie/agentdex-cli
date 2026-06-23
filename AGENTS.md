@@ -60,6 +60,8 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [arena typed line-protocol](docs/references/2026-06-17-arena-line-protocol.md) — the `|TYPE|args` message-set spec (P1-a): major/minor/meta tier rule, `lineproto.MESSAGE_TYPES` registry (90 types), `|split|` secret-sharing → fog-of-war, `|t:|` strip-for-hash, kwarg `[from]`/`[of]` semantics; the single wire format adx-sim/client/view all fold over
 - [BENE-Supabase event sourcing](docs/references/2026-06-12-bene-supabase-event-sourcing.md) — two-tier design (server Supabase Postgres authoritative mirror / client SQLite); RLS per consent token proven on PG16; O(1) chain append; write-behind mirror; WASM-in-browser rejected (appendix)
 - [docs/architecture/architecture.md](docs/architecture/architecture.md) — TOOLS / ARCH / CONTEXT + invariants + guardrails
+- [release pipeline design](docs/superpowers/specs/2026-06-21-release-pipeline-design.md) — release pipeline design
+- [release pipeline plan](docs/superpowers/plans/2026-06-21-release-pipeline.md) — release pipeline plan
 - [docs/REPO_STRUCTURE.md](docs/REPO_STRUCTURE.md) — top-level tree
 - [docs/DEV_SETUP.md](docs/DEV_SETUP.md) — env vars + first-run + common workflows
 - [supergoal ROADMAP](.supergoal/ROADMAP.md) — phase progress + Notable events log

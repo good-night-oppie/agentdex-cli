@@ -12,9 +12,8 @@
  *     a logged-in own-agent view opens the AUTHENTICATED owner stream
  *     (/me/battle/{id}/live, own-side fog-of-war); a third-party / shared link
  *     opens the PUBLIC spectator stream (/battle/{id}/live). It NEVER uses the
- *     public stream for the own-agent view (LVC-02/16). It is stubbed until
- *     GA-CORE-3 emits frames — wiring it is the one-line swap MockLiveSource
- *     stands in for.
+ *     public stream for the own-agent view (LVC-02/16). The fixture demo still
+ *     uses MockLiveSource; the live SPA passes a session token to SseLiveSource.
  *
  * Both speak the same frame shape (LIVE_VIEWER_CONTRACT.md): each "message"
  * carries one frame {battle_id, turn, seq, side, lines, scene, ts_ms}; a final
@@ -102,94 +101,111 @@
     return { url: `/battle/${battleId}/live`, auth: false, side: "spectator" };
   }
 
+  function parseSseBlock(block) {
+    const out = { event: "message", data: "" };
+    const data = [];
+    String(block).split(/\r?\n/).forEach((line) => {
+      if (!line || line[0] === ":") return;
+      const idx = line.indexOf(":");
+      const field = idx < 0 ? line : line.slice(0, idx);
+      const value = idx < 0 ? "" : line.slice(idx + 1).replace(/^ /, "");
+      if (field === "event") out.event = value || "message";
+      else if (field === "data") data.push(value);
+    });
+    out.data = data.join("\n");
+    return out;
+  }
+
+  function parseJsonPayload(data) {
+    return data ? JSON.parse(data) : {};
+  }
+
   /*
-   * SseLiveSource — the real GA-CORE-3 consumer. Owner streams use the backend's
-   * Bearer session-token contract, which requires fetch + ReadableStream because
-   * native EventSource cannot set Authorization. Public spectator streams can keep
-   * native EventSource.
+   * SseLiveSource — the real GA-CORE-3 consumer. Public spectator streams use
+   * native EventSource. Owner streams are Bearer-only for launch and therefore
+   * use fetch+ReadableStream; EventSource cannot set Authorization headers.
    */
   function SseLiveSource(battleId, intent, opts) {
     Emitter.call(this);
     opts = opts || {};
     this.battleId = battleId;
     this.endpoint = endpointFor(intent, battleId);
-    this.sessionToken = opts.sessionToken || "";
-    this._fetch = opts.fetch || (typeof fetch !== "undefined" ? fetch.bind(globalThis) : null);
-    this._AbortController =
-      opts.AbortController || (typeof AbortController !== "undefined" ? AbortController : null);
-    this._abort = null;
     this._es = null;
+    this._streamTask = null;
+    this._abort = null;
+    this._token = opts.sessionToken || opts.bearerToken || null;
+    this._fetch = opts.fetch || (typeof fetch !== "undefined" ? fetch.bind(globalThis) : null);
+    this._TextDecoder = opts.TextDecoder || (typeof TextDecoder !== "undefined" ? TextDecoder : null);
+    this._AbortController = opts.AbortController || (typeof AbortController !== "undefined" ? AbortController : null);
     this._EventSource = opts.EventSource || (typeof EventSource !== "undefined" ? EventSource : null);
   }
   SseLiveSource.prototype = Object.create(Emitter.prototype);
   SseLiveSource.prototype.start = function () {
-    if (this.endpoint.auth) return this._startBearerFetch();
+    if (this.endpoint.auth) {
+      if (!this._token) throw new Error("SseLiveSource: owner stream requires opts.sessionToken");
+      if (!this._fetch || !this._TextDecoder) throw new Error("SseLiveSource: fetch streaming unavailable");
+      this._streamTask = this._startBearerStream();
+      return this;
+    }
     if (!this._EventSource) throw new Error("SseLiveSource: no EventSource (wire GA-CORE-3 first)");
-    this._es = new this._EventSource(this.endpoint.url);
+    // Public spectator stream: no credentials, no hidden state.
+    this._es = new this._EventSource(this.endpoint.url, { withCredentials: false });
     this._es.onmessage = (ev) => this._emit("message", JSON.parse(ev.data));
-    this._es.addEventListener("end", (ev) => this._emit("end", JSON.parse(ev.data)));
+    this._es.addEventListener("end", (ev) => {
+      this._emit("end", JSON.parse(ev.data));
+      this.close();
+    });
     this._es.onerror = (ev) => this._emit("error", ev);
     return this;
   };
-
-  SseLiveSource.prototype._startBearerFetch = function () {
-    if (!this.sessionToken) throw new Error("SseLiveSource: Bearer session token required");
-    if (!this._fetch || !this._AbortController) {
-      throw new Error("SseLiveSource: fetch streaming unavailable");
-    }
-    this._abort = new this._AbortController();
-    this._fetch(this.endpoint.url, {
-      headers: {
-        Accept: "text/event-stream",
-        Authorization: `Bearer ${this.sessionToken}`,
-      },
-      signal: this._abort.signal,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`${this.endpoint.url}: HTTP ${res.status}`);
-        if (!res.body || !res.body.getReader) throw new Error("SseLiveSource: no response stream");
-        return this._readStream(res.body.getReader());
-      })
-      .catch((err) => {
-        if (!this._abort || !this._abort.signal.aborted) this._emit("error", err);
+  SseLiveSource.prototype._startBearerStream = async function () {
+    const controller = this._AbortController ? new this._AbortController() : null;
+    this._abort = controller;
+    try {
+      const res = await this._fetch(this.endpoint.url, {
+        headers: {
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${this._token}`,
+        },
+        signal: controller ? controller.signal : undefined,
       });
-    return this;
-  };
-
-  SseLiveSource.prototype._readStream = async function (reader) {
-    const decoder = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buf += decoder.decode(chunk.value, { stream: true });
-      let idx;
-      while ((idx = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, idx);
-        buf = buf.slice(idx + 2);
-        this._dispatchSseBlock(block);
+      if (!res || !res.ok) throw new Error(`SseLiveSource: HTTP ${res ? res.status : "?"}`);
+      if (!res.body || typeof res.body.getReader !== "function") {
+        throw new Error("SseLiveSource: response body is not stream-readable");
+      }
+      const reader = res.body.getReader();
+      const decoder = new this._TextDecoder();
+      let buf = "";
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buf += decoder.decode(chunk.value, { stream: true });
+        buf = this._drainSseBuffer(buf);
+      }
+      buf += decoder.decode();
+      this._drainSseBuffer(buf + "\n\n");
+    } catch (err) {
+      if (!controller || !controller.signal || !controller.signal.aborted) {
+        this._emit("error", err);
       }
     }
-    buf += decoder.decode();
-    if (buf.trim()) this._dispatchSseBlock(buf);
   };
-
-  SseLiveSource.prototype._dispatchSseBlock = function (block) {
-    let event = "message";
-    const data = [];
-    for (const raw of block.split(/\r?\n/)) {
-      if (raw.startsWith("event:")) event = raw.slice(6).trim() || "message";
-      else if (raw.startsWith("data:")) data.push(raw.slice(5).trimStart());
-    }
-    if (!data.length) return;
-    const payload = JSON.parse(data.join("\n"));
-    this._emit(event, payload);
+  SseLiveSource.prototype._drainSseBuffer = function (buf) {
+    const normalized = String(buf).replace(/\r\n/g, "\n");
+    const parts = normalized.split("\n\n");
+    const tail = parts.pop() || "";
+    parts.forEach((part) => {
+      const ev = parseSseBlock(part);
+      if (!ev.data) return;
+      this._emit(ev.event || "message", parseJsonPayload(ev.data));
+    });
+    return tail;
   };
-
   SseLiveSource.prototype.close = function () {
     if (this._es) this._es.close();
+    this._es = null;
     if (this._abort) this._abort.abort();
   };
 
-  return { MockLiveSource, SseLiveSource, endpointFor, Emitter };
+  return { MockLiveSource, SseLiveSource, endpointFor, Emitter, parseSseBlock };
 });
