@@ -1,0 +1,127 @@
+# ga-arena-modes-invariants.yml — gate the GA-ARENA-MODES (Step 6) security floor at the merge boundary.
+#
+# Why this exists: PR #487 shipped the arena mode-selection deliverable (solo_bots + pvp, FIFO
+# matchmaker, P2 choice router, POST /me/battle/queue + POST /battle/{id}/pvp-choose). The
+# kanban probe `.harness/kanban-probes/GA-ARENA-MODES.py` gates the CODE-level CONTRACT (the
+# ArenaMode Literal, the field type, the route decorators, the test-coverage surface). This
+# workflow gates the SECURITY FLOOR — the behavioral assertions that the deployed bytes still
+# enforce HTTP-boundary auth, PoP nonce-burn, CSRF, rate-limit, the 503 concurrency cap, the
+# share-nothing battle_id partition (ADR-0010), and audit-event emission on /me/battle/queue.
+# The CI-attestation companion `scripts/ga_arena_ci_attest.sh` reads the live deployed SHA from
+# /healthz and asserts a push-to-main SUCCESS run of THIS workflow exists on exactly that SHA.
+#
+# Why this is NOT a static-grep gate (prior-draft post-mortem):
+#   The previous Step-6 draft contained inline `grep -rEq` checks for "audit event emit",
+#   "auth invariants", "PoP nonce" — every one of them was defeated by a comment/docstring
+#   match in production code, AND the source-grep tests inside `test_arena_modes.py`
+#   (`inspect.getsource(...).find("forfeit_enabled")`) prove a payload was REFERENCED, not
+#   that the payload was EMITTED on a real request. A source-grep is not a behavioral test.
+#   Per the fix-notes block this gate now runs ONLY pytest modules — every security-floor
+#   invariant that lacks a behavioral test in-tree today is HONESTLY listed in the TODO
+#   block at the bottom of this file and reported as UNVERIFIED:<inv-name> at attest time.
+#   We never silently skip a missing test and false-green the gate.
+#
+# Why no `ADX_REQUIRE_GA_BUNDLE=1` (prior-draft Step6-F9):
+#   That env var was copy-pasted from ga-auth-invariants.yml where it gates `test_ga_auth_pages.py`
+#   (HTML-bundle reachability test). None of the Step-6 modules listed below touch the GA SPA
+#   bundle, so the env var would be cargo-culted noise.
+#
+# Why no inline static-grep step at all (prior-draft Step5-B1 / Step5-B2/B3/B4):
+#   Marker-file gating ( `if [[ ! -f $MARKER ]]; then exit 0` ) on a non-existent helper module
+#   silently bypassed three invariants in the Step-5 draft — every grep was a permanent no-op.
+#   Even with the marker present, every grep-on-source target was trivially defeated by a
+#   prose match in a comment or test fixture. There is NO grep-on-source step in this file.
+#
+# Why no inline live-smoke step (prior-draft Step5-M6):
+#   Same marker-skip pathology — the helper module did not exist, so the step was a permanent
+#   no-op. A live smoke against $GA_HOST belongs in a follow-up PR that ships the helper in
+#   the SAME commit (so the absence of the helper hard-fails the workflow, not silently skips).
+#
+# Why no overlap with ga-auth-invariants.yml's module list (prior-draft Step5-M9):
+#   That workflow already runs the shared session/limiter/membership-primitive tests on every
+#   PR; double-running them on Step-6 PRs only burns the shared self-hosted runner. This gate
+#   runs ONLY the arena-modes-specific modules. The follow-up `-m ga_invariant` pytest marker
+#   (tracked below) will resolve the hand-maintained-list problem at the source.
+#
+# Why we attest the LIVE deployed SHA, not branch-tip (mirrors ga_auth_ci_attest.sh):
+#   Production can lag main (slow/failed pull-CD deploy) or be rolled back. Attesting
+#   `commits/main` would score security for a SHA that is not live. The companion script
+#   reads the deployed SHA from $GA_HOST/healthz and asserts a SUCCESS run on THAT sha
+#   (event=push, branch=main). Without that constraint a successful PR-event run for the
+#   same SHA could stand in for the deployed contract.
+#
+# NOTE: the module list below is hand-maintained — a new arena-modes invariant module is NOT
+# gated until it is added here. Follow-up (tracked in TODO block): switch to `-m ga_invariant`
+# pytest marker on conftest + pyproject markers section, then this list collapses to one line.
+
+name: ga-arena-modes-invariants
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    # Run on every push to main so the DEPLOYED commit carries a push-to-main success run —
+    # `scripts/ga_arena_ci_attest.sh` attests the live deployed sha against exactly that
+    # (event=push, branch=main).
+    branches: [main]
+  workflow_dispatch:
+
+# Only the latest commit per ref needs gating; supersede in-flight runs on push-spam so the
+# shared self-hosted runner is not held by stale commits.
+concurrency:
+  group: ga-arena-modes-invariants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ga-arena-modes-invariants:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      # Fork-PR posture (mirrors ga-auth-invariants.yml): FAIL-CLOSED, not skip. A job-level
+      # `if:` that skips fork PRs reports the check as Success (GitHub treats a skipped job
+      # as success), so a fork PR would pass the security gate WITHOUT running it. So instead
+      # refuse fork PRs in a no-checkout first step that exits non-zero — the check goes RED
+      # (blocks the PR) and the untrusted code is never checked out onto the shared self-
+      # hosted runner. Same-repo PRs + workflow_dispatch fall through. (Repo is private/no-
+      # forks today → defense-in-depth.)
+      - name: Refuse fork PRs (fail-closed — never run untrusted code on self-hosted)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::GA-ARENA-MODES gate will not run a fork PR on the self-hosted runner. A maintainer must re-run it from a same-repo branch."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace
+        # --frozen (NOT --locked): installs from the committed uv.lock without re-resolving.
+        # --locked would additionally assert lock==pyproject and FAIL — the committed uv.lock
+        # is drifted from pyproject (pre-existing vendored-package condition, see ga-auth-
+        # invariants.yml for the full rationale). --all-packages because pytest lives in the
+        # workspace-ROOT dev-dependency group (a `--package <member>` sync drops it).
+        run: uv sync --all-packages --frozen
+
+      - name: Run GA-ARENA-MODES behavioral invariant gate
+        # ARENA-MODES-SPECIFIC MODULES ONLY (no overlap with ga-auth-invariants.yml's list):
+        #   test_arena_modes.py        — gateway-level wiring + Authority unit checks
+        #                                (the BeginRequest.mode field, ArenaMode literal
+        #                                 acceptance, PvP queue/router pairing, event-type
+        #                                 constants, source-grep replacements landed in
+        #                                 PR #487 + #508 hardening pass).
+        #   adx_showdown/test_pvp.py   — FIFO matchmaker + PvPChoiceRouter unit tests
+        #                                (battle_id prefix, FIFO ordering, cancel removes
+        #                                 waiter, duplicate-enqueue/raise, router buffered-
+        #                                 before-policy, await-then-submit, cleanup,
+        #                                 rejects-retry-until-turn-advances).
+        # Everything in the TODO block below is UNVERIFIED until its behavioral test lands.
+        # The probe at .harness/kanban-probes/GA-ARENA-MODES.py independently gates the
+        # static CODE contract (the Literal, field-type, route decorators, test-coverage
+        # count) — this workflow does NOT re-grep that surface; that is the probe's job.
+        run: |
+          uv run --no-sync pytest -q \
+            packages/agentdex_arena/tests/test_arena_modes.py \
+            packages/adx_showdown/tests/test_pvp.py

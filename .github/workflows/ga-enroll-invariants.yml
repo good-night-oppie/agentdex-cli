@@ -1,0 +1,123 @@
+# ga-enroll-invariants.yml — gate the GA-ENROLL (Step 5) account-lifecycle floor at
+# the merge boundary.
+#
+# Why this exists: Step 5 of the GA pipeline (enroll/account, invite redeem,
+# membership primitive, device flow OOB, supply-chain allowlist, sidecar
+# sandbox/cap) is the door from "anonymous arrival" to "owner-bound account
+# with quota and audit-logged sidecar capacity". A regression here is the
+# difference between a real GA and a self-serve bypass. lint.yml + the
+# review-comment-signoff gate trigger on PRs to main; the full pytest suite
+# only runs nightly in release.yml. Day-to-day PRs land on `dev` with no
+# enroll-specific gate — so a regression in the GA-ENROLL invariants (invite
+# required, account quota, membership primitive correctness) would slip
+# silently to nightly instead of being caught at merge.
+#
+# Scope (deliberately narrow — AGENTS.md §CI-POLICY merge-UNSTABLE-on-real-gates):
+#
+#   1. Behavioral pytest only. ZERO static-grep verifiers in this workflow —
+#      a `grep -rEq` for a constant matches prose, comments, and test
+#      fixtures, and is trivially defeated by renaming the constant. If an
+#      invariant doesn't have a behavioral test yet it lives in the TODO
+#      block at the top of ga_enroll_ci_attest.sh and is honestly reported
+#      as UNVERIFIED — never silently green-passed by a `[[ ! -f marker ]];
+#      then exit 0` skip.
+#
+#   2. ENROLL-specific module list only. ga-auth-invariants.yml already gates
+#      the shared auth-surface modules (test_ga_auth_*, test_session_auth,
+#      test_email_login, test_device_flow_endpoints, etc.). To avoid double-
+#      running them on every PR we list ONLY the three modules whose
+#      invariants are owned by the enroll lifecycle: test_enroll_account,
+#      test_account_quota, test_membership_primitive. Both workflows will
+#      consolidate onto a single `-m ga_invariant` pytest marker selection
+#      in a follow-up commit once the marker is registered + tests tagged
+#      (recon §FIX10).
+#
+#   3. NO live-smoke step yet. The original draft scaffolded a
+#      test_ga_enroll_live_smoke.py invocation that did `[[ -f $HELPER ]]
+#      || exit 0` — i.e. a permanent silent skip on a non-existent file.
+#      Dropped here; will be added back in the same PR that lands the
+#      helper module.
+#
+# NOTE: like ga-auth-invariants.yml, the module list below is hand-maintained.
+# A new GA-ENROLL invariant module is NOT gated until it is added here. The
+# `-m ga_invariant` marker follow-up closes this gap structurally.
+
+name: ga-enroll-invariants
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    # Run on every push to main so the DEPLOYED commit carries a push-to-main
+    # success run — the north-star probe's ga_enroll_ci_attest attests the live
+    # deployed sha against exactly that (event=push, branch=main).
+    branches: [main]
+  workflow_dispatch:
+
+# Only the latest commit per ref needs gating; supersede in-flight runs on
+# push-spam so the shared self-hosted runner is not held by stale commits.
+concurrency:
+  group: ga-enroll-invariants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ga-enroll-invariants:
+    runs-on: [self-hosted, linux, X64]
+    timeout-minutes: 10
+    steps:
+      # Fork-PR posture (P1, mirrors ga-auth-invariants.yml): FAIL-CLOSED, not skip.
+      # A job-level `if:` that skips fork PRs reports the check as Success (GitHub
+      # treats a skipped job as success), so a fork PR would pass the security gate
+      # WITHOUT running it. Instead refuse fork PRs in a no-checkout first step that
+      # exits non-zero — the check goes RED (blocks the PR) and the untrusted code
+      # is never checked out onto the shared self-hosted runner. Same-repo PRs +
+      # workflow_dispatch fall through. (Repo is private/no-forks today → defense-
+      # in-depth.)
+      - name: Refuse fork PRs (fail-closed — never run untrusted code on self-hosted)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::GA-ENROLL gate will not run a fork PR on the self-hosted runner. A maintainer must re-run it from a same-repo branch."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace
+        # --frozen (NOT --locked): installs from the committed uv.lock without
+        # re-resolving. --locked would additionally assert lock==pyproject and
+        # FAIL — the committed uv.lock is already drifted from pyproject, a
+        # pre-existing vendored-package condition (see ga-auth-invariants.yml
+        # for the full rationale). Enforcing drift-detection requires
+        # relocking the whole workspace (separate change); until then --frozen
+        # keeps the gate reproducible without false-failing on the stale lock.
+        # --all-packages: pytest lives in the workspace-ROOT dev-dependency
+        # group, which a `--package <member>` sync drops.
+        run: uv sync --all-packages --frozen
+
+      - name: Run GA-ENROLL invariant gate
+        # Module list is HAND-MAINTAINED and deliberately ENROLL-SCOPED. We do
+        # NOT re-list the auth-surface modules that ga-auth-invariants.yml
+        # already runs (test_ga_auth_*, test_session_auth, test_email_login,
+        # test_device_flow_endpoints, test_admin_auth, test_badge_auth,
+        # test_limiter, test_q5_anti_pay_to_rank_property). Those stay owned
+        # by the auth gate until the `-m ga_invariant` marker consolidation
+        # follow-up.
+        #
+        # NO ADX_REQUIRE_GA_BUNDLE here: that env var is only consumed by
+        # test_ga_auth_pages.py (asserts the served SPA bundle wires the
+        # /auth/* routes). None of the enroll-scoped modules below read that
+        # bundle, so setting it would be cargo-cult.
+        #
+        # See ga_enroll_ci_attest.sh TODO block for the named behavioral
+        # tests that still need to be written — those invariants are
+        # honestly reported as UNVERIFIED:<name> by the probe rather than
+        # silently green-passed here by a static grep.
+        run: |
+          uv run --no-sync pytest -q \
+            packages/agentdex_arena/tests/test_enroll_account.py \
+            packages/agentdex_arena/tests/test_account_quota.py \
+            packages/agentdex_arena/tests/test_membership_primitive.py
