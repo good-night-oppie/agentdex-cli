@@ -45,6 +45,31 @@ def load_board(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _try_mirror_to_ktui(board: dict[str, Any]) -> None:
+    """Best-effort mirror to ktui SQLite via the harness-engineering kanban_store
+    adapter (Phase A; per migration design Workflow wf_e45ce0be-1eb). The
+    canonical JSON write is the contract; this is a derived view that lags JSON
+    by one write. Any failure — adapter absent (CI checkouts that don't include
+    harness-engineering), ktui binary missing, board create failure, config
+    rollback (backend=json-only) — is SILENT. The JSON path is unaffected.
+
+    Rollback (R1, <60s): `echo "backend=json-only" > ~/.config/fleet/kanban.conf`
+    and the next write skips the mirror.
+    """
+    try:
+        import os
+        import sys
+
+        store_path = os.path.expanduser("~/gh/harness-engineering/scripts")
+        if store_path not in sys.path:
+            sys.path.insert(0, store_path)
+        from kanban_store import mirror_to_ktui  # type: ignore[import-not-found]
+
+        mirror_to_ktui(board)
+    except Exception:  # noqa: BLE001 — mirror is best-effort by contract
+        pass
+
+
 def write_board(path: Path, board: dict[str, Any]) -> None:
     validate_board(board)
     board["updated_at"] = now_utc()
@@ -52,6 +77,9 @@ def write_board(path: Path, board: dict[str, Any]) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(board, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     tmp.replace(path)
+    # Phase A v0.1: best-effort ktui mirror (after the canonical JSON write
+    # succeeds; never blocks the write contract). See _try_mirror_to_ktui above.
+    _try_mirror_to_ktui(board)
 
 
 def backup_existing_board(path: Path) -> Path | None:
