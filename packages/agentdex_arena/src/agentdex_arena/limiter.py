@@ -107,10 +107,12 @@ class TouchDrivenRateLimiter:
         self._enforce_cap()
         if now < state[_LOCK]:
             return False, True
-        # refill then consume one token
-        state[_TOKENS] = min(
-            self.max_tokens, state[_TOKENS] + (now - state[_LAST]) * self.refill_per_sec
-        )
+        # refill then consume one token. Clamp elapsed at 0: this limiter reads the
+        # wall clock, so an NTP/VM correction that moves `now` earlier than _LAST
+        # would otherwise SUBTRACT tokens (even driving the bucket negative), keeping
+        # the key rate-limited long after the rollback until wall time catches up.
+        elapsed = max(0.0, now - state[_LAST])
+        state[_TOKENS] = min(self.max_tokens, state[_TOKENS] + elapsed * self.refill_per_sec)
         state[_LAST] = now
         if state[_TOKENS] >= 1.0:
             state[_TOKENS] -= 1.0

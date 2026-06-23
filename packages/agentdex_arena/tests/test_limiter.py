@@ -38,6 +38,19 @@ def test_touch_recovery_refills_without_a_reaper():
     assert lim.acquire("ip") == (False, False)  # refilled lazily on the next touch
 
 
+def test_clock_rollback_does_not_drain_tokens():
+    # wall-clock limiter: an NTP/VM correction that moves `now` backwards must not
+    # subtract tokens (negative elapsed is clamped to 0), else the key stays
+    # rate-limited far longer than configured until wall time catches back up.
+    clk = _Clock()
+    lim = TouchDrivenRateLimiter(max_tokens=5, refill_per_sec=1.0, now=clk)
+    assert lim.acquire("ip") == (False, False)  # 5 -> 4 tokens
+    clk.advance(-100.0)  # clock jumps 100s backward
+    # without the clamp, refill would add (-100)*1.0 tokens, driving the bucket to
+    # ~-96 and rate-limiting; with the clamp it just consumes a token normally.
+    assert lim.acquire("ip") == (False, False)  # 4 -> 3, NOT rate limited
+
+
 def test_failure_lockout_then_wall_clock_expiry():
     clk = _Clock()
     lim = TouchDrivenRateLimiter(
