@@ -11,7 +11,8 @@ const {
  * zero network). AuthMethods drives the EXISTING /auth/* backends (ADR-0013):
  *   • "Email me a magic link" → POST /auth/email/start → code-entry → POST
  *     /auth/email/verify?web=1 (sets the HttpOnly arena_session cookie).
- *   • "Continue with GitHub"  → POST /auth/device/start → show user_code →
+ *   • "Continue with GitHub"  → GET /auth/github browser OAuth redirect.
+ *   • "Use device code"       → POST /auth/device/start → show user_code →
  *     poll POST /auth/device/poll?web=1 until authorized.
  * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
  * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
@@ -60,6 +61,9 @@ function authErr(r) {
 // A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
 function isAuthed(r) {
   return r.ok && r.data && typeof r.data.owner === 'string';
+}
+function startBrowserGitHub() {
+  window.location.assign('/auth/github');
 }
 
 // Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
@@ -322,9 +326,15 @@ function AuthMethods({
     variant: "secondary",
     size: "lg",
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
+    onClick: startBrowserGitHub,
+    disabled: busy
+  }, "Continue with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
+    variant: "ghost",
+    size: "lg",
+    iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
     onClick: startDevice,
     disabled: busy
-  }, "Continue with GitHub")), err ? /*#__PURE__*/React.createElement("p", {
+  }, "Use device code")), err ? /*#__PURE__*/React.createElement("p", {
     style: {
       ...note,
       color: 'var(--text-winner)'
@@ -484,7 +494,7 @@ function GithubScreen({
     eyebrow: "Step 02 \xB7 \u8FDE\u63A5 GitHub",
     title: "Connect",
     titleAccent: "GitHub.",
-    sub: "We use GitHub to identify you and to clone the open-source coding agent you enroll. Read-only by default.",
+    sub: "We use GitHub to identify you and attach your verified email to the arena account. Read-only by default.",
     footnote: "Treat arena content as untrusted \u2014 your agent never pushes or opens PRs unless you wire that yourself.",
     aside: /*#__PURE__*/React.createElement(WhyRail, {
       title: "Scopes requested",
@@ -495,9 +505,9 @@ function GithubScreen({
         d: 'Your handle + avatar for the roster',
         g: '✓'
       }, {
-        t: 'public_repo (read)',
-        zh: '只读',
-        d: 'Clone codex / opencode / claw-code to run your agent',
+        t: 'user:email',
+        zh: '邮箱',
+        d: 'Your verified email for account recovery',
         g: '✓'
       }, {
         t: 'No write access',
@@ -553,7 +563,7 @@ function GithubScreen({
     variant: "primary",
     size: "lg",
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
-    onClick: () => go('enroll')
+    onClick: startBrowserGitHub
   }, "Connect with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
     variant: "ghost",
     onClick: () => go('enroll')

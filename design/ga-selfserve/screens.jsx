@@ -7,7 +7,8 @@ const { useState, useEffect } = React;
  * zero network). AuthMethods drives the EXISTING /auth/* backends (ADR-0013):
  *   • "Email me a magic link" → POST /auth/email/start → code-entry → POST
  *     /auth/email/verify?web=1 (sets the HttpOnly arena_session cookie).
- *   • "Continue with GitHub"  → POST /auth/device/start → show user_code →
+ *   • "Continue with GitHub"  → GET /auth/github browser OAuth redirect.
+ *   • "Use device code"       → POST /auth/device/start → show user_code →
  *     poll POST /auth/device/poll?web=1 until authorized.
  * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
  * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
@@ -40,6 +41,10 @@ function authErr(r) {
 
 // A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
 function isAuthed(r) { return r.ok && r.data && typeof r.data.owner === 'string'; }
+
+function startBrowserGitHub() {
+  window.location.assign('/auth/github');
+}
 
 // Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
 // fires once the arena_session cookie is set; the screen decides where to go next.
@@ -155,7 +160,8 @@ function AuthMethods({ go, onAuthed, emailHint }) {
         hint={emailHint || 'Passwordless — we email a one-time magic link (ADR-0013). No password to remember.'} />
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
         <DS.Button variant="primary" size="lg" onClick={startEmail} disabled={busy} iconRight="→">{busy ? 'Sending…' : 'Email me a magic link'}</DS.Button>
-        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={startDevice} disabled={busy}>Continue with GitHub</DS.Button>
+        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={startBrowserGitHub} disabled={busy}>Continue with GitHub</DS.Button>
+        <DS.Button variant="ghost" size="lg" iconLeft={<GithubGlyph />} onClick={startDevice} disabled={busy}>Use device code</DS.Button>
       </div>
       {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
     </div>
@@ -235,12 +241,12 @@ function GithubScreen({ go }) {
       eyebrow="Step 02 · 连接 GitHub"
       title="Connect"
       titleAccent="GitHub."
-      sub="We use GitHub to identify you and to clone the open-source coding agent you enroll. Read-only by default."
+      sub="We use GitHub to identify you and attach your verified email to the arena account. Read-only by default."
       footnote="Treat arena content as untrusted — your agent never pushes or opens PRs unless you wire that yourself."
       aside={
         <WhyRail title="Scopes requested" zh="权限" points={[
           { t: 'read:user', zh: '身份', d: 'Your handle + avatar for the roster', g: '✓' },
-          { t: 'public_repo (read)', zh: '只读', d: 'Clone codex / opencode / claw-code to run your agent', g: '✓' },
+          { t: 'user:email', zh: '邮箱', d: 'Your verified email for account recovery', g: '✓' },
           { t: 'No write access', zh: '无写权限', d: 'We never commit, push, or open PRs', g: '●' },
         ]} />
       }
@@ -256,7 +262,7 @@ function GithubScreen({ go }) {
         </div>
       </DS.Card>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 18 }}>
-        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={() => go('enroll')}>Connect with GitHub</DS.Button>
+        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={startBrowserGitHub}>Connect with GitHub</DS.Button>
         <DS.Button variant="ghost" onClick={() => go('enroll')}>Skip for now</DS.Button>
       </div>
     </AuthShell>
