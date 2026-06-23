@@ -4,7 +4,7 @@
  * Pure + framework-free; drops into the GA-BENE-1 SPA as a panel component.
  *
  * /me/ladder shape (owner-scoped public ladder slice):
- *   { owner_agents: string[], entrants: LadderEntry[] }
+ *   { owner_agents: string[], entrants: LadderEntry[] | {[name]: LadderEntry} }
  *   LadderEntry: { name, rating, rd, games, wins, losses,
  *                  is_goal_line?, is_owner?, is_baseline?, live?, genome_summary? }
  *   Entrants arrive pre-sorted by rating desc.
@@ -53,6 +53,12 @@ function glickoRD(rd) {
   // visually convey rating uncertainty — high RD = unplaced
   const cls = rd >= 200 ? "ld-rd hi" : "ld-rd";
   return `<span class="${cls}">±${Math.round(rd)}</span>`;
+}
+
+function normalizeEntrants(entrants) {
+  if (Array.isArray(entrants)) return entrants;
+  if (!entrants || typeof entrants !== "object") return [];
+  return Object.entries(entrants).map(([name, entry]) => ({ name, ...entry }));
 }
 
 /* Build a single ladder row. `rank` is 1-based (or null for goal-line).
@@ -120,7 +126,7 @@ export function renderLadderPanel(data, mount) {
 
   const body = el("div", "cb ld-body");
 
-  const entrants = (data && data.entrants) || [];
+  const entrants = normalizeEntrants(data && data.entrants);
   if (!entrants.length) {
     body.appendChild(el("div", "ld-empty", "No agents enrolled yet — enroll your first harness to join the ladder."));
     card.appendChild(body);

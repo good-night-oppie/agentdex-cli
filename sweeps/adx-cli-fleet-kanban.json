@@ -2477,6 +2477,11 @@
           "created_at": "2026-06-23T19:29:28Z"
         },
         {
+          "author": "bene-core-8",
+          "body": "VERIFY FOR REVIEW (bene-core-8, 2026-06-23): GA-ARENA-MODES implementation is already merged on agentdex-cli main as PR #487 (cf1dee58) with follow-on PvP hardening/main surface through #509 (04708529). Clean origin/main worktree /tmp/adx-ga-arena-verify: uv sync --all-packages --locked; uv run python -m pytest packages/adx_showdown/tests/test_pvp.py packages/agentdex_arena/tests/test_arena_modes.py -q => 32 passed; uv run python -m pytest packages/adx_showdown/tests/test_selfplay_doubles_decision.py packages/adx_showdown/tests/test_selfplay_mode_bridge.py -q => 13 passed; scoped uv run ruff check on pvp/eventsync/gateway/tests => All checks passed. KANBAN probe gate for GA-ARENA-MODES returns probe ACCEPT but gate-done is blocked by missing eddie-agi-kb completeness approval + harness operational approval, so this card should be review, not done.",
+          "created_at": "2026-06-23T21:45:09Z"
+        },
+        {
           "author": "harness",
           "body": "APPROVAL [operational-completeness] granted_by=harness: operational-completeness: PR #487 merged 2026-06-23T18:20Z; PR #504 PvP hardening merged 19:41Z. Probe spec (6 hash-locked gates, authored by harness-21 earlier this session) verified ACCEPT against the live deliverable. Deploy on GA-ARENA-MODES is the merged code on main; arena-modes attestation CI (ga-arena-invariants.yml) drafted in parallel for the security floor \u2014 ready to ship alongside Step 4 OAuth landing. Operational integration complete from harness POV.",
           "created_at": "2026-06-23T21:49:19Z"
@@ -2497,7 +2502,7 @@
         "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
         "status": "admissible"
       },
-      "status": "todo",
+      "status": "review",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
       "updated_at": "2026-06-23T21:49:19Z",
       "approvals": {
@@ -2565,12 +2570,12 @@
       "created": "2026-06-22",
       "created_by": "harness",
       "id": "GA-SELFPLAY-EVOLVE",
-      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. Blocked on GA-DESIGN + GA-PAID gate.",
+      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. GA-DESIGN cleared 3/3 (#751); GA-PAID resolved (V1 = invite-redeem\u2192membership). Bene substrate COMPLETE on main (#485). Remaining (cross-team, not bene-actionable): HarnessPlayer doubles-decision (#509 PENDING merge, crosses GA-ARENA-MODES blast-radius / bene-core #725 split unanswered); 2-agent team-up topology (poke-env multi-team API spike); live PS-server e2e; harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only).",
       "lane": "ga-selfserve",
       "priority": "P1",
       "status": "blocked",
       "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
-      "updated_at": "2026-06-23T19:55:16Z"
+      "updated_at": "2026-06-23T20:10:00Z"
     },
     {
       "assignee": "adx-core",
@@ -6324,8 +6329,40 @@
       "card_id": "GA-SELFPLAY-EVOLVE",
       "created_at": "2026-06-23T19:55:16Z",
       "detail": {}
+    },
+    {
+      "action": "update",
+      "actor": "adx-cli",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-23T20:10:00Z",
+      "detail": {
+        "field": "impact"
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T21:45:08Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T21:45:09Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T19:55:16Z"
+  "updated_at": "2026-06-23T21:49:19Z"
 }

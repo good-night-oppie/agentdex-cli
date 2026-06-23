@@ -49,7 +49,7 @@
       this.frames = []; // by seq
       this.applied = new Set(); // seq dedup
       this.maxSeq = -1;
-      this.nextSeq = 0;
+      this.nextSeq = null;
       this.replayUrl = null;
       this.mode = "live"; // 'live' | 'replay'
       this.sideLabel = "spectator";
@@ -116,12 +116,23 @@
     }
 
     // ---- ingestion -------------------------------------------------------
+    _frameSeqs() {
+      return Object.keys(this.frames)
+        .map((seq) => Number(seq))
+        .filter((seq) => Number.isFinite(seq))
+        .sort((a, b) => a - b);
+    }
+
     pushFrame(frame) {
       if (frame == null || frame.seq == null) return;
-      this.frames[frame.seq] = frame;
+      const seq = Number(frame.seq);
+      if (!Number.isFinite(seq)) return;
+      frame.seq = seq;
+      this.frames[seq] = frame;
       if (this.mode === "replay") return; // replay drives via scrubTo
-      if (this.applied.has(frame.seq)) return; // dedup (LVC-07)
-      if (frame.seq < this.nextSeq) return; // stale
+      if (this.applied.has(seq)) return; // dedup (LVC-07)
+      if (this.nextSeq == null) this.nextSeq = seq;
+      if (seq < this.nextSeq) return; // stale
       this._drainFrames();
     }
 
@@ -133,14 +144,15 @@
     }
 
     _drainFrames() {
-      while (Object.prototype.hasOwnProperty.call(this.frames, this.nextSeq)) {
-        const frame = this.frames[this.nextSeq];
-        if (!frame || this.applied.has(this.nextSeq)) {
+      while (this.nextSeq != null && Object.prototype.hasOwnProperty.call(this.frames, this.nextSeq)) {
+        const seq = this.nextSeq;
+        const frame = this.frames[seq];
+        if (!frame || this.applied.has(seq)) {
           this.nextSeq += 1;
           continue;
         }
-        this.applied.add(this.nextSeq);
-        this.maxSeq = this.nextSeq;
+        this.applied.add(seq);
+        this.maxSeq = seq;
         this.nextSeq += 1;
         this.sideLabel = frame.side || this.sideLabel;
         this._apply(frame, /*animate=*/true);
@@ -250,12 +262,15 @@
     _showReplayControls() {
       this.elControls.innerHTML = "";
       this.elControls.style.display = "";
+      const seqs = this._frameSeqs();
+      const firstSeq = seqs.length ? seqs[0] : 0;
+      const lastSeq = seqs.length ? seqs[seqs.length - 1] : 0;
       const replayBtn = el("button", "bscene-btn", "↺ Replay");
       const nextBtn = el("button", "bscene-btn", "▸ Next battle");
       const scrub = el("input", "bscene-scrub");
       scrub.type = "range";
-      scrub.min = "0";
-      scrub.max = String(Math.max(0, this.frames.length - 1));
+      scrub.min = String(firstSeq);
+      scrub.max = String(lastSeq);
       scrub.value = scrub.max;
       scrub.addEventListener("input", () => {
         this._stopReplayTimer();
@@ -266,12 +281,13 @@
         this.mode = "replay";
         let i = 0;
         const step = () => {
-          if (i >= this.frames.length) {
+          if (i >= seqs.length) {
             this._replayTimer = null;
             return;
           }
-          scrub.value = String(i);
-          this.scrubTo(i++);
+          const seq = seqs[i++];
+          scrub.value = String(seq);
+          this.scrubTo(seq);
           this._replayTimer = setTimeout(step, 420);
         };
         step();
@@ -295,7 +311,8 @@
       this.mode = "replay";
       this.scene = SR ? SR.newScene() : this.scene;
       this.elTicker.innerHTML = "";
-      for (let i = 0; i <= seq && i < this.frames.length; i++) {
+      for (const i of this._frameSeqs()) {
+        if (i > seq) break;
         const f = this.frames[i];
         if (!f) continue;
         if (f.scene) this.scene = f.scene;
@@ -304,7 +321,9 @@
       this.sideLabel = (this.frames[seq] && this.frames[seq].side) || this.sideLabel;
       this.elLive.textContent = "▮ REPLAY";
       this._render(this.frames[seq], false);
-      this.elLag.textContent = "frame " + seq + "/" + (this.frames.length - 1);
+      const seqs = this._frameSeqs();
+      const lastSeq = seqs.length ? seqs[seqs.length - 1] : seq;
+      this.elLag.textContent = "frame " + seq + "/" + lastSeq;
     }
 
     reset() {
@@ -312,7 +331,7 @@
       this.frames = [];
       this.applied = new Set();
       this.maxSeq = -1;
-      this.nextSeq = 0;
+      this.nextSeq = null;
       this.mode = "live";
       this.scene = SR ? SR.newScene() : this.scene;
       this.elTicker.innerHTML = "";

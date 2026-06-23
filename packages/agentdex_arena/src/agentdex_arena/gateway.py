@@ -511,6 +511,8 @@ class BattleSession:
     live_viewers: int = 0
     # GA-ARENA-MODES PvP: P2's claims_token_id for pvp-choose bearer binding.
     pvp_p2_claims_token_id: str = ""
+    # Normalized owner for P2 in PvP battles, so per-owner caps apply to both players.
+    pvp_p2_owner: str = ""
 
 
 class EnrollRequest(BaseModel):
@@ -1294,6 +1296,30 @@ class ArenaGateway:
             )
         return {"owner": claims.owner, "agents": agents}
 
+    def me_agent_evolution(self, claims: SessionClaims, agent_id: str) -> dict[str, Any]:
+        """Owner-scoped evolution panel payload for the live dashboard.
+
+        The arena does not yet persist per-agent BENE lineage. Return an honest
+        non-real payload for owned agents instead of letting the SPA 404 or serving
+        fixture evidence in live mode.
+        """
+        names = set(self.accounts.agents_for(claims.owner))
+        if agent_id not in names:
+            raise _opaque_error(404, "agent not found")
+        return {
+            "ok": False,
+            "agent_name": agent_id,
+            "backend": "unavailable",
+            "scaffold": False,
+            "gens_completed": 0,
+            "win_rate_uplift_pp": 0,
+            "win_rate_uplift_ci95_pp": [],
+            "ci_excludes_zero": False,
+            "killgate": {"passed": False},
+            "lineage": [],
+            "note": "live evolution lineage is not persisted for this agent yet",
+        }
+
     def me_battles(self, claims: SessionClaims, *, recent_limit: int = 50) -> dict[str, Any]:
         """GA-CORE-5: the owner's battles (US-2.1) — LIVE battle ids (in-flight in THIS
         process; the handles the live viewer GA-CORE-3 subscribes to) + RECENT finished
@@ -1478,7 +1504,11 @@ class ArenaGateway:
         ``_release_owner_slot`` in a finally (PR #243 review).
         """
         max_per_owner = int(os.environ.get("ARENA_MAX_BATTLES_PER_OWNER", "3"))
-        live = sum(1 for s in self.sessions.values() if s.owner == owner_norm and s.ended is None)
+        live = sum(
+            1
+            for s in self.sessions.values()
+            if s.ended is None and (s.owner == owner_norm or s.pvp_p2_owner == owner_norm)
+        )
         if live + self._owner_inflight.get(owner_norm, 0) >= max_per_owner:
             raise HTTPException(
                 status_code=429,
@@ -1909,18 +1939,6 @@ class ArenaGateway:
             if visitor_choice is not None:
                 choices[session.visitor_side] = visitor_choice
                 visitor_choice = None
-            raw_opp = (state.get("pending") or {}).get(other)
-            if raw_opp is not None:
-                opp_req = parse_request(raw_opp)
-                ctx = BattleContext(
-                    side=other,
-                    my_species=(state.get("active") or {}).get(other) or active_species(opp_req),
-                    opponent_species=(state.get("active") or {}).get(session.visitor_side),
-                    turns=int(state.get("turns", 0)),
-                )
-                opp_choice = await call_policy(session.opponent_policy, opp_req, ctx)
-                if opp_choice is not None:
-                    choices[other] = opp_choice
             raw_vis = (state.get("pending") or {}).get(session.visitor_side)
             if raw_vis is not None and session.visitor_side not in choices:
                 vis_req = parse_request(raw_vis)
@@ -1933,6 +1951,18 @@ class ArenaGateway:
                     session.turns = int(state.get("turns", 0))
                     self.pvp_choice_router.mark_turn_advanced(session.battle_id)
                     return self._render(session, state)
+            raw_opp = (state.get("pending") or {}).get(other)
+            if raw_opp is not None:
+                opp_req = parse_request(raw_opp)
+                ctx = BattleContext(
+                    side=other,
+                    my_species=(state.get("active") or {}).get(other) or active_species(opp_req),
+                    opponent_species=(state.get("active") or {}).get(session.visitor_side),
+                    turns=int(state.get("turns", 0)),
+                )
+                opp_choice = await call_policy(session.opponent_policy, opp_req, ctx)
+                if opp_choice is not None:
+                    choices[other] = opp_choice
             if not choices:
                 raise _opaque_error(500, f"{session.battle_id}: protocol stall")
             resp = await sidecar.request("step", battle=session.battle_id, choices=choices)
@@ -2700,11 +2730,22 @@ def create_app(
         # instance to read a returncode from, so the sticky flag carries it. Liveness
         # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
+        # Touch-driven crash recovery (RECOVER-P1-sidecar-respawn): the readiness
+        # probe is the canonical periodic touch, so respawn any dead pool member in
+        # place here — a transient crash self-heals instead of forcing a full
+        # container recycle. reclaim_dead() starts the replacement OUTSIDE the pool
+        # lock and returns the evicted battle_ids; a respawn that fails leaves the
+        # member dead → the 503 below still fires. (Restored after the #508 main→dev
+        # sync silently dropped this dev-only block — PR #484/#497, #508 review P1.)
         if isinstance(sc, SidecarPool) and sc.any_dead():
             try:
                 evicted = await sc.reclaim_dead()
             except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
                 evicted = []
+            # Fail the crashed battles closed (#2835): the member's death took its
+            # in-process sim state with it. Move the still-live sessions to the
+            # _interrupted set (same 409 signal as a gateway restart, PR #246) and
+            # drop them so the owner gets a clean 409 instead of a stale-session loop.
             for bid in evicted:
                 sess = gateway.sessions.pop(bid, None)
                 if sess is not None and sess.ended is None:
@@ -3476,26 +3517,47 @@ def create_app(
         return {"status": "ok"}
 
     @app.get("/me/agents")
-    async def me_agents(authorization: str | None = Header(default=None)) -> dict:
+    async def me_agents(request: Request) -> dict:
         """GA-CORE-5: session-authed dashboard roster (US-2.1) — the owner's agents
         with ladder rating, rated W/L, badges, and a live/idle flag. Free read (no
         membership, no quota); 503 if session auth is unconfigured, 401/403 on a
         missing/bad session."""
-        return gateway.me_agents(_require_session(authorization))
+        return gateway.me_agents(_require_session_dual(request, state_changing=False))
+
+    @app.get("/me/agents/{agent_id}/evolution")
+    async def me_agent_evolution(agent_id: str, request: Request) -> dict:
+        """GA-BENE-4 live dashboard hook for an owner's selected agent.
+
+        Returns an honest non-real payload until per-agent lineage persistence lands.
+        """
+        return gateway.me_agent_evolution(
+            _require_session_dual(request, state_changing=False),
+            agent_id,
+        )
 
     @app.get("/me/battles")
-    async def me_battles(authorization: str | None = Header(default=None)) -> dict:
+    async def me_battles(request: Request) -> dict:
         """GA-CORE-5: session-authed list of the owner's LIVE + RECENT battles
         (US-2.1). Live ids are the GA-CORE-3 live-viewer handles; recent battles
         resolve to ``/replay/{id}``. Free read."""
-        return gateway.me_battles(_require_session(authorization))
+        return gateway.me_battles(_require_session_dual(request, state_changing=False))
 
     @app.get("/me/ladder")
-    async def me_ladder(authorization: str | None = Header(default=None)) -> dict:
+    async def me_ladder(request: Request) -> dict:
         """GA-CORE-5: session-authed owner-scoped slice of the public ``/ladder``
         (US-5.1, "my agents highlighted") — same rating source as ``/ladder``, just
         filtered to the caller's agents. Free read."""
-        return gateway.me_ladder(_require_session(authorization))
+        return gateway.me_ladder(_require_session_dual(request, state_changing=False))
+
+    def _p2_choice_options(session: BattleSession) -> list[str]:
+        last = session.last_state
+        if last is None:
+            return []
+        other_side = "p2" if session.visitor_side == "p1" else "p1"
+        raw_opp = (last.get("pending") or {}).get(other_side)
+        if raw_opp is None:
+            return []
+        return legal_choices(parse_request(raw_opp))
 
     @app.post("/me/battle/queue")
     async def me_battle_queue(req: PvPQueueRequest) -> dict:
@@ -3534,19 +3596,42 @@ def create_app(
                 released[0] = True
                 gateway._release_owner_slot(owner_norm)
 
+        requested_team = req.team
         try:
+            if requested_team is not None:
+                validation_sidecar = await _sidecar()
+                requested_team = sanitize_packed_team(requested_team)
+                valid, errors = await validate_team(validation_sidecar, requested_team)
+                if not valid:
+                    raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
             pairing = await gateway.pvp_queue.enqueue(
                 owner_norm,
                 agent_name=claims.agent_name,
                 token_id=claims.token_id,
-                team=req.team,
+                team=requested_team,
             )
         except ValueError as e:
             _hand_off()
             raise _opaque_error(409, e) from None
+        except HTTPException:
+            _hand_off()
+            raise
+        except SidecarError as e:
+            _hand_off()
+            if "capacity" in str(e).lower():
+                gateway.cap_503_total += 1
+                raise HTTPException(
+                    status_code=503,
+                    detail="arena at capacity — finish or forfeit an active battle, then retry",
+                    headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+                ) from None
+            raise _opaque_error(400, e) from None
         except asyncio.CancelledError:
             _hand_off()
             raise
+        except Exception as e:  # noqa: BLE001
+            _hand_off()
+            raise _opaque_error(400, e) from None
 
         try:
             sidecar = await _sidecar()
@@ -3557,20 +3642,12 @@ def create_app(
                 # P1 starts the sidecar battle; P2's policy waits for explicit choices.
                 opponent_name = pairing.opponent_agent_name or pairing.opponent_owner
                 p2_policy = gateway.pvp_choice_router.make_p2_policy(battle_id)
-                team = req.team
+                team = requested_team
                 if team is None:
                     team = await pack_team(sidecar, next(iter(starter_pack().values())))
-                else:
-                    team = sanitize_packed_team(team)
-                    valid, errors = await validate_team(sidecar, team)
-                    if not valid:
-                        raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
                 # Use P2's requested team if provided; otherwise default starter pack.
                 if pairing.p2_team is not None:
-                    opp_team = sanitize_packed_team(pairing.p2_team)
-                    valid, errors = await validate_team(sidecar, opp_team)
-                    if not valid:
-                        opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
+                    opp_team = pairing.p2_team
                 else:
                     opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
                 seed = [
@@ -3581,14 +3658,24 @@ def create_app(
                     7,
                     7,
                 ]
-                resp = await sidecar.request(
-                    "start",
-                    battle=battle_id,
-                    format="gen9ou",
-                    seed=seed,
-                    p1={"name": visitor, "team": team},
-                    p2={"name": opponent_name, "team": opp_team},
-                )
+                try:
+                    resp = await sidecar.request(
+                        "start",
+                        battle=battle_id,
+                        format="gen9ou",
+                        seed=seed,
+                        p1={"name": visitor, "team": team},
+                        p2={"name": opponent_name, "team": opp_team},
+                    )
+                except SidecarError as e:
+                    if "capacity" in str(e).lower():
+                        gateway.cap_503_total += 1
+                        raise HTTPException(
+                            status_code=503,
+                            detail="arena at capacity — finish or forfeit an active battle, then retry",
+                            headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+                        ) from None
+                    raise
                 session = BattleSession(
                     battle_id=battle_id,
                     claims_token_id=claims.token_id,
@@ -3603,6 +3690,7 @@ def create_app(
                 session.p1_team, session.p2_team = team, opp_team
                 # Bind P2's token_id for pvp-choose authentication.
                 session.pvp_p2_claims_token_id = pairing.p2_claims_token_id
+                session.pvp_p2_owner = pairing.opponent_owner
                 await gateway._append_or_fail_closed(
                     "battle_begin",
                     {
@@ -3618,7 +3706,15 @@ def create_app(
                 )
                 gateway.sessions[battle_id] = session
                 _hand_off()
-                state = await gateway._advance(session, resp["state"], visitor_choice=None)
+                try:
+                    state = await gateway._advance(session, resp["state"], visitor_choice=None)
+                except BaseException:
+                    gateway.pvp_choice_router.cleanup(battle_id)
+                    try:
+                        await gateway._stop_battle_robustly(sidecar, battle_id)
+                    finally:
+                        gateway.sessions.pop(battle_id, None)
+                    raise
                 return {
                     "battle_id": battle_id,
                     "role": "p1",
@@ -3629,19 +3725,36 @@ def create_app(
             else:
                 # P2: owner slot is kept until the session is published so P2 counts
                 # against the per-owner concurrency cap for the lifetime of the battle.
-                # Wait (with timeout) for P1 to publish the session before returning,
-                # so P2 isn't racing a session that might not exist yet (TOCTOU).
+                # Wait (with timeout) for P1 to publish the session AND its first
+                # rendered state before returning, so P2 gets real legal choices and
+                # is not racing a session that might not exist yet (TOCTOU).
+                published: BattleSession | None = None
                 for _ in range(50):  # up to 5 s
-                    if battle_id in gateway.sessions:
+                    published = gateway.sessions.get(battle_id)
+                    if published is not None and published.last_state is not None:
                         break
                     await asyncio.sleep(0.1)
+                if published is None or published.last_state is None:
+                    _hand_off()
+                    raise HTTPException(
+                        status_code=503,
+                        detail="pvp match startup not ready — retry",
+                        headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+                    )
                 _hand_off()  # release slot after session is confirmed published
+                choices = _p2_choice_options(published)
                 result: dict = {
                     "battle_id": battle_id,
                     "role": "p2",
                     "opponent": pairing.opponent_agent_name or pairing.opponent_owner,
                     "mode": "pvp",
                     "status": "matched",
+                    "turn": published.turns,
+                    "n_choices": len(choices),
+                    "choices": [
+                        {"index": idx, "choice": choice}
+                        for idx, choice in enumerate(choices, start=1)
+                    ],
                 }
                 return result
         except HTTPException:
@@ -3696,15 +3809,11 @@ def create_app(
         if last is None:
             raise _opaque_error(409, "no pending state yet — wait for P1 to begin")
 
-        other_side = "p2" if session.visitor_side == "p1" else "p1"
-        raw_opp = (last.get("pending") or {}).get(other_side)
-        if raw_opp is None:
+        choices = _p2_choice_options(session)
+        if not choices:
             raise _opaque_error(409, "no pending request for P2 right now")
-
-        opp_req = parse_request(raw_opp)
-        choices = legal_choices(opp_req)
         idx = req.choice_index - 1
-        if idx >= len(choices):
+        if idx < 0 or idx >= len(choices):
             raise _opaque_error(
                 400, f"choice_index {req.choice_index} out of range (P2 has {len(choices)} choices)"
             )
@@ -3739,17 +3848,15 @@ def create_app(
     async def me_battle_live(
         battle_id: str,
         request: Request,
-        authorization: str | None = Header(default=None),
     ) -> StreamingResponse:
         """GA-CORE-3 AUTHENTICATED owner stream (US-2.1 / US-3.1 fog-of-war): SSE,
         session-authed, the owner's per-side frames WITH their own hidden info (their
         own ``|split|`` private lines). Ownership = the session owns the agent that
         started the battle (``visitor_name`` in the account's agents); the projection
-        side is the visitor's side. Bearer session token is the carrier (the
-        contract's fetch-SSE path; an httponly-cookie carrier for native EventSource
-        is a frontend follow-up). Opaque 403 on a missing/bad session or a battle the
-        caller does not own (D7 — collapses not-found + not-yours)."""
-        claims = _require_session(authorization)
+        side is the visitor's side. Carrier is CLI Bearer or browser HttpOnly session
+        cookie. Opaque 403 on a missing/bad session or a battle the caller does not own
+        (D7 — collapses not-found + not-yours)."""
+        claims = _require_session_dual(request, state_changing=False)
         session = gateway.sessions.get(battle_id)
         # Ownership: the session owns the agent that started the battle (account-enroll
         # records the account->agent join), OR the verified owner matches the owner
