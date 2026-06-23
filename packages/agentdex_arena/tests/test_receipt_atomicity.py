@@ -617,6 +617,54 @@ def test_replay_rehydrates_from_artifact_after_restart(tmp_path: Path) -> None:
     assert g2.load_replay("../../etc/passwd") is None
 
 
+def test_finished_session_cache_evicts_old_receipts_but_keeps_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "1")
+    gateway = _gateway(tmp_path)
+    live = _session(_StopRecordingSidecar())
+    live.battle_id = "sandbox-live"
+    gateway._publish_session(live.battle_id, live)
+
+    first = _session(_StopRecordingSidecar())
+    first.battle_id = "sandbox-first"
+    second = _session(_StopRecordingSidecar())
+    second.battle_id = "sandbox-second"
+    gateway._publish_session(first.battle_id, first)
+    gateway._publish_session(second.battle_id, second)
+
+    asyncio.run(gateway._finish(first, {"winner": "Bot", "turns": 4, "inputLog": ["a"]}))
+    asyncio.run(gateway._finish(second, {"winner": "Bot", "turns": 5, "inputLog": ["b"]}))
+
+    assert live.battle_id in gateway.sessions  # live sessions are never cache-evicted
+    assert first.battle_id not in gateway.sessions
+    assert second.battle_id in gateway.sessions
+    assert gateway.load_replay(first.battle_id) is not None
+
+
+def test_replay_cache_is_bounded_and_rehydrates_evicted_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ARENA_MAX_REPLAY_CACHE", "1")
+    gateway = _gateway(tmp_path)
+    first = _session(_StopRecordingSidecar())
+    first.battle_id = "sandbox-replay-first"
+    second = _session(_StopRecordingSidecar())
+    second.battle_id = "sandbox-replay-second"
+
+    asyncio.run(gateway._finish(first, {"winner": "Bot", "turns": 4, "inputLog": ["a"]}))
+    asyncio.run(gateway._finish(second, {"winner": "Bot", "turns": 5, "inputLog": ["b"]}))
+
+    assert first.battle_id not in gateway.replays
+    assert second.battle_id in gateway.replays
+
+    rehydrated = gateway.load_replay(first.battle_id)
+    assert rehydrated is not None
+    assert rehydrated["input_log"] == ["a"]
+    assert first.battle_id in gateway.replays
+    assert second.battle_id not in gateway.replays
+
+
 def test_backgrounded_finish_failure_is_logged(tmp_path: Path, caplog) -> None:
     """PR #291 review 3435604694: when a /choose is cancelled and the shielded
     _finish later fails, the done-callback retrieves the exception (to avoid
