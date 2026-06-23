@@ -437,3 +437,33 @@ def test_reclaim_dead_is_noop_when_all_alive():
     p = SidecarPool(size=2)
     _run(p.start())
     assert _run(p.reclaim_dead()) == 0
+
+
+def test_reclaim_dead_tears_down_a_failed_respawn(monkeypatch):
+    """A respawn whose start() raises (e.g. Node ready-event timeout) spawns a child
+    then raises without stopping it; reclaim_dead must tear that half-started process
+    down, else every /healthz touch re-runs reclaim_dead and leaks another Node child
+    (OOM spiral). PR #484 review (P1)."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+    p._sidecars[0].returncode = 1  # crash member 0 → reclaim_dead will respawn it
+
+    stopped: list = []
+
+    async def boom(self) -> None:  # the respawn's start() fails after "spawning"
+        raise RuntimeError("node ready-event timeout")
+
+    async def rec_stop(self) -> None:  # record that the failed respawn was torn down
+        stopped.append(self)
+        self.started = False
+
+    monkeypatch.setattr(FakeSidecar, "start", boom)
+    monkeypatch.setattr(FakeSidecar, "stop", rec_stop)
+
+    with pytest.raises(RuntimeError, match="node ready-event timeout"):
+        _run(p.reclaim_dead())
+
+    # the half-started replacement was stopped (child reaped), not leaked
+    assert len(stopped) == 1, "failed respawn was not torn down → leaks a Node child"
+    # routing state untouched: the dead corpse is still in place, retried next touch
+    assert p._sidecars[0].returncode == 1
