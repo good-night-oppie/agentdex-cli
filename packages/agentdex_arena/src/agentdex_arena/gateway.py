@@ -94,34 +94,59 @@ log = logging.getLogger(__name__)
 
 
 class _FilteredStaticFiles(StaticFiles):
-    """StaticFiles that 404s internal design artifacts so the public ``/ga-assets``
-    surface serves only what the GA self-serve page needs (ga-selfserve/* + the
-    design-system CSS/JS/SVG assets), NOT the design lead's authoring material —
-    per-component ``*.prompt.md`` / ``*.d.ts``, manifests/READMEs, and especially
-    the ``uploads/`` planning docs (e.g. ``prd.html`` with internal blocker notes).
-    Narrows the mount per the PR #453 review so bundling ``design/`` to fix the
-    prod 404 cannot also publish unrelated internal artifacts.
+    """StaticFiles with a default-DENY allow-list so the public ``/ga-assets`` surface
+    serves ONLY the files the GA self-serve page actually loads — never the rest of
+    the bundled ``design/`` tree (component ``.jsx`` / ``.d.ts`` / ``.prompt.md``
+    source, guidelines, templates, ui_kits, manifests/READMEs, ``DESIGN.md``, and the
+    ``uploads/`` planning docs with internal blocker notes). An explicit allow-list
+    (not a deny-list) per the PR #461 review: bundling ``design/`` to fix the prod 404
+    then cannot publish ANY unlisted artifact, current or future.
+
+    Page graph (design/ga-selfserve/index.html): its own
+    ``ga-selfserve/{index.html,data.js,shell.jsx,screens.jsx}`` + the design system's
+    ``styles.css`` and ``_ds_bundle.js``, where ``styles.css`` @imports
+    ``tokens/{fonts,colors,typography,spacing}.css`` (the fonts themselves load from
+    the Google Fonts CDN, not this mount). ``assets/`` brand SVGs are allowed as the
+    page's logos, but only as web-asset file types.
     """
 
-    _DENY_NAME_SUFFIXES = (".prompt.md", ".d.ts")
-    _DENY_NAMES = frozenset(
-        {"readme.md", "skill.md", "_ds_manifest.json", "_adherence.oxlintrc.json", ".thumbnail"}
+    # design-system web-asset extensions (tokens/ + assets/): never source/docs.
+    _ASSET_EXTS = (
+        ".css",
+        ".js",
+        ".svg",
+        ".woff2",
+        ".woff",
+        ".ttf",
+        ".otf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".ico",
+    )
+    # ga-selfserve runtime extensions — denies DESIGN.md (and any other doc).
+    _PAGE_EXTS = (".html", ".js", ".jsx", ".css")
+    _DS_ROOT_FILES = frozenset(
+        {"agentdex-design-system/styles.css", "agentdex-design-system/_ds_bundle.js"}
     )
 
     @staticmethod
-    def _denied(path: str) -> bool:
-        norm = path.replace("\\", "/").lower().strip("/")
-        segs = norm.split("/")
-        if "uploads" in segs:  # any uploads/ dir segment — planning docs, never page assets
+    def _allowed(path: str) -> bool:
+        norm = path.replace("\\", "/").lstrip("/").lower()
+        if norm.startswith("ga-selfserve/"):
+            return norm.endswith(_FilteredStaticFiles._PAGE_EXTS)
+        if norm in _FilteredStaticFiles._DS_ROOT_FILES:
             return True
-        name = segs[-1] if segs else ""
-        return (
-            name.endswith(_FilteredStaticFiles._DENY_NAME_SUFFIXES)
-            or name in _FilteredStaticFiles._DENY_NAMES
-        )
+        if norm.startswith("agentdex-design-system/tokens/"):
+            return norm.endswith(".css")
+        if norm.startswith("agentdex-design-system/assets/"):
+            return norm.endswith(_FilteredStaticFiles._ASSET_EXTS)
+        return False
 
     async def get_response(self, path: str, scope):  # type: ignore[override]
-        if self._denied(path):
+        if not self._allowed(path):
             from fastapi.responses import PlainTextResponse
 
             return PlainTextResponse("Not Found", status_code=404)
@@ -3798,9 +3823,10 @@ def create_app(
     _ga_design = Path("design")
     _ga_index = _ga_design / "ga-selfserve" / "index.html"
     if _ga_index.is_file():
-        # _FilteredStaticFiles (not bare StaticFiles): deny internal design artifacts
-        # (uploads/ planning docs, *.prompt.md/*.d.ts, manifests/READMEs) so the public
-        # surface is narrowed to the page's assets — PR #453 review (P2).
+        # _FilteredStaticFiles (not bare StaticFiles): default-deny allow-list so the
+        # public surface is ONLY the files the page loads (ga-selfserve runtime files +
+        # design-system styles.css/_ds_bundle.js/tokens/assets) — never component
+        # source, guidelines, uploads/ planning docs, etc. PR #453 + #461 review (P2).
         app.mount("/ga-assets", _FilteredStaticFiles(directory=str(_ga_design)), name="ga-assets")
 
         def _ga_page(initial: str) -> HTMLResponse:

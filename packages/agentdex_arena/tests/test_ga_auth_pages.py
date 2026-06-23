@@ -50,28 +50,38 @@ def test_page_route_serves_ga_screen(tmp_path, monkeypatch, path, screen):
 def test_ga_assets_are_served(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
+    # the page's own runtime files
+    assert c.get("/ga-assets/ga-selfserve/index.html").status_code == 200
     assert c.get("/ga-assets/ga-selfserve/data.js").status_code == 200
+    assert c.get("/ga-assets/ga-selfserve/shell.jsx").status_code == 200
+    assert c.get("/ga-assets/ga-selfserve/screens.jsx").status_code == 200
+    # design-system entry files + the tokens/*.css that styles.css @imports (the
+    # allow-list MUST keep these or the page renders unstyled)
     assert c.get("/ga-assets/agentdex-design-system/styles.css").status_code == 200
     assert c.get("/ga-assets/agentdex-design-system/_ds_bundle.js").status_code == 200
+    for tok in ("fonts", "colors", "typography", "spacing"):
+        assert c.get(f"/ga-assets/agentdex-design-system/tokens/{tok}.css").status_code == 200
 
 
 @pytest.mark.skipif(not _HAS_DESIGN, reason="design/ga-selfserve not present in this tree")
-def test_ga_assets_deny_internal_design_artifacts(tmp_path, monkeypatch):
-    # The mount must NOT publish the design lead's authoring material or planning
-    # docs even though they live under the bundled design/ tree (PR #453 P2 review).
+def test_ga_assets_allowlist_denies_everything_else(tmp_path, monkeypatch):
+    # Default-deny allow-list (PR #461 review): the mount publishes ONLY the page's
+    # assets, so every other file under the bundled design/ tree — planning docs,
+    # component source, guidelines, manifests, design notes — must 404.
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
     denied = [
         "/ga-assets/agentdex-design-system/uploads/prd.html",  # internal planning doc
         "/ga-assets/agentdex-design-system/uploads/moodboard.html",
+        "/ga-assets/agentdex-design-system/components/core/Button.jsx",  # component source
         "/ga-assets/agentdex-design-system/components/core/Button.prompt.md",
         "/ga-assets/agentdex-design-system/components/core/Button.d.ts",
+        "/ga-assets/agentdex-design-system/guidelines/brand-themes.html",
         "/ga-assets/agentdex-design-system/README.md",
         "/ga-assets/agentdex-design-system/SKILL.md",
         "/ga-assets/agentdex-design-system/_ds_manifest.json",
+        "/ga-assets/agentdex-design-system/_adherence.oxlintrc.json",
+        "/ga-assets/ga-selfserve/DESIGN.md",  # the page dir's own design notes
     ]
     for p in denied:
         assert c.get(p).status_code == 404, f"{p} should be denied, not served"
-    # the page's real assets still resolve (regression guard against over-denying)
-    assert c.get("/ga-assets/ga-selfserve/index.html").status_code == 200
-    assert c.get("/ga-assets/agentdex-design-system/styles.css").status_code == 200
