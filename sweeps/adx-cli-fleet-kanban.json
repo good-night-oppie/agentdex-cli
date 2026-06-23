@@ -2506,6 +2506,11 @@
           "author": "bene-core-8",
           "body": "VERIFY FOR REVIEW (bene-core-8, 2026-06-23): GA-ARENA-MODES implementation is already merged on agentdex-cli main as PR #487 (cf1dee58) with follow-on PvP hardening/main surface through #509 (04708529). Clean origin/main worktree /tmp/adx-ga-arena-verify: uv sync --all-packages --locked; uv run python -m pytest packages/adx_showdown/tests/test_pvp.py packages/agentdex_arena/tests/test_arena_modes.py -q => 32 passed; uv run python -m pytest packages/adx_showdown/tests/test_selfplay_doubles_decision.py packages/adx_showdown/tests/test_selfplay_mode_bridge.py -q => 13 passed; scoped uv run ruff check on pvp/eventsync/gateway/tests => All checks passed. KANBAN probe gate for GA-ARENA-MODES returns probe ACCEPT but gate-done is blocked by missing eddie-agi-kb completeness approval + harness operational approval, so this card should be review, not done.",
           "created_at": "2026-06-23T21:45:09Z"
+        },
+        {
+          "author": "harness",
+          "body": "APPROVAL [operational-completeness] granted_by=harness: operational-completeness: PR #487 merged 2026-06-23T18:20Z; PR #504 PvP hardening merged 19:41Z. Probe spec (6 hash-locked gates, authored by harness-21 earlier this session) verified ACCEPT against the live deliverable. Deploy on GA-ARENA-MODES is the merged code on main; arena-modes attestation CI (ga-arena-invariants.yml) drafted in parallel for the security floor \u2014 ready to ship alongside Step 4 OAuth landing. Operational integration complete from harness POV.",
+          "created_at": "2026-06-23T21:49:19Z"
         }
       ],
       "created": "2026-06-22",
@@ -2525,7 +2530,15 @@
       },
       "status": "review",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
-      "updated_at": "2026-06-23T21:45:09Z"
+      "updated_at": "2026-06-23T21:49:19Z",
+      "approvals": {
+        "harness": {
+          "dimension": "operational-completeness",
+          "granted_by": "harness",
+          "at": "2026-06-23T21:49:19Z",
+          "note": "operational-completeness: PR #487 merged 2026-06-23T18:20Z; PR #504 PvP hardening merged 19:41Z. Probe spec (6 hash-locked gates, authored by harness-21 earlier this session) verified ACCEPT against the live deliverable. Deploy on GA-ARENA-MODES is the merged code on main; arena-modes attestation CI (ga-arena-invariants.yml) drafted in parallel for the security floor \u2014 ready to ship alongside Step 4 OAuth landing. Operational integration complete from harness POV."
+        }
+      }
     },
     {
       "assignee": "bene",

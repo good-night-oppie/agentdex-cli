@@ -98,6 +98,17 @@ def test_me_403_on_bad_session(tmp_path):
         )
 
 
+def test_me_reads_accept_web_session_cookie(tmp_path):
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OWNER, "cookie-bot")
+    token = gw.session_auth.mint_session(_OWNER, _GH_ID)
+    with _client(gw) as c:
+        c.cookies.set("arena_session", token)
+        assert c.get("/me/agents").status_code == 200
+        assert c.get("/me/battles").status_code == 200
+        assert c.get("/me/ladder").status_code == 200
+
+
 # --------------------------------------------------------------------------- #
 # /me/agents
 # --------------------------------------------------------------------------- #
@@ -184,6 +195,31 @@ def test_me_agents_live_flag_reflects_inflight_session(tmp_path):
         [row] = c.get("/me/agents", headers=_auth(gw)).json()["agents"]
     assert row["live"] is True
     assert row["live_battle_id"] == "live1"
+
+
+# --------------------------------------------------------------------------- #
+# /me/agents/{agent_id}/evolution
+# --------------------------------------------------------------------------- #
+
+
+def test_me_agent_evolution_returns_honest_non_real_payload_for_owned_agent(tmp_path):
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OWNER, "oppie")
+    with _client(gw) as c:
+        r = c.get("/me/agents/oppie/evolution", headers=_auth(gw))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["agent_name"] == "oppie"
+    assert body["ok"] is False
+    assert body["backend"] == "unavailable"
+    assert body["lineage"] == []
+
+
+def test_me_agent_evolution_rejects_other_owner_agent(tmp_path):
+    gw = _gateway(tmp_path)
+    gw.accounts.add_agent(_OTHER, "theirs")
+    with _client(gw) as c:
+        assert c.get("/me/agents/theirs/evolution", headers=_auth(gw)).status_code == 404
 
 
 # --------------------------------------------------------------------------- #
