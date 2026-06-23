@@ -276,19 +276,19 @@ def make_harness_player(
             self.illegal_moves += 1
 
         def _seeded_order(self, battle: Any, *, exclude_switches: bool = False) -> Any:
-            """A reproducible random legal choice, replacing poke-env's unseeded
-            ``choose_random_move``. Draws from poke-env's FULL legal order set
-            (``battle.valid_orders`` — moves incl. tera / dynamax / mega / Z +
-            switches, not just ``available_moves`` + ``available_switches``) and
-            keys the pick on ``rng_seed`` + the turn + the legal options' stable
-            Showdown command strings (NOT the server-assigned ``battle_tag``), so
-            an identical decision context yields the same choice regardless of run
-            or call order across concurrent battles. ``exclude_switches`` drops voluntary
-            switch orders so a codex-abstention fallback honors the genome's ``allow_switch``.
-            When that leaves no policy-allowed order but only switches were legal, defer to
-            Showdown's ``/choose default`` rather than re-sampling the excluded switch
-            (PR #353/#354): a genuine forced switch is routed via ``force_switch`` and keeps
-            its switches, so the gate applies only to VOLUNTARY switches."""
+            """A reproducible random legal choice for SINGLES battles only.
+
+            Draws from ``battle.valid_orders`` (moves incl. tera / dynamax / mega / Z
+            + switches) and keys the pick on ``rng_seed`` + turn + the stable Showdown
+            command strings of the legal options, so an identical decision context yields
+            the same choice regardless of run or call order across concurrent battles.
+            ``exclude_switches`` drops voluntary switch orders for the codex-abstention
+            fallback (``allow_switch`` genome gate). When that leaves no policy-allowed
+            order, defer to Showdown's ``/choose default`` (PR #353/#354).
+
+            NOT safe for ``DoubleBattle``: poke-env's ``DoubleBattle.valid_orders`` is
+            ``List[List[SingleBattleOrder]]`` (one inner list per slot), not a flat
+            order list; call ``choose_random_move`` for doubles instead."""
             all_orders = list(getattr(battle, "valid_orders", None) or [])
             filtered = _filter_switch_orders(all_orders, exclude_switches=exclude_switches)
             orders = _fallback_orders(filtered)
@@ -310,16 +310,16 @@ def make_harness_player(
             # is async ONLY to keep the live-codex subprocess off the event loop
             # (below); the synchronous strategies just return inline.
             self.total_moves += 1
-            # Doubles defer: ``valid_orders`` is topology-agnostic (returns
-            # ``DoubleBattleOrder`` on a ``DoubleBattle``), so the seeded random
-            # path drives doubles transparently. The ``max_damage`` + ``codex``
-            # paths below are singles-shaped (``available_moves`` is ``list[Move]``
-            # on singles, ``list[list[Move]]`` on doubles), so route doubles to the
-            # seeded fallback rather than misfeeding ``max_base_power_choice`` or
-            # the singles-only ``select_codex_move``. Per-slot ``max_damage`` /
-            # codex are a follow-up increment.
+            # Doubles: poke-env's ``DoubleBattle.valid_orders`` is
+            # ``List[List[SingleBattleOrder]]`` (one inner list per active slot),
+            # not a flat list of ``DoubleBattleOrder``. ``_seeded_order`` samples
+            # the outer list and returns an inner list, which lacks ``.message``
+            # and causes poke-env to fail before the order is sent. Use
+            # ``choose_random_move`` which handles the doubles structure correctly.
+            # The ``max_damage`` + ``codex`` paths are singles-shaped, so they are
+            # bypassed here regardless. Per-slot seeded doubles is a follow-up.
             if _is_doubles_battle(battle):
-                return self._seeded_order(battle)
+                return self.choose_random_move(battle)
             moves = list(getattr(battle, "available_moves", None) or [])
             if self.strategy == "random":
                 return self._seeded_order(battle)
