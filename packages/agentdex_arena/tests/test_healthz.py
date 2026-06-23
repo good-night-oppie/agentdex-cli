@@ -133,15 +133,51 @@ def test_healthz_503_when_sidecar_crashed(client):
         app.state.sidecar = None
 
 
-def test_healthz_503_when_a_pool_member_is_dead(client):
+def test_healthz_503_when_dead_pool_member_respawn_fails(client, monkeypatch):
+    """A dead pool member whose touch-driven respawn FAILS (e.g. node_modules
+    missing) must leave the probe at 503 so the platform recycles the container
+    (RECOVER-P1-sidecar-respawn). monkeypatched so the test never spawns node."""
     c, app = client
     pool = SidecarPool(size=2)  # not started — members report returncode None
     pool._sidecars[1]._last_returncode = 137  # simulate one member's OOM-kill
+
+    async def _failed_reclaim() -> int:
+        raise SidecarError("respawn failed (simulated)")
+
+    monkeypatch.setattr(pool, "reclaim_dead", _failed_reclaim)
     app.state.sidecar = pool
     try:
         r = c.get("/healthz")
-        assert r.status_code == 503
+        assert r.status_code == 503  # respawn raised → still dead → 503, never 500
         assert r.json()["ok"] is False
+    finally:
+        app.state.sidecar = None
+
+
+def test_healthz_respawns_dead_pool_member_on_touch(client, monkeypatch):
+    """/healthz is the canonical periodic touch that drives crash recovery: a dead
+    pool member is respawned in place so the probe returns to 200 instead of forcing
+    a full container recycle (RECOVER-P1-sidecar-respawn). The respawn is the real
+    behavior; monkeypatched here only to avoid spawning a node process in tests."""
+    c, app = client
+    pool = SidecarPool(size=2)
+    pool._sidecars[1]._last_returncode = 137  # one member OOM-killed
+    assert pool.any_dead() is True
+
+    calls: list[int] = []
+
+    async def _ok_reclaim() -> int:
+        calls.append(1)
+        pool._sidecars[1]._last_returncode = None  # simulate a successful respawn
+        return 1
+
+    monkeypatch.setattr(pool, "reclaim_dead", _ok_reclaim)
+    app.state.sidecar = pool
+    try:
+        r = c.get("/healthz")
+        assert calls == [1]  # the probe touched crash recovery
+        assert r.status_code == 200  # member respawned → healthy again
+        assert r.json()["ok"] is True
     finally:
         app.state.sidecar = None
 
