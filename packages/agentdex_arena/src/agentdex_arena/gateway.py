@@ -2658,6 +2658,18 @@ def create_app(
         # instance to read a returncode from, so the sticky flag carries it. Liveness
         # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
+        # Touch-driven crash recovery (RECOVER-P1-sidecar-respawn): the readiness
+        # probe is the canonical periodic touch, so respawn any dead pool member in
+        # place here — a transient member crash self-heals instead of forcing a full
+        # container recycle. reclaim_dead() starts the fresh member BEFORE mutating
+        # any routing state, so a respawn that RAISES leaves the pool untouched and
+        # we fall through to the 503 below (platform recycles); the guard keeps the
+        # probe from ever 500-ing on a respawn failure. No-op (cheap) when live.
+        if isinstance(sc, SidecarPool) and sc.any_dead():
+            try:
+                await sc.reclaim_dead()
+            except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
+                pass
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read
