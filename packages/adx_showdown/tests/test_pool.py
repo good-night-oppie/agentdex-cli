@@ -471,6 +471,98 @@ def test_reclaim_dead_tears_down_a_failed_respawn(monkeypatch):
     assert p.any_dead() is True  # still degraded → /healthz keeps 503ing
 
 
+def test_reclaim_dead_evicts_routes_even_when_respawn_fails(monkeypatch):
+    """A failed respawn must still evict the dead member's battle_ids. Otherwise
+    reclaim_dead returns no IDs, the gateway leaves those sessions live, and
+    /choose keeps routing into the dead pipe (opaque 400 instead of the intended
+    409 'interrupted') until the container is recycled (PR #497 review
+    PRRT_kwDOS0FXt86LqbQP). The dead slot itself stays so any_dead() keeps
+    reporting and the next touch retries the respawn."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go() -> list[str]:
+        await p.request("start", battle="b1")
+        dead = p._owner["b1"]
+        dead.returncode = 137  # OOM-killed
+
+        # Force every subsequent start() to fail (the dead member's respawn
+        # never wins). reclaim_dead must still surface "b1" so the gateway
+        # can 409 it.
+        async def boom(self) -> None:
+            raise RuntimeError("node ready-event timeout")
+
+        monkeypatch.setattr(FakeSidecar, "start", boom)
+        return await p.reclaim_dead()
+
+    evicted = _run(go())
+    assert evicted == ["b1"], "respawn-failure path dropped the eviction"
+    # The dead slot stays so /healthz keeps 503ing until the next retry succeeds.
+    assert p.any_dead() is True
+    # The owner row IS gone — /choose for b1 now 404s instead of routing into the
+    # dead sidecar.
+    assert "b1" not in p._owner
+
+
+def test_reclaim_dead_reaps_fresh_sidecar_when_cancelled_post_start():
+    """When the caller is cancelled between fresh.start() succeeding and the
+    swap landing, the replacement Node child must still be reaped — otherwise
+    it is neither installed into self._sidecars nor stopped, and the dead slot
+    retries the respawn next touch, leaking one Node child per cancellation
+    (PR #497 review PRRT_kwDOS0FXt86LqbQH).
+
+    The cancellation window is post-start, pre-swap: too tight to hit
+    reliably with task.cancel() races. Deterministically inject the cancel by
+    replacing self._lock with a gate that raises CancelledError on the SECOND
+    acquire (the swap acquisition) — that is exactly the bug-window await.
+    """
+    p = SidecarPool(size=1)
+    _run(p.start())
+    dead = p._sidecars[0]
+    dead.returncode = 137  # crashed → reclaim_dead will respawn
+
+    class _CancelOnSecondAcquireLock:
+        """asyncio.Lock that raises CancelledError when entered the Nth time."""
+
+        def __init__(self, real: asyncio.Lock, raise_on_acquire: int) -> None:
+            self._real = real
+            self._raise_on = raise_on_acquire
+            self.count = 0
+
+        async def __aenter__(self):
+            self.count += 1
+            if self.count == self._raise_on:
+                raise asyncio.CancelledError()
+            return await self._real.__aenter__()
+
+        async def __aexit__(self, *a):
+            return await self._real.__aexit__(*a)
+
+        def locked(self) -> bool:
+            return self._real.locked()
+
+    gated = _CancelOnSecondAcquireLock(p._lock, raise_on_acquire=2)
+    p._lock = gated  # type: ignore[assignment]
+
+    # Snapshot the pre-call sidecar list so we can identify `fresh` (the new
+    # member spawned during reclaim_dead) versus the original `dead`.
+    before = list(FakeSidecar.instances)
+    with pytest.raises(asyncio.CancelledError):
+        _run(p.reclaim_dead())
+    after = list(FakeSidecar.instances)
+    new_members = [s for s in after if s not in before]
+    assert new_members, "expected reclaim_dead to spawn a fresh replacement"
+    fresh = new_members[-1]
+
+    # The cancellation reaped `fresh` (the slot's brand-new replacement) — not
+    # the original corpse — so no Node child is leaked.
+    assert fresh.started is False, (
+        "post-start fresh sidecar was NOT stopped on cancellation — leaks a Node child"
+    )
+    # The dead corpse is still in place; the next touch retries the respawn.
+    assert p._sidecars[0] is dead and p._sidecars[0].returncode == 137
+
+
 def test_reclaim_does_not_hold_the_lock_while_starting_a_replacement(monkeypatch):
     """#2847: a slow Sidecar.start() must NOT block routing on healthy members —
     the pool lock has to be FREE while the replacement is starting, so one shard's
@@ -503,6 +595,7 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
 
     gate = asyncio.Event()
     stopped: list = []
+    stop_lock_free: list = []
     orig_stop = FakeSidecar.stop
 
     async def gated_start(self) -> None:
@@ -510,6 +603,10 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
         self.started = True
 
     async def rec_stop(self) -> None:
+        # #522 review P2: the redundant fresh member must be reaped OUTSIDE the pool
+        # lock — Sidecar.stop() can block on graceful shutdown, and request() needs the
+        # lock, so stopping under it stalls routing on every healthy member.
+        stop_lock_free.append(not p._lock.locked())
         stopped.append(self)
         await orig_stop(self)
 
@@ -529,6 +626,7 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
     assert p.size == 1 and not p.any_dead()
     # the redundant replacement (the loser's) was reaped, not leaked
     assert len(stopped) == 1, "slot re-check did not reap the redundant fresh member"
+    assert stop_lock_free == [True], "redundant sidecar stopped while holding the pool lock"
 
 
 def test_reclaim_dead_returns_all_evicted_battle_ids():
