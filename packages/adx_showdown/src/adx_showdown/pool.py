@@ -242,27 +242,53 @@ class SidecarPool:
                 # timeout) without stopping it. Tear the half-started process down so a
                 # failed respawn doesn't leak a Node child on every /healthz touch (the
                 # any_dead() flag stays set → reclaim_dead re-runs each touch → OOM
-                # spiral). Best-effort: leave this member dead (any_dead stays True →
-                # /healthz still 503s) and try the next; this slot retries next touch.
+                # spiral). The slot stays dead (any_dead stays True → /healthz still
+                # 503s) and retries on the next touch.
                 with contextlib.suppress(Exception):
                     await fresh.stop()
-                continue
-            async with self._lock:
-                # Slot re-check: a concurrent reclaim touch may have already swapped
-                # this slot while we were starting. Only swap if it's still the same
-                # corpse; otherwise our fresh member is redundant.
-                redundant = self._sidecars[i] is not dead_s
-                if not redundant:
+                # Even with no live replacement, the dead member's battle routes MUST
+                # be evicted — otherwise reclaim_dead returns no IDs, the gateway
+                # leaves those sessions live, and /choose keeps routing into the dead
+                # pipe (opaque 400 instead of the intended 409 'interrupted') until
+                # the container is recycled (PR #497 review PRRT_kwDOS0FXt86LqbQP).
+                async with self._lock:
                     evicted.extend(b for b, o in self._owner.items() if o is dead_s)
                     self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
-                    self._load.pop(id(dead_s), None)
-                    self._sidecars[i] = fresh
-                    self._load[id(fresh)] = 0
-            if redundant:
-                # Reap the redundant replacement OUTSIDE the lock: Sidecar.stop() can
-                # block on a graceful shutdown + process exit, and request()/_least_loaded
-                # also need self._lock — stopping under it would reintroduce the global
-                # routing stall the start-outside-lock change fixed (#522 review P2).
+                continue
+            # Post-start, pre-swap: `fresh` is a live Node child the caller now owns.
+            # Any cancellation between here and the swap MUST reap it — otherwise the
+            # spawned child is neither installed into `self._sidecars` nor stopped,
+            # and the dead slot retries the respawn next touch (the slot stays dead),
+            # leaking one Node process per cancellation (PR #497 review
+            # PRRT_kwDOS0FXt86LqbQH). Track the outcome so the post-block cleanup
+            # knows whether the swap landed.
+            swapped_in = False
+            try:
+                async with self._lock:
+                    # Slot re-check: a concurrent reclaim touch may have already
+                    # swapped this slot while we were starting. Only swap if it's
+                    # still the same corpse; otherwise our fresh member is redundant.
+                    if self._sidecars[i] is dead_s:
+                        evicted.extend(b for b, o in self._owner.items() if o is dead_s)
+                        self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
+                        self._load.pop(id(dead_s), None)
+                        self._sidecars[i] = fresh
+                        self._load[id(fresh)] = 0
+                        swapped_in = True
+            except BaseException:
+                # CancelledError (or any post-start failure) here would orphan `fresh`
+                # — reap it OUTSIDE the lock (Sidecar.stop() can block, and
+                # request()/_least_loaded need the lock; #522 review P2) and re-raise.
+                if not swapped_in:
+                    with contextlib.suppress(Exception):
+                        await fresh.stop()
+                raise
+            if not swapped_in:
+                # Lost the slot re-check to a concurrent reclaim — reap the redundant
+                # replacement OUTSIDE the lock: Sidecar.stop() can block on a graceful
+                # shutdown + process exit, and request()/_least_loaded also need
+                # self._lock — stopping under it would reintroduce the global routing
+                # stall the start-outside-lock change fixed (#522 review P2).
                 with contextlib.suppress(Exception):
                     await fresh.stop()
         return evicted
