@@ -65,9 +65,14 @@ function isAuthed(r) {
 async function startBrowserGitHub({
   setBusy,
   setErr,
-  returnTo = '/enroll'
+  returnTo = '/enroll',
+  link = false
 } = {}) {
-  const target = '/auth/github?next=' + encodeURIComponent(returnTo);
+  const params = new URLSearchParams({
+    next: returnTo
+  });
+  if (link) params.set('link', '1');
+  const target = '/auth/github?' + params.toString();
   if (setErr) setErr('');
   if (setBusy) setBusy(true);
   try {
@@ -360,7 +365,8 @@ function AuthMethods({
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
     onClick: () => startBrowserGitHub({
       setBusy,
-      setErr
+      setErr,
+      link: true
     }),
     disabled: busy
   }, "Continue with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
