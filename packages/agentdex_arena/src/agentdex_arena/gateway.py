@@ -3096,6 +3096,14 @@ def create_app(
         # the login surface. Same per-IP volumetric bucket as device/start; the 30-token
         # @ 0.5/s refill comfortably covers the ~5s adx-login poll cadence.
         "/auth/device/poll": _auth_volumetric_guard,
+        # /oauth/github is the browser-OAuth callback: it does an upstream GitHub
+        # token exchange (exchange_web_code) in the thread pool, gated only by a
+        # caller-controlled state==cookie check — so an unauthenticated client can
+        # replay matching state/cookie + arbitrary `code` to drive unbounded GitHub
+        # token-exchange fanout, exactly like /auth/device/poll. /auth/github (the
+        # redirect entrypoint) gets the same per-IP volumetric cap. (#499/#490 review.)
+        "/auth/github": _auth_volumetric_guard,
+        "/oauth/github": _auth_volumetric_guard,
         "/auth/email/start": _auth_volumetric_guard,
         "/auth/email/verify": _auth_verify_acquire_guard,
     }
