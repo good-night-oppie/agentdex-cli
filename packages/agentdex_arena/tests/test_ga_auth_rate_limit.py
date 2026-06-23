@@ -131,8 +131,12 @@ def test_verify_locks_out_after_too_many_bad_codes(tmp_path, monkeypatch):
         ARENA_AUTH_VERIFY_LOCKOUT_SEC=900,
     )
     client = _client(_gw(tmp_path))
+    # send XFF so the key is a TRUSTED per-client slot (N=1) — the lockout only latches
+    # on a trusted key, never on the shared proxy-peer fallback (see the fallback test).
+    xff = {"X-Forwarded-For": "1.2.3.4"}
     codes = [
-        client.post("/auth/email/verify", json={"code": "wrong"}).status_code for _ in range(4)
+        client.post("/auth/email/verify", json={"code": "wrong"}, headers=xff).status_code
+        for _ in range(4)
     ]
     # 3 bad guesses each 403; the 3rd trips the lockout so the 4th is an opaque 429.
     assert codes == [403, 403, 403, 429]
@@ -211,9 +215,11 @@ def test_lockout_429_indistinguishable_from_volumetric_429(tmp_path, monkeypatch
         ARENA_AUTH_IP_MAX_TOKENS=1,  # device/start bucket drains to a volumetric 429
     )
     client = _client(_gw(tmp_path))
-    client.post("/auth/email/verify", json={"code": "x"})  # 403, failure #1
-    client.post("/auth/email/verify", json={"code": "x"})  # 403, failure #2 → trips lock
-    lock_429 = client.post("/auth/email/verify", json={"code": "x"})  # locked_out → 429
+    # XFF → trusted per-client key so the lockout leg (not the fallback peer) latches.
+    xff = {"X-Forwarded-For": "1.2.3.4"}
+    client.post("/auth/email/verify", json={"code": "x"}, headers=xff)  # 403, failure #1
+    client.post("/auth/email/verify", json={"code": "x"}, headers=xff)  # 403, #2 → trips lock
+    lock_429 = client.post("/auth/email/verify", json={"code": "x"}, headers=xff)  # locked → 429
     device_429 = None
     for _ in range(3):  # drain the device/start IP bucket to a volumetric 429
         device_429 = client.post("/auth/device/start")
@@ -259,3 +265,44 @@ def test_xff_ignored_when_no_proxy_trusted(tmp_path, monkeypatch):
     forged = client.post("/auth/device/start", headers={"X-Forwarded-For": "9.9.9.9"})
     assert first.status_code == 503
     assert forged.status_code == 429  # forged XFF ignored → same bucket, now empty
+
+
+def test_xff_duplicate_headers_combined_keys_on_proxy_hop(tmp_path, monkeypatch):
+    # A trusted proxy may APPEND its hop as a SEPARATE X-Forwarded-For header rather than
+    # rewriting the client's comma chain. With N=1 the key must come from the proxy-
+    # appended (rightmost) hop, not the client's first header — so two requests with
+    # DIFFERENT forged first headers but the SAME proxy hop share one bucket. A naive
+    # headers.get() would read only the forged first header and let the key be rotated.
+    _enable(monkeypatch, ARENA_TRUST_PROXIES=1, ARENA_AUTH_IP_MAX_TOKENS=1)
+    client = _client(_gw(tmp_path))
+    a = client.post(
+        "/auth/device/start",
+        headers=[("x-forwarded-for", "9.9.9.9"), ("x-forwarded-for", "2.2.2.2")],
+    )
+    b = client.post(
+        "/auth/device/start",
+        headers=[("x-forwarded-for", "8.8.8.8"), ("x-forwarded-for", "2.2.2.2")],
+    )
+    assert a.status_code == 503  # keyed on the rightmost (proxy-appended) hop 2.2.2.2
+    assert b.status_code == 429  # different forged first header, same key → bucket empty
+
+
+def test_verify_lockout_skipped_on_proxy_peer_fallback(tmp_path, monkeypatch):
+    # ARENA_TRUST_PROXIES=1 ENABLES the lockout, but a request whose XFF chain is shorter
+    # than N (here: no XFF at all) falls back to the SHARED socket peer. Latching a
+    # lockout on that shared key would deny every client behind the proxy, so the lockout
+    # is withheld on the fallback path — bad codes keep 403-ing without ever latching a
+    # 429 (contrast test_verify_locks_out_after_too_many_bad_codes, which sends XFF).
+    _enable(
+        monkeypatch,
+        ARENA_TRUST_PROXIES=1,
+        ARENA_AUTH_VERIFY_MAX_TOKENS=100,  # keep the volumetric leg out of the way
+        ARENA_AUTH_VERIFY_MAX_FAILURES=3,
+        ARENA_AUTH_VERIFY_LOCKOUT_SEC=900,
+    )
+    client = _client(_gw(tmp_path))
+    # no X-Forwarded-For → chain shorter than N=1 → fallback to peer → trusted is False
+    codes = [
+        client.post("/auth/email/verify", json={"code": "wrong"}).status_code for _ in range(6)
+    ]
+    assert codes == [403] * 6  # never latches a lockout 429 on the shared fallback peer
