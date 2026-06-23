@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority
-from agentdex_arena.gateway import ArenaGateway, create_app
+from agentdex_arena.gateway import ArenaGateway, _FilteredStaticFiles, create_app
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
@@ -82,6 +82,39 @@ def test_ga_assets_allowlist_denies_everything_else(tmp_path, monkeypatch):
         "/ga-assets/agentdex-design-system/_ds_manifest.json",
         "/ga-assets/agentdex-design-system/_adherence.oxlintrc.json",
         "/ga-assets/ga-selfserve/DESIGN.md",  # the page dir's own design notes
+        # the page references no assets/ — brand SVGs are NOT in the exact allow-list
+        "/ga-assets/agentdex-design-system/assets/agentdex-mark.svg",
     ]
     for p in denied:
         assert c.get(p).status_code == 404, f"{p} should be denied, not served"
+
+
+def test_ga_asset_allowlist_is_exact_not_prefix():
+    # Exact-file enumeration (PR #463 review): a FUTURE file added under the page's
+    # dirs — even with an otherwise-servable extension — stays denied until it is
+    # explicitly added to the allow-list. No filesystem needed (predicate-only).
+    allowed = _FilteredStaticFiles._allowed
+    # the 10 enumerated runtime files resolve
+    for p in (
+        "ga-selfserve/index.html",
+        "ga-selfserve/data.js",
+        "ga-selfserve/shell.jsx",
+        "ga-selfserve/screens.jsx",
+        "agentdex-design-system/styles.css",
+        "agentdex-design-system/_ds_bundle.js",
+        "agentdex-design-system/tokens/fonts.css",
+        "agentdex-design-system/tokens/colors.css",
+        "agentdex-design-system/tokens/typography.css",
+        "agentdex-design-system/tokens/spacing.css",
+    ):
+        assert allowed(p) is True, p
+    # hypothetical future additions with allowed extensions are STILL denied
+    for p in (
+        "ga-selfserve/debug.html",  # a new page next to DESIGN.md
+        "ga-selfserve/prototype.jsx",
+        "agentdex-design-system/tokens/draft.css",  # a token-side experiment
+        "agentdex-design-system/assets/agentdex-mark.svg",  # an asset the page never loads
+        "agentdex-design-system/assets/new-logo.png",
+        "agentdex-design-system/_ds_bundle.min.js",
+    ):
+        assert allowed(p) is False, p
