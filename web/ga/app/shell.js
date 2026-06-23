@@ -1,3 +1,4 @@
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 // AgentDex GA self-serve — shared funnel chrome (brand mark, stepper, auth shell, fields).
 // Everything reads design-system tokens + components so screens stay one coherent surface.
 const DS = window.AgentDexDesignSystem_26893a;
@@ -58,18 +59,32 @@ function Gloss({
   }, children);
 }
 
-// Labeled input field (visual only — this is a design prototype).
+// Labeled input field. Uncontrolled by default (static prefilled prototype values);
+// pass `onChange` to make it a CONTROLLED input that actually submits a value — the
+// auth funnel needs the typed email/code to reach the /auth/* backends (was a
+// defaultValue-only dead end before F1).
 function Field({
   label,
   zh,
   type = 'text',
   placeholder,
   value,
+  onChange,
+  onSubmit,
   hint,
   mono,
   prefix,
-  readOnly
+  readOnly,
+  autoComplete
 }) {
+  const controlled = typeof onChange === 'function';
+  // controlled → value + onChange (real submit); else defaultValue (prototype static).
+  const inputProps = controlled ? {
+    value: value == null ? '' : value,
+    onChange: e => onChange(e.target.value)
+  } : {
+    defaultValue: value
+  };
   return /*#__PURE__*/React.createElement("label", {
     style: {
       display: 'block',
@@ -104,11 +119,18 @@ function Field({
       fontSize: 13,
       color: 'var(--text-muted)'
     }
-  }, prefix) : null, /*#__PURE__*/React.createElement("input", {
+  }, prefix) : null, /*#__PURE__*/React.createElement("input", _extends({
     type: type,
     placeholder: placeholder,
-    defaultValue: value,
     readOnly: readOnly,
+    autoComplete: autoComplete,
+    onKeyDown: onSubmit ? e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onSubmit();
+      }
+    } : undefined
+  }, inputProps, {
     style: {
       flex: 1,
       background: 'transparent',
@@ -119,7 +141,7 @@ function Field({
       fontSize: 15,
       height: '100%'
     }
-  })), hint ? /*#__PURE__*/React.createElement("div", {
+  }))), hint ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: 'var(--font-mono)',
       fontSize: 11,

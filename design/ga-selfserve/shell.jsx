@@ -22,8 +22,16 @@ function Gloss({ children, size = 13 }) {
   return <span style={{ fontFamily: 'var(--font-zh)', fontSize: size, color: 'var(--text-muted)', fontWeight: 400 }}>{children}</span>;
 }
 
-// Labeled input field (visual only — this is a design prototype).
-function Field({ label, zh, type = 'text', placeholder, value, hint, mono, prefix, readOnly }) {
+// Labeled input field. Uncontrolled by default (static prefilled prototype values);
+// pass `onChange` to make it a CONTROLLED input that actually submits a value — the
+// auth funnel needs the typed email/code to reach the /auth/* backends (was a
+// defaultValue-only dead end before F1).
+function Field({ label, zh, type = 'text', placeholder, value, onChange, onSubmit, hint, mono, prefix, readOnly, autoComplete }) {
+  const controlled = typeof onChange === 'function';
+  // controlled → value + onChange (real submit); else defaultValue (prototype static).
+  const inputProps = controlled
+    ? { value: value == null ? '' : value, onChange: (e) => onChange(e.target.value) }
+    : { defaultValue: value };
   return (
     <label style={{ display: 'block', marginBottom: 16 }}>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 7 }}>
@@ -32,7 +40,10 @@ function Field({ label, zh, type = 'text', placeholder, value, hint, mono, prefi
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--r-sm)', padding: '0 12px', height: 44, boxShadow: 'var(--shadow-sm)' }}>
         {prefix ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>{prefix}</span> : null}
         <input
-          type={type} placeholder={placeholder} defaultValue={value} readOnly={readOnly}
+          type={type} placeholder={placeholder} readOnly={readOnly}
+          autoComplete={autoComplete}
+          onKeyDown={onSubmit ? (e) => { if (e.key === 'Enter') { e.preventDefault(); onSubmit(); } } : undefined}
+          {...inputProps}
           style={{ flex: 1, background: 'transparent', border: 0, outline: 'none', color: 'var(--text-strong)', fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)', fontSize: 15, height: '100%' }}
         />
       </div>

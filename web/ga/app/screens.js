@@ -6,6 +6,332 @@ const {
   useEffect
 } = React;
 
+/* ───────────────────────── F1 · real auth wiring ─────────────────────────
+ * The signup/login buttons used to be dead stubs (`onClick={()=>go('github')}`,
+ * zero network). AuthMethods drives the EXISTING /auth/* backends (ADR-0013):
+ *   • "Email me a magic link" → POST /auth/email/start → code-entry → POST
+ *     /auth/email/verify?web=1 (sets the HttpOnly arena_session cookie).
+ *   • "Continue with GitHub"  → POST /auth/device/start → show user_code →
+ *     poll POST /auth/device/poll?web=1 until authorized.
+ * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
+ * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
+ * HttpOnly cookie (the security floor) — JS never sees the raw token. */
+async function postJSON(url, body) {
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      credentials: 'same-origin',
+      // carry/set the HttpOnly arena_session cookie
+      body: JSON.stringify(body || {})
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      status: 0,
+      data: null
+    }; // network/offline
+  }
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = null;
+  }
+  return {
+    ok: res.ok,
+    status: res.status,
+    data
+  };
+}
+
+// Opaque, user-facing message for a failed /auth/* call (never leaks internals).
+function authErr(r) {
+  if (r.status === 0) return 'Network error — check your connection and try again.';
+  if (r.status === 503) return 'Sign-in is temporarily unavailable. Try again soon, or use the CLI: adx login.';
+  if (r.status === 429) return 'Too many attempts — wait a moment and try again.';
+  if (r.data && r.data.detail) return String(r.data.detail);
+  return 'Something went wrong. Please try again.';
+}
+
+// A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
+function isAuthed(r) {
+  return r.ok && r.data && typeof r.data.owner === 'string';
+}
+
+// Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
+// fires once the arena_session cookie is set; the screen decides where to go next.
+function AuthMethods({
+  go,
+  onAuthed,
+  emailHint
+}) {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [phase, setPhase] = useState('idle'); // idle | sent | device
+  const [device, setDevice] = useState(null); // {user_code, verification_uri, device_code, interval, expires_in}
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function startEmail() {
+    setErr('');
+    if (!email || email.indexOf('@') < 1 || email.lastIndexOf('.') < email.indexOf('@')) {
+      setErr('Enter a valid email address.');
+      return;
+    }
+    setBusy(true);
+    const r = await postJSON('/auth/email/start', {
+      email
+    });
+    setBusy(false);
+    if (r.ok) {
+      setCode('');
+      setPhase('sent');
+    } else {
+      setErr(authErr(r));
+    }
+  }
+  async function verifyEmail() {
+    setErr('');
+    if (!code.trim()) {
+      setErr('Enter the code from your email.');
+      return;
+    }
+    setBusy(true);
+    const r = await postJSON('/auth/email/verify?web=1', {
+      code: code.trim()
+    });
+    setBusy(false);
+    if (isAuthed(r)) {
+      onAuthed('email');
+    } else {
+      setErr(r.status === 403 ? 'That code is invalid or expired. Request a new one below.' : authErr(r));
+    }
+  }
+  async function startDevice() {
+    setErr('');
+    setBusy(true);
+    const r = await postJSON('/auth/device/start', {});
+    setBusy(false);
+    if (r.ok && r.data && r.data.device_code) {
+      setDevice(r.data);
+      setPhase('device');
+    } else {
+      setErr(authErr(r));
+    }
+  }
+
+  // Poll /auth/device/poll while in the device phase; clean up on unmount/cancel.
+  useEffect(() => {
+    if (phase !== 'device' || !device) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const intervalMs = Math.max(2, Number(device.interval) || 5) * 1000;
+    const deadline = Date.now() + Math.max(60, Number(device.expires_in) || 900) * 1000;
+    async function tick() {
+      if (cancelled) return;
+      if (Date.now() > deadline) {
+        setErr('GitHub authorization timed out. Please try again.');
+        setPhase('idle');
+        setDevice(null);
+        return;
+      }
+      const r = await postJSON('/auth/device/poll?web=1', {
+        device_code: device.device_code
+      });
+      if (cancelled) return;
+      if (isAuthed(r)) {
+        onAuthed('github');
+        return;
+      }
+      if (r.ok && r.data && (r.data.status === 'denied' || r.data.status === 'expired')) {
+        setErr('GitHub authorization was ' + r.data.status + '. Please try again.');
+        setPhase('idle');
+        setDevice(null);
+        return;
+      }
+      // pending / 429 / transient 5xx → keep polling within the deadline.
+      timer = setTimeout(tick, intervalMs);
+    }
+    timer = setTimeout(tick, intervalMs);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [phase, device]);
+  const note = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 12,
+    lineHeight: 1.6,
+    marginTop: 12
+  };
+  if (phase === 'device' && device) {
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(DS.Card, {
+      title: "Authorize on GitHub"
+    }, /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13.5,
+        color: 'var(--text-body)',
+        lineHeight: 1.55,
+        margin: '0 0 12px'
+      }
+    }, "Open GitHub and enter this one-time code to finish signing in. ", /*#__PURE__*/React.createElement(Gloss, {
+      size: 12
+    }, "\u5728 GitHub \u8F93\u5165\u6B64\u4E00\u6B21\u6027\u4EE3\u7801")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: 'var(--font-mono)',
+        fontSize: 26,
+        fontWeight: 700,
+        letterSpacing: '.18em',
+        color: 'var(--text-strong)'
+      }
+    }, device.user_code), /*#__PURE__*/React.createElement(DS.Button, {
+      variant: "primary",
+      iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
+      onClick: () => window.open(device.verification_uri, '_blank', 'noopener'),
+      iconRight: "\u2197"
+    }, "Open GitHub")), /*#__PURE__*/React.createElement("p", {
+      style: {
+        ...note,
+        color: 'var(--text-muted)'
+      }
+    }, "\u25CF Waiting for you to authorize on GitHub\u2026 this page finishes automatically.")), err ? /*#__PURE__*/React.createElement("p", {
+      style: {
+        ...note,
+        color: 'var(--text-winner)'
+      }
+    }, err) : null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...note,
+        color: 'var(--text-muted)'
+      }
+    }, /*#__PURE__*/React.createElement("a", _extends({}, clickable(() => {
+      setPhase('idle');
+      setDevice(null);
+      setErr('');
+    }), {
+      style: {
+        color: 'var(--text-accent)',
+        cursor: 'pointer'
+      }
+    }), "\u2190 Cancel")));
+  }
+  if (phase === 'sent') {
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontFamily: 'var(--font-serif)',
+        fontStyle: 'italic',
+        fontSize: 15.5,
+        color: 'var(--text-body)',
+        margin: '0 0 14px'
+      }
+    }, "We emailed a one-time code to ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--text-strong)',
+        fontStyle: 'normal'
+      }
+    }, email), ". Enter it below."), /*#__PURE__*/React.createElement(Field, {
+      label: "Login code",
+      zh: "\u767B\u5F55\u7801",
+      mono: true,
+      placeholder: "6-digit code",
+      value: code,
+      onChange: setCode,
+      onSubmit: verifyEmail,
+      autoComplete: "one-time-code",
+      hint: "From the email we just sent. Codes expire in 10 minutes."
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 12,
+        alignItems: 'center',
+        marginTop: 8,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement(DS.Button, {
+      variant: "primary",
+      size: "lg",
+      onClick: verifyEmail,
+      disabled: busy,
+      iconRight: "\u2192"
+    }, busy ? 'Verifying…' : 'Verify & continue'), /*#__PURE__*/React.createElement("a", _extends({}, clickable(() => {
+      if (!busy) startEmail();
+    }), {
+      style: {
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        color: 'var(--text-accent)',
+        cursor: busy ? 'default' : 'pointer'
+      }
+    }), "Resend code")), err ? /*#__PURE__*/React.createElement("p", {
+      style: {
+        ...note,
+        color: 'var(--text-winner)'
+      }
+    }, err) : null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...note,
+        color: 'var(--text-muted)'
+      }
+    }, /*#__PURE__*/React.createElement("a", _extends({}, clickable(() => {
+      setPhase('idle');
+      setErr('');
+    }), {
+      style: {
+        color: 'var(--text-accent)',
+        cursor: 'pointer'
+      }
+    }), "\u2190 Use a different email")));
+  }
+
+  // idle: email field + the two auth methods.
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Field, {
+    label: "Email",
+    zh: "\u90AE\u7BB1",
+    type: "email",
+    placeholder: "you@studio.dev",
+    value: email,
+    onChange: setEmail,
+    onSubmit: startEmail,
+    autoComplete: "email",
+    hint: emailHint || 'Passwordless — we email a one-time magic link (ADR-0013). No password to remember.'
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      marginTop: 8,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement(DS.Button, {
+    variant: "primary",
+    size: "lg",
+    onClick: startEmail,
+    disabled: busy,
+    iconRight: "\u2192"
+  }, busy ? 'Sending…' : 'Email me a magic link'), /*#__PURE__*/React.createElement(DS.Button, {
+    variant: "secondary",
+    size: "lg",
+    iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
+    onClick: startDevice,
+    disabled: busy
+  }, "Continue with GitHub")), err ? /*#__PURE__*/React.createElement("p", {
+    style: {
+      ...note,
+      color: 'var(--text-winner)'
+    }
+  }, err) : null);
+}
+
 /* ───────────────────────── 01 · SIGN UP (invite) ───────────────────────── */
 function SignupScreen({
   go
@@ -71,31 +397,11 @@ function SignupScreen({
     value: INVITE.code,
     mono: true,
     hint: "Holders pay $0 and get the full paid set free for 3 months."
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Email",
-    zh: "\u90AE\u7BB1",
-    type: "email",
-    placeholder: "you@studio.dev",
-    hint: "Passwordless \u2014 we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password."
+  }), /*#__PURE__*/React.createElement(AuthMethods, {
+    go: go,
+    onAuthed: m => go(m === 'github' ? 'enroll' : 'github'),
+    emailHint: "Passwordless \u2014 we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password."
   }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-      marginTop: 8,
-      flexWrap: 'wrap'
-    }
-  }, /*#__PURE__*/React.createElement(DS.Button, {
-    variant: "primary",
-    size: "lg",
-    onClick: () => go('github'),
-    iconRight: "\u2192"
-  }, "Email me a magic link"), /*#__PURE__*/React.createElement(DS.Button, {
-    variant: "secondary",
-    size: "lg",
-    iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
-    onClick: () => go('github')
-  }, "Continue with GitHub")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: 'var(--font-mono)',
       fontSize: 12,
@@ -140,31 +446,11 @@ function LoginScreen({
         g: 'vs'
       }]
     })
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Email",
-    zh: "\u90AE\u7BB1",
-    type: "email",
-    placeholder: "you@studio.dev",
-    hint: "Passwordless \u2014 we email you a one-time magic link (ADR-0013). No password to remember."
+  }, /*#__PURE__*/React.createElement(AuthMethods, {
+    go: go,
+    onAuthed: () => go('enroll'),
+    emailHint: "Passwordless \u2014 we email you a one-time magic link (ADR-0013). No password to remember."
   }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-      marginTop: 8,
-      flexWrap: 'wrap'
-    }
-  }, /*#__PURE__*/React.createElement(DS.Button, {
-    variant: "primary",
-    size: "lg",
-    onClick: () => go('github'),
-    iconRight: "\u2192"
-  }, "Email me a magic link"), /*#__PURE__*/React.createElement(DS.Button, {
-    variant: "secondary",
-    size: "lg",
-    iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
-    onClick: () => go('github')
-  }, "Continue with GitHub")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: 'var(--font-mono)',
       fontSize: 12,

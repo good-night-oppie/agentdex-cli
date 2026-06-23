@@ -2,6 +2,166 @@
 // signup → login → connect GitHub → enroll agent → arena modes (dark) → billing/Stripe.
 const { useState, useEffect } = React;
 
+/* ───────────────────────── F1 · real auth wiring ─────────────────────────
+ * The signup/login buttons used to be dead stubs (`onClick={()=>go('github')}`,
+ * zero network). AuthMethods drives the EXISTING /auth/* backends (ADR-0013):
+ *   • "Email me a magic link" → POST /auth/email/start → code-entry → POST
+ *     /auth/email/verify?web=1 (sets the HttpOnly arena_session cookie).
+ *   • "Continue with GitHub"  → POST /auth/device/start → show user_code →
+ *     poll POST /auth/device/poll?web=1 until authorized.
+ * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
+ * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
+ * HttpOnly cookie (the security floor) — JS never sees the raw token. */
+async function postJSON(url, body) {
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin', // carry/set the HttpOnly arena_session cookie
+      body: JSON.stringify(body || {}),
+    });
+  } catch (e) {
+    return { ok: false, status: 0, data: null }; // network/offline
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  return { ok: res.ok, status: res.status, data };
+}
+
+// Opaque, user-facing message for a failed /auth/* call (never leaks internals).
+function authErr(r) {
+  if (r.status === 0) return 'Network error — check your connection and try again.';
+  if (r.status === 503) return 'Sign-in is temporarily unavailable. Try again soon, or use the CLI: adx login.';
+  if (r.status === 429) return 'Too many attempts — wait a moment and try again.';
+  if (r.data && r.data.detail) return String(r.data.detail);
+  return 'Something went wrong. Please try again.';
+}
+
+// A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
+function isAuthed(r) { return r.ok && r.data && typeof r.data.owner === 'string'; }
+
+// Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
+// fires once the arena_session cookie is set; the screen decides where to go next.
+function AuthMethods({ go, onAuthed, emailHint }) {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [phase, setPhase] = useState('idle'); // idle | sent | device
+  const [device, setDevice] = useState(null); // {user_code, verification_uri, device_code, interval, expires_in}
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function startEmail() {
+    setErr('');
+    if (!email || email.indexOf('@') < 1 || email.lastIndexOf('.') < email.indexOf('@')) {
+      setErr('Enter a valid email address.');
+      return;
+    }
+    setBusy(true);
+    const r = await postJSON('/auth/email/start', { email });
+    setBusy(false);
+    if (r.ok) { setCode(''); setPhase('sent'); } else { setErr(authErr(r)); }
+  }
+  async function verifyEmail() {
+    setErr('');
+    if (!code.trim()) { setErr('Enter the code from your email.'); return; }
+    setBusy(true);
+    const r = await postJSON('/auth/email/verify?web=1', { code: code.trim() });
+    setBusy(false);
+    if (isAuthed(r)) { onAuthed('email'); }
+    else { setErr(r.status === 403 ? 'That code is invalid or expired. Request a new one below.' : authErr(r)); }
+  }
+  async function startDevice() {
+    setErr(''); setBusy(true);
+    const r = await postJSON('/auth/device/start', {});
+    setBusy(false);
+    if (r.ok && r.data && r.data.device_code) { setDevice(r.data); setPhase('device'); }
+    else { setErr(authErr(r)); }
+  }
+
+  // Poll /auth/device/poll while in the device phase; clean up on unmount/cancel.
+  useEffect(() => {
+    if (phase !== 'device' || !device) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const intervalMs = Math.max(2, Number(device.interval) || 5) * 1000;
+    const deadline = Date.now() + Math.max(60, Number(device.expires_in) || 900) * 1000;
+    async function tick() {
+      if (cancelled) return;
+      if (Date.now() > deadline) {
+        setErr('GitHub authorization timed out. Please try again.');
+        setPhase('idle'); setDevice(null); return;
+      }
+      const r = await postJSON('/auth/device/poll?web=1', { device_code: device.device_code });
+      if (cancelled) return;
+      if (isAuthed(r)) { onAuthed('github'); return; }
+      if (r.ok && r.data && (r.data.status === 'denied' || r.data.status === 'expired')) {
+        setErr('GitHub authorization was ' + r.data.status + '. Please try again.');
+        setPhase('idle'); setDevice(null); return;
+      }
+      // pending / 429 / transient 5xx → keep polling within the deadline.
+      timer = setTimeout(tick, intervalMs);
+    }
+    timer = setTimeout(tick, intervalMs);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [phase, device]);
+
+  const note = { fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, marginTop: 12 };
+
+  if (phase === 'device' && device) {
+    return (
+      <div>
+        <DS.Card title="Authorize on GitHub">
+          <p style={{ fontSize: 13.5, color: 'var(--text-body)', lineHeight: 1.55, margin: '0 0 12px' }}>
+            Open GitHub and enter this one-time code to finish signing in. <Gloss size={12}>在 GitHub 输入此一次性代码</Gloss>
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 700, letterSpacing: '.18em', color: 'var(--text-strong)' }}>{device.user_code}</span>
+            <DS.Button variant="primary" iconLeft={<GithubGlyph />} onClick={() => window.open(device.verification_uri, '_blank', 'noopener')} iconRight="↗">Open GitHub</DS.Button>
+          </div>
+          <p style={{ ...note, color: 'var(--text-muted)' }}>● Waiting for you to authorize on GitHub… this page finishes automatically.</p>
+        </DS.Card>
+        {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
+        <div style={{ ...note, color: 'var(--text-muted)' }}>
+          <a {...clickable(() => { setPhase('idle'); setDevice(null); setErr(''); })} style={{ color: 'var(--text-accent)', cursor: 'pointer' }}>← Cancel</a>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'sent') {
+    return (
+      <div>
+        <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 15.5, color: 'var(--text-body)', margin: '0 0 14px' }}>
+          We emailed a one-time code to <span style={{ color: 'var(--text-strong)', fontStyle: 'normal' }}>{email}</span>. Enter it below.
+        </p>
+        <Field label="Login code" zh="登录码" mono placeholder="6-digit code" value={code} onChange={setCode} onSubmit={verifyEmail} autoComplete="one-time-code" hint="From the email we just sent. Codes expire in 10 minutes." />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+          <DS.Button variant="primary" size="lg" onClick={verifyEmail} disabled={busy} iconRight="→">{busy ? 'Verifying…' : 'Verify & continue'}</DS.Button>
+          <a {...clickable(() => { if (!busy) startEmail(); })} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-accent)', cursor: busy ? 'default' : 'pointer' }}>Resend code</a>
+        </div>
+        {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
+        <div style={{ ...note, color: 'var(--text-muted)' }}>
+          <a {...clickable(() => { setPhase('idle'); setErr(''); })} style={{ color: 'var(--text-accent)', cursor: 'pointer' }}>← Use a different email</a>
+        </div>
+      </div>
+    );
+  }
+
+  // idle: email field + the two auth methods.
+  return (
+    <div>
+      <Field label="Email" zh="邮箱" type="email" placeholder="you@studio.dev" value={email} onChange={setEmail} onSubmit={startEmail} autoComplete="email"
+        hint={emailHint || 'Passwordless — we email a one-time magic link (ADR-0013). No password to remember.'} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+        <DS.Button variant="primary" size="lg" onClick={startEmail} disabled={busy} iconRight="→">{busy ? 'Sending…' : 'Email me a magic link'}</DS.Button>
+        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={startDevice} disabled={busy}>Continue with GitHub</DS.Button>
+      </div>
+      {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
+    </div>
+  );
+}
+
 /* ───────────────────────── 01 · SIGN UP (invite) ───────────────────────── */
 function SignupScreen({ go }) {
   const { INVITE } = window.GA;
@@ -28,11 +188,8 @@ function SignupScreen({ go }) {
       }
     >
       <Field label="Invitation code" zh="邀请码" value={INVITE.code} mono hint="Holders pay $0 and get the full paid set free for 3 months." />
-      <Field label="Email" zh="邮箱" type="email" placeholder="you@studio.dev" hint="Passwordless — we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password." />
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-        <DS.Button variant="primary" size="lg" onClick={() => go('github')} iconRight="→">Email me a magic link</DS.Button>
-        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={() => go('github')}>Continue with GitHub</DS.Button>
-      </div>
+      <AuthMethods go={go} onAuthed={(m) => go(m === 'github' ? 'enroll' : 'github')}
+        emailHint="Passwordless — we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password." />
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
         Have an account? <a {...clickable(() => go('login'))} style={{ color: 'var(--text-accent)', cursor: 'pointer' }}>Log in</a>
       </div>
@@ -57,11 +214,8 @@ function LoginScreen({ go }) {
         ]} />
       }
     >
-      <Field label="Email" zh="邮箱" type="email" placeholder="you@studio.dev" hint="Passwordless — we email you a one-time magic link (ADR-0013). No password to remember." />
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-        <DS.Button variant="primary" size="lg" onClick={() => go('github')} iconRight="→">Email me a magic link</DS.Button>
-        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={() => go('github')}>Continue with GitHub</DS.Button>
-      </div>
+      <AuthMethods go={go} onAuthed={() => go('enroll')}
+        emailHint="Passwordless — we email you a one-time magic link (ADR-0013). No password to remember." />
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', marginTop: 14 }}>
         New here? <a {...clickable(() => go('signup'))} style={{ color: 'var(--text-accent)', cursor: 'pointer' }}>Sign up with an invite →</a>
       </div>
