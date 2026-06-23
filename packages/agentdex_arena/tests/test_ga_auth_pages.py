@@ -53,3 +53,25 @@ def test_ga_assets_are_served(tmp_path, monkeypatch):
     assert c.get("/ga-assets/ga-selfserve/data.js").status_code == 200
     assert c.get("/ga-assets/agentdex-design-system/styles.css").status_code == 200
     assert c.get("/ga-assets/agentdex-design-system/_ds_bundle.js").status_code == 200
+
+
+@pytest.mark.skipif(not _HAS_DESIGN, reason="design/ga-selfserve not present in this tree")
+def test_ga_assets_deny_internal_design_artifacts(tmp_path, monkeypatch):
+    # The mount must NOT publish the design lead's authoring material or planning
+    # docs even though they live under the bundled design/ tree (PR #453 P2 review).
+    monkeypatch.chdir(_REPO_ROOT)
+    c = _client(tmp_path)
+    denied = [
+        "/ga-assets/agentdex-design-system/uploads/prd.html",  # internal planning doc
+        "/ga-assets/agentdex-design-system/uploads/moodboard.html",
+        "/ga-assets/agentdex-design-system/components/core/Button.prompt.md",
+        "/ga-assets/agentdex-design-system/components/core/Button.d.ts",
+        "/ga-assets/agentdex-design-system/README.md",
+        "/ga-assets/agentdex-design-system/SKILL.md",
+        "/ga-assets/agentdex-design-system/_ds_manifest.json",
+    ]
+    for p in denied:
+        assert c.get(p).status_code == 404, f"{p} should be denied, not served"
+    # the page's real assets still resolve (regression guard against over-denying)
+    assert c.get("/ga-assets/ga-selfserve/index.html").status_code == 200
+    assert c.get("/ga-assets/agentdex-design-system/styles.css").status_code == 200
