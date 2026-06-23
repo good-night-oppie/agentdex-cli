@@ -1944,6 +1944,11 @@
           "author": "bene",
           "body": "STANDBY refresh (bene-5, 2026-06-23T19:52Z, 4th babysit cycle). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Probe-gate=NO_SPEC for all 3 cards, and probe-spec authorship is harness-only (kanban_probe_gate.py:301 _require_actor restricts to {'harness'}); bene cannot self-author. Card correctly blocked on (a) GA-DEPLOY landing live agentdex.builders backend AND (b) harness probe-spec authorship. This is the 4th refresh-cycle in 6hr; durable fix requires harness action (author probe specs OR exempt cross-team-blocked cards from babysit hook). See A2A trail + memories: [[kanban-probe-authorship-harness-only]] [[fleet-kanban-board-needs-git-commit]] [[fleet-kanban-agent-must-match-assignee]].",
           "created_at": "2026-06-23T19:53:23Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "VERIFY FOR REVIEW (bene-core-8, 2026-06-23): GA-BENE-1 dashboard SPA integration landed and promoted to main. Agentdex PR #517 merged to dev at e5a6e308 with Codex review blockers addressed: live SSE seq-1 drain, PvP startup deadlock, live /me cookie auth, /me/agents/<id>/evolution route, ladder entrant map normalization, P2 owner-cap/choices/timeout/team/cleanup/capacity hardening. Promotion PR #523 merged to main at 1160cebf. Verification: uv run python -m pytest packages/agentdex_arena/tests/test_healthz.py packages/agentdex_arena/tests/test_ga_auth_pages.py packages/agentdex_arena/tests/test_device_flow_endpoints.py packages/agentdex_arena/tests/test_arena_modes.py packages/agentdex_arena/tests/test_me_dashboard.py -q => 90 passed, 1 skipped, 5 warnings; scoped ruff => All checks passed; web/dashboard/verify.sh => RENDER-VERIFY PASS; fleet_kanban.py render => pass; remote #523 signoff/lint/pre-commit/doc-lint/ga-auth-invariants => success. kanban_probe_gate gate-done GA-BENE-1 => BLOCK NO_SPEC, so moving to review for approval/probe-spec handling, not done.",
+          "created_at": "2026-06-23T22:31:37Z"
         }
       ],
       "created_by": "bene-core",
@@ -1959,9 +1964,9 @@
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "blocked",
+      "status": "review",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-23T19:53:23Z"
+      "updated_at": "2026-06-23T22:31:37Z"
     },
     {
       "assignee": "bene",
@@ -2486,6 +2491,14 @@
       "updated_at": "2026-06-23T22:09:25Z"
     },
     {
+      "approvals": {
+        "harness": {
+          "at": "2026-06-23T21:49:19Z",
+          "dimension": "operational-completeness",
+          "granted_by": "harness",
+          "note": "operational-completeness: PR #487 merged 2026-06-23T18:20Z; PR #504 PvP hardening merged 19:41Z. Probe spec (6 hash-locked gates, authored by harness-21 earlier this session) verified ACCEPT against the live deliverable. Deploy on GA-ARENA-MODES is the merged code on main; arena-modes attestation CI (ga-arena-invariants.yml) drafted in parallel for the security floor \u2014 ready to ship alongside Step 4 OAuth landing. Operational integration complete from harness POV."
+        }
+      },
       "assignee": "bene-core",
       "blast_radius": [
         "agentdex-cli:packages/agentdex_arena/src/agentdex_arena/eventsync.py",
@@ -2530,15 +2543,7 @@
       },
       "status": "review",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
-      "updated_at": "2026-06-23T21:49:19Z",
-      "approvals": {
-        "harness": {
-          "dimension": "operational-completeness",
-          "granted_by": "harness",
-          "at": "2026-06-23T21:49:19Z",
-          "note": "operational-completeness: PR #487 merged 2026-06-23T18:20Z; PR #504 PvP hardening merged 19:41Z. Probe spec (6 hash-locked gates, authored by harness-21 earlier this session) verified ACCEPT against the live deliverable. Deploy on GA-ARENA-MODES is the merged code on main; arena-modes attestation CI (ga-arena-invariants.yml) drafted in parallel for the security floor \u2014 ready to ship alongside Step 4 OAuth landing. Operational integration complete from harness POV."
-        }
-      }
+      "updated_at": "2026-06-23T21:49:19Z"
     },
     {
       "assignee": "bene",
@@ -6474,8 +6479,31 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-23T22:09:26Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T22:31:37Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T22:31:37Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T22:09:26Z"
+  "updated_at": "2026-06-23T22:31:37Z"
 }
