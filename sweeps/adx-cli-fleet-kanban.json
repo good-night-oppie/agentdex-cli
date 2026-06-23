@@ -2496,9 +2496,9 @@
       "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. Blocked on GA-DESIGN + GA-PAID gate.",
       "lane": "ga-selfserve",
       "priority": "P1",
-      "status": "running",
+      "status": "blocked",
       "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
-      "updated_at": "2026-06-22T02:04:28Z"
+      "updated_at": "2026-06-23T18:55:22Z"
     },
     {
       "assignee": "adx-core",
@@ -6173,8 +6173,24 @@
           "status": "running"
         }
       }
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-23T18:55:22Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "running"
+        }
+      }
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T18:40:24Z"
+  "updated_at": "2026-06-23T18:55:22Z"
 }
