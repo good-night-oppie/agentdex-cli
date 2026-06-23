@@ -2685,6 +2685,26 @@ def create_app(
         # instance to read a returncode from, so the sticky flag carries it. Liveness
         # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
+        # Touch-driven crash recovery (RECOVER-P1-sidecar-respawn): the readiness
+        # probe is the canonical periodic touch, so respawn any dead pool member in
+        # place here — a transient crash self-heals instead of forcing a full
+        # container recycle. reclaim_dead() starts the replacement OUTSIDE the pool
+        # lock and returns the evicted battle_ids; a respawn that fails leaves the
+        # member dead → the 503 below still fires. (Restored after the #508 main→dev
+        # sync silently dropped this dev-only block — PR #484/#497, #508 review P1.)
+        if isinstance(sc, SidecarPool) and sc.any_dead():
+            try:
+                evicted = await sc.reclaim_dead()
+            except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
+                evicted = []
+            # Fail the crashed battles closed (#2835): the member's death took its
+            # in-process sim state with it. Move the still-live sessions to the
+            # _interrupted set (same 409 signal as a gateway restart, PR #246) and
+            # drop them so the owner gets a clean 409 instead of a stale-session loop.
+            for bid in evicted:
+                sess = gateway.sessions.pop(bid, None)
+                if sess is not None and sess.ended is None:
+                    gateway._interrupted[bid] = sess.claims_token_id
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read
