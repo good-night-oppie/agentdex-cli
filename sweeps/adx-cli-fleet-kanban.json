@@ -2536,6 +2536,11 @@
           "author": "adx-cli",
           "body": "CORRECTION: GA-DESIGN is now DONE (harness probe-gate, 3/3 reviewers + eddie-agi-kb/harness approvals, 02:11Z) \u2014 so the design-first gate is SATISFIED. GA-DEPLOY's remaining blocker is now ONLY the build cards (GA-AUTH/ENROLL/ARENA-MODES/PAID) landing; a deploy before they exist ships nothing new (#728). Stays blocked until those land + adx-core confirms the co-ownership split. Deploy plan ready (origin/main build, -p 8889:8000 behind Caddy on agentdex-arena-1).",
           "created_at": "2026-06-22T02:33:14Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Status->review (adx-cli build-side COMPLETE; awaiting harness joint sign-off / probe-gate for done \u2014 not owner-markable). Reality 2026-06-23: all GA-AUTH funnel blockers cleared + merged to dev \u2014 F1 button->/auth/* wiring (#472), F3 landing CTAs->/signup,/login (#470), F4 /auth/device/poll rate-limit (#471), plus the #465 limiter-wiring review drain (#467 XFF/lockout + #468 pre-parse middleware) and the /ga-assets hardening (#461/#463/#464). Promotion PR #469 (dev->main) MERGED; harness-20 confirmed 'GA-AUTH funnel SHIPPED' (#964 \u2014 bundle WIRED /auth/email/start+/auth/device/start, auth suite 56 passed, both CodeQL green). Remaining: harness's dev->main re-promotion + the probe-gate done ceremony (harness owns both). One open follow-up routed to adx-core: PR #472's invite-redemption (POST /enroll/redeem-invite in the signup SPA) \u2014 fix-spec posted on the thread + A2A.",
+          "created_at": "2026-06-23T09:43:02Z"
         }
       ],
       "created": "2026-06-22",
@@ -2544,9 +2549,9 @@
       "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker 29.5.3 + Caddy auto-TLS serving agentdex.builders, arena on :8889). UNBLOCKED. Still blocked on GA-DESIGN + build cards.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "blocked",
+      "status": "review",
       "title": "refactor + deploy new arena to Lightsail agentdex-arena-1 (autonomous pipeline)",
-      "updated_at": "2026-06-22T02:33:14Z"
+      "updated_at": "2026-06-23T09:43:02Z"
     },
     {
       "assignee": "eddie-agi-kb",
@@ -5785,8 +5790,31 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-22T23:55:31Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T09:43:01Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T09:43:02Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-22T23:55:31Z"
+  "updated_at": "2026-06-23T09:43:02Z"
 }
