@@ -32,6 +32,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from adx_showdown.harness import BattleHarness, from_bene_genome
+from adx_showdown.selfplay import team_modes
 from adx_showdown.selfplay.baselines import (
     baseline_names,
     build_baseline,
@@ -40,6 +41,66 @@ from adx_showdown.selfplay.baselines import (
 from adx_showdown.selfplay.codex_adapter import CODEX_STRATEGIES
 
 DEFAULT_FORMAT = "gen9randombattle"
+
+
+class RunnerNotReadyForFormat(NotImplementedError):
+    """Format is substrate-valid but the runner/player isn't ready for it yet.
+
+    Distinct from :class:`team_modes.UnsupportedFormat` (substrate-level — unknown
+    or topology-incompatible). Runner-level guard: ``HarnessPlayer.choose_move``
+    is singles-shaped (one ``BattleOrder`` per turn, no per-slot decision) and no
+    team-builder is wired, so a doubles or ``team_required`` battle would silently
+    produce broken matchups. Fail loud here until the deeper increment lands.
+    """
+
+
+def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT) -> str:
+    """Resolve the poke-env ``battle_format`` for an arena ``mode`` (team_modes).
+
+    Lets a caller drive the runner by **arena mode** (``solo_bots|pvp|team|selfplay``)
+    instead of a raw format string: a ``mode`` resolves to its substrate format +
+    topology (e.g. ``team`` → a doubles format so the second agent is not dropped).
+
+    - ``mode is None`` → ``battle_format`` passthrough (back-compat; existing
+      callers are unchanged).
+    - ``mode`` set + the default ``battle_format`` → the mode's default format.
+    - ``mode`` set + a non-default ``battle_format`` → that format as an *override*,
+      validated topology-compatible with the mode.
+
+    Raises:
+      - ``team_modes.UnknownMode`` — unknown ``mode``.
+      - ``team_modes.UnsupportedFormat`` — substrate-incompatible override
+        (e.g. a team mode given a singles format → would drop the 2nd agent).
+      - ``RunnerNotReadyForFormat`` — substrate is fine but the runner/player
+        cannot drive the format yet: doubles topology needs a per-slot
+        ``HarnessPlayer.choose_move`` rewrite, and ``team_required`` formats
+        need a team-builder. Both are tracked as the next GA-SELFPLAY-EVOLVE
+        increments. Until they ship, the bridge refuses rather than silently
+        spinning up broken matchups.
+    """
+    if mode is None:
+        return battle_format
+    override = battle_format if battle_format != DEFAULT_FORMAT else None
+    fmt = team_modes.resolve_format(mode, override=override)
+    if fmt.topology == team_modes.DOUBLES:
+        raise RunnerNotReadyForFormat(
+            f"mode={mode!r} resolves to doubles format {fmt.id!r}, but "
+            "HarnessPlayer.choose_move is singles-shaped (one BattleOrder per "
+            "turn, no per-slot decision). Tracked as the next GA-SELFPLAY-EVOLVE "
+            "increment; raising rather than silently spinning up a broken doubles "
+            "battle."
+        )
+    if fmt.team_required:
+        raise RunnerNotReadyForFormat(
+            f"mode={mode!r} resolves to team-required format {fmt.id!r}, but no "
+            "team-builder is wired into run_selfplay_battle (both players are "
+            "constructed without a team= kwarg). Tracked as a follow-up "
+            "increment; raising rather than silently dropping into Showdown's "
+            "default-team fallback."
+        )
+    return fmt.id
+
+
 _PS_HOST = os.environ.get("ADX_PS_HOST", "127.0.0.1")
 _PS_PORT = os.environ.get("ADX_PS_PORT", "8000")
 # Where per-matchup traces are written (battle outcomes for replay/audit).
@@ -400,6 +461,7 @@ async def run_selfplay_battle(
     n_battles: int,
     opponent_baseline: str | None = None,
     battle_format: str = DEFAULT_FORMAT,
+    mode: str | None = None,
     server: Any = None,
 ) -> SelfPlayResult:
     """Contract 2: run ``harness_a`` (candidate) vs ``harness_b`` over n_battles.
@@ -407,7 +469,12 @@ async def run_selfplay_battle(
     Both harnesses are realized as poke-env ``HarnessPlayer``s on the PS server.
     ``opponent_baseline`` labels harness_b for A3's Elo lookup (defaults to
     harness_b's id). Reproducible-in-distribution via seeded usernames.
+
+    Pass an arena ``mode`` (``team`` → doubles, ``selfplay``/``pvp``/``solo_bots`` →
+    singles) to drive the format from the team-mode substrate instead of a raw
+    ``battle_format``; a team mode resolves to a doubles format so both agents play.
     """
+    battle_format = battle_format_for_mode(mode, battle_format)
     a = from_bene_genome(harness_a)
     b = from_bene_genome(harness_b)
     from poke_env import AccountConfiguration
