@@ -174,8 +174,10 @@ def test_browser_github_start_redirects_with_state_and_pkce(tmp_path):
     assert len(qs["code_challenge"][0]) == 43
     state_cookie = _setcookie(r, "arena_oauth_state").lower()
     pkce_cookie = _setcookie(r, "arena_oauth_pkce").lower()
+    return_cookie = _setcookie(r, "arena_oauth_return_to").lower()
     assert "httponly" in state_cookie and "secure" in state_cookie
     assert "httponly" in pkce_cookie and "secure" in pkce_cookie
+    assert "httponly" in return_cookie and "secure" in return_cookie
 
 
 def test_browser_github_callback_mints_web_session_without_returning_tokens(tmp_path):
@@ -207,6 +209,68 @@ def test_browser_github_callback_mints_web_session_without_returning_tokens(tmp_
     assert body["code"] == "abc123"
     assert body["redirect_uri"] == "http://testserver/oauth/github"
     assert body["code_verifier"] == verifier
+
+
+def test_browser_github_roundtrip_can_return_to_ga_funnel(tmp_path):
+    transport = _FakeTransport(
+        {
+            GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
+            GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
+            GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+        }
+    )
+    gw = _gateway(tmp_path, transport=transport)
+    with _client(gw) as c:
+        start = c.get("/auth/github?next=/enroll", follow_redirects=False)
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        return_to = _cookie_value(start, "arena_oauth_return_to")
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={
+                "arena_oauth_state": state,
+                "arena_oauth_pkce": verifier,
+                "arena_oauth_return_to": return_to,
+            },
+            follow_redirects=False,
+        )
+    assert done.status_code == 303, done.text
+    assert done.headers["location"] == "/enroll"
+    assert _setcookie(done, "arena_oauth_return_to").lower().startswith('arena_oauth_return_to=""')
+
+
+def test_browser_github_callback_preserves_existing_web_session_owner(tmp_path):
+    invite_owner = "invitee@example.test"
+    transport = _FakeTransport(
+        {
+            GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
+            GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
+            GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+        }
+    )
+    gw = _gateway(tmp_path, transport=transport)
+    assert gw.session_auth is not None
+    existing = gw.session_auth.mint_session(invite_owner, f"email:{invite_owner}")
+    with _client(gw) as c:
+        start = c.get("/auth/github?next=/enroll", follow_redirects=False)
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        return_to = _cookie_value(start, "arena_oauth_return_to")
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={
+                "arena_session": existing,
+                "arena_oauth_state": state,
+                "arena_oauth_pkce": verifier,
+                "arena_oauth_return_to": return_to,
+            },
+            follow_redirects=False,
+        )
+    assert done.status_code == 303, done.text
+    assert gw.accounts.owner_for(_GH_ID) == invite_owner
+    claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
+    assert claims.owner == invite_owner
+    assert claims.github_id == _GH_ID
 
 
 def test_browser_github_callback_rejects_state_mismatch(tmp_path):
@@ -268,6 +332,7 @@ def test_start_503_when_device_flow_unconfigured(tmp_path):
     with _client(gw) as c:
         r = c.post("/auth/device/start")
     assert r.status_code == 503
+    assert c.get("/auth/github/status").status_code == 503
 
 
 def test_poll_503_when_session_auth_unconfigured(tmp_path):
@@ -275,7 +340,9 @@ def test_poll_503_when_session_auth_unconfigured(tmp_path):
     gw = _gateway(tmp_path, transport=_FakeTransport({}), with_session=False)
     with _client(gw) as c:
         r = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+        browser = c.get("/auth/github/status")
     assert r.status_code == 503
+    assert browser.status_code == 503
 
 
 def test_existing_routes_unaffected_when_onboarding_unconfigured(tmp_path):

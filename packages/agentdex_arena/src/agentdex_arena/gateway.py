@@ -2685,6 +2685,26 @@ def create_app(
         # instance to read a returncode from, so the sticky flag carries it. Liveness
         # is read from the cached returncode (no IPC) to keep the probe cheap.
         sc = app.state.sidecar
+        # Touch-driven crash recovery (RECOVER-P1-sidecar-respawn): the readiness
+        # probe is the canonical periodic touch, so respawn any dead pool member in
+        # place here — a transient crash self-heals instead of forcing a full
+        # container recycle. reclaim_dead() starts the replacement OUTSIDE the pool
+        # lock and returns the evicted battle_ids; a respawn that fails leaves the
+        # member dead → the 503 below still fires. (Restored after the #508 main→dev
+        # sync silently dropped this dev-only block — PR #484/#497, #508 review P1.)
+        if isinstance(sc, SidecarPool) and sc.any_dead():
+            try:
+                evicted = await sc.reclaim_dead()
+            except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
+                evicted = []
+            # Fail the crashed battles closed (#2835): the member's death took its
+            # in-process sim state with it. Move the still-live sessions to the
+            # _interrupted set (same 409 signal as a gateway restart, PR #246) and
+            # drop them so the owner gets a clean 409 instead of a stale-session loop.
+            for bid in evicted:
+                sess = gateway.sessions.pop(bid, None)
+                if sess is not None and sess.ended is None:
+                    gateway._interrupted[bid] = sess.claims_token_id
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read
@@ -3079,6 +3099,14 @@ def create_app(
         # the login surface. Same per-IP volumetric bucket as device/start; the 30-token
         # @ 0.5/s refill comfortably covers the ~5s adx-login poll cadence.
         "/auth/device/poll": _auth_volumetric_guard,
+        # /oauth/github is the browser-OAuth callback: it does an upstream GitHub
+        # token exchange (exchange_web_code) in the thread pool, gated only by a
+        # caller-controlled state==cookie check — so an unauthenticated client can
+        # replay matching state/cookie + arbitrary `code` to drive unbounded GitHub
+        # token-exchange fanout, exactly like /auth/device/poll. /auth/github (the
+        # redirect entrypoint) gets the same per-IP volumetric cap. (#499/#490 review.)
+        "/auth/github": _auth_volumetric_guard,
+        "/oauth/github": _auth_volumetric_guard,
         "/auth/email/start": _auth_volumetric_guard,
         "/auth/email/verify": _auth_verify_acquire_guard,
     }
@@ -3172,9 +3200,34 @@ def create_app(
         base = gateway.public_base_url or str(request.base_url).rstrip("/")
         return f"{base}/oauth/github"
 
+    _OAUTH_RETURN_TO_DEFAULT = "/dashboard/"
+    _OAUTH_RETURN_TO_ALLOWED = {
+        "/signup",
+        "/login",
+        "/github",
+        "/enroll",
+        "/modes",
+        "/arena",
+        "/battle/new",
+        "/dashboard/",
+    }
+
+    def _oauth_return_to(raw: str | None) -> str:
+        if not raw:
+            return _OAUTH_RETURN_TO_DEFAULT
+        if raw in _OAUTH_RETURN_TO_ALLOWED:
+            return raw
+        return _OAUTH_RETURN_TO_DEFAULT
+
     def _pkce_challenge(verifier: str) -> str:
         digest = hashlib.sha256(verifier.encode("ascii")).digest()
         return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    @app.get("/auth/github/status", include_in_schema=False)
+    async def auth_github_status() -> Response:
+        if gateway.device_flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        return Response(status_code=204)
 
     @app.get("/auth/github", include_in_schema=False)
     async def auth_github(request: Request) -> RedirectResponse:
@@ -3182,6 +3235,7 @@ def create_app(
             raise _opaque_error(503, "session auth not configured")
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(32)
+        return_to = _oauth_return_to(request.query_params.get("next"))
         try:
             url = gateway.device_flow.web_authorize_url(
                 redirect_uri=_oauth_redirect_uri(request),
@@ -3203,6 +3257,15 @@ def create_app(
         response.set_cookie(
             "arena_oauth_pkce",
             verifier,
+            max_age=GITHUB_OAUTH_STATE_TTL_SEC,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            "arena_oauth_return_to",
+            return_to,
             max_age=GITHUB_OAUTH_STATE_TTL_SEC,
             httponly=True,
             secure=True,
@@ -3237,16 +3300,24 @@ def create_app(
             )
         except DeviceFlowError as e:
             raise _opaque_error(502, e) from None
-        owner = result.owner or ""
         github_id = result.github_id or ""
+        owner = result.owner or ""
+        current_session = request.cookies.get("arena_session")
+        if current_session:
+            with contextlib.suppress(SessionError):
+                owner = gateway.session_auth.verify_session(current_session).owner
         gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
         gateway.accounts.link(github_id, owner)
         token = gateway.session_auth.mint_session(owner, github_id)
         claims = gateway.session_auth.verify_session(token)
-        response = RedirectResponse(url="/dashboard/", status_code=303)
+        response = RedirectResponse(
+            url=_oauth_return_to(request.cookies.get("arena_oauth_return_to")),
+            status_code=303,
+        )
         _set_web_session(response, token, claims.expires_at)
         response.delete_cookie("arena_oauth_state", path="/")
         response.delete_cookie("arena_oauth_pkce", path="/")
+        response.delete_cookie("arena_oauth_return_to", path="/")
         return response
 
     # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------

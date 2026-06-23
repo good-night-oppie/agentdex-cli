@@ -357,3 +357,22 @@ def test_verify_invalid_body_flood_throttled_pre_parse(tmp_path, monkeypatch):
         for _ in range(3)
     ]
     assert codes[-1] == 429, codes  # 2 invalid bodies spend the bucket, 3rd 429s pre-parse
+
+
+def test_oauth_github_callback_is_volumetric_guarded(tmp_path, monkeypatch):
+    # The browser-OAuth callback /oauth/github does an upstream GitHub token exchange,
+    # gated only by a caller-controlled state==cookie check — so it must sit behind the
+    # same per-IP volumetric guard as the other unauthenticated GitHub-token fanout
+    # (/auth/device/poll). Without rate-limiting an attacker replays matching state+cookie
+    # with arbitrary `code` to drive unbounded exchange_web_code calls. With a 2-token
+    # bucket the 3rd hit is an opaque 429 (the pre-parse guard fires before the handler).
+    _enable(monkeypatch, ARENA_AUTH_IP_MAX_TOKENS=2)
+    client = _client(_gw(tmp_path))
+    # device_flow unconfigured here → handler 503s; once the bucket drains the guard 429s
+    # FIRST, proving /oauth/github is in _auth_preparse_guards.
+    codes = [client.get("/oauth/github?code=x&state=y").status_code for _ in range(3)]
+    assert codes[-1] == 429, codes
+    # the redirect entrypoint is guarded too
+    other = _client(_gw(tmp_path))
+    eco = [other.get("/auth/github").status_code for _ in range(3)]
+    assert eco[-1] == 429, eco
