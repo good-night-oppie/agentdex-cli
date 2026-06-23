@@ -88,6 +88,7 @@ from agentdex_arena.invite import (
     hash_invite_code,
     new_invite_code,
 )
+from agentdex_arena.limiter import TouchDrivenRateLimiter
 from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
@@ -2890,6 +2891,158 @@ def create_app(
     async def enroll_confirm(code: str) -> dict:
         return gateway.enroll_confirm(code)
 
+    # ---------- GA-AUTH rate-limit + brute-force lockout (ADX-Online Track A) ----------
+    #
+    # The unauthenticated /auth/* surface gets a per-IP volumetric token-bucket
+    # (anti-flood on email/start + device/start) plus a per-IP failure-lockout on the
+    # OTP-verify path (anti-brute-force on email/verify), both served by the
+    # TouchDrivenRateLimiter (see limiter.py: touch-driven, bounded, sleeping-tolerant).
+    # OPTIONAL-AT-BOOT: inert unless ARENA_RATE_LIMIT_ENABLED is set, mirroring
+    # session_auth's "None until configured" posture, so existing callers + the CLI
+    # Bearer path are byte-identical when it is off. ALL config parsing lives INSIDE the
+    # enabled branch and is tolerant + floored, so the default-off boot path touches no
+    # env beyond the enable flag and a mistyped knob can never crash boot or fail a
+    # security control OPEN. The checks live ONLY in the four /auth/* bodies below — NOT
+    # in middleware — so no other route (and no authed CLI request) is touched.
+
+    def _env_int(name: str, default: int, *, floor: int) -> int:
+        """Tolerant int env read: strip, fall back to ``default`` on missing/garbage,
+        and clamp to ``floor`` so one mistyped digit degrades to a safe value
+        (fail-closed) instead of crashing boot or fail-OPEN-disabling the limiter."""
+        raw = os.getenv(name)
+        if raw is None or not raw.strip():
+            return max(floor, default)
+        try:
+            return max(floor, int(raw.strip()))
+        except ValueError:
+            log.warning("arena: ignoring non-integer %s=%r; using %d", name, raw, default)
+            return max(floor, default)
+
+    def _env_float(name: str, default: float, *, floor: float) -> float:
+        """Float counterpart of ``_env_int`` (same tolerant + floored semantics).
+
+        Rejects non-finite results too: ``float("inf")`` / ``"1e999"`` (overflow to
+        +inf) / ``"nan"`` parse WITHOUT raising ``ValueError``, and ``max(floor, inf)``
+        keeps ``inf`` (a lower floor never clamps it down) — so a ``*_MAX_TOKENS`` or
+        ``*_REFILL_PER_SEC`` of ``inf`` would sail past the limiter's ``> 0`` ctor guard
+        and make the bucket never empty, silently failing the control OPEN. Treat
+        non-finite as garbage and degrade to the floored default (fail-closed)."""
+        raw = os.getenv(name)
+        if raw is None or not raw.strip():
+            return max(floor, default)
+        try:
+            val = float(raw.strip())
+        except ValueError:
+            log.warning("arena: ignoring non-numeric %s=%r; using %s", name, raw, default)
+            return max(floor, default)
+        if not math.isfinite(val):
+            log.warning("arena: ignoring non-finite %s=%r; using %s", name, raw, default)
+            return max(floor, default)
+        return max(floor, val)
+
+    _rl_enabled = os.getenv("ARENA_RATE_LIMIT_ENABLED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    _auth_ip_limiter: TouchDrivenRateLimiter | None = None
+    _auth_verify_limiter: TouchDrivenRateLimiter | None = None
+    # Trusted reverse-proxy hop count for X-Forwarded-For; 0 = ignore XFF, key on the
+    # socket peer. Read only when rate-limiting is on (see _client_ip for the keying).
+    _trust_proxies = 0
+    if _rl_enabled:
+        # Set ARENA_TRUST_PROXIES to the EXACT number of proxies that APPEND XFF in
+        # front of the arena (Caddy/Koyeb) so the true client sits at -N; over-counting
+        # trusts a client-forgeable slot, so leave it at 0 unless the topology is known.
+        _trust_proxies = _env_int("ARENA_TRUST_PROXIES", 0, floor=0)
+        if _trust_proxies <= 0:
+            # Dangerous-default warning: with no trusted proxy hop, _client_ip keys on
+            # the socket peer, which behind a reverse proxy (Caddy/Koyeb) is the SHARED
+            # proxy IP for every external client. We therefore DISABLE the brute-force
+            # lockout in this mode (volumetric-only) so one attacker's bad codes cannot
+            # 429 arena-wide login — but the operator should set ARENA_TRUST_PROXIES to
+            # the real appending-proxy hop count to get per-client keying + the lockout.
+            log.warning(
+                "arena: rate-limiting ENABLED but ARENA_TRUST_PROXIES=0 — keying on the "
+                "socket peer; behind a reverse proxy this collapses all clients onto one "
+                "bucket. Brute-force LOCKOUT is disabled (volumetric-only) to avoid an "
+                "arena-wide login killswitch. Set ARENA_TRUST_PROXIES to the appending-"
+                "proxy hop count (1 = Caddy-only, 2 = Koyeb-edge + Caddy) to enable it."
+            )
+        # Hard cap on tracked keys, floored at 1 — the limiter raises on capacity<1, and
+        # an unfloored 0 would fail the control OPEN; a security control must not.
+        _rl_capacity = _env_int("ARENA_AUTH_LIMIT_CAPACITY", 20_000, floor=1)
+        # Volumetric per-IP bucket (no lockout) for email/start + device/start.
+        _auth_ip_limiter = TouchDrivenRateLimiter(
+            max_tokens=_env_float("ARENA_AUTH_IP_MAX_TOKENS", 30.0, floor=1.0),
+            refill_per_sec=_env_float("ARENA_AUTH_IP_REFILL_PER_SEC", 0.5, floor=1e-9),
+            capacity=_rl_capacity,
+        )
+        # Per-IP volumetric bucket (always) + failure-lockout (ONLY when a trusted proxy
+        # makes the IP key per-client) for the OTP-verify brute-force surface.
+        #
+        # The lockout is keyed on the client IP, NOT the target account: a FAILED verify
+        # carries no recoverable owner (an invalid code maps to no email), so per-email
+        # keying is not implementable on the miss path. The PRIMARY brute-force defense is
+        # therefore the ~192-bit one-time code minted by email_login_start
+        # (secrets.token_urlsafe(24)); this lockout is only defense-in-depth.
+        #
+        # We gate the lockout on ARENA_TRUST_PROXIES>0 because under the default (key =
+        # socket peer) every client behind a reverse proxy shares ONE key, so the lockout
+        # would be an arena-wide login killswitch an attacker trips with ~max_failures bad
+        # codes. Even with per-client keying the lockout is NOT a one-shot bounded wait:
+        # an attacker can re-trip it every lockout_sec (record_failure caps nothing), so a
+        # shared egress (CGNAT / corp proxy / university) can be held in INDEFINITELY-
+        # renewable login denial, and a user behind it holding a valid code cannot self-
+        # rescue (acquire() 429s before email_login_verify runs, so record_success never
+        # fires). Accepted as defense-in-depth on top of the unguessable code; tune
+        # ARENA_AUTH_VERIFY_* per deploy. (TODO: let a provably-correct code clear the
+        # lock — tracked as a follow-up; it has volumetric/anti-enumeration interactions.)
+        _verify_lockout = _trust_proxies > 0
+        _auth_verify_limiter = TouchDrivenRateLimiter(
+            max_tokens=_env_float("ARENA_AUTH_VERIFY_MAX_TOKENS", 20.0, floor=1.0),
+            refill_per_sec=_env_float("ARENA_AUTH_VERIFY_REFILL_PER_SEC", 0.2, floor=1e-9),
+            max_failures=(
+                _env_int("ARENA_AUTH_VERIFY_MAX_FAILURES", 8, floor=1) if _verify_lockout else 0
+            ),
+            lockout_sec=(
+                _env_float("ARENA_AUTH_VERIFY_LOCKOUT_SEC", 900.0, floor=1.0)
+                if _verify_lockout
+                else 0.0
+            ),
+            capacity=_rl_capacity,
+        )
+
+    def _client_ip(request: Request) -> str:
+        """Trustworthy client IP for rate-limit keying. With ARENA_TRUST_PROXIES=N>0 we
+        trust exactly N proxy hops and read the Nth-from-the-right X-Forwarded-For entry
+        (every trusted proxy APPENDS the peer it saw, so the real client sits at -N) — a
+        client can forge the left of the chain but never that slot, PROVIDED N equals the
+        real appending-proxy count. With N=0 (the default) XFF is ignored entirely and
+        the socket peer is used. If the chain is shorter than N (the request bypassed the
+        expected proxy topology) we fall back to the socket peer rather than trust a
+        client-controlled slot."""
+        peer = request.client.host if request.client else "0.0.0.0"
+        if _trust_proxies <= 0:
+            return peer
+        xff = request.headers.get("x-forwarded-for")
+        if not xff:
+            return peer
+        hops = [h.strip() for h in xff.split(",") if h.strip()]
+        if len(hops) >= _trust_proxies:
+            return hops[-_trust_proxies]
+        return peer
+
+    def _auth_volumetric_guard(request: Request) -> None:
+        """Opaque per-IP volumetric guard for the unauthenticated /auth/* flood surface.
+        No-op when rate-limiting is disabled. 429 with no Retry-After (anti-enumeration)."""
+        if _auth_ip_limiter is None:
+            return
+        rate_limited, _ = _auth_ip_limiter.acquire(_client_ip(request))
+        if rate_limited:
+            raise _opaque_error(429, "too many requests")
+
     # ---------- account onboarding: GitHub device-flow (ADR-0013 D2) ----------
     #
     # `adx login` calls /auth/device/start, prints the user_code, then polls
@@ -2901,7 +3054,8 @@ def create_app(
     # avoid blocking the event loop, mirroring the judge SDK off-loop pattern.
 
     @app.post("/auth/device/start")
-    async def auth_device_start() -> dict:
+    async def auth_device_start(request: Request) -> dict:
+        _auth_volumetric_guard(request)
         if gateway.device_flow is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2951,7 +3105,8 @@ def create_app(
     # when session auth is unconfigured (ARENA_SESSION_SIGNING_KEY_HEX unset).
 
     @app.post("/auth/email/start")
-    async def auth_email_start(req: EmailLoginStartRequest) -> dict:
+    async def auth_email_start(req: EmailLoginStartRequest, request: Request) -> dict:
+        _auth_volumetric_guard(request)
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2963,16 +3118,34 @@ def create_app(
 
     @app.post("/auth/email/verify")
     async def auth_email_verify(
-        req: EmailLoginVerifyRequest, response: Response, web: int = 0
+        req: EmailLoginVerifyRequest,
+        request: Request,
+        response: Response,
+        web: int = 0,
     ) -> dict:
+        ip = _client_ip(request)
+        if _auth_verify_limiter is not None:
+            rate_limited, locked_out = _auth_verify_limiter.acquire(ip)
+            if rate_limited or locked_out:
+                # Volumetric flood OR an IP locked out after too many bad codes — one
+                # opaque 429 either way (no Retry-After, no lock-vs-rate distinction
+                # leaked to an OTP guesser).
+                raise _opaque_error(429, "too many requests")
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
             result = gateway.email_login_verify(req.code)
         except HTTPException:
+            # email_login_verify raises the opaque 403 'invalid or expired login code'
+            # here — a credential-guess miss, so count it toward the per-IP lockout.
+            if _auth_verify_limiter is not None:
+                _auth_verify_limiter.record_failure(ip)
             raise
-        except Exception as e:  # noqa: BLE001 — opaque boundary
+        except Exception as e:  # noqa: BLE001 — opaque boundary (server-side, not a guess)
             raise _opaque_error(400, e) from None
+        if _auth_verify_limiter is not None:
+            # A real login clears the failure window + any pending lockout for this IP.
+            _auth_verify_limiter.record_success(ip)
         if web == 1:
             # Browser SPA: HttpOnly session cookie + STRIP the token from the body
             # so JS (and any XSS) never sees the raw token.
