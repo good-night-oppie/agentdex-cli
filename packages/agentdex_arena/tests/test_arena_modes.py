@@ -7,6 +7,7 @@ no real node sidecar. FakeSidecar records ops and returns minimal states.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from agentdex_arena.gateway import (
     BeginRequest,
     create_app,
 )
+from agentdex_arena import gateway as gateway_mod
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -253,3 +255,20 @@ def test_pvp_queue_duplicate_choice_raises(gw: ArenaGateway):
     router.submit_p2_choice("dup-test", "move 1")  # first submit → buffered
     with pytest.raises(ValueError, match="duplicate"):
         router.submit_p2_choice("dup-test", "move 2")  # second → ValueError
+
+
+def test_pvp_choose_uses_forfeit_enabled_stale_expiry():
+    src = inspect.getsource(gateway_mod.create_app)
+    assert "await gateway._expire_if_stale(session, allow_forfeit=True)" in src
+
+
+def test_p2_match_receipt_does_not_return_raw_last_state():
+    src = inspect.getsource(gateway_mod.create_app)
+    p2_receipt = src.split('"role": "p2"', 1)[1].split("return result", 1)[0]
+    assert "last_state" not in p2_receipt
+
+
+def test_p2_disconnect_does_not_cleanup_p1_choice_router():
+    src = inspect.getsource(gateway_mod.create_app)
+    assert 'pairing.role == "p1"' in src
+    assert "gateway.pvp_choice_router.cleanup(battle_id)" in src

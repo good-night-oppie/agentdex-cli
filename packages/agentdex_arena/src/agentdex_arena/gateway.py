@@ -1916,6 +1916,7 @@ class ArenaGateway:
                 if not vis_req.wait and legal_choices(vis_req):
                     session.pending = vis_req
                     session.turns = int(state.get("turns", 0))
+                    self.pvp_choice_router.mark_turn_advanced(session.battle_id)
                     return self._render(session, state)
             if not choices:
                 raise _opaque_error(500, f"{session.battle_id}: protocol stall")
@@ -3619,15 +3620,15 @@ def create_app(
                     "mode": "pvp",
                     "status": "matched",
                 }
-                if sess is not None and sess.last_state is not None:
-                    result["last_state"] = sess.last_state
                 return result
         except HTTPException:
             _hand_off()
             raise
         except asyncio.CancelledError:
             # Client disconnect during sidecar setup / _advance: release PvP resources.
-            if "battle_id" in dir() and battle_id:  # noqa: F821
+            if (  # noqa: F821
+                "battle_id" in dir() and battle_id and "pairing" in dir() and pairing.role == "p1"
+            ):
                 gateway.pvp_choice_router.cleanup(battle_id)
                 gateway.pvp_queue.cancel(owner_norm)
             _hand_off()
@@ -3667,7 +3668,7 @@ def create_app(
             raise _opaque_error(403, "not the P2 agent for this battle") from None
 
         # Expire stale turns before accepting P2 choices (mirrors /battle/choose).
-        await gateway._expire_if_stale(session, allow_forfeit=False)
+        await gateway._expire_if_stale(session, allow_forfeit=True)
 
         if session.ended is not None:
             return {"status": "ended", **session.ended}

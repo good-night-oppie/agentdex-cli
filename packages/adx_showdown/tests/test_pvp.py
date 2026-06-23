@@ -208,8 +208,8 @@ def test_pvp_choice_router_duplicate_buffered_raises():
         router.submit_p2_choice("dup", "move 2")  # duplicate → ValueError
 
 
-def test_pvp_choice_router_submit_then_consume_then_submit_ok():
-    """After the policy consumes the buffered choice, a new submit is accepted."""
+def test_pvp_choice_router_rejects_retry_until_gateway_advances_turn():
+    """After policy consumption, HTTP retries are rejected until gateway advances."""
 
     async def _go():
         router = PvPChoiceRouter()
@@ -217,7 +217,9 @@ def test_pvp_choice_router_submit_then_consume_then_submit_ok():
         router.submit_p2_choice("seq", "move 1")  # buffers
         result1 = await policy(None)  # consumes buffer; state reset
         assert result1 == "move 1"
-        # After consumption, state is (None, None) — second submit should buffer fine
+        with pytest.raises(ValueError, match="duplicate"):
+            router.submit_p2_choice("seq", "move 2")
+        router.mark_turn_advanced("seq")
         accepted = router.submit_p2_choice("seq", "move 2")
         assert accepted is False  # buffered again, not a duplicate
 
