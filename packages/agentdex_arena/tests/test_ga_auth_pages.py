@@ -186,12 +186,14 @@ def test_funnel_wires_the_auth_backends(tmp_path, monkeypatch):
     screens = _client(tmp_path).get("/ga/app/screens.js").text
     assert "fetch(" in screens, "funnel issues no network call (dead-stub regression)"
     for endpoint in (
+        "/auth/github",
         "/auth/email/start",
         "/auth/email/verify?web=1",
         "/auth/device/start",
         "/auth/device/poll?web=1",
     ):
         assert endpoint in screens, f"funnel does not wire {endpoint}"
+    assert "location.assign" in screens, "browser GitHub OAuth CTA must redirect"
 
 
 @_needs_ga

@@ -55,8 +55,8 @@ function compileJsx(name) {
   if (!res || !res.code) throw new Error(`babel produced no output for ${name}`);
   return res.code;
 }
-fs.writeFileSync(path.join(APP, "shell.js"), compileJsx("shell.jsx"));
-fs.writeFileSync(path.join(APP, "screens.js"), compileJsx("screens.jsx"));
+fs.writeFileSync(path.join(APP, "shell.js"), compileJsx("shell.jsx") + "\n");
+fs.writeFileSync(path.join(APP, "screens.js"), compileJsx("screens.jsx") + "\n");
 log("compiled shell.jsx + screens.jsx → app/{shell,screens}.js");
 
 // ── 2. copy data + the prebuilt design-system component bundle ─────────────────
@@ -159,8 +159,8 @@ const INDEX = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="AgentDex GA self-serve — passwordless signup, GitHub device flow, email magic link.">
-<meta name="agentdex:auth" content="passwordless; methods=github-device,email-magic-link; no-password">
+<meta name="description" content="AgentDex GA self-serve — passwordless signup, GitHub OAuth, device-code fallback, email magic link.">
+<meta name="agentdex:auth" content="passwordless; methods=github-oauth,github-device,email-magic-link; no-password">
 <title>AgentDex · GA self-serve</title>
 <link rel="stylesheet" href="/ga/styles.css">
 <link rel="stylesheet" href="/ga/page.css">
@@ -169,8 +169,8 @@ const INDEX = `<!DOCTYPE html>
 <noscript>
   <div class="ga-noscript">
     <strong>AgentDex sign-in is passwordless.</strong>
-    <p>We never use passwords. Continue with the <strong>GitHub device flow</strong>
-    or an <strong>email magic link</strong> (ADR-0013). Please enable JavaScript to
+    <p>We never use passwords. Continue with <a href="/auth/github">GitHub OAuth</a>,
+    the <strong>GitHub device flow</strong>, or an <strong>email magic link</strong> (ADR-0013). Please enable JavaScript to
     run the self-serve funnel, or use the CLI: <code>adx login</code>.</p>
   </div>
 </noscript>
