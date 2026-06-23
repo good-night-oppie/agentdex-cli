@@ -57,6 +57,7 @@ from adx_showdown.protocol import (
     parse_request,
     sanitize_name,
 )
+from adx_showdown.pvp import PvPChoiceRouter, PvPQueue
 from adx_showdown.sidecar import Sidecar, SidecarError
 from adx_showdown.sim import BattleContext, Policy, call_policy
 from adx_showdown.teams import pack_team, starter_pack, validate_team
@@ -96,6 +97,7 @@ log = logging.getLogger(__name__)
 
 
 Lane = Literal["sandbox", "rated"]
+ArenaMode = Literal["solo_bots", "pvp"]
 GYM_LEADERS = (
     "anchor-random",
     "anchor-max_damage",
@@ -606,6 +608,7 @@ class BeginRequest(BaseModel):
     battle_nonce: str
     pop_signature_hex: str
     lane: Lane = "sandbox"
+    mode: ArenaMode = "solo_bots"
     team: str | None = None  # packed; validated server-side; None = starter draft 1
     gym_leader: str | None = None  # opt-in gym leader challenge in sandbox
 
@@ -861,6 +864,9 @@ class ArenaGateway:
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
         self.replays: dict[str, dict[str, Any]] = {}
         self._publication_allowed_override = True
+        # GA-ARENA-MODES: PvP matchmaking queue + per-battle P2 choice router.
+        self.pvp_queue = PvPQueue()
+        self.pvp_choice_router = PvPChoiceRouter()
 
     @property
     def publication_allowed(self) -> bool:
@@ -1665,6 +1671,7 @@ class ArenaGateway:
                 "tenant_id": claims.token_id,
                 "battle_id": battle_id,
                 "lane": req.lane,
+                "mode": req.mode,
                 "visitor": visitor,
                 "opponent": opponent,
             },
@@ -2506,8 +2513,14 @@ async def _sse_battle_stream(
     spectator must not decide when a rated battle is durably committed (PR #377 review
     3443669242). Frame-buffer reclamation still runs either way.
     """
+    import copy
+
+    from adx_showdown.lineproto import extract_trace_lines, fold_scene, scene_initial
+
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
+    # UI-5: running scene state accumulated across all frames sent so far.
+    _scene: dict = scene_initial()
     # NOTE: _BattleSseResponse registered the viewer before returning the response
     # object, and owns the matching decrement in its ASGI-call finally. Keep the
     # generator refcount-free: unstarted async generators do not run finally blocks.
@@ -2525,12 +2538,19 @@ async def _sse_battle_stream(
         while sent < len(frames):
             fr = frames[sent]
             sent += 1
+            projected = project_frame(fr.get("raw_lines") or [], side=side)
+            # UI-5: update cumulative scene state from this frame's projected lines.
+            fold_scene(projected, _scene)
+            # UI-6: extract per-move reasoning/say trace from this frame.
+            trace_lines = [] if side == "spectator" else extract_trace_lines(projected)
             payload = {
                 "battle_id": session.battle_id,
                 "turn": fr.get("turn", 0),
                 "seq": fr.get("seq", sent),
                 "side": side,
-                "lines": project_frame(fr.get("raw_lines") or [], side=side),
+                "lines": projected,
+                "scene": copy.deepcopy(_scene),
+                "trace_lines": trace_lines,
                 "ts_ms": int(gateway.now() * 1000),
             }
             yield f"data: {json.dumps(payload)}\n\n"
@@ -3461,6 +3481,185 @@ def create_app(
         (US-5.1, "my agents highlighted") — same rating source as ``/ladder``, just
         filtered to the caller's agents. Free read."""
         return gateway.me_ladder(_require_session(authorization))
+
+    class PvPQueueRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid", strict=False)
+        token: str
+        mode: Literal["pvp"] = "pvp"
+        team: str | None = None
+
+    @app.post("/me/battle/queue")
+    async def me_battle_queue(req: PvPQueueRequest) -> dict:
+        """GA-ARENA-MODES: enqueue for UserAgent-vs-UserAgent (pvp) mode.
+
+        Suspends until a second owner joins; both callers are paired FIFO and
+        a sidecar battle is started.  P1 (first joiner) gets ``role='p1'``
+        and drives moves via the standard ``POST /battle/{id}/choose``.  P2
+        gets ``role='p2'`` and submits moves via
+        ``POST /battle/{id}/pvp-choose``.  Free tier — no quota spend."""
+        try:
+            claims = gateway.authority.verify(req.token, scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+
+        owner_norm = _normalize_owner(claims.owner)
+        try:
+            gateway._reserve_owner_slot(owner_norm)
+        except HTTPException:
+            raise
+
+        released = [False]
+
+        def _hand_off() -> None:
+            if not released[0]:
+                released[0] = True
+                gateway._release_owner_slot(owner_norm)
+
+        try:
+            pairing = await gateway.pvp_queue.enqueue(owner_norm)
+        except ValueError as e:
+            _hand_off()
+            raise _opaque_error(409, e) from None
+        except asyncio.CancelledError:
+            _hand_off()
+            raise
+
+        try:
+            sidecar = await _sidecar()
+            visitor = claims.agent_name
+            battle_id = pairing.battle_id
+
+            if pairing.role == "p1":
+                # P1 starts the sidecar battle; P2's policy waits for explicit choices.
+                opponent_name = pairing.opponent_owner
+                p2_policy = gateway.pvp_choice_router.make_p2_policy(battle_id)
+                team = req.team
+                if team is None:
+                    team = await pack_team(sidecar, next(iter(starter_pack().values())))
+                else:
+                    team = sanitize_packed_team(team)
+                    valid, errors = await validate_team(sidecar, team)
+                    if not valid:
+                        raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
+                opp_team = await pack_team(sidecar, next(iter(starter_pack().values())))
+                seed = [
+                    int.from_bytes(
+                        hashlib.blake2b(battle_id.encode(), digest_size=2).digest(), "big"
+                    ),
+                    7,
+                    7,
+                    7,
+                ]
+                resp = await sidecar.request(
+                    "start",
+                    battle=battle_id,
+                    format="gen9ou",
+                    seed=seed,
+                    p1={"name": visitor, "team": team},
+                    p2={"name": opponent_name, "team": opp_team},
+                )
+                session = BattleSession(
+                    battle_id=battle_id,
+                    claims_token_id=claims.token_id,
+                    owner=owner_norm,
+                    visitor_name=visitor,
+                    lane="sandbox",
+                    opponent=opponent_name,
+                    seed=seed,
+                    sidecar=sidecar,
+                    opponent_policy=p2_policy,
+                )
+                session.p1_team, session.p2_team = team, opp_team
+                await gateway._append_or_fail_closed(
+                    "battle_begin",
+                    {
+                        "tenant_id": claims.token_id,
+                        "battle_id": battle_id,
+                        "lane": "sandbox",
+                        "mode": "pvp",
+                        "visitor": visitor,
+                        "opponent": opponent_name,
+                    },
+                    sidecar=sidecar,
+                    battle_id=battle_id,
+                )
+                gateway.sessions[battle_id] = session
+                _hand_off()
+                state = await gateway._advance(session, resp["state"], visitor_choice=None)
+                return {
+                    "battle_id": battle_id,
+                    "role": "p1",
+                    "opponent": opponent_name,
+                    "mode": "pvp",
+                    **state,
+                }
+            else:
+                # P2: the sidecar battle is already started by P1; return queue receipt.
+                # P2 submits moves via POST /battle/{id}/pvp-choose.
+                _hand_off()
+                return {
+                    "battle_id": battle_id,
+                    "role": "p2",
+                    "opponent": pairing.opponent_owner,
+                    "mode": "pvp",
+                    "status": "matched",
+                }
+        except HTTPException:
+            _hand_off()
+            raise
+        except Exception as e:  # noqa: BLE001
+            _hand_off()
+            raise _opaque_error(400, e) from None
+
+    class PvPChooseRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid", strict=False)
+        token: str
+        choice_index: int = Field(ge=1, le=64)
+
+    @app.post("/battle/{battle_id}/pvp-choose")
+    async def battle_pvp_choose(battle_id: str, req: PvPChooseRequest) -> dict:
+        """GA-ARENA-MODES: P2 submits their move choice in a pvp battle.
+
+        Mirrors ``POST /battle/{id}/choose`` for the P2 role: converts
+        ``choice_index`` to a choice string using the pending P2 request
+        stored in the canonical (P1) session, then forwards it to
+        PvPChoiceRouter so P1's ``_advance`` loop can resume."""
+        try:
+            claims = gateway.authority.verify(req.token, scope="battle")
+        except ConsentError as e:
+            raise _opaque_error(403, e) from None
+
+        session = gateway.sessions.get(battle_id)
+        if session is None:
+            raise _opaque_error(403, "no such battle for this token") from None
+
+        # P2 is NOT the session owner; validate they are the named opponent.
+        if sanitize_name(claims.agent_name) != sanitize_name(session.opponent):
+            raise _opaque_error(403, "not the P2 agent for this battle") from None
+
+        if session.ended is not None:
+            return {"status": "ended", **session.ended}
+
+        # Retrieve P2's pending request from the canonical session state.
+        last = session.last_state
+        if last is None:
+            raise _opaque_error(409, "no pending state yet — wait for P1 to begin")
+
+        other_side = "p2" if session.visitor_side == "p1" else "p1"
+        raw_opp = (last.get("pending") or {}).get(other_side)
+        if raw_opp is None:
+            raise _opaque_error(409, "no pending request for P2 right now")
+
+        opp_req = parse_request(raw_opp)
+        choices = legal_choices(opp_req)
+        idx = req.choice_index - 1
+        if idx >= len(choices):
+            raise _opaque_error(
+                400, f"choice_index {req.choice_index} out of range (P2 has {len(choices)} choices)"
+            )
+        choice_str = choices[idx]
+        accepted = gateway.pvp_choice_router.submit_p2_choice(battle_id, choice_str)
+        return {"status": "submitted", "choice": choice_str, "accepted": accepted}
 
     @app.get("/battle/{battle_id}/live")
     async def battle_live(battle_id: str, request: Request) -> StreamingResponse:

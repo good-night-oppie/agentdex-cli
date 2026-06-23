@@ -56,3 +56,48 @@ def test_tool_is_importable():
     from agentdex_arena import mcp_surface
 
     assert hasattr(mcp_surface, "selfplay_battle")
+
+
+def test_tool_exposes_mode_param():
+    # GA-SELFPLAY-EVOLVE: the MCP surface MUST expose ``mode`` so callers can
+    # drive the runner by arena mode (solo_bots|pvp|team|selfplay). Without
+    # this, the documented arena entrypoint cannot use the bridge that
+    # ``run_selfplay_battle`` exposes (Codex P2 on PR #485).
+    import inspect
+
+    from agentdex_arena import mcp_surface
+
+    sig = inspect.signature(mcp_surface.selfplay_battle)
+    assert "mode" in sig.parameters
+    assert sig.parameters["mode"].default is None  # back-compat default
+
+
+def test_mode_validation_errors_surface_before_broad_opaque():
+    # adx-cli-16 P2 on PR #491: the broad ``except Exception`` was swallowing
+    # mode-validation errors (RunnerNotReadyForFormat / UnknownMode /
+    # UnsupportedFormat) into _opaque_mcp_error, so a mode='team'/typo caller
+    # couldn't tell why it was rejected. Mode/format errors are CALLER-actionable
+    # input (same shape as the genome ValidationError above), so they must be
+    # caught BEFORE the broad except + surfaced with the actionable message.
+    #
+    # A live-tool test would need a PS server + auth scaffolding; this source-
+    # level check is the offline guarantee the fix stays in.
+    import inspect
+
+    from agentdex_arena import mcp_surface
+
+    src = inspect.getsource(mcp_surface.selfplay_battle)
+    # All 3 actionable types are named in a dedicated except clause.
+    assert "RunnerNotReadyForFormat" in src
+    assert "UnknownMode" in src
+    assert "UnsupportedFormat" in src
+    # The mode-validation except must appear BEFORE the broad ``except Exception``.
+    mode_except_idx = src.find("RunnerNotReadyForFormat")
+    broad_except_idx = src.find("except Exception")
+    assert 0 <= mode_except_idx < broad_except_idx, (
+        "the mode-validation except clause must precede the broad except so "
+        "actionable errors surface instead of being opaque-wrapped"
+    )
+    # And it must surface as ValueError (the actionable shape) — not be re-raised
+    # to fall through to the opaque-wrap.
+    assert 'raise ValueError(f"invalid self-play mode/format' in src
