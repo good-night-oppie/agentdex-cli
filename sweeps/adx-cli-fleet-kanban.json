@@ -2518,9 +2518,9 @@
         "authored_at": "2026-06-23T19:29:28Z",
         "authored_by": "harness",
         "db": "/home/admin/gh/harness-engineering/.harness/kanban-probes.db",
-        "lock_sha256": "48496ffe2f7f4d229134d3fc727125078364f2dda22fb0ba0cc95559d72c663f",
+        "lock_sha256": "48496ffe2f7f...",
         "probe": "kanban-card-GA-ARENA-MODES-9aeb67b0702f",
-        "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
+        "spec_sha256": "9aeb67b0702f...",
         "status": "admissible"
       },
       "status": "review",

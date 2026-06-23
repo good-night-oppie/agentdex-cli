@@ -236,9 +236,7 @@ def test_browser_github_roundtrip_can_return_to_ga_funnel(tmp_path):
         )
     assert done.status_code == 303, done.text
     assert done.headers["location"] == "/enroll"
-    assert _setcookie(done, "arena_oauth_return_to").lower().startswith(
-        "arena_oauth_return_to=\"\""
-    )
+    assert _setcookie(done, "arena_oauth_return_to").lower().startswith('arena_oauth_return_to=""')
 
 
 def test_browser_github_callback_preserves_existing_web_session_owner(tmp_path):
