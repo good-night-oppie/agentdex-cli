@@ -72,7 +72,9 @@ def _client(tmp_path: Path) -> TestClient:
 
 
 @_needs_ga
-@pytest.mark.parametrize("path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"])
+@pytest.mark.parametrize(
+    "path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"]
+)
 def test_entry_route_serves_spa_shell(tmp_path, monkeypatch, path):
     monkeypatch.chdir(_REPO_ROOT)
     r = _client(tmp_path).get(path)
@@ -85,7 +87,9 @@ def test_entry_route_serves_spa_shell(tmp_path, monkeypatch, path):
 
 
 @_needs_ga
-@pytest.mark.parametrize("path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"])
+@pytest.mark.parametrize(
+    "path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"]
+)
 def test_served_shell_is_passwordless_and_csp_safe(tmp_path, monkeypatch, path):
     # The security floor a step scores 0 without: no password field, and a shell that
     # renders under a strict script-src 'self' CSP (no inline <script>, no CDN origin).
