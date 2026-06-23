@@ -3009,6 +3009,46 @@ def create_app(
         if rate_limited:
             raise _opaque_error(429, "too many requests")
 
+    def _auth_verify_acquire_guard(request: Request) -> None:
+        """The OTP-verify rate/lockout ACQUIRE (the 429 check) — split out so it can run
+        pre-parse in the middleware below. record_failure/record_success stay in the
+        endpoint (they need the verify outcome). No-op when disabled."""
+        if _auth_verify_limiter is None:
+            return
+        ip, _ = _client_ip(request)
+        rate_limited, locked_out = _auth_verify_limiter.acquire(ip)
+        if rate_limited or locked_out:
+            raise _opaque_error(429, "too many requests")
+
+    # The unauthenticated auth POST surface takes a Pydantic body, which FastAPI
+    # parses+validates BEFORE the endpoint runs — so an in-endpoint throttle never sees
+    # a malformed/schema-invalid flood (it 422s first), letting an attacker burn
+    # parser/validation work uncapped. Run the per-path throttle in HTTP middleware,
+    # which executes before routing/body-parsing, to close that bypass.
+    _auth_preparse_guards = {
+        "/auth/device/start": _auth_volumetric_guard,
+        "/auth/email/start": _auth_volumetric_guard,
+        "/auth/email/verify": _auth_verify_acquire_guard,
+    }
+
+    @app.middleware("http")
+    async def _auth_preparse_throttle(request: Request, call_next):
+        guard = _auth_preparse_guards.get(request.url.path)
+        if guard is not None:
+            try:
+                guard(request)
+            except HTTPException as exc:
+                from fastapi.responses import JSONResponse
+
+                # Mirror FastAPI's HTTPException→response (opaque body + any headers) so a
+                # pre-parse 429 is byte-identical to the in-endpoint one (anti-enumeration).
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"detail": exc.detail},
+                    headers=exc.headers or None,
+                )
+        return await call_next(request)
+
     # ---------- account onboarding: GitHub device-flow (ADR-0013 D2) ----------
     #
     # `adx login` calls /auth/device/start, prints the user_code, then polls
@@ -3021,7 +3061,7 @@ def create_app(
 
     @app.post("/auth/device/start")
     async def auth_device_start(request: Request) -> dict:
-        _auth_volumetric_guard(request)
+        # throttled pre-parse by _auth_preparse_throttle middleware
         if gateway.device_flow is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -3072,7 +3112,7 @@ def create_app(
 
     @app.post("/auth/email/start")
     async def auth_email_start(req: EmailLoginStartRequest, request: Request) -> dict:
-        _auth_volumetric_guard(request)
+        # throttled pre-parse by _auth_preparse_throttle middleware
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -3089,14 +3129,11 @@ def create_app(
         response: Response,
         web: int = 0,
     ) -> dict:
+        # The verify rate/lockout ACQUIRE (429 on flood or lockout — one opaque 429 either
+        # way, no Retry-After, no lock-vs-rate distinction leaked) runs PRE-PARSE in the
+        # _auth_preparse_throttle middleware. record_failure/record_success stay here —
+        # they need the verify outcome. ``ip``/``trusted`` recomputed for those.
         ip, trusted = _client_ip(request)
-        if _auth_verify_limiter is not None:
-            rate_limited, locked_out = _auth_verify_limiter.acquire(ip)
-            if rate_limited or locked_out:
-                # Volumetric flood OR an IP locked out after too many bad codes — one
-                # opaque 429 either way (no Retry-After, no lock-vs-rate distinction
-                # leaked to an OTP guesser).
-                raise _opaque_error(429, "too many requests")
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
