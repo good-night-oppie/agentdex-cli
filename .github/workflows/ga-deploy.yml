@@ -52,6 +52,12 @@ env:
 
 jobs:
   build-and-deploy:
+    # workflow_dispatch lets an operator select ANY branch/ref in the UI; without
+    # this guard a manual run from a feature branch would build that ref and POST
+    # the deploy doorbell, bypassing the push-trigger `branches: [main]` filter
+    # and shipping un-merged code to prod (PR #499 review thread PRRT_kwDOS0FXt86LrpMA).
+    # The push trigger above is already main-only, so this only fires on dispatch.
+    if: github.ref == 'refs/heads/main'
     # Self-hosted org runners (EC2 t3 us-west-2) — bypasses GitHub-hosted billing,
     # which blocks ubuntu-latest org-wide when the Actions spending limit is hit.
     runs-on: [self-hosted, linux, X64]
