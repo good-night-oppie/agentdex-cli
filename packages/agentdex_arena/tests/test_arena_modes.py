@@ -10,6 +10,7 @@ import asyncio
 import uuid
 from pathlib import Path
 
+import pydantic
 import pytest
 from adx_showdown.pvp import PvPChoiceRouter, PvPQueue
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_owner
@@ -89,7 +90,7 @@ def test_begin_request_mode_pvp():
 
 
 def test_begin_request_mode_invalid_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         BeginRequest(
             token="tok",
             battle_nonce="n",
