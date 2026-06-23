@@ -2546,6 +2546,11 @@
           "author": "adx-cli",
           "body": "Progress 2026-06-23 (still review, awaiting harness probe-gate done-ceremony \u2014 not owner-markable): the DEPLOY HAS EXECUTED. ga-deploy.yml ran SUCCESS on the #469 dev->main merge (08:47Z) -> Lightsail agentdex-arena-1; harness-20 confirmed 'GA-AUTH funnel SHIPPED' (#964, auth suite 56 passed + both CodeQL green). adx-cli build-side + the deploy mechanism are COMPLETE; all F-blockers merged (F1 #472, F3 #470, F4 #471) + the CI security gate hardened (#474/#477). Remaining = harness's probe-gate done-ceremony only (origin/dev is now 5 commits ahead of main with review-drain follow-ups #470-#477 \u2014 a routine re-promotion, no new GA features). Pinging harness to run the gate.",
           "created_at": "2026-06-23T12:02:28Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "CORRECTION (per #478 review \u2014 both P1s valid, accepted): my prior 'deploy executed / remaining = probe-gate only' note OVERSTATED progress. GA-DEPLOY deploys the FULL GA self-serve flow, which is STILL GATED on unfinished build cards: GA-AUTH/GA-ENROLL/GA-PAID-STRIPE = todo (adx-core), GA-ARENA-MODES = todo (bene-core), GA-SELFPLAY-EVOLVE = running (bene). The GA-AUTH FUNNEL CODE shipped (F1 #472/F3 #470/F4 #471) and ga-deploy.yml DID run on the #469 dev->main merge (deploying that slice to Lightsail), but (a) the full GA functionality (enroll/arena-modes/paid) has NOT landed, and (b) ga-deploy.yml lives on origin/MAIN, not origin/dev. Moving back to blocked so the probe-gate cannot mark this P0 done before the GA flow actually ships. ga-deploy.yml dev/main inconsistency flagged to harness.",
+          "created_at": "2026-06-23T13:13:27Z"
         }
       ],
       "created": "2026-06-22",
@@ -2554,9 +2559,9 @@
       "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker 29.5.3 + Caddy auto-TLS serving agentdex.builders, arena on :8889). UNBLOCKED. Still blocked on GA-DESIGN + build cards.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "review",
+      "status": "blocked",
       "title": "refactor + deploy new arena to Lightsail agentdex-arena-1 (autonomous pipeline)",
-      "updated_at": "2026-06-23T12:02:28Z"
+      "updated_at": "2026-06-23T13:13:27Z"
     },
     {
       "assignee": "eddie-agi-kb",
@@ -2586,7 +2591,7 @@
       "updated_at": "2026-06-22T02:07:06Z"
     },
     {
-      "assignee": "adx-cli",
+      "assignee": "adx-core",
       "comments": [
         {
           "author": "adx-cli",
@@ -2597,6 +2602,11 @@
           "author": "adx-cli",
           "body": "Status->blocked (on adx-core box-Caddyfile apply). The AUDIT (this card's gate) is DONE + adversarially verified \u2014 PR #457 recorded the verified tightened CSP (drops unsafe-eval + script unsafe-inline + blanket https:/wss:; keeps style-src unsafe-inline). The asset surface is already script-CSP-clean (no Babel/eval). The remaining step is applying the tightened policy to the box Caddyfile, which is adx-core/adx-server INFRA (adx-cli=correctness produced the policy; adx-core=infra applies) \u2014 routed via A2A with a Report-Only-first rollout. adx-cli has no further actionable work here until adx-core applies it; un-blocks when the box CSP is tightened + verified.",
           "created_at": "2026-06-23T12:02:28Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Reassigning adx-cli->adx-core (per #478 review): the only remaining work \u2014 tighten the box Caddyfile CSP to the verified policy \u2014 is adx-core/adx-server INFRA, so the card belongs in adx-core's queue (fleet_kanban.py list --agent adx-core), not stranded under adx-cli where the live permissive CSP could be forgotten. adx-cli's correctness deliverable is complete: PR #457 recorded the adversarially-verified tightened CSP + Report-Only-first rollout. A2A'd adx-core to pick it up.",
+          "created_at": "2026-06-23T13:13:27Z"
         }
       ],
       "created_by": "adx-cli",
@@ -2611,7 +2621,7 @@
       "priority": "P2",
       "status": "blocked",
       "title": "Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited",
-      "updated_at": "2026-06-23T12:02:28Z"
+      "updated_at": "2026-06-23T13:13:27Z"
     }
   ],
   "events": [
@@ -5853,8 +5863,38 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-23T12:02:28Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T13:13:27Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T13:13:27Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-23T13:13:27Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T12:02:28Z"
+  "updated_at": "2026-06-23T13:13:27Z"
 }
