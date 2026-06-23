@@ -210,3 +210,46 @@ def test_mode_pvp_accepted_in_begin_request(gw: ArenaGateway):
     tok = _mint(gw, "dave@test.com", "AgentD", key)
     req = _begin_req(gw, tok, key, mode="pvp")
     assert req.mode == "pvp"
+
+
+def test_pvp_queue_identity_passthrough(gw: ArenaGateway):
+    """PvP matchmaking carries agent_name/token_id/team into PvPPairing fields."""
+
+    async def _go():
+        q = gw.pvp_queue
+        key_a = Ed25519PrivateKey.generate()
+        key_b = Ed25519PrivateKey.generate()
+        tok_a = _mint(gw, "alice@test.com", "AgentA", key_a)
+        tok_b = _mint(gw, "bob@test.com", "AgentB", key_b)
+        claims_a = gw.authority.verify(tok_a, scope="battle")
+        claims_b = gw.authority.verify(tok_b, scope="battle")
+        from agentdex_arena.consent import _normalize_owner
+
+        owner_a = _normalize_owner(claims_a.owner)
+        owner_b = _normalize_owner(claims_b.owner)
+
+        fut_a = asyncio.ensure_future(
+            q.enqueue(owner_a, agent_name="AgentA", token_id=claims_a.token_id, team=None)
+        )
+        await asyncio.sleep(0)
+        pairing_b = await q.enqueue(
+            owner_b, agent_name="AgentB", token_id=claims_b.token_id, team="myteam"
+        )
+        pairing_a = await fut_a
+
+        # P1 receives P2's identity for session.pvp_p2_claims_token_id binding
+        assert pairing_a.p2_claims_token_id == claims_b.token_id
+        assert pairing_a.opponent_agent_name == "AgentB"
+        assert pairing_a.p2_team == "myteam"
+        # P2 receives P1's identity
+        assert pairing_b.opponent_agent_name == "AgentA"
+
+    asyncio.run(_go())
+
+
+def test_pvp_queue_duplicate_choice_raises(gw: ArenaGateway):
+    """submit_p2_choice raises ValueError when a prior choice is unconsumed."""
+    router = gw.pvp_choice_router
+    router.submit_p2_choice("dup-test", "move 1")  # first submit → buffered
+    with pytest.raises(ValueError, match="duplicate"):
+        router.submit_p2_choice("dup-test", "move 2")  # second → ValueError
