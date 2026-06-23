@@ -21,6 +21,7 @@ the opponent on next touch (SLEEPING-tolerant — no background task needed).
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import hashlib
 import json
@@ -68,7 +69,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -552,6 +553,7 @@ EMAIL_LOGIN_RESEND_COOLDOWN_SEC = 60.0
 # Hard cap on concurrently-pending login codes — an abuse backstop so an
 # unauthenticated burst across many distinct emails can't exhaust memory.
 MAX_PENDING_EMAIL_LOGINS = 1000
+GITHUB_OAUTH_STATE_TTL_SEC = 600
 
 
 def _validate_contact_address(v: str) -> str:
@@ -3127,6 +3129,100 @@ def create_app(
         # pending / denied / expired — all 200 so the CLI switches on the field,
         # never on a status code (keeps the frozen pending→success shape intact).
         return {"status": result.status}
+
+    # ---------- account onboarding: browser GitHub OAuth (GA Step 4) ----------
+    #
+    # The CLI keeps using device-flow. The browser SPA needs a conventional
+    # GitHub OAuth entrypoint at /auth/github and a callback at /oauth/github.
+    # Both paths share the SAME backend-owned GitHub app, identity resolution,
+    # durable account_link event, SessionAuthority session token, HttpOnly
+    # arena_session cookie, and double-submit CSRF cookie as the existing
+    # web-mode email/device login paths. Security floor:
+    # - state is an unguessable HttpOnly cookie and must match the callback
+    # - PKCE S256 is sent to GitHub and the verifier is kept HttpOnly
+    # - scopes are inherited from GitHubDeviceFlow.DEFAULT_SCOPE
+    # - GitHub access tokens are not persisted or returned to the browser
+
+    def _oauth_redirect_uri(request: Request) -> str:
+        base = gateway.public_base_url or str(request.base_url).rstrip("/")
+        return f"{base}/oauth/github"
+
+    def _pkce_challenge(verifier: str) -> str:
+        digest = hashlib.sha256(verifier.encode("ascii")).digest()
+        return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    @app.get("/auth/github", include_in_schema=False)
+    async def auth_github(request: Request) -> RedirectResponse:
+        if gateway.device_flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        state = secrets.token_urlsafe(32)
+        verifier = secrets.token_urlsafe(32)
+        try:
+            url = gateway.device_flow.web_authorize_url(
+                redirect_uri=_oauth_redirect_uri(request),
+                state=state,
+                code_challenge=_pkce_challenge(verifier),
+            )
+        except DeviceFlowError as e:
+            raise _opaque_error(502, e) from None
+        response = RedirectResponse(url=url, status_code=302)
+        response.set_cookie(
+            "arena_oauth_state",
+            state,
+            max_age=GITHUB_OAUTH_STATE_TTL_SEC,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            "arena_oauth_pkce",
+            verifier,
+            max_age=GITHUB_OAUTH_STATE_TTL_SEC,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        return response
+
+    @app.get("/oauth/github", include_in_schema=False)
+    async def auth_github_callback(
+        request: Request,
+        code: str | None = None,
+        state: str | None = None,
+        error: str | None = None,
+    ) -> RedirectResponse:
+        if gateway.device_flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if error:
+            raise _opaque_error(403, "GitHub OAuth was not authorized")
+        cookie_state = request.cookies.get("arena_oauth_state")
+        verifier = request.cookies.get("arena_oauth_pkce")
+        if not code or not state or not cookie_state or not verifier:
+            raise _opaque_error(403, "GitHub OAuth state missing or expired")
+        if not secrets.compare_digest(state, cookie_state):
+            raise _opaque_error(403, "GitHub OAuth state mismatch")
+        try:
+            result = await asyncio.to_thread(
+                gateway.device_flow.exchange_web_code,
+                code=code,
+                redirect_uri=_oauth_redirect_uri(request),
+                code_verifier=verifier,
+            )
+        except DeviceFlowError as e:
+            raise _opaque_error(502, e) from None
+        owner = result.owner or ""
+        github_id = result.github_id or ""
+        gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
+        gateway.accounts.link(github_id, owner)
+        token = gateway.session_auth.mint_session(owner, github_id)
+        claims = gateway.session_auth.verify_session(token)
+        response = RedirectResponse(url="/dashboard/", status_code=303)
+        _set_web_session(response, token, claims.expires_at)
+        response.delete_cookie("arena_oauth_state", path="/")
+        response.delete_cookie("arena_oauth_pkce", path="/")
+        return response
 
     # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------
     #

@@ -27,11 +27,13 @@ from __future__ import annotations
 import json as _json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code"
 GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
@@ -159,6 +161,66 @@ class GitHubDeviceFlow:
         except (KeyError, TypeError, ValueError) as e:
             raise DeviceFlowError(f"device/code returned an unexpected shape: {body!r}") from e
 
+    def web_authorize_url(
+        self,
+        *,
+        redirect_uri: str,
+        state: str,
+        code_challenge: str,
+    ) -> str:
+        """Build the browser OAuth redirect URL.
+
+        The gateway owns ``state`` + PKCE verifier custody in HttpOnly cookies;
+        this broker only formats GitHub's authorize request using the same
+        client id + minimum scopes as device-flow login."""
+        if not redirect_uri or not state or not code_challenge:
+            raise DeviceFlowError("redirect_uri, state, and code_challenge are required")
+        params = {
+            "client_id": self.client_id,
+            "redirect_uri": redirect_uri,
+            "scope": self.scope,
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        return f"{GITHUB_AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
+
+    def exchange_web_code(
+        self,
+        *,
+        code: str,
+        redirect_uri: str,
+        code_verifier: str,
+    ) -> DevicePoll:
+        """Exchange a browser OAuth authorization code and resolve identity.
+
+        The access token is used only to read GitHub identity/email and is not
+        persisted. The returned shape intentionally matches ``poll()``'s
+        authorized branch so the gateway can mint the existing session token
+        and write the same account_link event."""
+        if not code or not redirect_uri or not code_verifier:
+            raise DeviceFlowError("code, redirect_uri, and code_verifier are required")
+        payload = {
+            "client_id": self.client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": code_verifier,
+        }
+        if self.client_secret:
+            payload["client_secret"] = self.client_secret
+        status, body = self._transport(
+            "POST", GITHUB_ACCESS_TOKEN_URL, self._json_headers(), payload
+        )
+        if not isinstance(body, dict):
+            raise DeviceFlowError(f"web access_token returned non-object (status={status})")
+        access_token = body.get("access_token")
+        if not access_token:
+            raise DeviceFlowError(
+                f"web access_token unexpected response (status={status}, error={body.get('error')!r})"
+            )
+        github_id, owner = self._identity(str(access_token))
+        return DevicePoll(status="authorized", github_id=github_id, owner=owner)
+
     def poll(self, device_code: str) -> DevicePoll:
         """Exchange the device_code for a token; on success resolve identity.
 
@@ -242,6 +304,7 @@ __all__ = [
     "DeviceStart",
     "DevicePoll",
     "DeviceFlowError",
+    "GITHUB_AUTHORIZE_URL",
     "OAUTH_CLIENT_ID_ENV",
     "OAUTH_CLIENT_SECRET_ENV",
     "DEFAULT_SCOPE",
