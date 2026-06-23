@@ -183,9 +183,7 @@ def test_browser_github_callback_mints_web_session_without_returning_tokens(tmp_
         {
             GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
             GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
-            GITHUB_EMAILS_URL: [
-                (200, [{"email": _OWNER, "primary": True, "verified": True}])
-            ],
+            GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
         }
     )
     gw = _gateway(tmp_path, transport=transport)
