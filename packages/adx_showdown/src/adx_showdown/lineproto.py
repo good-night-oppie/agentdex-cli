@@ -570,6 +570,7 @@ def _parse_hpstatus(hpstatus: str) -> tuple[float, str]:
 
 def scene_initial() -> dict:
     """Return a default scene state dict for incremental accumulation."""
+
     def mon() -> dict:
         return {
             "species": None,
@@ -654,7 +655,9 @@ def fold_scene(lines: list[str], state: dict) -> None:
                     if status == "fnt" or hp_frac <= 0:
                         s["fainted"] = True
                         if s.get("species"):
-                            state["teams"][ident.side].setdefault(s["species"], {})["fainted"] = True
+                            state["teams"][ident.side].setdefault(s["species"], {})["fainted"] = (
+                                True
+                            )
 
         elif lt == "faint":
             ident = ev.idents[0] if ev.idents else None
@@ -690,7 +693,9 @@ def fold_scene(lines: list[str], state: dict) -> None:
 
         elif lt == "-fieldend":
             if ev.args:
-                state["field"] = [entry for entry in state["field"] if entry["effect"] != ev.args[0]]
+                state["field"] = [
+                    entry for entry in state["field"] if entry["effect"] != ev.args[0]
+                ]
 
         elif lt == "-sidestart":
             if len(ev.args) >= 2:
