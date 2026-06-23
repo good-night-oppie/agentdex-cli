@@ -509,7 +509,8 @@ async def selfplay_battle(
     except HTTPException as e:
         raise ValueError(str(e.detail)) from None
 
-    from adx_showdown.selfplay import run_selfplay_battle
+    from adx_showdown.selfplay import run_selfplay_battle, team_modes
+    from adx_showdown.selfplay.runner import RunnerNotReadyForFormat
 
     try:
         result = await run_selfplay_battle(
@@ -520,6 +521,16 @@ async def selfplay_battle(
             opponent_baseline=_selfplay_opponent_label(b),
             mode=mode,
         )
+    except (
+        team_modes.UnknownMode,
+        team_modes.UnsupportedFormat,
+        RunnerNotReadyForFormat,
+    ) as e:
+        # Caller-actionable input errors (bad mode= / topology-incompat override /
+        # runner not yet doubles-aware): surface the message instead of opaque-
+        # erroring the way a real PS-server failure does. Mirrors the
+        # _validate_selfplay_args pattern above (adx-cli-16 P2 on PR #491).
+        raise ValueError(f"invalid self-play mode/format: {e}") from None
     except Exception as e:  # PS-server / poke-env failure
         raise _opaque_mcp_error("selfplay_battle", e) from None
     finally:
