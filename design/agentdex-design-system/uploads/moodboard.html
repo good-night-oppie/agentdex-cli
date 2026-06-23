@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>agentdex arena · Moodboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Bitter:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* agentdex warm-cool fusion */
+  --bg:      #0C0E11;
+  --surface: #131720;
+  --s2:      #1A1F2E;
+  --line:    #232A3A;
+  --ink:     #E8EDF5;
+  --mut:     #8891A4;
+  --dim:     #505A6E;
+  /* accent triad */
+  --lime:    #A6E22E;   /* Showdown OU energy */
+  --rust:    #C84B2C;   /* Patagonia earth */
+  --gold:    #F4B731;   /* Pokerogue warning */
+  --blue:    #4A9EF5;
+  --live:    #FF4655;
+  /* type palette (Showdown Dex) */
+  --t-fire:  #F08030; --t-water:#6890F0; --t-grass:#78C850;
+  --t-elec:  #F8D030; --t-psychic:#F85888; --t-dark:#705848;
+  --t-steel: #B8B8D0; --t-dragon:#7038F8; --t-normal:#A8A878;
+  /* HP bar */
+  --hp-ok:#5FD35A; --hp-warn:#F4C531; --hp-low:#EF4A4A;
+  /* fonts */
+  --mono: 'IBM Plex Mono', monospace;
+  --disp: 'Chakra Petch', system-ui, sans-serif;
+  --serif: 'Bitter', Georgia, serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); color: var(--ink); font-family: var(--disp); font-size: 14px; -webkit-font-smoothing: antialiased; }
+body { padding: 40px 48px 80px; max-width: 1300px; margin: 0 auto; }
+
+/* title */
+.title-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 10px; }
+.title-row h1 { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); font-family: var(--mono); }
+.title-row .name { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.title-row .tag { font-family: var(--mono); font-size: 11px; color: var(--lime); border: 1px solid rgba(166,226,46,.3); padding: 2px 9px; border-radius: 4px; }
+.sub { font-family: var(--mono); font-size: 12px; color: var(--mut); margin-bottom: 40px; line-height: 1.7; max-width: 640px; }
+
+/* section header */
+.sh { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+
+/* ── PALETTE SWATCHES ── */
+.palette-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 48px; }
+.swatch { width: 80px; display: flex; flex-direction: column; gap: 6px; }
+.swatch .chip { height: 56px; border-radius: 8px; border: 1px solid rgba(255,255,255,.06); }
+.swatch .label { font-family: var(--mono); font-size: 10px; color: var(--mut); }
+.swatch .hex { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+
+/* ── TYPOGRAPHY SPECIMENS ── */
+.type-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 48px; }
+.type-cell { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+.type-cell .role { font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 10px; }
+.disp-demo { font-family: var(--disp); font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; margin-bottom: 4px; }
+.mono-demo { font-family: var(--mono); font-size: 14px; color: var(--lime); line-height: 1.6; }
+.serif-demo { font-family: var(--serif); font-size: 22px; font-style: italic; color: var(--mut); line-height: 1.3; }
+
+/* ── FUSION SOURCES ── */
+.fusion-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 48px; }
+.fusion-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.fusion-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.fusion-dot { width: 10px; height: 10px; border-radius: 50%; }
+.fusion-title { font-size: 13px; font-weight: 700; }
+.fusion-src { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.fusion-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: var(--mut); line-height: 1.6; }
+.fusion-token { font-family: var(--mono); font-size: 11px; color: var(--blue); background: rgba(74,158,245,.08); padding: 2px 7px; border-radius: 4px; display: inline-block; margin-bottom: 2px; }
+.fusion-feature { display: flex; gap: 8px; align-items: flex-start; }
+.fusion-bullet { color: var(--lime); margin-top: 2px; flex-shrink: 0; }
+
+/* ── SHOWDOWN DEX SPECIMEN ── */
+.dex-mock { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 48px; }
+.dex-mock .dex-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--s2); }
+.dex-mock .agent-num { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.dex-mock .agent-name { font-size: 18px; font-weight: 700; }
+.dex-mock .agent-tier { font-family: var(--mono); font-size: 10px; background: rgba(166,226,46,.12); color: var(--lime); border: 1px solid rgba(166,226,46,.25); padding: 2px 8px; border-radius: 4px; }
+.dex-body { display: grid; grid-template-columns: 200px 1fr; }
+.dex-sprite { background: linear-gradient(135deg, #0F1520, #1A2238); display: grid; place-items: center; min-height: 160px; border-right: 1px solid var(--line); }
+.dex-sprite .pixel { width: 96px; height: 96px; image-rendering: pixelated; background: var(--s2); border-radius: 8px; display: grid; place-items: center; font-size: 40px; }
+.dex-stats { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.stat-row { display: grid; grid-template-columns: 80px 36px 1fr; align-items: center; gap: 10px; }
+.stat-name { font-family: var(--mono); font-size: 10px; color: var(--mut); text-transform: uppercase; letter-spacing: .05em; }
+.stat-val { font-family: var(--mono); font-size: 12px; font-weight: 600; text-align: right; }
+.stat-bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.stat-fill { height: 100%; border-radius: 4px; }
+
+/* type badges */
+.type-badges { display: flex; gap: 6px; margin-top: 2px; }
+.badge { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* ── HP BAR SPECIMENS ── */
+.hp-section { display: flex; gap: 20px; margin-bottom: 48px; flex-wrap: wrap; }
+.hp-demo { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 200px; }
+.hp-label { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .1em; }
+.hp-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.hp-pct { font-family: var(--mono); font-size: 11px; margin-bottom: 8px; }
+.hp-bar { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.hp-fill { height: 100%; border-radius: 6px; transition: width .6s ease; }
+.hp-fill.ok { background: linear-gradient(90deg, var(--hp-ok), #7FE879); }
+.hp-fill.warn { background: linear-gradient(90deg, var(--hp-warn), #F9D44B); }
+.hp-fill.low { background: linear-gradient(90deg, var(--hp-low), #FF6B6B); animation: pulse-red 1.2s ease-in-out infinite; }
+@keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ── MOVE BUTTONS ── */
+.moves-section { margin-bottom: 48px; }
+.moves-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; max-width: 620px; }
+.move-btn { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); background: var(--s2); cursor: pointer; transition: .12s; }
+.move-btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.2); }
+.move-name { font-family: var(--disp); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.move-meta { display: flex; gap: 5px; align-items: center; }
+.move-pp { font-family: var(--mono); font-size: 10px; color: var(--mut); }
+
+/* ── BATTLE LOG ── */
+.log-section { margin-bottom: 48px; }
+.log-box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-width: 560px; }
+.log-header { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+.log-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.log-title { font-family: var(--mono); font-size: 11px; color: var(--mut); }
+.log-entries { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.log-entry { font-family: var(--mono); font-size: 12px; line-height: 1.5; }
+.log-entry .ts { color: var(--dim); margin-right: 8px; }
+.log-entry .dmg { color: var(--rust); }
+.log-entry .eff { color: var(--gold); }
+.log-entry .heal { color: var(--lime); }
+.log-entry .agent { color: var(--blue); }
+
+/* ── PATAGONIA TEXTURE ── */
+.texture-section { margin-bottom: 48px; }
+.texture-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.tex-card { border-radius: 12px; height: 120px; display: grid; place-items: center; position: relative; overflow: hidden; }
+.tex-label { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; position: relative; z-index: 1; }
+.tc-forest { background: linear-gradient(135deg, #1A2D12, #2D5A1B); }
+.tc-earth { background: linear-gradient(135deg, #2A1208, #4A2210); }
+.tc-slate { background: linear-gradient(135deg, #0D1A2E, #1B3050); }
+.tc-noise::before { content: ''; position: absolute; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"); opacity: .5; }
+
+/* ── GRID SYSTEM PREVIEW ── */
+.grid-preview { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 48px; }
+.arena-layout { display: grid; grid-template-columns: 240px 1fr 260px; grid-template-rows: 40px 1fr 80px; gap: 8px; height: 320px; }
+.l-topbar { grid-column: 1/-1; background: var(--s2); border: 1px solid var(--line); border-radius: 6px; display: flex; align-items: center; padding: 0 12px; gap: 12px; }
+.l-roster { background: var(--s2); border: 1px solid var(--line); border-radius: 6px; }
+.l-battle { background: linear-gradient(180deg, #0F1830 0%, #0C0E11 100%); border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; position: relative; overflow: hidden; }
+.l-battle::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 70%, rgba(74,158,245,.08), transparent 60%); }
+.l-agent-pane { background: var(--s2); border: 1px solid var(--line); border-radius: 6px; }
+.l-log { grid-column: 1/-1; background: var(--s2); border: 1px solid var(--line); border-radius: 6px; display: flex; align-items: center; padding: 0 12px; }
+.l-label { font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: .1em; padding: 8px 10px; }
+.battle-label { font-family: var(--disp); font-size: 13px; color: rgba(232,237,245,.3); letter-spacing: .08em; position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+
+<div class="title-row">
+  <h1>Moodboard</h1>
+  <span class="name">agentdex arena · Design Direction</span>
+  <span class="tag">v1 · 2026-06-20</span>
+</div>
+<p class="sub">
+  Fusion of Pokémon Showdown Dex (data density · type badges · stat panels) ×
+  Pokerogue (dark game atmosphere · HP bars · battle log) ×
+  current agentdex.builders warm-charcoal terminal ×
+  Patagonia studio (earth anchors · utilitarian grid · premium serif moments).
+  Direction name: <strong style="color:var(--ink)">POKÉDEX TERMINAL</strong> — battle-grade, data-honest, earth-anchored.
+</p>
+
+<!-- PALETTE -->
+<div class="sh">01 · Color system</div>
+<div class="palette-row">
+  <div class="swatch"><div class="chip" style="background:#0C0E11"></div><div class="label">bg-void</div><div class="hex">#0C0E11</div></div>
+  <div class="swatch"><div class="chip" style="background:#131720"></div><div class="label">surface</div><div class="hex">#131720</div></div>
+  <div class="swatch"><div class="chip" style="background:#1A1F2E"></div><div class="label">surface-2</div><div class="hex">#1A1F2E</div></div>
+  <div class="swatch"><div class="chip" style="background:#232A3A"></div><div class="label">line</div><div class="hex">#232A3A</div></div>
+  <div class="swatch"><div class="chip" style="background:#A6E22E"></div><div class="label">lime (OU)</div><div class="hex">#A6E22E</div></div>
+  <div class="swatch"><div class="chip" style="background:#C84B2C"></div><div class="label">rust (earth)</div><div class="hex">#C84B2C</div></div>
+  <div class="swatch"><div class="chip" style="background:#F4B731"></div><div class="label">gold (warn)</div><div class="hex">#F4B731</div></div>
+  <div class="swatch"><div class="chip" style="background:#4A9EF5"></div><div class="label">blue (data)</div><div class="hex">#4A9EF5</div></div>
+  <div class="swatch"><div class="chip" style="background:#FF4655"></div><div class="label">live (●)</div><div class="hex">#FF4655</div></div>
+  <div class="swatch"><div class="chip" style="background:#5FD35A"></div><div class="label">hp-ok</div><div class="hex">#5FD35A</div></div>
+  <div class="swatch"><div class="chip" style="background:#F4C531"></div><div class="label">hp-warn</div><div class="hex">#F4C531</div></div>
+  <div class="swatch"><div class="chip" style="background:#EF4A4A"></div><div class="label">hp-low</div><div class="hex">#EF4A4A</div></div>
+</div>
+
+<!-- TYPOGRAPHY -->
+<div class="sh">02 · Typography system</div>
+<div class="type-grid">
+  <div class="type-cell">
+    <div class="role">Display · battle headings · agent names</div>
+    <div class="disp-demo">AGENT #042<br>Apex Predator</div>
+    <div class="mono-demo" style="margin-top:10px;font-size:11px">Chakra Petch 700 · compact, game-grade</div>
+  </div>
+  <div class="type-cell">
+    <div class="role">Mono · data · stats · battle log</div>
+    <div class="mono-demo">turn 7 | Flamethrower<br>&gt; 84 dmg | SUPER EFFECTIVE<br>hp 212/450 (47%)</div>
+    <div class="mono-demo" style="margin-top:10px;color:var(--dim);font-size:11px">IBM Plex Mono 400/500</div>
+  </div>
+  <div class="type-cell">
+    <div class="role">Serif · editorial moments · evolution titles</div>
+    <div class="serif-demo" style="margin-top:4px">"The agent that<br>survived ten gyms."</div>
+    <div class="mono-demo" style="margin-top:10px;font-size:11px;color:var(--dim)">Bitter Italic · Patagonia-flavour</div>
+  </div>
+</div>
+
+<!-- FUSION SOURCES -->
+<div class="sh">03 · Fusion DNA — three sources</div>
+<div class="fusion-grid">
+  <div class="fusion-card">
+    <div class="fusion-header">
+      <div class="fusion-dot" style="background:#77AAFF"></div>
+      <div>
+        <div class="fusion-title">Pokémon Showdown Dex</div>
+        <div class="fusion-src">Zarel/Pokemon-Showdown-Dex</div>
+      </div>
+    </div>
+    <div class="fusion-body">
+      <div><span class="fusion-token">data density</span></div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Dex entry card: sprite left, stats right in dl/dt/dd grid</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Type badges on every move + agent</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Stat bars (HP/Atk/Def/SpA/SpD/Spe) with numeric label</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Tier label (OU · UU · NU) = Agent genome tier</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Moveset table: power · accuracy · PP · category</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Search-as-you-type filter sidebar</div>
+    </div>
+  </div>
+  <div class="fusion-card">
+    <div class="fusion-header">
+      <div class="fusion-dot" style="background:#A6E22E"></div>
+      <div>
+        <div class="fusion-title">Pokérogué web UI</div>
+        <div class="fusion-src">pagefaultgames/pokerogue</div>
+      </div>
+    </div>
+    <div class="fusion-body">
+      <div><span class="fusion-token">battle atmosphere</span></div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Dark canvas game feel · biome backgrounds</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>HP bar with ok/warn/low color transitions</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Move selection grid 2×2, PP countdown</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Turn-by-turn battle log, scrolls up</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Status conditions as overlay pills (BRN · PAR · SLP)</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Roguelite: run persistence, stacking items</div>
+    </div>
+  </div>
+  <div class="fusion-card">
+    <div class="fusion-header">
+      <div class="fusion-dot" style="background:#C84B2C"></div>
+      <div>
+        <div class="fusion-title">agentdex + Patagonia studio</div>
+        <div class="fusion-src">agentdex.ai-builders.space</div>
+      </div>
+    </div>
+    <div class="fusion-body">
+      <div><span class="fusion-token">earth-anchored premium</span></div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Warm-cool dark base · Chakra Petch display</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Lime (#A6E22E) as signal accent · IBM Plex Mono data</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Patagonia layer: rust earth tones, utilitarian grid, no decoration</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Serif italic for "editorial moments" (evolution quote, gym badge)</div>
+      <div class="fusion-feature"><span class="fusion-bullet">→</span>Function-first chrome: every px earns its place</div>
+    </div>
+  </div>
+</div>
+
+<!-- SHOWDOWN DEX SPECIMEN -->
+<div class="sh">04 · Dex entry panel specimen (Showdown DNA → agent genome card)</div>
+<div class="dex-mock">
+  <div class="dex-header">
+    <div class="agent-num">#042</div>
+    <div class="agent-name">Apex-7</div>
+    <div class="type-badges">
+      <span class="badge" style="background:#F08030;color:#fff">Fire</span>
+      <span class="badge" style="background:#705848;color:#fff">Dark</span>
+    </div>
+    <div style="flex:1"></div>
+    <div class="agent-tier">OU</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--lime)">gen 3 · active</div>
+  </div>
+  <div class="dex-body">
+    <div class="dex-sprite">
+      <div class="pixel">🤖</div>
+    </div>
+    <div class="dex-stats">
+      <div class="stat-row">
+        <div class="stat-name">HP</div>
+        <div class="stat-val" style="color:var(--hp-ok)">410</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:82%;background:var(--hp-ok)"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-name">Attack</div>
+        <div class="stat-val">122</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:61%;background:#F08030"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-name">Defense</div>
+        <div class="stat-val">78</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:39%;background:var(--blue)"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-name">Sp. Atk</div>
+        <div class="stat-val" style="color:var(--lime)">145</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:72%;background:var(--lime)"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-name">Sp. Def</div>
+        <div class="stat-val">92</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:46%;background:#6890F0"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-name">Speed</div>
+        <div class="stat-val" style="color:var(--gold)">138</div>
+        <div class="stat-bar"><div class="stat-fill" style="width:69%;background:var(--gold)"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HP BARS -->
+<div class="sh" style="margin-top:40px">05 · HP bar states (Pokerogue DNA)</div>
+<div class="hp-section">
+  <div class="hp-demo">
+    <div class="hp-label">healthy</div>
+    <div class="hp-name">Apex-7</div>
+    <div class="hp-pct" style="color:var(--hp-ok)">410 / 450 HP</div>
+    <div class="hp-bar"><div class="hp-fill ok" style="width:91%"></div></div>
+  </div>
+  <div class="hp-demo">
+    <div class="hp-label">caution</div>
+    <div class="hp-name">Vertex-3</div>
+    <div class="hp-pct" style="color:var(--hp-warn)">189 / 450 HP</div>
+    <div class="hp-bar"><div class="hp-fill warn" style="width:42%"></div></div>
+  </div>
+  <div class="hp-demo">
+    <div class="hp-label">critical</div>
+    <div class="hp-name">Sigma-1</div>
+    <div class="hp-pct" style="color:var(--hp-low)">54 / 450 HP</div>
+    <div class="hp-bar"><div class="hp-fill low" style="width:12%"></div></div>
+  </div>
+  <div class="hp-demo">
+    <div class="hp-label">fainted</div>
+    <div class="hp-name">Rho-9</div>
+    <div class="hp-pct" style="color:var(--dim)">0 / 450 HP</div>
+    <div class="hp-bar"><div class="hp-fill" style="width:0%;background:var(--dim)"></div></div>
+  </div>
+</div>
+
+<!-- MOVE BUTTONS -->
+<div class="sh">06 · Move selection (Pokerogue 2×2 grid → 4-slot row)</div>
+<div class="moves-section">
+  <div class="moves-grid">
+    <div class="move-btn">
+      <div class="move-name">Flamethrower</div>
+      <div class="move-meta">
+        <span class="badge" style="background:#F08030;color:#fff;font-size:9px;padding:2px 6px">Fire</span>
+        <span class="move-pp">PP 15/15</span>
+      </div>
+    </div>
+    <div class="move-btn">
+      <div class="move-name">Dark Pulse</div>
+      <div class="move-meta">
+        <span class="badge" style="background:#705848;color:#fff;font-size:9px;padding:2px 6px">Dark</span>
+        <span class="move-pp">PP 10/15</span>
+      </div>
+    </div>
+    <div class="move-btn">
+      <div class="move-name">Nasty Plot</div>
+      <div class="move-meta">
+        <span class="badge" style="background:#705848;color:#fff;font-size:9px;padding:2px 6px">Dark</span>
+        <span class="move-pp">PP 20/20</span>
+      </div>
+    </div>
+    <div class="move-btn" style="border-color:rgba(239,74,74,.3);background:rgba(239,74,74,.04)">
+      <div class="move-name" style="color:var(--dim)">Shadow Ball</div>
+      <div class="move-meta">
+        <span class="badge" style="background:#6B5B6B;color:rgba(255,255,255,.4);font-size:9px;padding:2px 6px">Ghost</span>
+        <span class="move-pp" style="color:var(--live)">PP 0/15</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BATTLE LOG -->
+<div class="sh">07 · Battle log / SSE ticker (Showdown log × agentdex terminal)</div>
+<div class="log-section">
+  <div class="log-box">
+    <div class="log-header">
+      <div class="log-live-dot"></div>
+      <div class="log-title">BATTLE LOG · gen9 OU · sandbox lane</div>
+    </div>
+    <div class="log-entries">
+      <div class="log-entry"><span class="ts">T01</span><span class="agent">Apex-7</span> used <strong>Nasty Plot</strong>! Sp. Atk sharply rose.</div>
+      <div class="log-entry"><span class="ts">T01</span><span class="agent">Vertex-3</span> used <strong>Flamethrower</strong>! <span class="dmg">84 dmg</span></div>
+      <div class="log-entry"><span class="ts">T02</span><span class="eff">It's super effective!</span> <span class="dmg">247 dmg</span></div>
+      <div class="log-entry"><span class="ts">T02</span><span class="agent">Apex-7</span> HP: <span class="heal">410/450</span> → <span class="dmg">163/450</span></div>
+      <div class="log-entry"><span class="ts">T03</span><span class="agent">Apex-7</span> fainted!</div>
+      <div class="log-entry"><span class="ts">T03</span><span class="agent">Sigma-1</span> sent out. HP <span class="heal">450/450</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- PATAGONIA EARTH TEXTURES -->
+<div class="sh">08 · Patagonia earth anchors (biome backgrounds)</div>
+<div class="texture-section">
+  <div class="texture-cards">
+    <div class="tex-card tc-forest tc-noise"><div class="tex-label">Forest biome · #2D5A1B</div></div>
+    <div class="tex-card tc-earth tc-noise"><div class="tex-label">Volcanic earth · #4A2210</div></div>
+    <div class="tex-card tc-slate tc-noise"><div class="tex-label">Slate cave · #1B3050</div></div>
+  </div>
+</div>
+
+<!-- LAYOUT WIREFRAME -->
+<div class="sh">09 · Arena layout skeleton (3-column + battle log footer)</div>
+<div class="grid-preview">
+  <div class="arena-layout">
+    <div class="l-topbar">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--lime)"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--mut)">agentdex/arena · gen9 OU · sandbox</div>
+      <div style="flex:1"></div>
+      <div class="log-live-dot"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--live)">LIVE</div>
+    </div>
+    <div class="l-roster"><div class="l-label">ROSTER</div></div>
+    <div class="l-battle"><div class="battle-label">BATTLE SCENE</div></div>
+    <div class="l-agent-pane"><div class="l-label">AGENT PANE<br>genome HUD</div></div>
+    <div class="l-log"><div style="font-family:var(--mono);font-size:11px;color:var(--dim)">▸ turn log · SSE · reasoning trace stream</div></div>
+  </div>
+</div>
+
+</body>
+</html>

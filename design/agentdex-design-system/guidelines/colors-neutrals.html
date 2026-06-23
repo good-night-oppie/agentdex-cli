@@ -1,0 +1,34 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Stadium neutrals 中性色 (dark)" subtitle="Warm-cool charcoal surface ramp + cool-gray ink ramp" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 20px; }
+  .grp { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .sw { width: 92px; display: flex; flex-direction: column; gap: 5px; }
+  .chip { height: 40px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .nm { font-size: 10px; color: var(--ink-2); }
+  .hx { font-size: 9px; color: var(--dim); }
+  .ink { width: 92px; display: flex; flex-direction: column; gap: 5px; }
+  .ib { height: 40px; border-radius: var(--r-sm); display: grid; place-items: center; font-size: 13px; background: var(--surface-2); }
+</style>
+</head>
+<body>
+  <div class="grp">
+    <div class="sw"><div class="chip" style="background:var(--bg)"></div><div class="nm">bg</div><div class="hx">#0B0D10</div></div>
+    <div class="sw"><div class="chip" style="background:var(--surface)"></div><div class="nm">surface</div><div class="hx">#12151D</div></div>
+    <div class="sw"><div class="chip" style="background:var(--surface-2)"></div><div class="nm">surface-2</div><div class="hx">#181D29</div></div>
+    <div class="sw"><div class="chip" style="background:var(--surface-3)"></div><div class="nm">surface-3</div><div class="hx">#1E2335</div></div>
+    <div class="sw"><div class="chip" style="background:var(--line)"></div><div class="nm">line</div><div class="hx">#232A3A</div></div>
+    <div class="sw"><div class="chip" style="background:var(--line-2)"></div><div class="nm">line-2</div><div class="hx">#2E3750</div></div>
+  </div>
+  <div class="grp">
+    <div class="ink"><div class="ib" style="color:var(--ink)">ink 主</div><div class="hx">#E8EDF5</div></div>
+    <div class="ink"><div class="ib" style="color:var(--ink-2)">ink-2 次</div><div class="hx">#9BA5B8</div></div>
+    <div class="ink"><div class="ib" style="color:var(--mut)">mut 弱</div><div class="hx">#606B80</div></div>
+    <div class="ink"><div class="ib" style="color:var(--dim)">dim 暗</div><div class="hx">#404858</div></div>
+  </div>
+</body>
+</html>

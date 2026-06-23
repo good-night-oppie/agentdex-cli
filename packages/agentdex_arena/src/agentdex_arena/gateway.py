@@ -88,9 +88,11 @@ from agentdex_arena.invite import (
     hash_invite_code,
     new_invite_code,
 )
+from agentdex_arena.limiter import TouchDrivenRateLimiter
 from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
+
 
 Lane = Literal["sandbox", "rated"]
 GYM_LEADERS = (
@@ -2847,6 +2849,213 @@ def create_app(
     async def enroll_confirm(code: str) -> dict:
         return gateway.enroll_confirm(code)
 
+    # ---------- GA-AUTH rate-limit + brute-force lockout (ADX-Online Track A) ----------
+    #
+    # The unauthenticated /auth/* surface gets a per-IP volumetric token-bucket
+    # (anti-flood on email/start + device/start) plus a per-IP failure-lockout on the
+    # OTP-verify path (anti-brute-force on email/verify), both served by the
+    # TouchDrivenRateLimiter (see limiter.py: touch-driven, bounded, sleeping-tolerant).
+    # OPTIONAL-AT-BOOT: inert unless ARENA_RATE_LIMIT_ENABLED is set, mirroring
+    # session_auth's "None until configured" posture, so existing callers + the CLI
+    # Bearer path are byte-identical when it is off. ALL config parsing lives INSIDE the
+    # enabled branch and is tolerant + floored, so the default-off boot path touches no
+    # env beyond the enable flag and a mistyped knob can never crash boot or fail a
+    # security control OPEN. The checks live ONLY in the four /auth/* bodies below — NOT
+    # in middleware — so no other route (and no authed CLI request) is touched.
+
+    def _env_int(name: str, default: int, *, floor: int) -> int:
+        """Tolerant int env read: strip, fall back to ``default`` on missing/garbage,
+        and clamp to ``floor`` so one mistyped digit degrades to a safe value
+        (fail-closed) instead of crashing boot or fail-OPEN-disabling the limiter."""
+        raw = os.getenv(name)
+        if raw is None or not raw.strip():
+            return max(floor, default)
+        try:
+            return max(floor, int(raw.strip()))
+        except ValueError:
+            log.warning("arena: ignoring non-integer %s=%r; using %d", name, raw, default)
+            return max(floor, default)
+
+    def _env_float(name: str, default: float, *, floor: float) -> float:
+        """Float counterpart of ``_env_int`` (same tolerant + floored semantics).
+
+        Rejects non-finite results too: ``float("inf")`` / ``"1e999"`` (overflow to
+        +inf) / ``"nan"`` parse WITHOUT raising ``ValueError``, and ``max(floor, inf)``
+        keeps ``inf`` (a lower floor never clamps it down) — so a ``*_MAX_TOKENS`` or
+        ``*_REFILL_PER_SEC`` of ``inf`` would sail past the limiter's ``> 0`` ctor guard
+        and make the bucket never empty, silently failing the control OPEN. Treat
+        non-finite as garbage and degrade to the floored default (fail-closed)."""
+        raw = os.getenv(name)
+        if raw is None or not raw.strip():
+            return max(floor, default)
+        try:
+            val = float(raw.strip())
+        except ValueError:
+            log.warning("arena: ignoring non-numeric %s=%r; using %s", name, raw, default)
+            return max(floor, default)
+        if not math.isfinite(val):
+            log.warning("arena: ignoring non-finite %s=%r; using %s", name, raw, default)
+            return max(floor, default)
+        return max(floor, val)
+
+    _rl_enabled = os.getenv("ARENA_RATE_LIMIT_ENABLED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    _auth_ip_limiter: TouchDrivenRateLimiter | None = None
+    _auth_verify_limiter: TouchDrivenRateLimiter | None = None
+    # Trusted reverse-proxy hop count for X-Forwarded-For; 0 = ignore XFF, key on the
+    # socket peer. Read only when rate-limiting is on (see _client_ip for the keying).
+    _trust_proxies = 0
+    if _rl_enabled:
+        # Set ARENA_TRUST_PROXIES to the EXACT number of proxies that APPEND XFF in
+        # front of the arena (Caddy/Koyeb) so the true client sits at -N; over-counting
+        # trusts a client-forgeable slot, so leave it at 0 unless the topology is known.
+        _trust_proxies = _env_int("ARENA_TRUST_PROXIES", 0, floor=0)
+        if _trust_proxies <= 0:
+            # Dangerous-default warning: with no trusted proxy hop, _client_ip keys on
+            # the socket peer, which behind a reverse proxy (Caddy/Koyeb) is the SHARED
+            # proxy IP for every external client. We therefore DISABLE the brute-force
+            # lockout in this mode (volumetric-only) so one attacker's bad codes cannot
+            # 429 arena-wide login — but the operator should set ARENA_TRUST_PROXIES to
+            # the real appending-proxy hop count to get per-client keying + the lockout.
+            log.warning(
+                "arena: rate-limiting ENABLED but ARENA_TRUST_PROXIES=0 — keying on the "
+                "socket peer; behind a reverse proxy this collapses all clients onto one "
+                "bucket. Brute-force LOCKOUT is disabled (volumetric-only) to avoid an "
+                "arena-wide login killswitch. Set ARENA_TRUST_PROXIES to the appending-"
+                "proxy hop count (1 = Caddy-only, 2 = Koyeb-edge + Caddy) to enable it."
+            )
+        # Hard cap on tracked keys, floored at 1 — the limiter raises on capacity<1, and
+        # an unfloored 0 would fail the control OPEN; a security control must not.
+        _rl_capacity = _env_int("ARENA_AUTH_LIMIT_CAPACITY", 20_000, floor=1)
+        # Volumetric per-IP bucket (no lockout) for the flood surfaces email/start +
+        # device/start + device/poll (the unauthenticated GitHub-poll fan-out).
+        _auth_ip_limiter = TouchDrivenRateLimiter(
+            max_tokens=_env_float("ARENA_AUTH_IP_MAX_TOKENS", 30.0, floor=1.0),
+            refill_per_sec=_env_float("ARENA_AUTH_IP_REFILL_PER_SEC", 0.5, floor=1e-9),
+            capacity=_rl_capacity,
+        )
+        # Per-IP volumetric bucket (always) + failure-lockout (ONLY when a trusted proxy
+        # makes the IP key per-client) for the OTP-verify brute-force surface.
+        #
+        # The lockout is keyed on the client IP, NOT the target account: a FAILED verify
+        # carries no recoverable owner (an invalid code maps to no email), so per-email
+        # keying is not implementable on the miss path. The PRIMARY brute-force defense is
+        # therefore the ~192-bit one-time code minted by email_login_start
+        # (secrets.token_urlsafe(24)); this lockout is only defense-in-depth.
+        #
+        # We gate the lockout on ARENA_TRUST_PROXIES>0 because under the default (key =
+        # socket peer) every client behind a reverse proxy shares ONE key, so the lockout
+        # would be an arena-wide login killswitch an attacker trips with ~max_failures bad
+        # codes. Even with per-client keying the lockout is NOT a one-shot bounded wait:
+        # an attacker can re-trip it every lockout_sec (record_failure caps nothing), so a
+        # shared egress (CGNAT / corp proxy / university) can be held in INDEFINITELY-
+        # renewable login denial, and a user behind it holding a valid code cannot self-
+        # rescue (acquire() 429s before email_login_verify runs, so record_success never
+        # fires). Accepted as defense-in-depth on top of the unguessable code; tune
+        # ARENA_AUTH_VERIFY_* per deploy. (TODO: let a provably-correct code clear the
+        # lock — tracked as a follow-up; it has volumetric/anti-enumeration interactions.)
+        _verify_lockout = _trust_proxies > 0
+        _auth_verify_limiter = TouchDrivenRateLimiter(
+            max_tokens=_env_float("ARENA_AUTH_VERIFY_MAX_TOKENS", 20.0, floor=1.0),
+            refill_per_sec=_env_float("ARENA_AUTH_VERIFY_REFILL_PER_SEC", 0.2, floor=1e-9),
+            max_failures=(
+                _env_int("ARENA_AUTH_VERIFY_MAX_FAILURES", 8, floor=1) if _verify_lockout else 0
+            ),
+            lockout_sec=(
+                _env_float("ARENA_AUTH_VERIFY_LOCKOUT_SEC", 900.0, floor=1.0)
+                if _verify_lockout
+                else 0.0
+            ),
+            capacity=_rl_capacity,
+        )
+
+    def _client_ip(request: Request) -> tuple[str, bool]:
+        """Returns ``(key, trusted)`` for rate-limit keying. With ARENA_TRUST_PROXIES=N>0
+        we trust exactly N proxy hops and read the Nth-from-the-right X-Forwarded-For
+        entry (every trusted proxy APPENDS the peer it saw, so the real client sits at
+        -N) — a client can forge the left of the chain but never that slot, PROVIDED N
+        equals the real appending-proxy count. With N=0 (the default) XFF is ignored and
+        the socket peer is used (it IS the direct client).
+
+        ``trusted`` is True only when ``key`` is a real client slot safe to LOCK OUT.
+        It is False on the fallback path (ARENA_TRUST_PROXIES>0 but the XFF chain is
+        absent/shorter than N — the request bypassed the expected proxy topology): the
+        key is then the SHARED ingress peer, so callers must NOT apply the brute-force
+        lockout to it (it would deny every client behind that proxy). The softer
+        volumetric guard still keys on it; only the latching lockout is withheld."""
+        peer = request.client.host if request.client else "0.0.0.0"
+        if _trust_proxies <= 0:
+            return peer, True
+        # A trusted proxy may APPEND its hop as a SEPARATE X-Forwarded-For header instead
+        # of rewriting the client's comma chain; ``.get()`` would read only the first
+        # (client-controlled) header and let a forged value move the key. Combine ALL
+        # XFF header values in wire order before indexing the trusted hop from the right.
+        xff = ",".join(request.headers.getlist("x-forwarded-for"))
+        hops = [h.strip() for h in xff.split(",") if h.strip()]
+        if len(hops) >= _trust_proxies:
+            return hops[-_trust_proxies], True
+        return peer, False
+
+    def _auth_volumetric_guard(request: Request) -> None:
+        """Opaque per-IP volumetric guard for the unauthenticated /auth/* flood surface.
+        No-op when rate-limiting is disabled. 429 with no Retry-After (anti-enumeration)."""
+        if _auth_ip_limiter is None:
+            return
+        ip, _ = _client_ip(request)
+        rate_limited, _ = _auth_ip_limiter.acquire(ip)
+        if rate_limited:
+            raise _opaque_error(429, "too many requests")
+
+    def _auth_verify_acquire_guard(request: Request) -> None:
+        """The OTP-verify rate/lockout ACQUIRE (the 429 check) — split out so it can run
+        pre-parse in the middleware below. record_failure/record_success stay in the
+        endpoint (they need the verify outcome). No-op when disabled."""
+        if _auth_verify_limiter is None:
+            return
+        ip, _ = _client_ip(request)
+        rate_limited, locked_out = _auth_verify_limiter.acquire(ip)
+        if rate_limited or locked_out:
+            raise _opaque_error(429, "too many requests")
+
+    # The unauthenticated auth POST surface takes a Pydantic body, which FastAPI
+    # parses+validates BEFORE the endpoint runs — so an in-endpoint throttle never sees
+    # a malformed/schema-invalid flood (it 422s first), letting an attacker burn
+    # parser/validation work uncapped. Run the per-path throttle in HTTP middleware,
+    # which executes before routing/body-parsing, to close that bypass.
+    _auth_preparse_guards = {
+        "/auth/device/start": _auth_volumetric_guard,
+        # /auth/device/poll is unauthenticated and fans out to the GitHub token URL in a
+        # worker thread, so a flood of random/malformed device codes would otherwise
+        # bypass the limiter and drive unbounded GitHub-token POST + body-parse cost on
+        # the login surface. Same per-IP volumetric bucket as device/start; the 30-token
+        # @ 0.5/s refill comfortably covers the ~5s adx-login poll cadence.
+        "/auth/device/poll": _auth_volumetric_guard,
+        "/auth/email/start": _auth_volumetric_guard,
+        "/auth/email/verify": _auth_verify_acquire_guard,
+    }
+
+    @app.middleware("http")
+    async def _auth_preparse_throttle(request: Request, call_next):
+        guard = _auth_preparse_guards.get(request.url.path)
+        if guard is not None:
+            try:
+                guard(request)
+            except HTTPException as exc:
+                from fastapi.responses import JSONResponse
+
+                # Mirror FastAPI's HTTPException→response (opaque body + any headers) so a
+                # pre-parse 429 is byte-identical to the in-endpoint one (anti-enumeration).
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"detail": exc.detail},
+                    headers=exc.headers or None,
+                )
+        return await call_next(request)
+
     # ---------- account onboarding: GitHub device-flow (ADR-0013 D2) ----------
     #
     # `adx login` calls /auth/device/start, prints the user_code, then polls
@@ -2858,7 +3067,8 @@ def create_app(
     # avoid blocking the event loop, mirroring the judge SDK off-loop pattern.
 
     @app.post("/auth/device/start")
-    async def auth_device_start() -> dict:
+    async def auth_device_start(request: Request) -> dict:
+        # throttled pre-parse by _auth_preparse_throttle middleware
         if gateway.device_flow is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2868,7 +3078,7 @@ def create_app(
         return start.to_public()
 
     @app.post("/auth/device/poll")
-    async def auth_device_poll(req: DevicePollRequest) -> dict:
+    async def auth_device_poll(req: DevicePollRequest, response: Response, web: int = 0) -> dict:
         if gateway.device_flow is None or gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2887,6 +3097,10 @@ def create_app(
             gateway.accounts.link(github_id, owner)
             token = gateway.session_auth.mint_session(owner, github_id)
             claims = gateway.session_auth.verify_session(token)
+            if web == 1:
+                # Browser SPA: HttpOnly cookie + strip the token from the body.
+                _set_web_session(response, token, claims.expires_at)
+                return {"owner": claims.owner, "expires_at": claims.expires_at}
             return {
                 "session_token": token,
                 "owner": claims.owner,
@@ -2904,7 +3118,8 @@ def create_app(
     # when session auth is unconfigured (ARENA_SESSION_SIGNING_KEY_HEX unset).
 
     @app.post("/auth/email/start")
-    async def auth_email_start(req: EmailLoginStartRequest) -> dict:
+    async def auth_email_start(req: EmailLoginStartRequest, request: Request) -> dict:
+        # throttled pre-parse by _auth_preparse_throttle middleware
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2915,33 +3130,54 @@ def create_app(
             raise _opaque_error(400, e) from None
 
     @app.post("/auth/email/verify")
-    async def auth_email_verify(req: EmailLoginVerifyRequest) -> dict:
+    async def auth_email_verify(
+        req: EmailLoginVerifyRequest,
+        request: Request,
+        response: Response,
+        web: int = 0,
+    ) -> dict:
+        # The verify rate/lockout ACQUIRE (429 on flood or lockout — one opaque 429 either
+        # way, no Retry-After, no lock-vs-rate distinction leaked) runs PRE-PARSE in the
+        # _auth_preparse_throttle middleware. record_failure/record_success stay here —
+        # they need the verify outcome. ``ip``/``trusted`` recomputed for those.
+        ip, trusted = _client_ip(request)
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
-            return gateway.email_login_verify(req.code)
+            result = gateway.email_login_verify(req.code)
         except HTTPException:
+            # email_login_verify raises the opaque 403 'invalid or expired login code'
+            # here — a credential-guess miss, so count it toward the per-IP lockout, but
+            # ONLY when the key is a trusted per-client slot. On the proxy-peer fallback
+            # (trusted is False) the key is a SHARED ingress IP — locking it would deny
+            # every client behind that proxy (an arena-wide killswitch), so withhold the
+            # latching lockout there and rely on the volumetric guard + the unguessable
+            # one-time code.
+            if _auth_verify_limiter is not None and trusted:
+                _auth_verify_limiter.record_failure(ip)
             raise
-        except Exception as e:  # noqa: BLE001 — opaque boundary
+        except Exception as e:  # noqa: BLE001 — opaque boundary (server-side, not a guess)
             raise _opaque_error(400, e) from None
+        if _auth_verify_limiter is not None and trusted:
+            # A real login clears the failure window + any pending lockout for this IP
+            # (only the trusted per-client key ever accrues one — see the miss path).
+            _auth_verify_limiter.record_success(ip)
+        if web == 1:
+            # Browser SPA: HttpOnly session cookie + STRIP the token from the body
+            # so JS (and any XSS) never sees the raw token.
+            _set_web_session(response, result["session_token"], result["expires_at"])
+            return {"owner": result["owner"], "expires_at": result["expires_at"]}
+        return result  # CLI/agent: byte-identical (session_token in body)
 
     @app.post("/enroll/account")
-    async def enroll_account(
-        req: EnrollAccountRequest, authorization: str | None = Header(default=None)
-    ) -> dict:
+    async def enroll_account(req: EnrollAccountRequest, request: Request) -> dict:
         """Account-authed enroll (ADR-0013 D3): a logged-in human mints a
         per-agent consent token using the session token as proof (no email-OOB
         code). 503 when session auth is unconfigured; 401/403 on a missing/bad
-        session; otherwise the same consent token the email-OOB path returns."""
-        if gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
-        if not authorization or not authorization.startswith("Bearer "):
-            raise _opaque_error(401, "Bearer session token required")
-        token = authorization[len("Bearer ") :]
-        try:
-            claims = gateway.session_auth.verify_session(token)
-        except SessionError as e:
-            raise _opaque_error(403, e) from None
+        session; otherwise the same consent token the email-OOB path returns.
+        Dual-mode: CLI Bearer (CSRF-exempt) OR browser arena_session cookie
+        (state-changing → double-submit CSRF)."""
+        claims = _require_session_dual(request, state_changing=True)
         try:
             return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
         except HTTPException:
@@ -2952,23 +3188,14 @@ def create_app(
             raise _opaque_error(400, e) from None
 
     @app.post("/enroll/redeem-invite")
-    async def redeem_invite(
-        req: RedeemInviteRequest, authorization: str | None = Header(default=None)
-    ) -> dict:
+    async def redeem_invite(req: RedeemInviteRequest, request: Request) -> dict:
         """Session-authed (GA-CORE-1): a logged-in human redeems an invite code to
         join the beta. 503 when session auth is unconfigured; 401/403 on a
         missing/bad session; 403 (opaque) on an invalid/used code. Idempotent for an
         already-admitted owner (no code burned). The owner is the session's verified
-        email — never client-supplied."""
-        if gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
-        if not authorization or not authorization.startswith("Bearer "):
-            raise _opaque_error(401, "Bearer session token required")
-        token = authorization[len("Bearer ") :]
-        try:
-            claims = gateway.session_auth.verify_session(token)
-        except SessionError as e:
-            raise _opaque_error(403, e) from None
+        email — never client-supplied. Dual-mode: CLI Bearer (CSRF-exempt) OR browser
+        arena_session cookie (state-changing → double-submit CSRF)."""
+        claims = _require_session_dual(request, state_changing=True)
         try:
             return gateway.redeem_invite(claims, req.invite_code)
         except InviteError as e:
@@ -3005,6 +3232,77 @@ def create_app(
             return gateway.session_auth.verify_session(token)
         except SessionError as e:
             raise _opaque_error(403, e) from None
+
+    # ---------- GA-AUTH web-session security floor (ADX-Online Track A) ----------
+    #
+    # Dual-mode auth: the CLI/agent keeps using `Authorization: Bearer <token>`
+    # (byte-identical, CSRF-exempt). The browser SPA opts into web mode (`?web=1`
+    # on the verify routes) and receives the session in an HttpOnly cookie (so an
+    # XSS payload can never read the raw token) plus a JS-readable double-submit
+    # CSRF cookie. On a COOKIE-authed STATE-CHANGING request the gateway requires
+    # the X-CSRF-Token header to match the arena_csrf cookie; Bearer clients have
+    # no ambient cookie, so the CLI is never gated. All stateless — no server-side
+    # CSRF or session store (sleeping-tolerant).
+
+    def _set_web_session(response: Response, token: str, expires_at: float) -> None:
+        max_age = max(0, int(expires_at - time.time()))
+        # session: HttpOnly so JS can't read it; csrf: readable (double-submit).
+        response.set_cookie(
+            "arena_session",
+            token,
+            max_age=max_age,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            "arena_csrf",
+            secrets.token_urlsafe(32),
+            max_age=max_age,
+            httponly=False,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+
+    def _require_session_dual(request: Request, *, state_changing: bool) -> SessionClaims:
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        authz = request.headers.get("authorization")
+        if authz and authz.startswith("Bearer "):
+            token = authz[len("Bearer ") :]  # CLI/agent — CSRF-exempt
+        else:
+            token = request.cookies.get("arena_session")
+            if not token:
+                raise _opaque_error(401, "Bearer session token or session cookie required")
+            if state_changing:
+                cookie_csrf = request.cookies.get("arena_csrf")
+                header_csrf = request.headers.get("x-csrf-token")
+                if (
+                    not cookie_csrf
+                    or not header_csrf
+                    or not secrets.compare_digest(cookie_csrf, header_csrf)
+                ):
+                    raise _opaque_error(403, "CSRF token missing or invalid")
+        try:
+            return gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+
+    @app.get("/auth/csrf", include_in_schema=False)
+    async def auth_csrf(response: Response) -> dict:
+        """SPA boot: issue a readable double-submit CSRF cookie the SPA echoes as
+        ``X-CSRF-Token`` on state-changing POSTs. Stateless; safe to call anytime."""
+        response.set_cookie(
+            "arena_csrf",
+            secrets.token_urlsafe(32),
+            httponly=False,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        return {"status": "ok"}
 
     @app.get("/me/agents")
     async def me_agents(authorization: str | None = Header(default=None)) -> dict:
@@ -3750,6 +4048,30 @@ def create_app(
             StaticFiles(directory=str(_dashboard_site), html=True),
             name="dashboard",
         )
+
+    # agentdex.builders SELF-SERVE funnel — GET /signup, /login, /enroll page routes
+    # (ADX-Online Track A, GA-AUTH steps 2-3). Serves the GA self-serve SPA that
+    # tools/ga_spa/build.mjs compiles (CSP-safe: build-time JSX, vendored React, no
+    # eval / no CDN / no inline JS) from design/ga-selfserve/ into web/ga/, which the
+    # Dockerfile ships via `COPY web/` (design/ is NOT in the image, so the old
+    # design-dir mount could never serve in prod). The static bundle is mounted
+    # read-only at /ga; each funnel-entry path returns the same path-agnostic
+    # index.html — its boot.js maps the URL path to the initial screen. Mounted only
+    # when web/ga is bundled (graceful on API-only runs, same posture as /bene +
+    # /dashboard above). Passwordless per ADR-0013: the screens drive the existing
+    # /auth/email/* + /auth/device/* backends; the served DOM carries no password field.
+    _ga_site = Path("web/ga")
+    _ga_index = _ga_site / "index.html"
+    if _ga_index.is_file():
+        app.mount("/ga", StaticFiles(directory=str(_ga_site)), name="ga")
+
+        async def _ga_page() -> FileResponse:
+            # Same path-agnostic shell for every entry route; boot.js reads
+            # location.pathname to select the initial funnel screen.
+            return FileResponse(str(_ga_index), media_type="text/html")
+
+        for _ga_entry in ("/signup", "/login", "/enroll"):
+            app.add_api_route(_ga_entry, _ga_page, methods=["GET"], include_in_schema=False)
 
     return app
 

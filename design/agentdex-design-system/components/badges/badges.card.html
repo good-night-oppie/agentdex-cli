@@ -1,0 +1,53 @@
+<!-- @dsCard group="Components" viewport="700x200" name="Badges — Type · Tier · Status" subtitle="Type-coded badges, genome tiers, battle status pills" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-display); padding: 20px 22px; }
+  .row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 16px; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); width: 100%; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { TypeBadge, Tier, StatusPill } = window.AgentDexDesignSystem_26893a;
+  const TYPES = ['fire','water','grass','electric','dark','psychic','steel','ghost','dragon','ice','poison','rock'];
+  function Demo() {
+    return (
+      <div>
+        <div className="row">
+          <span className="lbl">TypeBadge — 18-type palette</span>
+          {TYPES.map(t => <TypeBadge key={t} type={t} />)}
+          <TypeBadge label="Electric Terrain" color="rgba(240,184,48,.20)" />
+        </div>
+        <div className="row">
+          <span className="lbl">Tier — genome rank</span>
+          <Tier tier="Uber" />
+          <Tier tier="OU" />
+          <Tier tier="UU" />
+          <Tier tier="NU" />
+        </div>
+        <div className="row">
+          <span className="lbl">StatusPill — conditions &amp; health</span>
+          <StatusPill status="PAR" />
+          <StatusPill status="BRN" />
+          <StatusPill status="PSN" />
+          <StatusPill status="SLP" />
+          <StatusPill status="FRZ" />
+          <StatusPill status="healthy" />
+          <StatusPill status="fainted" />
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

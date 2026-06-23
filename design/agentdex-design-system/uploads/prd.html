@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentdex arena — PRD</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Bitter:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0D10;--s:#12151D;--s2:#181D29;--s3:#1E2335;
+  --line:#232A3A;--line2:#2E3750;
+  --ink:#E8EDF5;--ink2:#9BA5B8;--mut:#606B80;--dim:#3A4255;
+  --lime:#A6E22E;--rust:#C84B2C;--gold:#F4B731;--blue:#4A9EF5;--live:#FF4655;--purple:#9B59B6;
+  --mono:'IBM Plex Mono',monospace;--disp:'Chakra Petch',sans-serif;--serif:'Bitter',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--serif);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* shell */
+.doc-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+
+/* sidebar */
+.sidebar{
+  border-right:1px solid var(--line);background:var(--s);
+  padding:32px 0;position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sidebar-brand{padding:0 20px 24px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.sb-name{font-family:var(--disp);font-size:14px;font-weight:700}
+.sb-doc{font-family:var(--mono);font-size:10px;color:var(--lime);margin-top:4px}
+.sidebar-nav{padding:0 8px}
+.nav-section{margin-bottom:20px}
+.nav-sec-hd{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);padding:4px 12px 8px}
+.nav-link{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;cursor:pointer;transition:.1s;text-decoration:none;color:var(--mut);font-family:var(--mono);font-size:11px}
+.nav-link:hover{background:var(--s2);color:var(--ink2)}
+.nav-link.active{background:rgba(166,226,46,.08);color:var(--lime)}
+.nav-link .n{flex:1}
+.nav-link .tag{font-size:9px;padding:2px 5px;border-radius:3px;border:1px solid;flex-shrink:0}
+.nav-link .tag.ui{border-color:rgba(74,158,245,.3);color:var(--blue)}
+.nav-link .tag.ux{border-color:rgba(166,226,46,.3);color:var(--lime)}
+.nav-link .tag.sys{border-color:rgba(155,89,182,.3);color:var(--purple)}
+.nav-link .tag.fix{border-color:rgba(244,183,49,.3);color:var(--gold)}
+
+/* main */
+.main-col{padding:56px 64px 120px;max-width:820px}
+
+.doc-hd{margin-bottom:56px}
+.doc-tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--lime);margin-bottom:10px}
+.doc-hd h1{font-size:36px;font-weight:700;font-style:italic;line-height:1.2;font-family:var(--serif)}
+.doc-hd h1 span{color:var(--lime);font-style:normal;font-family:var(--disp)}
+.doc-meta{display:flex;gap:20px;margin-top:16px;flex-wrap:wrap}
+.dm-item{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.dm-item strong{color:var(--ink2)}
+
+.doc-section{margin-bottom:52px}
+.sec-hd{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.sec-num{font-family:var(--disp);font-size:11px;color:var(--dim);font-weight:700;flex-shrink:0}
+.sec-title{font-family:var(--disp);font-size:18px;font-weight:700}
+
+.prose{font-size:15px;line-height:1.8;color:var(--ink2)}
+.prose p{margin-bottom:14px}
+.prose strong{color:var(--ink);font-weight:700}
+.prose em{color:var(--lime);font-style:italic}
+.prose code{font-family:var(--mono);font-size:12px;background:var(--s2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink)}
+
+/* callout */
+.callout{
+  padding:14px 18px;border-radius:8px;margin-bottom:20px;
+  border-left:3px solid;
+}
+.callout.north-star{border-color:var(--lime);background:rgba(166,226,46,.04)}
+.callout.blocker{border-color:var(--live);background:rgba(255,70,85,.04)}
+.callout.insight{border-color:var(--blue);background:rgba(74,158,245,.04)}
+.callout p{font-size:14px;line-height:1.7;font-family:var(--serif);font-style:italic}
+.callout .label{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px}
+.callout.north-star .label{color:var(--lime)}
+.callout.blocker .label{color:var(--live)}
+.callout.insight .label{color:var(--blue)}
+
+/* user story card */
+.story-list{display:flex;flex-direction:column;gap:10px}
+.story{
+  border:1px solid var(--line);border-radius:8px;background:var(--s2);
+  overflow:hidden;
+}
+.story-hd{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--line);background:var(--s3);
+}
+.story-id{font-family:var(--mono);font-size:10px;color:var(--dim);flex-shrink:0}
+.story-text{font-size:13px;line-height:1.5;flex:1}
+.story-text em{font-style:normal;color:var(--lime);font-family:var(--mono);font-size:12px}
+.story-prio{
+  font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;
+  flex-shrink:0;border:1px solid;
+}
+.p0{border-color:rgba(255,70,85,.4);color:var(--live);background:rgba(255,70,85,.08)}
+.p1{border-color:rgba(244,183,49,.4);color:var(--gold);background:rgba(244,183,49,.08)}
+.p2{border-color:rgba(74,158,245,.4);color:var(--blue);background:rgba(74,158,245,.08)}
+.story-ac{padding:10px 14px}
+.story-ac .ac-hd{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.ac-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.ac-list li{font-family:var(--mono);font-size:11px;color:var(--ink2);padding-left:14px;position:relative;line-height:1.5}
+.ac-list li::before{content:'✓';position:absolute;left:0;color:var(--lime);font-size:10px}
+.ac-list li.fail::before{content:'✗';color:var(--live)}
+
+/* scope table */
+.scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.scope-col{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.scope-col-hd{padding:8px 14px;background:var(--s3);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.scope-col-hd.in{color:var(--lime)}
+.scope-col-hd.out{color:var(--live)}
+.scope-items{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.scope-item{font-family:var(--mono);font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:8px}
+.scope-item::before{content:'→';color:var(--mut);font-size:10px}
+
+/* risk table */
+.risk-table{width:100%;border-collapse:collapse}
+.risk-table th,.risk-table td{padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;text-align:left}
+.risk-table th{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut);background:var(--s2)}
+.risk-table td{font-family:var(--mono);color:var(--ink2)}
+.risk-table td.sev-h{color:var(--live)}
+.risk-table td.sev-m{color:var(--gold)}
+.risk-table td.sev-l{color:var(--lime)}
+.risk-table tr:last-child td{border:0}
+
+/* timeline */
+.timeline{display:flex;flex-direction:column;gap:0}
+.tl-row{display:flex;gap:16px;align-items:flex-start;padding-bottom:20px;position:relative}
+.tl-row::before{content:'';position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--line)}
+.tl-row:last-child::before{display:none}
+.tl-dot{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font-size:14px;border:2px solid var(--line2);background:var(--s2);position:relative;z-index:1}
+.tl-dot.done{border-color:var(--lime);background:rgba(166,226,46,.08)}
+.tl-dot.active{border-color:var(--gold);background:rgba(244,183,49,.08);animation:glow .8s ease-in-out infinite alternate}
+@keyframes glow{from{box-shadow:0 0 0 0 rgba(244,183,49,.3)}to{box-shadow:0 0 0 6px rgba(244,183,49,.05)}}
+.tl-dot.blocked{border-color:var(--live);background:rgba(255,70,85,.08)}
+.tl-body{flex:1;padding-top:4px}
+.tl-label{font-family:var(--disp);font-size:13px;font-weight:700;margin-bottom:4px}
+.tl-desc{font-family:var(--mono);font-size:11px;color:var(--mut);line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="doc-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sb-name">agentdex arena</div>
+      <div class="sb-doc">Product Requirements Doc</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-sec-hd">Overview</div>
+        <a class="nav-link active" href="#north-star"><span class="n">North Star</span></a>
+        <a class="nav-link" href="#context"><span class="n">Context</span></a>
+        <a class="nav-link" href="#scope"><span class="n">Scope</span></a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-sec-hd">User Stories</div>
+        <a class="nav-link" href="#p0"><span class="n">P0 · Must-have</span><span class="tag fix">P0</span></a>
+        <a class="nav-link" href="#p1"><span class="n">P1 · Should-have</span><span class="tag ux">P1</span></a>
+        <a class="nav-link" href="#p2"><span class="n">P2 · Nice-to-have</span><span class="tag ui">P2</span></a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-sec-hd">Design</div>
+        <a class="nav-link" href="#design-system"><span class="n">Design System</span><span class="tag ux">UX</span></a>
+        <a class="nav-link" href="#components"><span class="n">Components</span><span class="tag ui">UI</span></a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-sec-hd">Delivery</div>
+        <a class="nav-link" href="#risks"><span class="n">Risks</span></a>
+        <a class="nav-link" href="#timeline"><span class="n">Timeline</span></a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-col">
+
+    <div class="doc-hd">
+      <div class="doc-tag">PRD · v1.0 · 2026-06-20</div>
+      <h1>agentdex <span>arena</span><br>Realtime Battle UI</h1>
+      <div class="doc-meta">
+        <div class="dm-item">Owner: <strong>harness-16 (orchestrator)</strong></div>
+        <div class="dm-item">Status: <strong style="color:var(--lime)">LOCKED</strong></div>
+        <div class="dm-item">Workers: <strong>adx-cli · bene-core</strong></div>
+        <div class="dm-item">Ref: <strong>tasks/agentdex-arena-ui/SPEC.md</strong></div>
+      </div>
+    </div>
+
+    <!-- NORTH STAR -->
+    <div class="doc-section" id="north-star">
+      <div class="sec-hd"><div class="sec-num">0</div><div class="sec-title">North Star</div></div>
+
+      <div class="callout north-star">
+        <div class="label">ideal</div>
+        <p>A visitor opens one URL and watches an AI agent battle live — the battle scene animating turn-by-turn on the left, the agent's genome + reasoning trace streaming in a pane on the right — and can drill into the ladder + their own agents.</p>
+      </div>
+
+      <div class="prose">
+        <p>agentdex arena is <strong>not an AI tool dashboard</strong>. It is a <em>Pokémon Showdown</em> for LLM agents: the battle is the product. The UI exists to make the battle legible, dramatic, and deeply informative about each agent's strategic genome.</p>
+        <p>Design direction: <strong>POKÉDEX TERMINAL</strong> — Showdown Dex data density × Pokerogue dark atmosphere × agentdex warm-charcoal × Patagonia earth anchors.</p>
+      </div>
+    </div>
+
+    <!-- CONTEXT -->
+    <div class="doc-section" id="context">
+      <div class="sec-hd"><div class="sec-num">1</div><div class="sec-title">Context & Key Finding</div></div>
+
+      <div class="callout insight">
+        <div class="label">key finding (SPEC.md §0)</div>
+        <p>The realtime battle scene, dashboard SPA, Agent-Pane genome HUD, SSE endpoints, and Evolution panel are <strong>already built and merged on origin/main</strong> (HEAD 1adb461f). The live deploy is stale — all routes 404. This is a <strong>redeploy + wire 4 gaps + verify</strong>, not build-from-scratch.</p>
+      </div>
+
+      <div class="callout blocker">
+        <div class="label">active blocker</div>
+        <p>AWS-PUBLIC-DNS-TLS on prod blocks live smoke for GA-BENE-1/2/4. Auth 503 from missing ARENA_SESSION_SIGNING_KEY_HEX blocks in-page login (UI-3). Both are HARNESS_BLOCKED_DECISION escalations for Eddie.</p>
+      </div>
+    </div>
+
+    <!-- SCOPE -->
+    <div class="doc-section" id="scope">
+      <div class="sec-hd"><div class="sec-num">2</div><div class="sec-title">Scope</div></div>
+      <div class="scope-grid">
+        <div class="scope-col">
+          <div class="scope-col-hd in">In scope (GA milestone)</div>
+          <div class="scope-items">
+            <div class="scope-item">Redeploy origin/main to agentdex.ai-builders.space</div>
+            <div class="scope-item">/dashboard/ → 200 + battle-scene DOM mounted</div>
+            <div class="scope-item">Fixture demo autoplays (no auth required)</div>
+            <div class="scope-item">"Watch live" nav link on landing</div>
+            <div class="scope-item">In-page device login flow (no full page nav)</div>
+            <div class="scope-item">Roster + Agent-Pane genome HUD (authenticated)</div>
+            <div class="scope-item">Owner SSE fog-of-war lifted + reasoning trace</div>
+            <div class="scope-item">Evolution panel route reconcile</div>
+            <div class="scope-item">Replay scrubber on battle end</div>
+            <div class="scope-item">e2e Playwright proof (≥2 turn frames rendered)</div>
+          </div>
+        </div>
+        <div class="scope-col">
+          <div class="scope-col-hd out">Out of scope (post-GA)</div>
+          <div class="scope-items">
+            <div class="scope-item">Mobile responsive layout</div>
+            <div class="scope-item">Social sharing / spectator chat</div>
+            <div class="scope-item">Tournament bracket UI</div>
+            <div class="scope-item">Public replay index / search</div>
+            <div class="scope-item">Agent builder / genome editor UI</div>
+            <div class="scope-item">Team builder (6-mon selection UI)</div>
+            <div class="scope-item">Notification / alert system</div>
+            <div class="scope-item">Multi-format support (DoublesBattle etc.)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USER STORIES P0 -->
+    <div class="doc-section" id="p0">
+      <div class="sec-hd"><div class="sec-num">3a</div><div class="sec-title">P0 · Must-Have Stories</div></div>
+      <div class="story-list">
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-01</div>
+            <div class="story-text">As a <em>visitor</em>, I can open /dashboard/ and see a live fixture battle auto-playing with HP bars animating, so I understand what agentdex does within 5 seconds.</div>
+            <div class="story-prio p0">P0</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>GET /dashboard/ → 200 (headless-chromium DOM confirms battle-scene mounted)</li>
+              <li>Fixture demo starts within 2 seconds of page load (no user interaction)</li>
+              <li>HP bars animate on each turn frame arrival</li>
+              <li class="fail">Probe FAIL if #scene or .hp-fill absent from DOM</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-02</div>
+            <div class="story-text">As a <em>visitor on the landing page</em>, I can click "Watch live" and arrive at /dashboard/, so the onboarding funnel is complete.</div>
+            <div class="story-prio p0">P0</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>web/index.html contains anchor href="/dashboard/" with text matching "Watch live" (case-insensitive)</li>
+              <li>Live GET / HTML contains the href (deployed, not just source)</li>
+              <li class="fail">Probe FAIL if grep live HTML returns 0 matches</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-03</div>
+            <div class="story-text">As an <em>enrolled trainer</em>, I can complete OAuth device login in-page (without leaving /dashboard/), so my auth flow doesn't interrupt the battle spectating experience.</div>
+            <div class="story-prio p0">P0</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>/auth/device/start → 200 (not 503) on prod</li>
+              <li>Device login completes via browser tab + /auth/device/poll without full-page navigate</li>
+              <li>Playwright: login → roster visible without URL change from /dashboard/</li>
+              <li class="fail">Probe FAIL if /auth/device/start returns 503 or roster requires page reload</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-04</div>
+            <div class="story-text">As an <em>owner</em> with a live battle, I can see my agent's real-time reasoning trace in the Agent Pane beside the battle, so I can understand why my agent made each move.</div>
+            <div class="story-prio p0">P0</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>Owner SSE /me/battle/{id}/live delivers fog-of-war-lifted frames</li>
+              <li>Agent Pane renders ≥1 trace_line per move (source: move scratchpad)</li>
+              <li>Probe: live SSE frame schema includes trace array; assert trace_lines > 0</li>
+              <li class="fail">Probe FAIL if trace array absent or always empty</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- USER STORIES P1 -->
+    <div class="doc-section" id="p1">
+      <div class="sec-hd"><div class="sec-num">3b</div><div class="sec-title">P1 · Should-Have Stories</div></div>
+      <div class="story-list">
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-05</div>
+            <div class="story-text">As a <em>spectator</em>, I can see a public battle without auth, with the agent's moveset visible but reasoning locked, so I'm curious to enroll.</div>
+            <div class="story-prio p1">P1</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>GET /battle/{id}/live (no auth) streams turn frames with redacted reasoning</li>
+              <li>Agent Pane shows "Enroll to unlock reasoning trace" for unauthenticated spectators</li>
+              <li>Dex entry (HP/stats/type/moveset) visible to all</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-06</div>
+            <div class="story-text">As an <em>owner</em> after a battle ends, I can scrub the replay and see my agent's evolution delta, so I can learn and improve my genome.</div>
+            <div class="story-prio p1">P1</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>event:end SSE event shows replay scrubber + /replay/{id} loads</li>
+              <li>Evolution panel shows genome diff (stat bar delta) vs previous gen</li>
+              <li>/me/agents/{id}/evolution → 200 (route exists and returns valid JSON)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-07</div>
+            <div class="story-text">As an <em>owner</em>, I can view my ladder ranking and match history, so I have a clear sense of progression.</div>
+            <div class="story-prio p1">P1</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>GET /me/ladder → 200 + Ladder panel renders ELO + win/loss</li>
+              <li>Roster card shows live badge update after each battle result</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- USER STORIES P2 -->
+    <div class="doc-section" id="p2">
+      <div class="sec-hd"><div class="sec-num">3c</div><div class="sec-title">P2 · Nice-to-Have Stories</div></div>
+      <div class="story-list">
+
+        <div class="story">
+          <div class="story-hd">
+            <div class="story-id">US-08</div>
+            <div class="story-text">As a <em>spectator</em>, battle-scene SSE frames include a server-computed scene snapshot, so older client copies still render correctly without client-side fold.</div>
+            <div class="story-prio p2">P2</div>
+          </div>
+          <div class="story-ac">
+            <div class="ac-hd">Acceptance Criteria</div>
+            <ul class="ac-list">
+              <li>_sse_battle_stream emits frame with scene{hpFrac, status} per mon</li>
+              <li>Unit test: assert scene.p1.hpFrac non-null on a real battle turn</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DESIGN SYSTEM -->
+    <div class="doc-section" id="design-system">
+      <div class="sec-hd"><div class="sec-num">4</div><div class="sec-title">Design System — POKÉDEX TERMINAL</div></div>
+      <div class="prose">
+        <p>Fusion of <strong>Pokémon Showdown Dex</strong> (data density, type badges, stat bars) × <strong>Pokerogue</strong> (dark atmosphere, HP bar states, battle log) × <strong>agentdex current</strong> (warm-charcoal base, lime/gold accent) × <strong>Patagonia studio</strong> (rust earth tones, Bitter serif italic, utilitarian grid).</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0">
+        <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div style="height:40px;background:#0B0D10;border-bottom:1px solid var(--line)"></div>
+          <div style="padding:8px;font-family:var(--mono);font-size:10px;color:var(--mut)">#0B0D10 bg</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div style="height:40px;background:#A6E22E"></div>
+          <div style="padding:8px;font-family:var(--mono);font-size:10px;color:var(--mut)">#A6E22E lime</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div style="height:40px;background:#C84B2C"></div>
+          <div style="padding:8px;font-family:var(--mono);font-size:10px;color:var(--mut)">#C84B2C rust</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div style="height:40px;background:#F4B731"></div>
+          <div style="padding:8px;font-family:var(--mono);font-size:10px;color:var(--mut)">#F4B731 gold</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <table class="risk-table" style="font-size:11px">
+          <thead><tr><th>Token</th><th>Value</th><th>Usage</th></tr></thead>
+          <tbody>
+            <tr><td><code>--disp</code></td><td>Chakra Petch</td><td>UI labels, numbers, brand, nav</td></tr>
+            <tr><td><code>--mono</code></td><td>IBM Plex Mono</td><td>Data, code, trace, meta</td></tr>
+            <tr><td><code>--serif</code></td><td>Bitter Italic</td><td>Genome flavor text, editorial quotes</td></tr>
+            <tr><td><code>--bg</code></td><td>#0B0D10</td><td>Base background (warm-dark, not pure black)</td></tr>
+            <tr><td><code>--lime</code></td><td>#A6E22E</td><td>Primary accent (active state, HP ok, live)</td></tr>
+            <tr><td><code>--hp-ok/warn/low</code></td><td>#5FD35A/#F4C531/#EF4A4A</td><td>HP bar trichrome states</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COMPONENTS -->
+    <div class="doc-section" id="components">
+      <div class="sec-hd"><div class="sec-num">5</div><div class="sec-title">Key Components</div></div>
+      <div class="prose">
+        <p><strong>&lt;battle-scene&gt;</strong> — custom element: biome background (CSS gradient, 3 themes: forest/volcanic/cave), opponent/player HP widgets, sprite zone (emoji avatar + float animation), terrain ribbon, move panel (4 move buttons with type badge + PP state), bottom turn ticker. All state driven by SSE SceneReducer.</p>
+        <p><strong>Agent Pane</strong> — right panel: 3 tabs (Genome / Trace / Ladder). Genome tab: Dex entry card (stats bars compact, type badges, tier chip) + genome strategy block + last-3-turns reasoning trace. Trace tab: full SSE move scratchpad stream. Ladder tab: ELO chart + match history.</p>
+        <p><strong>Roster Sidebar</strong> — left panel: scrollable agent card list. Active card highlighted lime. Card shows name / type badges / gen + status. "Enroll" CTA at top.</p>
+        <p><strong>Topbar</strong> — brand hex + /arena + format chip + LIVE pill + turn counter + SSE status chip + user avatar.</p>
+      </div>
+    </div>
+
+    <!-- RISKS -->
+    <div class="doc-section" id="risks">
+      <div class="sec-hd"><div class="sec-num">6</div><div class="sec-title">Risks</div></div>
+      <table class="risk-table">
+        <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>AWS-PUBLIC-DNS-TLS blocks live smoke (GA-BENE-1/2/4)</td>
+            <td class="sev-h">HIGH</td>
+            <td>Eddie decision required · TLS cert + DNS config on prod</td>
+          </tr>
+          <tr>
+            <td>Auth 503: ARENA_SESSION_SIGNING_KEY_HEX missing on prod</td>
+            <td class="sev-h">HIGH</td>
+            <td>UI-3 · Set env var via Koyeb dashboard (Eddie only, 1Password)</td>
+          </tr>
+          <tr>
+            <td>SSE connection dropped on >60s idle (no keepalive)</td>
+            <td class="sev-m">MED</td>
+            <td>Add SSE comment ping every 30s in _sse_battle_stream</td>
+          </tr>
+          <tr>
+            <td>Reasoning trace leaks opponent fog-of-war on public stream</td>
+            <td class="sev-h">HIGH</td>
+            <td>UI-5 · PROJ projector strips trace from public /battle/{id}/live frames</td>
+          </tr>
+          <tr>
+            <td>battle-scene.js client-fold bug on old cached JS</td>
+            <td class="sev-m">MED</td>
+            <td>UI-5 · Server-side scene snapshot in SSE frame schema</td>
+          </tr>
+          <tr>
+            <td>Redeploy triggers a break in existing Koyeb service config</td>
+            <td class="sev-l">LOW</td>
+            <td>Deploy via verified BENE_SITE_REV bump pattern · rollback in 1-click</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TIMELINE -->
+    <div class="doc-section" id="timeline">
+      <div class="sec-hd"><div class="sec-num">7</div><div class="sec-title">Delivery Timeline</div></div>
+      <div class="timeline">
+        <div class="tl-row">
+          <div class="tl-dot done">✓</div>
+          <div class="tl-body">
+            <div class="tl-label">SPEC + design locked</div>
+            <div class="tl-desc">2026-06-20 · tasks/agentdex-arena-ui/SPEC.md LOCKED · POKÉDEX TERMINAL design direction established · UI-1 through UI-7 dispatched to fleet</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-dot active">→</div>
+          <div class="tl-body">
+            <div class="tl-label">UI-1/2/4 redeploy + nav + evolution route (adx-cli)</div>
+            <div class="tl-desc">S-effort cards · target: next adx-cli sprint · probe: HTTP 200 + DOM assert</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-dot active">→</div>
+          <div class="tl-body">
+            <div class="tl-label">UI-3 in-page login (adx-cli, blocked on Eddie TLS)</div>
+            <div class="tl-desc">M-effort · unblocked after Eddie sets ARENA_SESSION_SIGNING_KEY_HEX + TLS cert on prod</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-dot blocked">!</div>
+          <div class="tl-body">
+            <div class="tl-label">UI-5/6 server-scene-snapshot + reasoning trace (bene-core)</div>
+            <div class="tl-desc">M-effort · bene-core A2A ack pending (msgs #694/#695 dispatched) · unblocked after UI-1 deploy</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-dot">○</div>
+          <div class="tl-body">
+            <div class="tl-label">UI-7 e2e verify (harness)</div>
+            <div class="tl-desc">M-effort · gated on UI-1 deploy · Playwright enroll → battle → HP animate → scrubber</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="tl-dot">○</div>
+          <div class="tl-body">
+            <div class="tl-label">GA milestone</div>
+            <div class="tl-desc">All 7 card probes ACCEPT + eddie-agi-kb + harness approvals → GA tag on agentdex-cli</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

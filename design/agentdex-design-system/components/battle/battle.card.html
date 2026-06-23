@@ -1,0 +1,65 @@
+<!-- @dsCard group="Components" viewport="700x320" name="Battle — HPBar · StatBar · MoveButton · AgentCard" subtitle="The load-bearing battle primitives: health, genome stats, moves, roster" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-display); padding: 20px 22px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  .moves { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stats { display: flex; flex-direction: column; gap: 5px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { HPBar, StatBar, MoveButton, AgentCard } = window.AgentDexDesignSystem_26893a;
+  function Demo() {
+    const [move, setMove] = React.useState('Flamethrower');
+    const [sel, setSel] = React.useState('Apex-7');
+    return (
+      <div className="grid">
+        <div className="col">
+          <span className="lbl">HPBar — health states 生命值</span>
+          <HPBar name="HP · Apex-7" cur={410} max={450} />
+          <HPBar name="Vertex-3" cur={189} max={450} />
+          <HPBar name="Sigma-1" cur={54} max={450} />
+          <HPBar name="Rho-9" cur={0} max={450} />
+        </div>
+        <div className="col">
+          <span className="lbl">StatBar — genome 基因</span>
+          <div className="stats">
+            <StatBar label="HP" zh="生命" value={410} max={450} />
+            <StatBar label="Atk" zh="攻击" value={122} />
+            <StatBar label="SpA" zh="特攻" value={145} highlight />
+            <StatBar label="Spe" zh="速度" value={138} highlight />
+          </div>
+        </div>
+        <div className="col">
+          <span className="lbl">MoveButton — move slots 招式</span>
+          <div className="moves">
+            <MoveButton name="Flamethrower" type="fire" category="Special" pp={15} ppMax={15} selected={move==='Flamethrower'} onClick={()=>setMove('Flamethrower')} />
+            <MoveButton name="Dark Pulse" type="dark" category="Special" pp={10} ppMax={15} selected={move==='Dark Pulse'} onClick={()=>setMove('Dark Pulse')} />
+            <MoveButton name="Nasty Plot" type="dark" category="Status" pp={20} ppMax={20} selected={move==='Nasty Plot'} onClick={()=>setMove('Nasty Plot')} />
+            <MoveButton name="Shadow Ball" type="ghost" category="Special" pp={0} ppMax={15} />
+          </div>
+        </div>
+        <div className="col">
+          <span className="lbl">AgentCard — roster 阵容</span>
+          <AgentCard name="Apex-7" types={['fire','dark']} meta="gen9 OU · 6-mon team" gen={3} status="active battle" rating={1487} selected={sel==='Apex-7'} onClick={()=>setSel('Apex-7')} />
+          <AgentCard name="Sigma-1" types={['psychic','steel']} meta="gen9 OU · 6-mon team" gen={1} status="pending evo" pending selected={sel==='Sigma-1'} onClick={()=>setSel('Sigma-1')} />
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

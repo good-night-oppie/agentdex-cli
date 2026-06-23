@@ -1,0 +1,44 @@
+<!-- @dsCard group="Colors" viewport="700x140" name="HP & status conventions 状态色" subtitle="Pokémon-convention trichrome: green healthy · amber status · red fainted" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-mono); padding: 18px 20px; display:flex; gap: 28px; }
+  .col { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+  .lbl { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  .hp { height: 10px; border-radius: var(--r-pill); background: var(--surface-well); border: 1px solid var(--line); overflow: hidden; }
+  .fill { height: 100%; border-radius: var(--r-pill); }
+  .meta { font-size: 10px; color: var(--mut); }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: var(--r-xs); }
+</style>
+</head>
+<body>
+  <div class="col">
+    <span class="lbl">HP trichrome 生命值</span>
+    <div class="hp"><div class="fill" style="width:91%;background:var(--hp-ok)"></div></div>
+    <div class="meta" style="color:var(--hp-ok)">healthy 健康 · &gt;45% · #5FD35A</div>
+    <div class="hp"><div class="fill" style="width:42%;background:var(--hp-warn)"></div></div>
+    <div class="meta" style="color:var(--hp-warn)">caution 警戒 · ≤45% · #F4C531</div>
+    <div class="hp"><div class="fill" style="width:12%;background:var(--hp-low)"></div></div>
+    <div class="meta" style="color:var(--hp-low)">critical 危急 · ≤20% · #EF4A4A</div>
+  </div>
+  <div class="col">
+    <span class="lbl">Status pills 异常状态</span>
+    <div class="pills">
+      <span class="pill" style="background:#E0B020;color:#1A1A12">PAR</span>
+      <span class="pill" style="background:#E06018;color:#fff">BRN</span>
+      <span class="pill" style="background:#A040A0;color:#fff">PSN</span>
+      <span class="pill" style="background:#5D6575;color:#fff">SLP</span>
+      <span class="pill" style="background:#7FD4FF;color:#1A1A12">FRZ</span>
+    </div>
+    <div class="pills" style="margin-top:4px">
+      <span class="pill" style="color:var(--hp-ok);border:1px solid rgba(95,211,90,.35);background:rgba(95,211,90,.10)">HEALTHY</span>
+      <span class="pill" style="color:var(--hp-low);border:1px solid rgba(239,74,74,.4);background:rgba(239,74,74,.10)">FAINTED</span>
+    </div>
+    <div class="meta">solid = condition · outlined = health state</div>
+  </div>
+</body>
+</html>
