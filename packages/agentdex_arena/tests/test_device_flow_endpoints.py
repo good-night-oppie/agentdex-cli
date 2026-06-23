@@ -239,27 +239,36 @@ def test_browser_github_roundtrip_can_return_to_ga_funnel(tmp_path):
     assert _setcookie(done, "arena_oauth_return_to").lower().startswith('arena_oauth_return_to=""')
 
 
-def test_browser_github_callback_preserves_existing_web_session_owner(tmp_path):
-    invite_owner = "invitee@example.test"
-    transport = _FakeTransport(
+def _github_transport() -> _FakeTransport:
+    return _FakeTransport(
         {
             GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
             GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
             GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
         }
     )
-    gw = _gateway(tmp_path, transport=transport)
+
+
+def test_browser_github_login_ignores_stale_session_owner(tmp_path):
+    """A plain LOGIN (no ?link=1) MUST use the freshly-proven GitHub identity and IGNORE
+    any existing arena_session — else a stale/shared-browser cookie for a DIFFERENT user
+    would mint a session for + write an account_link to the WRONG owner (#522 review P1,
+    account-takeover on the GA 'Continue with GitHub' CTA)."""
+    foreign_owner = "someone-else@example.test"
+    gw = _gateway(tmp_path, transport=_github_transport())
     assert gw.session_auth is not None
-    existing = gw.session_auth.mint_session(invite_owner, f"email:{invite_owner}")
+    stale = gw.session_auth.mint_session(foreign_owner, f"email:{foreign_owner}")
     with _client(gw) as c:
         start = c.get("/auth/github?next=/enroll", follow_redirects=False)
         state = _cookie_value(start, "arena_oauth_state")
         verifier = _cookie_value(start, "arena_oauth_pkce")
         return_to = _cookie_value(start, "arena_oauth_return_to")
+        # no arena_oauth_link cookie is set on a plain login start
+        assert _setcookie(start, "arena_oauth_link") == ""
         done = c.get(
             f"/oauth/github?code=abc123&state={state}",
             cookies={
-                "arena_session": existing,
+                "arena_session": stale,  # foreign/stale session — must NOT win
                 "arena_oauth_state": state,
                 "arena_oauth_pkce": verifier,
                 "arena_oauth_return_to": return_to,
@@ -267,10 +276,41 @@ def test_browser_github_callback_preserves_existing_web_session_owner(tmp_path):
             follow_redirects=False,
         )
     assert done.status_code == 303, done.text
+    # GitHub id is linked to the PROVEN owner, not the stale cookie owner
+    assert gw.accounts.owner_for(_GH_ID) == _OWNER
+    claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
+    assert claims.owner == _OWNER and claims.github_id == _GH_ID
+
+
+def test_browser_github_link_flow_preserves_owner(tmp_path):
+    """The EXPLICIT account-link flow (/auth/github?link=1) attaches the proven GitHub id
+    to the CURRENT session's owner — the legitimate 'connect GitHub to my account' case."""
+    invite_owner = "invitee@example.test"
+    gw = _gateway(tmp_path, transport=_github_transport())
+    assert gw.session_auth is not None
+    existing = gw.session_auth.mint_session(invite_owner, f"email:{invite_owner}")
+    with _client(gw) as c:
+        start = c.get("/auth/github?link=1&next=/enroll", follow_redirects=False)
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        return_to = _cookie_value(start, "arena_oauth_return_to")
+        link = _cookie_value(start, "arena_oauth_link")
+        assert link == "1"  # explicit link intent recorded
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={
+                "arena_session": existing,
+                "arena_oauth_state": state,
+                "arena_oauth_pkce": verifier,
+                "arena_oauth_return_to": return_to,
+                "arena_oauth_link": link,
+            },
+            follow_redirects=False,
+        )
+    assert done.status_code == 303, done.text
     assert gw.accounts.owner_for(_GH_ID) == invite_owner
     claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
-    assert claims.owner == invite_owner
-    assert claims.github_id == _GH_ID
+    assert claims.owner == invite_owner and claims.github_id == _GH_ID
 
 
 def test_browser_github_callback_rejects_state_mismatch(tmp_path):
