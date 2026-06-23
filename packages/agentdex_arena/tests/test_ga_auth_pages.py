@@ -153,7 +153,12 @@ def test_no_password_in_compiled_funnel(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
     for js in ("/ga/app/shell.js", "/ga/app/screens.js"):
-        src = c.get(js).text.lower()
+        resp = c.get(js)
+        # Assert the asset is actually served BEFORE scanning: a 404 body
+        # trivially satisfies the negative assertion (vacuous pass), which would
+        # false-green the passwordless invariant if the bundle were ever absent.
+        assert resp.status_code == 200, f"{js} not served"
+        src = resp.text.lower()
         assert 'type: "password"' not in src and "type:'password'" not in src, js
 
 
@@ -185,6 +190,11 @@ def test_css_surface_is_same_origin(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
     for css in ("/ga/styles.css", "/ga/tokens/fonts.css", "/ga/page.css"):
-        body = c.get(css).text.lower()
+        resp = c.get(css)
+        # Served-before-scan: a 404 body trivially passes the negative
+        # same-origin assertion (vacuous pass) — guard so the invariant
+        # cannot false-green on a missing bundle.
+        assert resp.status_code == 200, f"{css} not served"
+        body = resp.text.lower()
         assert "http://" not in body and "https://" not in body, f"third-party origin in {css}"
         assert "googleapis" not in body and "gstatic" not in body, css
