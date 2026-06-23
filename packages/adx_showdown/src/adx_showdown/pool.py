@@ -199,46 +199,65 @@ class SidecarPool:
         """
         return any(s.returncode is not None for s in self._sidecars)
 
-    async def reclaim_dead(self) -> int:
+    async def reclaim_dead(self) -> list[str]:
         """Touch-driven crash recovery: respawn any exited sidecar in place and
-        evict the routes that pointed at it. Returns the number respawned.
+        evict the routes that pointed at it. Returns the evicted ``battle_id``s.
 
         Called ON TOUCH — the gateway's ``/healthz`` readiness probe + before a
         new battle is assigned — NOT a background reaper: the arena is
         sleeping-tolerant and all lifecycle runs on touch (the touch-driven
-        doctrine). Idempotent: a fully live pool is a no-op (returns 0).
+        doctrine). Idempotent: a fully live pool is a no-op (returns ``[]``).
 
         A crashed node process takes its in-process (share-nothing) battle state
         with it, so those battles are unrecoverable — their ``_owner`` rows are
         dropped (the battle_id then 404s on its next touch instead of routing into
         a dead pipe) and the member is replaced with a fresh :class:`Sidecar` so
-        capacity is restored. The fresh member is started BEFORE any routing state
-        is mutated, so a failed respawn leaves the pool untouched (it retries on
-        the next touch); meanwhile :meth:`_least_loaded` already refuses to route
-        new battles to the still-dead member, so no battle hits the corpse either way.
+        capacity is restored. The evicted ids are RETURNED so the gateway can fail
+        those sessions closed (409 'interrupted') instead of leaving stale sessions
+        that 400-loop on a battle whose sim state is gone (#2835).
+
+        Concurrency (#2847): the fresh member is started OUTSIDE ``self._lock`` —
+        ``Sidecar.start()`` can take seconds (Node spawn + ready handshake), and
+        holding the lock across it would block ALL routing (``request`` /
+        ``_least_loaded``) on the HEALTHY members for the whole respawn, turning one
+        shard's crash into a global battle stall. The lock is held only for the
+        synchronous swap, guarded by a slot re-check so a concurrent touch can't
+        double-swap. Meanwhile ``_least_loaded`` already refuses to route new
+        battles to the still-dead member, so nothing hits the corpse mid-respawn.
         """
-        respawned = 0
         async with self._lock:
-            for i, s in enumerate(self._sidecars):
-                if s.returncode is None:
-                    continue  # alive, or never started — leave it
-                fresh = Sidecar(max_battles=self._cap)
-                try:
-                    await fresh.start()  # may raise → pool unchanged, retried next touch
-                except BaseException:
-                    # Sidecar.start() can spawn the Node child and THEN raise (ready-event
-                    # timeout) without stopping it. Tear the half-started process down so a
-                    # failed respawn doesn't leak a Node child on every /healthz touch (the
-                    # any_dead() flag stays set → reclaim_dead re-runs each touch → OOM
-                    # spiral). Routing state below is untouched, so the pool is unchanged
-                    # and retries next touch — only the orphaned child is reaped.
+            dead = [(i, s) for i, s in enumerate(self._sidecars) if s.returncode is not None]
+        evicted: list[str] = []
+        for i, dead_s in dead:
+            fresh = Sidecar(max_battles=self._cap)
+            try:
+                await fresh.start()  # OUTSIDE the lock — slow; healthy members keep routing
+            except asyncio.CancelledError:
+                # Caller cancelled mid-start; reap the half-spawned child, propagate.
+                with contextlib.suppress(Exception):
+                    await fresh.stop()
+                raise
+            except Exception:
+                # Sidecar.start() can spawn the Node child and THEN raise (ready-event
+                # timeout) without stopping it. Tear the half-started process down so a
+                # failed respawn doesn't leak a Node child on every /healthz touch (the
+                # any_dead() flag stays set → reclaim_dead re-runs each touch → OOM
+                # spiral). Best-effort: leave this member dead (any_dead stays True →
+                # /healthz still 503s) and try the next; this slot retries next touch.
+                with contextlib.suppress(Exception):
+                    await fresh.stop()
+                continue
+            async with self._lock:
+                # Slot re-check: a concurrent reclaim touch may have already swapped
+                # this slot while we were starting. Only swap if it's still the same
+                # corpse; otherwise our fresh member is redundant — reap it.
+                if self._sidecars[i] is not dead_s:
                     with contextlib.suppress(Exception):
                         await fresh.stop()
-                    raise
-                # respawn succeeded: evict the dead member's routes + swap it out
-                self._owner = {b: o for b, o in self._owner.items() if o is not s}
-                self._load.pop(id(s), None)
+                    continue
+                evicted.extend(b for b, o in self._owner.items() if o is dead_s)
+                self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
+                self._load.pop(id(dead_s), None)
                 self._sidecars[i] = fresh
                 self._load[id(fresh)] = 0
-                respawned += 1
-        return respawned
+        return evicted
