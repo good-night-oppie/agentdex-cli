@@ -33,14 +33,22 @@ concurrency:
 
 jobs:
   ga-auth-invariants:
-    # Never run untrusted fork-PR code on the shared self-hosted runner (P1): only
-    # same-repo PRs (trusted internal branches) and manual dispatch reach the runner.
-    # The repo is private with no forks today, so this is defense-in-depth — but it
-    # closes the RCE surface before the repo could ever take an external PR.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
     timeout-minutes: 10
     steps:
+      # Fork-PR posture (P1): FAIL-CLOSED, not skip. A job-level `if:` that skips
+      # fork PRs reports the check as Success (GitHub treats a skipped job as
+      # success), so a fork PR would pass the security gate WITHOUT running it. So
+      # instead refuse fork PRs in a no-checkout first step that exits non-zero —
+      # the check goes RED (blocks the PR) and the untrusted code is never checked
+      # out onto the shared self-hosted runner. Same-repo PRs + workflow_dispatch
+      # fall through. (Repo is private/no-forks today → defense-in-depth.)
+      - name: Refuse fork PRs (fail-closed — never run untrusted code on self-hosted)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::GA-AUTH gate will not run a fork PR on the self-hosted runner. A maintainer must re-run it from a same-repo branch."
+          exit 1
+
       - uses: actions/checkout@v4
 
       - name: Install uv
@@ -49,14 +57,17 @@ jobs:
           version: "0.11.19"
 
       - name: Sync workspace
-        # --frozen pins to the committed uv.lock so a PR that changes dependency
-        # metadata without relocking can't silently re-resolve CI's deps (reproducible).
+        # --locked (not just --frozen): installs from the committed uv.lock AND asserts
+        # the lock still matches every pyproject — so a PR that changes dependency
+        # metadata without relocking FAILS the gate instead of silently testing against
+        # stale locked deps (--frozen alone would not detect that drift). The lock is
+        # clean today (`uv lock --check` passes), so this does not false-fail.
         # --all-packages (not --package scoping): pytest lives in the workspace-ROOT
         # dev-dependency group, which a `--package <member>` sync drops (it installs
         # only that member's dependency tree) — scoping made the gate fail with
         # "Failed to spawn: pytest". The invariant modules import adx_showdown.sidecar
         # but never spawn a battle, so no node_modules / live sidecar is needed.
-        run: uv sync --all-packages --frozen
+        run: uv sync --all-packages --locked
 
       - name: Run GA-AUTH security invariant gate
         # ADX_REQUIRE_GA_BUNDLE=1 turns a missing/broken web/ga bundle from a
