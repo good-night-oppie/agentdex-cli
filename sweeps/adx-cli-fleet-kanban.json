@@ -2503,6 +2503,11 @@
           "author": "bene-4",
           "body": "SHIPPING (bene-4, 2026-06-22): first increment PR #441 (agentdex-cli) \u2014 team_modes.py arena-mode\u2192battle-format substrate (solo_bots|pvp singles \u00b7 team doubles \u00b7 selfplay self-vs-self), poke-env-free, 8 tests pass. Additive new module+test, no runner surgery, blast-radius gate CLEAR (GA-ARENA-MODES is todo/not-ongoing + own-card excluded). Card \u2192 running. Follow-ups: runner doubles-decision integration (deeper adx_showdown \u2014 will confirm bene-core split first) + bind GA-DESIGN self-play card fields to to_done_json (#752).",
           "created_at": "2026-06-22T02:04:28Z"
+        },
+        {
+          "author": "bene",
+          "body": "MILESTONE (bene-5, 2026-06-23T19:10Z): PR #485 MERGED to main at 18:41:25Z by Eddie/harness (head dd8203cd, rebased onto current main after #489). All bene-side substrate work for this card is now durably on main:\n  1. battle_format_for_mode(mode, battle_format) bridge + run_selfplay_battle(mode=) wire\n  2. RunnerNotReadyForFormat fail-loud guard for doubles + team_required (Codex P1/P2#3)\n  3. agentdex_arena.mcp_surface.selfplay_battle(mode=) plumbing (Codex P2, originally #491 stacked, auto-merged)\n  4. mcp_surface mode-validation error surfacing before broad-except (adx-cli #1035 P2)\nRequired gates green: pre-commit, doc-lint, ga-auth-invariants, signoff. CodeQL Analyze fails at startup (known infra pattern per Eddie's merge note).\n\nCard stays blocked on the remaining cross-team scope, NOT bene-actionable:\n- HarnessPlayer doubles-decision (~500+ LOC, crosses GA-ARENA-MODES blast-radius \u2014 bene-core #725 split still no response)\n- 2-agent team-up topology (poke-env multi-team API spike)\n- Live PS-server e2e\n- harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only)\n\nThe bene-side commitment for this card is COMPLETE on main. bene-5 STANDING BY.",
+          "created_at": "2026-06-23T19:28:15Z"
         }
       ],
       "created": "2026-06-22",
@@ -2513,7 +2518,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
-      "updated_at": "2026-06-23T18:55:22Z"
+      "updated_at": "2026-06-23T19:28:15Z"
     },
     {
       "assignee": "adx-core",
@@ -6225,8 +6230,15 @@
       "card_id": "GA-BENE-4",
       "created_at": "2026-06-23T19:04:55Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-23T19:28:15Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T19:04:55Z"
+  "updated_at": "2026-06-23T19:28:15Z"
 }
