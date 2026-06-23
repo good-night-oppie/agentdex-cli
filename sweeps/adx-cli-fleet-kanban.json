@@ -1918,6 +1918,11 @@
           "author": "bene-4",
           "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 dashboard SPA assembled from the 4 render-verified panels (roster+AgentPane | live battle | evolution | ladder), committed (PR #95 a4e75f5 shell, #99 327b048 hardening, #105 ladder), SPA verify.sh 23/23 PASS, harness-16 signed off the 4-panel layout (#696). REMAINING = live deploy + smoke of the SPA to agentdex.builders \u2014 that is GA-DEPLOY's lane, gated on \u00a77 Lightsail agentdex-arena-1 access (Eddie). bene's build scope is done; cannot reach 'done' until GA-DEPLOY lands the live site for ?live=1 smoke.",
           "created_at": "2026-06-22T00:24:36Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
+          "created_at": "2026-06-23T19:04:55Z"
         }
       ],
       "created_by": "bene-core",
@@ -1935,7 +1940,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-22T00:24:36Z"
+      "updated_at": "2026-06-23T19:04:55Z"
     },
     {
       "assignee": "bene",
@@ -2030,6 +2035,11 @@
           "author": "bene-4",
           "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 live battle viewer wired (battle-scene + SseLiveSource owner stream, fog-of-war projector), committed (PR #94 4186440), node datalayer 42/0 + render-verify 11/0, wired into the SPA via the ?live=1 seam. REMAINING = live smoke against the deployed GA-CORE-3 SSE stream (needs the deployed backend + a session token) \u2014 GA-DEPLOY-gated (\u00a77 Lightsail). Wiring code done; live-verify awaits deploy.",
           "created_at": "2026-06-22T00:24:36Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
+          "created_at": "2026-06-23T19:04:55Z"
         }
       ],
       "created_by": "bene-core",
@@ -2046,7 +2056,7 @@
       "priority": "P0",
       "status": "blocked",
       "title": "agentdex.builders: wire live battle viewer to GA-CORE-3 spectator stream (adjacent to Agent Pane)",
-      "updated_at": "2026-06-22T00:24:36Z"
+      "updated_at": "2026-06-23T19:04:55Z"
     },
     {
       "assignee": "bene-core",
@@ -2161,6 +2171,11 @@
           "author": "bene-4",
           "body": "Status \u2192 BLOCKED (bene-4, 2026-06-22): BUILD COMPLETE \u2014 Evolution/lineage panel (renderEvoPanel, #541 honesty gates, to_done_json envelope) committed (PR #105 ladder round + earlier), render-verified, wired into the SPA reading the live /me/agents/<id>/evolution seam. REMAINING = point at the live to_done_json feed + smoke \u2014 GA-DEPLOY-gated (\u00a77 Lightsail / live backend). Data+panel done; live feed awaits deploy.",
           "created_at": "2026-06-22T00:24:36Z"
+        },
+        {
+          "author": "bene",
+          "body": "STANDBY refresh (bene-5, 2026-06-23T19:05Z, kanban-babysit ack). Bene-side build COMPLETE + MERGED + integrated (PR #94/#95/#99/#105 on bene main + codex-2 PR #404 mount at /dashboard/). Card correctly blocked-on-GA-DEPLOY (\u00a77 Lightsail) + harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only, bene cannot self-author). Same recurring-stale-card pattern adx-cli-16 raised as #1037 \u2014 fleet-tooling fix needed (exempt cards blocked on cross-team work, or harness drives probe + deploy). bene-5 has nothing further offline-actionable; STANDING BY.",
+          "created_at": "2026-06-23T19:04:55Z"
         }
       ],
       "created_by": "bene-core",
@@ -2178,7 +2193,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "Evolution/lineage view data: fitness-over-gens, kill-gate verdicts, winning mutation (dashboard Evolution panel)",
-      "updated_at": "2026-06-22T00:24:37Z"
+      "updated_at": "2026-06-23T19:04:55Z"
     },
     {
       "assignee": "adx-cli",
@@ -6189,8 +6204,29 @@
           "status": "running"
         }
       }
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T19:04:55Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-2",
+      "created_at": "2026-06-23T19:04:55Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-BENE-4",
+      "created_at": "2026-06-23T19:04:55Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T18:55:22Z"
+  "updated_at": "2026-06-23T19:04:55Z"
 }
