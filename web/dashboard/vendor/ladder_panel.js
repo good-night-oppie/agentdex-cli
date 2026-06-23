@@ -33,8 +33,10 @@ function esc(s) {
 
 function fmtWL(wins, losses, games) {
   if (games === 0) return '<span class="ld-new">new</span>';
-  const pct = games > 0 ? Math.round((wins / games) * 100) : 0;
-  return `<span class="ld-wl">${wins}W/${losses}L</span> <span class="ld-pct dim">${pct}%</span>`;
+  const w = wins ?? 0;
+  const l = losses ?? 0;
+  const pct = games > 0 ? Math.round((w / games) * 100) : 0;
+  return `<span class="ld-wl">${w}W/${l}L</span> <span class="ld-pct dim">${pct}%</span>`;
 }
 
 function strategyBadge(gs) {
