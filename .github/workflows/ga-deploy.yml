@@ -52,7 +52,9 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    # Self-hosted org runners (EC2 t3 us-west-2) — bypasses GitHub-hosted billing,
+    # which blocks ubuntu-latest org-wide when the Actions spending limit is hit.
+    runs-on: [self-hosted, linux, X64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -95,8 +97,8 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
             ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No type=gha cache: the GH Actions cache service is also billing-gated.
+          # Self-hosted buildx keeps a local layer cache across runs anyway.
 
       - name: Notify on-box deploy listener (HMAC-signed)
         # Mirrors webhook-listener.py verify_hmac EXACTLY:
