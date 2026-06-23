@@ -31,6 +31,7 @@ import os
 import secrets
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -868,7 +869,7 @@ class ArenaGateway:
         self.turn_budget_s = turn_budget_s
         self._rated_seed_secret = rated_seed_secret or secrets.token_hex(16)
         self.now = now
-        self.sessions: dict[str, BattleSession] = {}
+        self.sessions: OrderedDict[str, BattleSession] = OrderedDict()
         # In-flight /battle/begin (or /fork) starts that have passed the per-owner
         # admission check but not yet published their session into self.sessions —
         # an atomic reservation so concurrent starts from one owner can't burst past
@@ -881,7 +882,7 @@ class ArenaGateway:
         # the human re-request a code (login codes are short-lived, not durable).
         self.pending_email_logins: dict[str, tuple[str, float]] = {}
         self.battle_nonces: dict[str, str] = {}  # nonce -> token_id
-        self.replays: dict[str, dict[str, Any]] = {}
+        self.replays: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._publication_allowed_override = True
         # GA-ARENA-MODES: PvP matchmaking queue + per-battle P2 choice router.
         self.pvp_queue = PvPQueue()
@@ -905,6 +906,43 @@ class ArenaGateway:
     @publication_allowed.setter
     def publication_allowed(self, val: bool) -> None:
         self._publication_allowed_override = val
+
+    @staticmethod
+    def _cache_limit(env_name: str, default: int) -> int:
+        try:
+            return max(0, int(os.environ.get(env_name, str(default))))
+        except ValueError:
+            return default
+
+    def _publish_session(self, battle_id: str, session: BattleSession) -> None:
+        self.sessions[battle_id] = session
+        self.sessions.move_to_end(battle_id)
+        self._evict_finished_sessions()
+
+    def _evict_finished_sessions(self) -> None:
+        """Keep live battles reachable, but bound old finished receipt sessions.
+
+        Finished receipts are still durable through ``<battle_id>.replay.json``.
+        Active SSE viewers hold their session until the stream exits so terminal
+        frames are not dropped mid-drain.
+        """
+        limit = self._cache_limit("ARENA_MAX_FINISHED_SESSION_CACHE", 1000)
+        evictable = [
+            battle_id
+            for battle_id, session in self.sessions.items()
+            if session.ended is not None
+            and getattr(session, "live_viewers", 0) == 0
+            and getattr(session, "finish_task", None) is None
+        ]
+        for battle_id in evictable[: max(0, len(evictable) - limit)]:
+            self.sessions.pop(battle_id, None)
+
+    def _cache_replay(self, battle_id: str, replay: dict[str, Any]) -> None:
+        self.replays[battle_id] = replay
+        self.replays.move_to_end(battle_id)
+        limit = self._cache_limit("ARENA_MAX_REPLAY_CACHE", 1000)
+        while len(self.replays) > limit:
+            self.replays.popitem(last=False)
 
     # ---------- enrollment (A1: human-in-the-loop) ----------
     #
@@ -1495,9 +1533,9 @@ class ArenaGateway:
         """Atomically admit one more concurrent LIVE battle for ``owner_norm`` or
         raise 429 (anti-monopolization, ADR-0012 §7).
 
-        Counts live sessions (``ended is None`` — finished battles linger in
-        ``self.sessions`` so /battle/{id}/state can serve the receipt) PLUS already
-        reserved in-flight starts, so simultaneous /battle/begin (or /fork) calls
+        Counts live sessions (``ended is None`` — finished battles may remain in
+        a bounded receipt cache, but never count as live) PLUS already reserved
+        in-flight starts, so simultaneous /battle/begin (or /fork) calls
         from one owner can't each pass the check before any session is published and
         burst past ``ARENA_MAX_BATTLES_PER_OWNER``. MUST be called synchronously (no
         await) between the check and the first await; pair every reservation with
@@ -1745,7 +1783,7 @@ class ArenaGateway:
                 raise _opaque_error(403, e) from None
             # Durable so the daily cap survives a restart (ADX-P2-004).
             self._record_quota_spend(spent_key)
-        self.sessions[battle_id] = session
+        self._publish_session(battle_id, session)
         on_published()  # cap count handed off to the live session; drop the reservation
         try:
             state = await self._advance(session, resp["state"], visitor_choice=None)
@@ -2224,7 +2262,7 @@ class ArenaGateway:
         # Internal record is richer than the public /replay view (which filters to
         # input_log/winner/lane/parent): seed+teams+choices power #6 forks; tenant
         # scopes fork ownership. token_id never leaks publicly.
-        self.replays[session.battle_id] = {
+        replay_record = {
             "input_log": input_log,
             "winner": winner,
             "lane": session.lane,
@@ -2239,15 +2277,16 @@ class ArenaGateway:
             "signatures": signatures,
         }
         if badge_awarded:
-            self.replays[session.battle_id]["badge_awarded"] = badge_awarded
+            replay_record["badge_awarded"] = badge_awarded
+        self._cache_replay(session.battle_id, replay_record)
         if rating_block is not None:
             receipt["rating"] = rating_block
         session.ended = receipt
         # GA-CORE-3: drop the live frame buffer on replay-commit (the contract's
         # retention rule). The omniscient protocol_log buffer is ~hundreds of KB and
-        # up to MAX_PROTOCOL_BYTES (10 MiB) per battle; finished sessions LINGER in
-        # self.sessions forever (so /state can serve the receipt), so without this the
-        # buffer accumulates per-battle for the gateway's life → unbounded heap on a
+        # up to MAX_PROTOCOL_BYTES (10 MiB) per battle; finished sessions stay in
+        # a bounded in-memory receipt cache, so without this the buffer still
+        # accumulates until cache eviction -> avoidable heap pressure on a
         # busy day. A viewer connecting after the battle ends follows the terminal
         # ``event: end`` to /replay/<id> (the durable post-hoc surface), so the live
         # buffer is dead weight once the receipt is published. DEFER the clear ONLY while a
@@ -2261,7 +2300,7 @@ class ArenaGateway:
         # is nothing to race, so reclaim IMMEDIATELY — otherwise a finished-but-unobserved
         # session leaks its ~hundreds-of-KB (up to 10 MiB) buffer forever: the reclaim is
         # purely touch-driven, the gateway is SLEEPING-tolerant with no background reaper,
-        # and finished sessions linger in self.sessions indefinitely (PR #377 review 3443669243).
+        # and finished sessions may remain cached after the response (PR #377 review 3443669243).
         if defer_frame_evict and session.live_viewers > 0:
             session.frames_evict_after = self.now() + _sse_evict_grace_sec()
         else:
@@ -2279,10 +2318,13 @@ class ArenaGateway:
                 json.dumps(input_log, indent=1) + "\n"
             )
             (self.artifacts_dir / f"{session.battle_id}.replay.json").write_text(
-                json.dumps(self.replays[session.battle_id], indent=1) + "\n"
+                json.dumps(replay_record, indent=1) + "\n"
             )
         except Exception:
             log.warning("failed to write replay artifact for %s", session.battle_id, exc_info=True)
+        if session.battle_id in self.sessions:
+            self.sessions.move_to_end(session.battle_id)
+        self._evict_finished_sessions()
         return receipt
 
     def load_replay(self, battle_id: str) -> dict[str, Any] | None:
@@ -2294,6 +2336,7 @@ class ArenaGateway:
         still filters to non-private fields, so this leaks nothing new."""
         data = self.replays.get(battle_id)
         if data is not None:
+            self.replays.move_to_end(battle_id)
             return data
         # Path-traversal guard: battle_id is a URL path segment; only ever read a
         # `<id>.replay.json` basename inside artifacts_dir.
@@ -2305,7 +2348,7 @@ class ArenaGateway:
             return None
         if not isinstance(loaded, dict):
             return None
-        self.replays[battle_id] = loaded
+        self._cache_replay(battle_id, loaded)
         return loaded
 
     # ---------- fork (#6 remix-the-loss, sandbox-only) ----------
@@ -2429,7 +2472,7 @@ class ArenaGateway:
             sidecar=sidecar,
             battle_id=battle_id,
         )
-        self.sessions[battle_id] = session
+        self._publish_session(battle_id, session)
         on_published()  # cap count handed off to the live session; drop the reservation
         try:
             state = await self._advance(session, resp["state"], visitor_choice=None)
@@ -3747,7 +3790,7 @@ def create_app(
                     sidecar=sidecar,
                     battle_id=battle_id,
                 )
-                gateway.sessions[battle_id] = session
+                gateway._publish_session(battle_id, session)
                 _hand_off()
                 try:
                     state = await gateway._advance(session, resp["state"], visitor_choice=None)
