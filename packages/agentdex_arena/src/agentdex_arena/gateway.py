@@ -2911,7 +2911,7 @@ def create_app(
         return start.to_public()
 
     @app.post("/auth/device/poll")
-    async def auth_device_poll(req: DevicePollRequest) -> dict:
+    async def auth_device_poll(req: DevicePollRequest, response: Response, web: int = 0) -> dict:
         if gateway.device_flow is None or gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
@@ -2930,6 +2930,10 @@ def create_app(
             gateway.accounts.link(github_id, owner)
             token = gateway.session_auth.mint_session(owner, github_id)
             claims = gateway.session_auth.verify_session(token)
+            if web == 1:
+                # Browser SPA: HttpOnly cookie + strip the token from the body.
+                _set_web_session(response, token, claims.expires_at)
+                return {"owner": claims.owner, "expires_at": claims.expires_at}
             return {
                 "session_token": token,
                 "owner": claims.owner,
@@ -2958,33 +2962,33 @@ def create_app(
             raise _opaque_error(400, e) from None
 
     @app.post("/auth/email/verify")
-    async def auth_email_verify(req: EmailLoginVerifyRequest) -> dict:
+    async def auth_email_verify(
+        req: EmailLoginVerifyRequest, response: Response, web: int = 0
+    ) -> dict:
         if gateway.session_auth is None:
             raise _opaque_error(503, "session auth not configured")
         try:
-            return gateway.email_login_verify(req.code)
+            result = gateway.email_login_verify(req.code)
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001 — opaque boundary
             raise _opaque_error(400, e) from None
+        if web == 1:
+            # Browser SPA: HttpOnly session cookie + STRIP the token from the body
+            # so JS (and any XSS) never sees the raw token.
+            _set_web_session(response, result["session_token"], result["expires_at"])
+            return {"owner": result["owner"], "expires_at": result["expires_at"]}
+        return result  # CLI/agent: byte-identical (session_token in body)
 
     @app.post("/enroll/account")
-    async def enroll_account(
-        req: EnrollAccountRequest, authorization: str | None = Header(default=None)
-    ) -> dict:
+    async def enroll_account(req: EnrollAccountRequest, request: Request) -> dict:
         """Account-authed enroll (ADR-0013 D3): a logged-in human mints a
         per-agent consent token using the session token as proof (no email-OOB
         code). 503 when session auth is unconfigured; 401/403 on a missing/bad
-        session; otherwise the same consent token the email-OOB path returns."""
-        if gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
-        if not authorization or not authorization.startswith("Bearer "):
-            raise _opaque_error(401, "Bearer session token required")
-        token = authorization[len("Bearer ") :]
-        try:
-            claims = gateway.session_auth.verify_session(token)
-        except SessionError as e:
-            raise _opaque_error(403, e) from None
+        session; otherwise the same consent token the email-OOB path returns.
+        Dual-mode: CLI Bearer (CSRF-exempt) OR browser arena_session cookie
+        (state-changing → double-submit CSRF)."""
+        claims = _require_session_dual(request, state_changing=True)
         try:
             return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
         except HTTPException:
@@ -2995,23 +2999,14 @@ def create_app(
             raise _opaque_error(400, e) from None
 
     @app.post("/enroll/redeem-invite")
-    async def redeem_invite(
-        req: RedeemInviteRequest, authorization: str | None = Header(default=None)
-    ) -> dict:
+    async def redeem_invite(req: RedeemInviteRequest, request: Request) -> dict:
         """Session-authed (GA-CORE-1): a logged-in human redeems an invite code to
         join the beta. 503 when session auth is unconfigured; 401/403 on a
         missing/bad session; 403 (opaque) on an invalid/used code. Idempotent for an
         already-admitted owner (no code burned). The owner is the session's verified
-        email — never client-supplied."""
-        if gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
-        if not authorization or not authorization.startswith("Bearer "):
-            raise _opaque_error(401, "Bearer session token required")
-        token = authorization[len("Bearer ") :]
-        try:
-            claims = gateway.session_auth.verify_session(token)
-        except SessionError as e:
-            raise _opaque_error(403, e) from None
+        email — never client-supplied. Dual-mode: CLI Bearer (CSRF-exempt) OR browser
+        arena_session cookie (state-changing → double-submit CSRF)."""
+        claims = _require_session_dual(request, state_changing=True)
         try:
             return gateway.redeem_invite(claims, req.invite_code)
         except InviteError as e:
@@ -3048,6 +3043,77 @@ def create_app(
             return gateway.session_auth.verify_session(token)
         except SessionError as e:
             raise _opaque_error(403, e) from None
+
+    # ---------- GA-AUTH web-session security floor (ADX-Online Track A) ----------
+    #
+    # Dual-mode auth: the CLI/agent keeps using `Authorization: Bearer <token>`
+    # (byte-identical, CSRF-exempt). The browser SPA opts into web mode (`?web=1`
+    # on the verify routes) and receives the session in an HttpOnly cookie (so an
+    # XSS payload can never read the raw token) plus a JS-readable double-submit
+    # CSRF cookie. On a COOKIE-authed STATE-CHANGING request the gateway requires
+    # the X-CSRF-Token header to match the arena_csrf cookie; Bearer clients have
+    # no ambient cookie, so the CLI is never gated. All stateless — no server-side
+    # CSRF or session store (sleeping-tolerant).
+
+    def _set_web_session(response: Response, token: str, expires_at: float) -> None:
+        max_age = max(0, int(expires_at - time.time()))
+        # session: HttpOnly so JS can't read it; csrf: readable (double-submit).
+        response.set_cookie(
+            "arena_session",
+            token,
+            max_age=max_age,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            "arena_csrf",
+            secrets.token_urlsafe(32),
+            max_age=max_age,
+            httponly=False,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+
+    def _require_session_dual(request: Request, *, state_changing: bool) -> SessionClaims:
+        if gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        authz = request.headers.get("authorization")
+        if authz and authz.startswith("Bearer "):
+            token = authz[len("Bearer ") :]  # CLI/agent — CSRF-exempt
+        else:
+            token = request.cookies.get("arena_session")
+            if not token:
+                raise _opaque_error(401, "Bearer session token or session cookie required")
+            if state_changing:
+                cookie_csrf = request.cookies.get("arena_csrf")
+                header_csrf = request.headers.get("x-csrf-token")
+                if (
+                    not cookie_csrf
+                    or not header_csrf
+                    or not secrets.compare_digest(cookie_csrf, header_csrf)
+                ):
+                    raise _opaque_error(403, "CSRF token missing or invalid")
+        try:
+            return gateway.session_auth.verify_session(token)
+        except SessionError as e:
+            raise _opaque_error(403, e) from None
+
+    @app.get("/auth/csrf", include_in_schema=False)
+    async def auth_csrf(response: Response) -> dict:
+        """SPA boot: issue a readable double-submit CSRF cookie the SPA echoes as
+        ``X-CSRF-Token`` on state-changing POSTs. Stateless; safe to call anytime."""
+        response.set_cookie(
+            "arena_csrf",
+            secrets.token_urlsafe(32),
+            httponly=False,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        return {"status": "ok"}
 
     @app.get("/me/agents")
     async def me_agents(authorization: str | None = Header(default=None)) -> dict:
