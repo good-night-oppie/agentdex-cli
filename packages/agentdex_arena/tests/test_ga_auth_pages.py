@@ -1,6 +1,12 @@
-"""GA-AUTH page routes (ADX-Online Track A, steps 2-3): GET /signup + GET /login
-serve the design/ga-selfserve self-serve screens, with the design assets reachable
-under /ga-assets and the SPA landing on the right screen."""
+"""GA-AUTH page routes (ADX-Online Track A, steps 2-3): GET /signup, /login, /enroll
+serve the CSP-safe GA self-serve SPA built into web/ga/ (tools/ga_spa/build.mjs), with
+the bundle reachable read-only under /ga.
+
+The hard floor these pin: the served shell is reachable (200 text/html), carries NO
+password field (passwordless per ADR-0013), names the passwordless auth surface, and
+loads ONLY same-origin, no-eval, no-CDN, no-inline-JS assets so it renders under a
+strict `script-src 'self'` CSP (the production box CSP) — the failure mode the previous
+in-browser-Babel prototype hit (200 but blank)."""
 
 from __future__ import annotations
 
@@ -9,13 +15,15 @@ from pathlib import Path
 import pytest
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority
-from agentdex_arena.gateway import ArenaGateway, _FilteredStaticFiles, create_app
+from agentdex_arena.gateway import ArenaGateway, create_app
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
 # packages/agentdex_arena/tests/ -> repo root
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_HAS_DESIGN = (_REPO_ROOT / "design" / "ga-selfserve" / "index.html").is_file()
+_GA_DIR = _REPO_ROOT / "web" / "ga"
+_HAS_GA = (_GA_DIR / "index.html").is_file()
+_needs_ga = pytest.mark.skipif(not _HAS_GA, reason="web/ga bundle not present in this tree")
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -27,94 +35,105 @@ def _client(tmp_path: Path) -> TestClient:
         artifacts_dir=tmp_path / "arena",
         notify_owner=lambda owner, code: None,
     )
+    # create_app resolves web/ga relative to CWD (same as / serving web/index.html)
     return TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
 
 
-@pytest.mark.skipif(not _HAS_DESIGN, reason="design/ga-selfserve not present in this tree")
-@pytest.mark.parametrize("path,screen", [("/signup", "signup"), ("/login", "login")])
-def test_page_route_serves_ga_screen(tmp_path, monkeypatch, path, screen):
-    # routes resolve design/ relative to CWD (same as / serving web/index.html)
+@_needs_ga
+@pytest.mark.parametrize("path", ["/signup", "/login", "/enroll"])
+def test_entry_route_serves_spa_shell(tmp_path, monkeypatch, path):
     monkeypatch.chdir(_REPO_ROOT)
     r = _client(tmp_path).get(path)
     assert r.status_code == 200, f"{path} -> {r.status_code}"
+    assert r.headers["content-type"].startswith("text/html")
     body = r.text
-    # <base> rewrite so the page's relative assets resolve to the static mount
-    assert '<base href="/ga-assets/ga-selfserve/">' in body
-    # lands on the requested screen (hash set before the SPA scripts run)
-    assert f'location.hash="#{screen}"' in body
-    # the GA self-serve SPA, not the landing/dashboard
-    assert "FunnelApp" in body
+    assert '<div id="root">' in body  # SPA mount point
+    assert "/ga/app/boot.js" in body  # the funnel bootstraps from the built bundle
+    assert "/ga/app/screens.js" in body
 
 
-@pytest.mark.skipif(not _HAS_DESIGN, reason="design/ga-selfserve not present in this tree")
-def test_ga_assets_are_served(tmp_path, monkeypatch):
+@_needs_ga
+@pytest.mark.parametrize("path", ["/signup", "/login", "/enroll"])
+def test_served_shell_is_passwordless_and_csp_safe(tmp_path, monkeypatch, path):
+    # The security floor a step scores 0 without: no password field, and a shell that
+    # renders under a strict script-src 'self' CSP (no inline <script>, no CDN origin).
+    monkeypatch.chdir(_REPO_ROOT)
+    body = _client(tmp_path).get(path).text
+    low = body.lower()
+    assert 'type="password"' not in low and "type='password'" not in low
+    # passwordless auth surface is named in the served DOM (greppable auth hooks)
+    assert "passwordless" in low
+    assert "github" in low and "magic link" in low
+    # CSP-hostile patterns that broke the prototype must be gone
+    assert "unpkg.com" not in low and "babel" not in low
+    assert "text/babel" not in low
+    # every <script> is an external same-origin src — no inline script body
+    import re
+
+    for tag in re.findall(r"<script\b[^>]*>(.*?)</script>", body, flags=re.S | re.I):
+        assert tag.strip() == "", "inline <script> body breaks a strict script-src CSP"
+    for m in re.findall(r"<script\b[^>]*\bsrc=\"([^\"]+)\"", body, flags=re.I):
+        assert m.startswith("/ga/"), f"non-same-origin script src: {m}"
+
+
+@_needs_ga
+def test_bundle_assets_are_served(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
-    # the page's own runtime files
-    assert c.get("/ga-assets/ga-selfserve/index.html").status_code == 200
-    assert c.get("/ga-assets/ga-selfserve/data.js").status_code == 200
-    assert c.get("/ga-assets/ga-selfserve/shell.jsx").status_code == 200
-    assert c.get("/ga-assets/ga-selfserve/screens.jsx").status_code == 200
-    # design-system entry files + the tokens/*.css that styles.css @imports (the
-    # allow-list MUST keep these or the page renders unstyled)
-    assert c.get("/ga-assets/agentdex-design-system/styles.css").status_code == 200
-    assert c.get("/ga-assets/agentdex-design-system/_ds_bundle.js").status_code == 200
-    for tok in ("fonts", "colors", "typography", "spacing"):
-        assert c.get(f"/ga-assets/agentdex-design-system/tokens/{tok}.css").status_code == 200
+    for asset in (
+        "/ga/index.html",
+        "/ga/page.css",
+        "/ga/styles.css",
+        "/ga/tokens/fonts.css",
+        "/ga/tokens/colors.css",
+        "/ga/app/boot.js",
+        "/ga/app/shell.js",
+        "/ga/app/screens.js",
+        "/ga/app/data.js",
+        "/ga/app/ds-bundle.js",
+        "/ga/app/react.production.min.js",
+        "/ga/app/react-dom.production.min.js",
+    ):
+        assert c.get(asset).status_code == 200, f"{asset} not served"
 
 
-@pytest.mark.skipif(not _HAS_DESIGN, reason="design/ga-selfserve not present in this tree")
-def test_ga_assets_allowlist_denies_everything_else(tmp_path, monkeypatch):
-    # Default-deny allow-list (PR #461 review): the mount publishes ONLY the page's
-    # assets, so every other file under the bundled design/ tree — planning docs,
-    # component source, guidelines, manifests, design notes — must 404.
+@_needs_ga
+def test_compiled_screens_are_csp_safe(tmp_path, monkeypatch):
+    # The compiled funnel must be plain JS the browser runs directly: it exposes
+    # FunnelApp via React.createElement (no raw JSX left) and contains no eval/Function
+    # so a strict CSP can run it without unsafe-eval.
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
-    denied = [
-        "/ga-assets/agentdex-design-system/uploads/prd.html",  # internal planning doc
-        "/ga-assets/agentdex-design-system/uploads/moodboard.html",
-        "/ga-assets/agentdex-design-system/components/core/Button.jsx",  # component source
-        "/ga-assets/agentdex-design-system/components/core/Button.prompt.md",
-        "/ga-assets/agentdex-design-system/components/core/Button.d.ts",
-        "/ga-assets/agentdex-design-system/guidelines/brand-themes.html",
-        "/ga-assets/agentdex-design-system/README.md",
-        "/ga-assets/agentdex-design-system/SKILL.md",
-        "/ga-assets/agentdex-design-system/_ds_manifest.json",
-        "/ga-assets/agentdex-design-system/_adherence.oxlintrc.json",
-        "/ga-assets/ga-selfserve/DESIGN.md",  # the page dir's own design notes
-        # the page references no assets/ — brand SVGs are NOT in the exact allow-list
-        "/ga-assets/agentdex-design-system/assets/agentdex-mark.svg",
-    ]
-    for p in denied:
-        assert c.get(p).status_code == 404, f"{p} should be denied, not served"
+    screens = c.get("/ga/app/screens.js").text
+    assert "FunnelApp" in screens
+    assert "createElement" in screens
+    assert "</" not in screens, "raw JSX remains in the compiled bundle"
+    for js in ("/ga/app/screens.js", "/ga/app/shell.js", "/ga/app/boot.js"):
+        src = c.get(js).text
+        assert "eval(" not in src and "new Function(" not in src, f"eval in {js}"
 
 
-def test_ga_asset_allowlist_is_exact_not_prefix():
-    # Exact-file enumeration (PR #463 review): a FUTURE file added under the page's
-    # dirs — even with an otherwise-servable extension — stays denied until it is
-    # explicitly added to the allow-list. No filesystem needed (predicate-only).
-    allowed = _FilteredStaticFiles._allowed
-    # the 10 enumerated runtime files resolve
-    for p in (
-        "ga-selfserve/index.html",
-        "ga-selfserve/data.js",
-        "ga-selfserve/shell.jsx",
-        "ga-selfserve/screens.jsx",
-        "agentdex-design-system/styles.css",
-        "agentdex-design-system/_ds_bundle.js",
-        "agentdex-design-system/tokens/fonts.css",
-        "agentdex-design-system/tokens/colors.css",
-        "agentdex-design-system/tokens/typography.css",
-        "agentdex-design-system/tokens/spacing.css",
-    ):
-        assert allowed(p) is True, p
-    # hypothetical future additions with allowed extensions are STILL denied
-    for p in (
-        "ga-selfserve/debug.html",  # a new page next to DESIGN.md
-        "ga-selfserve/prototype.jsx",
-        "agentdex-design-system/tokens/draft.css",  # a token-side experiment
-        "agentdex-design-system/assets/agentdex-mark.svg",  # an asset the page never loads
-        "agentdex-design-system/assets/new-logo.png",
-        "agentdex-design-system/_ds_bundle.min.js",
-    ):
-        assert allowed(p) is False, p
+@_needs_ga
+def test_no_password_in_compiled_funnel(tmp_path, monkeypatch):
+    # The passwordless floor lives in JS-rendered components, not the static shell, so
+    # scan the COMPILED funnel for a password input type (the form a `type="password"`
+    # JSX prop takes after build): `type: "password"`.
+    monkeypatch.chdir(_REPO_ROOT)
+    c = _client(tmp_path)
+    for js in ("/ga/app/shell.js", "/ga/app/screens.js"):
+        src = c.get(js).text.lower()
+        assert 'type: "password"' not in src and "type:'password'" not in src, js
+
+
+@_needs_ga
+def test_css_surface_is_same_origin(tmp_path, monkeypatch):
+    # No third-party origin anywhere in the served CSS: the Google Fonts @import is
+    # stripped at build time so the auth funnel never beacons to fonts.googleapis.com /
+    # gstatic.com (privacy on the passwordless sign-in surface) and the bundle stays
+    # truly same-origin under a strict CSP. Fonts fall back to the token stacks.
+    monkeypatch.chdir(_REPO_ROOT)
+    c = _client(tmp_path)
+    for css in ("/ga/styles.css", "/ga/tokens/fonts.css", "/ga/page.css"):
+        body = c.get(css).text.lower()
+        assert "http://" not in body and "https://" not in body, f"third-party origin in {css}"
+        assert "googleapis" not in body and "gstatic" not in body, css

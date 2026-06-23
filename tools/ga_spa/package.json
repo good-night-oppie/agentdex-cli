@@ -1,0 +1,15 @@
+{
+  "name": "agentdex-ga-spa-build",
+  "private": true,
+  "type": "module",
+  "description": "Build-time only: compiles the design/ga-selfserve global-JSX prototype + vendors React into a CSP-safe static bundle at web/ga/. NOT shipped — the committed web/ga/ output is what production serves (COPY web/ in the Dockerfile).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-react": "^7.26.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

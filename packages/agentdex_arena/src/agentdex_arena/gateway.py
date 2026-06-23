@@ -68,7 +68,7 @@ from agentdex_engine.modules.arena import (
     recompute_ladder,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -92,48 +92,6 @@ from agentdex_arena.limiter import TouchDrivenRateLimiter
 from agentdex_arena.session import SessionAuthority, SessionClaims, SessionError
 
 log = logging.getLogger(__name__)
-
-
-class _FilteredStaticFiles(StaticFiles):
-    """StaticFiles with an EXACT-FILE allow-list so the public ``/ga-assets`` surface
-    serves ONLY the enumerated files the GA self-serve page loads; every other path
-    404s. Pinning exact paths (not prefix+extension) means a NEW file added anywhere
-    under ``design/`` — a token draft, a debug page next to ``DESIGN.md``, a new asset,
-    a manifest — stays denied until it is deliberately added here (PR #463 review).
-
-    ``_ALLOWED_PATHS`` is the complete graph of ``design/ga-selfserve/index.html``:
-    its own ``ga-selfserve/{index.html,data.js,shell.jsx,screens.jsx}`` + the design
-    system's ``styles.css`` and ``_ds_bundle.js``, where ``styles.css`` @imports the
-    four ``tokens/*.css`` sheets. The webfonts load from the Google Fonts CDN (not
-    this mount); ``_ds_bundle.js`` is self-contained; the page references no
-    ``assets/`` or images. Add a path ONLY when the page genuinely loads it.
-    """
-
-    _ALLOWED_PATHS = frozenset(
-        {
-            "ga-selfserve/index.html",
-            "ga-selfserve/data.js",
-            "ga-selfserve/shell.jsx",
-            "ga-selfserve/screens.jsx",
-            "agentdex-design-system/styles.css",
-            "agentdex-design-system/_ds_bundle.js",
-            "agentdex-design-system/tokens/fonts.css",
-            "agentdex-design-system/tokens/colors.css",
-            "agentdex-design-system/tokens/typography.css",
-            "agentdex-design-system/tokens/spacing.css",
-        }
-    )
-
-    @staticmethod
-    def _allowed(path: str) -> bool:
-        return path.replace("\\", "/").lstrip("/") in _FilteredStaticFiles._ALLOWED_PATHS
-
-    async def get_response(self, path: str, scope):  # type: ignore[override]
-        if not self._allowed(path):
-            from fastapi.responses import PlainTextResponse
-
-            return PlainTextResponse("Not Found", status_code=404)
-        return await super().get_response(path, scope)
 
 
 Lane = Literal["sandbox", "rated"]
@@ -4033,43 +3991,29 @@ def create_app(
             name="dashboard",
         )
 
-    # agentdex.builders SELF-SERVE funnel — GET /signup + GET /login page routes
-    # (ADX-Online Track A, GA-AUTH steps 2-3). They serve the GA self-serve screens
-    # (design/ga-selfserve/) which read the design system (design/agentdex-design-
-    # system/); both are served read-only under /ga-assets so the page's relative
-    # asset paths resolve. Mounted only when design/ is bundled into the image
-    # (graceful on local/API-only runs that don't ship it — same posture as
-    # /bene + /dashboard above). Passwordless per ADR-0013: the screens drive the
-    # existing /auth/email/* + /auth/device/* backends; no password field exists.
-    _ga_design = Path("design")
-    _ga_index = _ga_design / "ga-selfserve" / "index.html"
+    # agentdex.builders SELF-SERVE funnel — GET /signup, /login, /enroll page routes
+    # (ADX-Online Track A, GA-AUTH steps 2-3). Serves the GA self-serve SPA that
+    # tools/ga_spa/build.mjs compiles (CSP-safe: build-time JSX, vendored React, no
+    # eval / no CDN / no inline JS) from design/ga-selfserve/ into web/ga/, which the
+    # Dockerfile ships via `COPY web/` (design/ is NOT in the image, so the old
+    # design-dir mount could never serve in prod). The static bundle is mounted
+    # read-only at /ga; each funnel-entry path returns the same path-agnostic
+    # index.html — its boot.js maps the URL path to the initial screen. Mounted only
+    # when web/ga is bundled (graceful on API-only runs, same posture as /bene +
+    # /dashboard above). Passwordless per ADR-0013: the screens drive the existing
+    # /auth/email/* + /auth/device/* backends; the served DOM carries no password field.
+    _ga_site = Path("web/ga")
+    _ga_index = _ga_site / "index.html"
     if _ga_index.is_file():
-        # _FilteredStaticFiles (not bare StaticFiles): EXACT-FILE allow-list so the
-        # public surface is ONLY the enumerated files the page loads; any other path
-        # (component source, guidelines, uploads/ planning docs, a future token draft
-        # or debug page) 404s until deliberately allowed. PR #453/#461/#463 review (P2).
-        app.mount("/ga-assets", _FilteredStaticFiles(directory=str(_ga_design)), name="ga-assets")
+        app.mount("/ga", StaticFiles(directory=str(_ga_site)), name="ga")
 
-        def _ga_page(initial: str) -> HTMLResponse:
-            # Serve the GA self-serve SPA rewritten so (a) its relative assets
-            # resolve to the /ga-assets static mount via <base>, and (b) the client
-            # lands on `initial` (#signup/#login). The SPA is hash-routed, so
-            # setting the hash before its scripts run selects the screen WITHOUT
-            # editing the design files (design/** is the design lead's surface).
-            html = _ga_index.read_text(encoding="utf-8")
-            inject = (
-                '<base href="/ga-assets/ga-selfserve/">'
-                f'<script>if(!location.hash)location.hash="#{initial}";</script>'
-            )
-            return HTMLResponse(html.replace("<head>", "<head>" + inject, 1))
+        async def _ga_page() -> FileResponse:
+            # Same path-agnostic shell for every entry route; boot.js reads
+            # location.pathname to select the initial funnel screen.
+            return FileResponse(str(_ga_index), media_type="text/html")
 
-        @app.get("/signup", include_in_schema=False)
-        async def signup_page() -> HTMLResponse:
-            return _ga_page("signup")
-
-        @app.get("/login", include_in_schema=False)
-        async def login_page() -> HTMLResponse:
-            return _ga_page("login")
+        for _ga_entry in ("/signup", "/login", "/enroll"):
+            app.add_api_route(_ga_entry, _ga_page, methods=["GET"], include_in_schema=False)
 
     return app
 
