@@ -6,6 +6,7 @@ No sidecar, no gateway — pure asyncio.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 import pytest
 from adx_showdown.pvp import PvPChoiceRouter, PvPPairing, PvPQueue
@@ -116,7 +117,7 @@ def test_pvp_queue_depth():
 
 def test_pvp_pairing_frozen():
     p = PvPPairing(battle_id="pvp-abc", role="p1", opponent_owner="bob")
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         p.role = "p2"  # type: ignore[misc]
 
 
