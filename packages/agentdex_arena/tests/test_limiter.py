@@ -90,9 +90,26 @@ def test_known_and_unknown_keys_take_the_same_path():
     assert lim.acquire("never-seen-before") == (False, False)
 
 
-@pytest.mark.parametrize("bad", [{"max_tokens": 0}, {"refill_per_sec": 0}, {"capacity": 0}])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"max_tokens": 0},
+        {"refill_per_sec": 0},
+        {"capacity": 0},
+        # lockout enabled by a threshold but with a non-positive duration would
+        # silently disable brute-force lockout (lock_until <= now) — reject it.
+        {"max_failures": 3},  # lockout_sec defaults to 0.0
+        {"max_failures": 3, "lockout_sec": 0.0},
+        {"max_failures": 1, "lockout_sec": -5.0},
+    ],
+)
 def test_rejects_invalid_policy(bad):
     kw = {"max_tokens": 1.0, "refill_per_sec": 1.0, "capacity": 10}
     kw.update(bad)
     with pytest.raises(ValueError):
         TouchDrivenRateLimiter(**kw)
+
+
+def test_accepts_threshold_with_positive_lockout():
+    # the valid counterpart: a non-zero threshold WITH a positive lockout is fine
+    TouchDrivenRateLimiter(max_tokens=1.0, refill_per_sec=1.0, max_failures=3, lockout_sec=1.0)
