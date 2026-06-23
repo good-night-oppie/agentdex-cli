@@ -1,0 +1,81 @@
+# ga-auth-invariants.yml — gate the GA-AUTH security floor at the merge boundary.
+#
+# Why this exists: lint.yml + the review-comment-signoff gate only trigger on
+# PRs to `main`, and the test suite (`uv run pytest packages/`) only runs in
+# release.yml (nightly). But day-to-day work lands via PRs to `dev`, which had
+# NO test gate at all — so a regression in the GA-AUTH security invariants
+# (passwordless per ADR-0013, strict-CSP-safe assets, rate-limit fail-closed,
+# anti-enumeration opaque errors, double-submit CSRF, anti-pay-to-rank,
+# operator-surface-invisible-to-agents) would slip silently to the nightly
+# release instead of being caught when it merges.
+#
+# This job runs ONLY the fast (~5s), deterministic, sidecar-free GA-AUTH
+# invariant modules on every dev/main PR. Scope is deliberate: a REAL, narrow
+# security gate — not a full-suite green-chase (AGENTS.md §CI-POLICY: merge
+# UNSTABLE on the real gates; don't chase full-green over vendor/aaop drift).
+#
+# NOTE: the module list below is hand-maintained — a new GA-AUTH invariant
+# module is NOT gated until it is added here. Follow-up (tracked): switch to a
+# `-m ga_invariant` pytest marker so the gate is self-maintaining.
+
+name: ga-auth-invariants
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+# Only the latest commit per ref needs gating; supersede in-flight runs on
+# push-spam so the shared self-hosted runner is not held by stale commits.
+concurrency:
+  group: ga-auth-invariants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ga-auth-invariants:
+    # Never run untrusted fork-PR code on the shared self-hosted runner (P1): only
+    # same-repo PRs (trusted internal branches) and manual dispatch reach the runner.
+    # The repo is private with no forks today, so this is defense-in-depth — but it
+    # closes the RCE surface before the repo could ever take an external PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace
+        # --frozen pins to the committed uv.lock so a PR that changes dependency
+        # metadata without relocking can't silently re-resolve CI's deps (reproducible).
+        # --all-packages (not --package scoping): pytest lives in the workspace-ROOT
+        # dev-dependency group, which a `--package <member>` sync drops (it installs
+        # only that member's dependency tree) — scoping made the gate fail with
+        # "Failed to spawn: pytest". The invariant modules import adx_showdown.sidecar
+        # but never spawn a battle, so no node_modules / live sidecar is needed.
+        run: uv sync --all-packages --frozen
+
+      - name: Run GA-AUTH security invariant gate
+        # ADX_REQUIRE_GA_BUNDLE=1 turns a missing/broken web/ga bundle from a
+        # silent skip into a hard failure — a skipped security-invariant test is
+        # a false-green, so the passwordless/CSP suite MUST actually execute.
+        env:
+          ADX_REQUIRE_GA_BUNDLE: "1"
+        run: |
+          uv run --no-sync pytest -q \
+            packages/agentdex_arena/tests/test_ga_auth_rate_limit.py \
+            packages/agentdex_arena/tests/test_ga_auth_pages.py \
+            packages/agentdex_arena/tests/test_ga_auth_cookie_csrf.py \
+            packages/agentdex_arena/tests/test_limiter.py \
+            packages/agentdex_arena/tests/test_session_auth.py \
+            packages/agentdex_arena/tests/test_admin_auth.py \
+            packages/agentdex_arena/tests/test_email_login.py \
+            packages/agentdex_arena/tests/test_badge_auth.py \
+            packages/agentdex_arena/tests/test_membership_primitive.py \
+            packages/agentdex_arena/tests/test_device_flow_endpoints.py \
+            packages/agentdex_arena/tests/test_enroll_account.py \
+            packages/agentdex_arena/tests/test_account_quota.py \
+            packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py

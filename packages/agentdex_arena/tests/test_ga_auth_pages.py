@@ -10,6 +10,7 @@ in-browser-Babel prototype hit (200 but blank)."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -23,7 +24,38 @@ from fastapi.testclient import TestClient
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _GA_DIR = _REPO_ROOT / "web" / "ga"
 _HAS_GA = (_GA_DIR / "index.html").is_file()
-_needs_ga = pytest.mark.skipif(not _HAS_GA, reason="web/ga bundle not present in this tree")
+
+# A silently-skipped security-invariant test is a false-green: it lets the
+# passwordless / CSP-safe floor regress while CI stays green. The
+# ga-auth-invariants CI gate sets ADX_REQUIRE_GA_BUNDLE=1 so a missing/broken
+# web/ga bundle FAILS LOUD here instead of waving the invariants through.
+_REQUIRE_GA = os.environ.get("ADX_REQUIRE_GA_BUNDLE", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+# When required, do NOT skip on a missing bundle — let the tests run and fail
+# (loud red) so the gap is visible at the merge boundary.
+_needs_ga = pytest.mark.skipif(
+    not _HAS_GA and not _REQUIRE_GA,
+    reason="web/ga bundle not present in this tree",
+)
+
+
+def test_ga_bundle_present_when_required():
+    """Fail loud (not skip) when the invariant gate demands the GA bundle.
+
+    Locks the false-green hole: under ADX_REQUIRE_GA_BUNDLE=1 (set by the
+    ga-auth-invariants CI job) the passwordless/CSP invariant suite must
+    actually execute, so a missing web/ga bundle has to surface as a failure
+    here rather than a silent skip."""
+    if not _REQUIRE_GA:
+        pytest.skip("ADX_REQUIRE_GA_BUNDLE not set (local-dev tolerance)")
+    assert _HAS_GA, (
+        f"web/ga/index.html absent at {_GA_DIR} — build the GA SPA bundle "
+        "(node tools/ga_spa/build.mjs) before running the GA-AUTH invariant gate"
+    )
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -121,7 +153,12 @@ def test_no_password_in_compiled_funnel(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
     for js in ("/ga/app/shell.js", "/ga/app/screens.js"):
-        src = c.get(js).text.lower()
+        resp = c.get(js)
+        # Assert the asset is actually served BEFORE scanning: a 404 body
+        # trivially satisfies the negative assertion (vacuous pass), which would
+        # false-green the passwordless invariant if the bundle were ever absent.
+        assert resp.status_code == 200, f"{js} not served"
+        src = resp.text.lower()
         assert 'type: "password"' not in src and "type:'password'" not in src, js
 
 
@@ -153,6 +190,11 @@ def test_css_surface_is_same_origin(tmp_path, monkeypatch):
     monkeypatch.chdir(_REPO_ROOT)
     c = _client(tmp_path)
     for css in ("/ga/styles.css", "/ga/tokens/fonts.css", "/ga/page.css"):
-        body = c.get(css).text.lower()
+        resp = c.get(css)
+        # Served-before-scan: a 404 body trivially passes the negative
+        # same-origin assertion (vacuous pass) — guard so the invariant
+        # cannot false-green on a missing bundle.
+        assert resp.status_code == 200, f"{css} not served"
+        body = resp.text.lower()
         assert "http://" not in body and "https://" not in body, f"third-party origin in {css}"
         assert "googleapis" not in body and "gstatic" not in body, css

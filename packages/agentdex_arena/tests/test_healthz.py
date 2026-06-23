@@ -43,6 +43,64 @@ class _FakeSidecar:
         self.returncode = returncode
 
 
+def _build_app(tmp_path: Path):
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+    return create_app(gateway, sidecar_factory=Sidecar)
+
+
+def test_healthz_reports_deployed_sha_from_env(tmp_path: Path, monkeypatch):
+    """The deploy pipeline injects ARENA_GIT_SHA (= image tag = commit SHA); /healthz
+    must surface it as `version` so a probe can confirm WHICH build is live. The SHA is
+    read at app construction, so set the env before create_app."""
+    monkeypatch.setenv("ARENA_GIT_SHA", "deadbeefcafe1234")
+    app = _build_app(tmp_path)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        body = c.get("/healthz").json()
+        assert body["ok"] is True
+        assert body["service"] == "agentdex-arena"
+        assert body["version"] == "deadbeefcafe1234"
+
+
+def test_healthz_version_defaults_when_env_unset(tmp_path: Path, monkeypatch):
+    """Unset (local/dev) → version is the 'unknown' sentinel, always present so the
+    probe never KeyErrors on the field."""
+    monkeypatch.delenv("ARENA_GIT_SHA", raising=False)
+    app = _build_app(tmp_path)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        assert c.get("/healthz").json()["version"] == "unknown"
+
+
+def test_healthz_blank_env_falls_back_to_unknown(tmp_path: Path, monkeypatch):
+    """A whitespace/empty ARENA_GIT_SHA (mis-set by the pipeline) must not surface as a
+    blank version — fall back to the 'unknown' sentinel."""
+    monkeypatch.setenv("ARENA_GIT_SHA", "   ")
+    app = _build_app(tmp_path)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        assert c.get("/healthz").json()["version"] == "unknown"
+
+
+def test_healthz_503_still_carries_version(tmp_path: Path, monkeypatch):
+    """A degraded box (503) must STILL report its version so a deploy probe can read the
+    live SHA off it (e.g. to confirm a rollback landed)."""
+    monkeypatch.setenv("ARENA_GIT_SHA", "feedface0000")
+    app = _build_app(tmp_path)
+    with TestClient(app, raise_server_exceptions=False) as c:
+        app.state.sidecar_start_failed = True
+        r = c.get("/healthz")
+        assert r.status_code == 503
+        body = r.json()
+        assert body["ok"] is False
+        assert body["version"] == "feedface0000"
+
+
 def test_healthz_ready_before_sidecar_spawned(client):
     c, app = client
     app.state.sidecar = None  # lazy: not spawned until first battle

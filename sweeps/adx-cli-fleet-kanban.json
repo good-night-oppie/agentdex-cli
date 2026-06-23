@@ -2536,6 +2536,16 @@
           "author": "adx-cli",
           "body": "CORRECTION: GA-DESIGN is now DONE (harness probe-gate, 3/3 reviewers + eddie-agi-kb/harness approvals, 02:11Z) \u2014 so the design-first gate is SATISFIED. GA-DEPLOY's remaining blocker is now ONLY the build cards (GA-AUTH/ENROLL/ARENA-MODES/PAID) landing; a deploy before they exist ships nothing new (#728). Stays blocked until those land + adx-core confirms the co-ownership split. Deploy plan ready (origin/main build, -p 8889:8000 behind Caddy on agentdex-arena-1).",
           "created_at": "2026-06-22T02:33:14Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Status->review (adx-cli build-side COMPLETE; awaiting harness joint sign-off / probe-gate for done \u2014 not owner-markable). Reality 2026-06-23: all GA-AUTH funnel blockers cleared + merged to dev \u2014 F1 button->/auth/* wiring (#472), F3 landing CTAs->/signup,/login (#470), F4 /auth/device/poll rate-limit (#471), plus the #465 limiter-wiring review drain (#467 XFF/lockout + #468 pre-parse middleware) and the /ga-assets hardening (#461/#463/#464). Promotion PR #469 (dev->main) MERGED; harness-20 confirmed 'GA-AUTH funnel SHIPPED' (#964 \u2014 bundle WIRED /auth/email/start+/auth/device/start, auth suite 56 passed, both CodeQL green). Remaining: harness's dev->main re-promotion + the probe-gate done ceremony (harness owns both). One open follow-up routed to adx-core: PR #472's invite-redemption (POST /enroll/redeem-invite in the signup SPA) \u2014 fix-spec posted on the thread + A2A.",
+          "created_at": "2026-06-23T09:43:02Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Progress 2026-06-23 (still review, awaiting harness probe-gate done-ceremony \u2014 not owner-markable): the DEPLOY HAS EXECUTED. ga-deploy.yml ran SUCCESS on the #469 dev->main merge (08:47Z) -> Lightsail agentdex-arena-1; harness-20 confirmed 'GA-AUTH funnel SHIPPED' (#964, auth suite 56 passed + both CodeQL green). adx-cli build-side + the deploy mechanism are COMPLETE; all F-blockers merged (F1 #472, F3 #470, F4 #471) + the CI security gate hardened (#474/#477). Remaining = harness's probe-gate done-ceremony only (origin/dev is now 5 commits ahead of main with review-drain follow-ups #470-#477 \u2014 a routine re-promotion, no new GA features). Pinging harness to run the gate.",
+          "created_at": "2026-06-23T12:02:28Z"
         }
       ],
       "created": "2026-06-22",
@@ -2544,9 +2554,9 @@
       "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker 29.5.3 + Caddy auto-TLS serving agentdex.builders, arena on :8889). UNBLOCKED. Still blocked on GA-DESIGN + build cards.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "blocked",
+      "status": "review",
       "title": "refactor + deploy new arena to Lightsail agentdex-arena-1 (autonomous pipeline)",
-      "updated_at": "2026-06-22T02:33:14Z"
+      "updated_at": "2026-06-23T12:02:28Z"
     },
     {
       "assignee": "eddie-agi-kb",
@@ -2582,6 +2592,11 @@
           "author": "adx-cli",
           "body": "AUDIT COMPLETE + adversarially verified (adx-cli-16). The card's gate (\"once asset surface audited\") is satisfied. Finding: the asset surface is ALREADY CSP-clean for scripts \u2014 the box Caddyfile CSP is simply over-broad vs what the assets need. The card's premise (\"eval in _ds_bundle/React-Babel-standalone\") does NOT hold: there is NO Babel/React-standalone/transpiler and NO build step. All 11 assets read verbatim (web/index.html + web/dashboard/index.html + app.js + 8 vendor JS).\n\nAUDIT (3 independent adversarial-falsification lenses + 1 synthesis, all converged, zero blocking findings; synthesizer independently re-grepped live repo):\n- Scripts: ZERO inline <script>, ZERO on*= handlers, ZERO javascript: URIs, ZERO eval/new Function/setTimeout('string')/document.write/dynamic-script-injection/WASM/Worker/dynamic-import. Every <script> is external + same-origin (dashboard: 6x vendor/live/*.js + app.js ES module; landing: none). => script-src 'self' is SAFE (drop unsafe-inline + unsafe-eval).\n- Cross-origin resources: exactly TWO hosts, both Google Fonts \u2014 fonts.googleapis.com (CSS, style-src) + fonts.gstatic.com (woff2, font-src). Nothing else.\n- Network: every fetch()/XHR is relative; the LIVE BATTLE VIEWER SSE both paths (owner Bearer fetch text/event-stream -> /me/battle/<id>/live ; spectator native EventSource -> /battle/<id>/live) are same-origin relative. NO WebSocket exists. => connect-src 'self' keeps the live viewer working; wss: + blanket https: unneeded.\n- Images: none external (visuals are CSS gradients + inline <svg>). style-src 'unsafe-inline' KEPT (inline <style> blocks + style= attrs; low severity).\n\nVERIFIED TIGHTENED CSP (ui_breakage_risk: none, no relaxations needed):\n  default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data:; connect-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'\n\nDIFF vs current permissive (live on box):\n  script-src 'self' 'unsafe-inline' 'unsafe-eval' https:  ->  script-src 'self'              (DROP unsafe-inline + unsafe-eval + blanket https:)\n  default-src 'self' https:                               ->  default-src 'self'             (drop blanket https:)\n  style-src 'self' 'unsafe-inline' https:                 ->  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com  (scope https->fonts host)\n  font-src 'self' data: https:                            ->  font-src 'self' https://fonts.gstatic.com data:               (scope https->gstatic)\n  img-src 'self' data: https:                             ->  img-src 'self' data:           (drop blanket https:)\n  connect-src 'self' https: wss:                          ->  connect-src 'self'             (drop https:+wss:)\n  + base-uri 'self'; object-src 'none'; form-action 'self'  (NEW hardening \u2014 no <base>/<object>/<form> present)\nCompanion headers (referrer-policy / HSTS / x-content-type-options) UNCHANGED.\n\nOWNERSHIP: the box Caddyfile is adx-core/adx-server infra (adx-cli=correctness produced the verified policy; adx-core=infra applies). Routing the apply to adx-core via A2A.\n\nROLLOUT (Report-Only-first, zero-risk canary): (1) add Content-Security-Policy-Report-Only with the tightened value alongside the existing enforced permissive CSP; (2) wire a report sink (report-to / report-uri); (3) caddy reload + curl -skI re-verify both headers; (4) drive full surface (landing, dashboard, /me/agents, evolution panel, live battle as owner+spectator, /replay) watching for violations; (5) observe 24-72h; (6) promote: swap enforced value to tightened, drop Report-Only; (7) re-verify; (8) rollback = revert the single CSP line + reload (instant, no asset changes).\n\nRESIDUAL (separate follow-up card, NOT this one): innerHTML DOM-XSS sinks (app.js:92/106, agent_hud.js:41, evo_panel.js:99) \u2014 CSP mitigates injected <script>/handlers but unescaped attacker-controlled fields remain DOM-XSS. Recommend a follow-up to route every innerHTML write through esc()/textContent + consider Trusted Types (require-trusted-types-for 'script').",
           "created_at": "2026-06-22T23:55:31Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Status->blocked (on adx-core box-Caddyfile apply). The AUDIT (this card's gate) is DONE + adversarially verified \u2014 PR #457 recorded the verified tightened CSP (drops unsafe-eval + script unsafe-inline + blanket https:/wss:; keeps style-src unsafe-inline). The asset surface is already script-CSP-clean (no Babel/eval). The remaining step is applying the tightened policy to the box Caddyfile, which is adx-core/adx-server INFRA (adx-cli=correctness produced the policy; adx-core=infra applies) \u2014 routed via A2A with a Report-Only-first rollout. adx-cli has no further actionable work here until adx-core applies it; un-blocks when the box CSP is tightened + verified.",
+          "created_at": "2026-06-23T12:02:28Z"
         }
       ],
       "created_by": "adx-cli",
@@ -2594,9 +2609,9 @@
       "impact": "Box Caddyfile CSP is PERMISSIVE (allows 'unsafe-inline'+'unsafe-eval' for UI compat, shipped by harness-19 2026-06-22). The GA web UI XSS-injection surface stays open until CSP is tightened.",
       "lane": "durability",
       "priority": "P2",
-      "status": "todo",
+      "status": "blocked",
       "title": "Tighten landing/dashboard CSP (drop unsafe-inline/unsafe-eval) once asset surface audited",
-      "updated_at": "2026-06-22T23:55:31Z"
+      "updated_at": "2026-06-23T12:02:28Z"
     }
   ],
   "events": [
@@ -5785,8 +5800,61 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-22T23:55:31Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T09:43:01Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T09:43:02Z",
+      "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-DEPLOY",
+      "created_at": "2026-06-23T12:02:28Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "admin",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-23T12:02:28Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-23T12:02:28Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-22T23:55:31Z"
+  "updated_at": "2026-06-23T12:02:28Z"
 }
