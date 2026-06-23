@@ -146,3 +146,16 @@ def test_workflow_skips_deploy_when_secret_absent() -> None:
     # pre-cutover safety: image still builds/pushes; deploy is a clean no-op.
     wf = _workflow_text()
     assert 'if [ -z "${ADX_WEBHOOK_SECRET:-}" ]; then' in wf
+
+
+def test_workflow_dispatch_restricted_to_main() -> None:
+    """workflow_dispatch lets an operator pick any branch/ref in the UI; without a
+    job-level main guard a manual run from a feature branch would build that ref
+    and POST the deploy doorbell, bypassing the `push.branches: [main]` filter and
+    shipping un-merged code to prod (PR #499 review PRRT_kwDOS0FXt86LrpMA)."""
+    wf = _workflow_text()
+    assert "workflow_dispatch:" in wf, "workflow_dispatch must remain a documented operator trigger"
+    assert "if: github.ref == 'refs/heads/main'" in wf, (
+        "build-and-deploy must be guarded by a main-branch `if:` so workflow_dispatch "
+        "from a feature branch cannot ship un-merged code to prod"
+    )
