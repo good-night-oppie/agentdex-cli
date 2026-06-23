@@ -35,15 +35,18 @@ boot postures, by failure mode:
 | `ARENA_OWNER_WEBHOOK` (+ `_TIMEOUT`) | soft (file inbox) | OOB owner-code delivery; unset → `ARENA_OWNER_INBOX_DIR` file fallback only |
 | `ARENA_PG_DSN` (+ `ARENA_PG_APPLY_DDL`) | soft (NDJSON only) | write-behind Postgres event mirror; the hash-chained NDJSON is always source-of-truth |
 | `ARENA_RUNTIME_DIR` | default `/tmp/arena-runtime` | persist this on a durable volume for a real deploy |
-| `ADX_SIDECAR_POOL_SIZE` | default `1` | sim-tier concurrency (see §3) |
+| `ADX_SIDECAR_POOL_SIZE` | default `1` | sim-tier concurrency — number of node sim processes (see §3) |
+| `ARENA_MAX_BATTLES` | default `16` | per-sidecar concurrent-battle cap; total capacity = `POOL_SIZE × ARENA_MAX_BATTLES` (see §3) |
 | `ADX_SIDECAR_MAX_OLD_SPACE_MB` | sidecar default | node heap cap per sidecar (see §3) |
-| `ARENA_TRUST_PROXIES` | default `0` (no trust) | set `>0` behind Caddy/Koyeb or per-IP rate-limit lockout keys on the proxy peer = arena-wide killswitch |
+| `ARENA_RATE_LIMIT_ENABLED` | default off (inert) | **prerequisite** for ALL rate-limit/lockout controls — they are no-ops unless this is truthy (`1`/`true`/`yes`/`on`) |
+| `ARENA_TRUST_PROXIES` | default `0` (no trust) | **only read when `ARENA_RATE_LIMIT_ENABLED` is on**; set `>0` behind Caddy/Koyeb or per-IP lockout keys on the proxy peer = arena-wide login killswitch |
 
 **Pre-flight checklist:** `ARENA_ADMIN_TOKEN_HASH` + `ARENA_SIGNING_KEY_HEX` +
 `ARENA_SESSION_SIGNING_KEY_HEX` set and **persistent** (keys on a durable volume,
 not regenerated per deploy — else tokens/sessions die on every restart);
-`ARENA_PUBLIC_BASE_URL` = the prod hostname; `ARENA_TRUST_PROXIES=1` behind the
-edge proxy; `ARENA_GIT_SHA` = the commit being deployed.
+`ARENA_PUBLIC_BASE_URL` = the prod hostname; `ARENA_RATE_LIMIT_ENABLED=1` **and**
+`ARENA_TRUST_PROXIES=1` behind the edge proxy (the proxy setting is inert without
+the enable flag); `ARENA_GIT_SHA` = the commit being deployed.
 
 ## 2. Deploy
 
@@ -63,8 +66,14 @@ var from the deploy environment, so `export ARENA_GIT_SHA=$(git rev-parse HEAD)`
 
 Battles are share-nothing, partitioned by `battle_id` across a `SidecarPool`.
 
+- **Total concurrent-battle capacity = `ADX_SIDECAR_POOL_SIZE × ARENA_MAX_BATTLES`**
+  — both knobs matter. Scaling the pool without raising (or while lowering)
+  `ARENA_MAX_BATTLES` does not give the headroom you expect.
 - `ADX_SIDECAR_POOL_SIZE=N` → N node sim processes (default 1). Raise for
   concurrency; each member holds ~60–70 MB idle, ~185–198 MB across 3 under load.
+- `ARENA_MAX_BATTLES` → per-sidecar concurrent-battle cap (default 16, passed as
+  `max_battles_per_sidecar`). Beyond it the pool admission-controls (503 +
+  Retry-After) rather than overcommitting a node process.
 - `ADX_SIDECAR_MAX_OLD_SPACE_MB` → per-sidecar node heap cap; size it under the
   container memory limit ÷ pool size with headroom.
 - A dead pool member self-heals on the `/healthz` touch (`reclaim_dead()` respawns
