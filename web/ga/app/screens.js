@@ -62,20 +62,38 @@ function authErr(r) {
 function isAuthed(r) {
   return r.ok && r.data && typeof r.data.owner === 'string';
 }
+function cookieValue(name) {
+  const prefix = name + '=';
+  const found = document.cookie.split('; ').find(part => part.startsWith(prefix));
+  return found ? decodeURIComponent(found.slice(prefix.length)) : '';
+}
+async function csrfToken() {
+  const existing = cookieValue('arena_csrf');
+  if (existing) return existing;
+  await fetch('/auth/csrf', {
+    method: 'GET',
+    credentials: 'same-origin'
+  });
+  return cookieValue('arena_csrf');
+}
 async function startBrowserGitHub({
   setBusy,
   setErr,
   returnTo = '/enroll',
   link = false
 } = {}) {
-  const params = new URLSearchParams({
-    next: returnTo
-  });
-  if (link) params.set('link', '1');
-  const target = '/auth/github?' + params.toString();
   if (setErr) setErr('');
   if (setBusy) setBusy(true);
   try {
+    const params = new URLSearchParams({
+      next: returnTo
+    });
+    if (link) {
+      const csrf = await csrfToken();
+      params.set('link', '1');
+      params.set('csrf', csrf);
+    }
+    const target = '/auth/github?' + params.toString();
     const r = await fetch('/auth/github/status', {
       method: 'GET',
       credentials: 'same-origin',

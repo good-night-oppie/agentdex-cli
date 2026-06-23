@@ -285,18 +285,23 @@ def test_browser_github_login_ignores_stale_session_owner(tmp_path):
 
 def test_browser_github_link_flow_preserves_owner(tmp_path):
     """The EXPLICIT account-link flow (/auth/github?link=1) attaches the proven GitHub id
-    to the CURRENT session's owner — the legitimate 'connect GitHub to my account' case."""
+    to the CURRENT session's owner after a logged-in CSRF proof — the legitimate
+    'connect GitHub to my account' case."""
     invite_owner = "invitee@example.test"
     gw = _gateway(tmp_path, transport=_github_transport())
     assert gw.session_auth is not None
     existing = gw.session_auth.mint_session(invite_owner, f"email:{invite_owner}")
     with _client(gw) as c:
-        start = c.get("/auth/github?link=1&next=/enroll", follow_redirects=False)
+        start = c.get(
+            "/auth/github?link=1&csrf=csrf-abc&next=/enroll",
+            cookies={"arena_session": existing, "arena_csrf": "csrf-abc"},
+            follow_redirects=False,
+        )
         state = _cookie_value(start, "arena_oauth_state")
         verifier = _cookie_value(start, "arena_oauth_pkce")
         return_to = _cookie_value(start, "arena_oauth_return_to")
         link = _cookie_value(start, "arena_oauth_link")
-        assert link == "1"  # explicit link intent recorded
+        assert link == state  # explicit link intent is bound to this OAuth round trip
         done = c.get(
             f"/oauth/github?code=abc123&state={state}",
             cookies={
@@ -314,6 +319,30 @@ def test_browser_github_link_flow_preserves_owner(tmp_path):
     assert claims.owner == invite_owner and claims.github_id == _GH_ID
 
 
+def test_browser_github_link_start_rejects_public_query_flag_without_csrf(tmp_path):
+    """A crafted top-level /auth/github?link=1 URL must not be enough to preserve an
+    ambient arena_session owner; link starts require the readable CSRF proof."""
+    foreign_owner = "someone-else@example.test"
+    gw = _gateway(tmp_path, transport=_github_transport())
+    assert gw.session_auth is not None
+    stale = gw.session_auth.mint_session(foreign_owner, f"email:{foreign_owner}")
+    with _client(gw) as c:
+        missing = c.get(
+            "/auth/github?link=1&next=/enroll",
+            cookies={"arena_session": stale},
+            follow_redirects=False,
+        )
+        mismatch = c.get(
+            "/auth/github?link=1&csrf=attacker&next=/enroll",
+            cookies={"arena_session": stale, "arena_csrf": "real"},
+            follow_redirects=False,
+        )
+    assert missing.status_code == 403
+    assert mismatch.status_code == 403
+    assert _setcookie(missing, "arena_oauth_link") == ""
+    assert _setcookie(mismatch, "arena_oauth_link") == ""
+
+
 def test_browser_github_login_start_clears_stale_link_cookie(tmp_path):
     """A plain /auth/github login start must CLEAR any stale arena_oauth_link left by an
     abandoned earlier ?link=1 — else the leftover cookie (alive for the OAuth TTL) makes
@@ -323,10 +352,13 @@ def test_browser_github_login_start_clears_stale_link_cookie(tmp_path):
     foreign_owner = "someone-else@example.test"
     stale = gw.session_auth.mint_session(foreign_owner, f"email:{foreign_owner}")
     with _client(gw) as c:
-        # 1) start an account-link flow, then abandon it (link cookie now in the jar)
-        c.get("/auth/github?link=1", follow_redirects=False)
+        # 1) Simulate an abandoned earlier link round trip (link cookie now stale).
         # 2) a later plain login start must emit a CLEAR for the link cookie
-        start = c.get("/auth/github?next=/enroll", follow_redirects=False)
+        start = c.get(
+            "/auth/github?next=/enroll",
+            cookies={"arena_session": stale, "arena_oauth_link": "stale-link-state"},
+            follow_redirects=False,
+        )
         cleared = _setcookie(start, "arena_oauth_link")
         assert cleared != "" and '="1"' not in cleared  # a delete, not a set
         # 3) the callback (client jar now has the cleared cookie) treats it as LOGIN

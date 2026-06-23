@@ -3324,6 +3324,22 @@ def create_app(
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(32)
         return_to = _oauth_return_to(request.query_params.get("next"))
+        link_intent = request.query_params.get("link") == "1"
+        if link_intent:
+            current_session = request.cookies.get("arena_session")
+            cookie_csrf = request.cookies.get("arena_csrf")
+            query_csrf = request.query_params.get("csrf")
+            if (
+                not current_session
+                or not cookie_csrf
+                or not query_csrf
+                or not secrets.compare_digest(cookie_csrf, query_csrf)
+            ):
+                raise _opaque_error(403, "GitHub account link requires a logged-in CSRF proof")
+            try:
+                gateway.session_auth.verify_session(current_session)
+            except SessionError as e:
+                raise _opaque_error(403, e) from None
         try:
             url = gateway.device_flow.web_authorize_url(
                 redirect_uri=_oauth_redirect_uri(request),
@@ -3361,13 +3377,13 @@ def create_app(
             path="/",
         )
         # Explicit account-LINK intent only: callers that want to attach a GitHub id to
-        # the CURRENT logged-in account pass ?link=1. The default "Continue with GitHub"
-        # CTA is a LOGIN (no flag) → the callback ignores any existing arena_session so a
-        # stale/shared cookie can't hijack the fresh login (#522 review P1).
-        if request.query_params.get("link") == "1":
+        # the CURRENT logged-in account pass ?link=1 plus the readable double-submit CSRF
+        # token. The link cookie carries the OAuth state, so a stale/forged public query
+        # flag cannot make a later callback preserve an ambient session owner.
+        if link_intent:
             response.set_cookie(
                 "arena_oauth_link",
-                "1",
+                state,
                 max_age=GITHUB_OAUTH_STATE_TTL_SEC,
                 httponly=True,
                 secure=True,
@@ -3411,12 +3427,13 @@ def create_app(
             raise _opaque_error(502, e) from None
         github_id = result.github_id or ""
         owner = result.owner or ""
-        # Only an EXPLICIT account-link flow (/auth/github?link=1, which set this cookie)
-        # may keep the CURRENT session's owner — attaching the freshly-proven GitHub id to
-        # the already-logged-in account. A plain LOGIN must use the GitHub-proven identity
-        # and IGNORE any existing arena_session, or a stale/shared-browser cookie would
-        # mint a session for + write an account_link to the WRONG owner (#522 review P1).
-        link_intent = request.cookies.get("arena_oauth_link") == "1"
+        # Only a CSRF-validated account-link start may keep the CURRENT session's owner —
+        # attaching the freshly-proven GitHub id to the already-logged-in account. A plain
+        # LOGIN must use the GitHub-proven identity and IGNORE any existing arena_session,
+        # or a stale/shared-browser cookie would mint a session for + write an account_link
+        # to the WRONG owner (#522 review P1).
+        link_cookie = request.cookies.get("arena_oauth_link")
+        link_intent = bool(link_cookie) and secrets.compare_digest(link_cookie, state)
         current_session = request.cookies.get("arena_session")
         if link_intent and current_session:
             with contextlib.suppress(SessionError):

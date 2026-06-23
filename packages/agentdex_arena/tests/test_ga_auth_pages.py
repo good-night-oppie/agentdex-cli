@@ -208,6 +208,8 @@ def test_connect_github_cta_uses_link_intent_only_after_login(tmp_path, monkeypa
     screens = _client(tmp_path).get("/ga/app/screens.js").text
     assert "new URLSearchParams" in screens
     assert "params.set('link', '1')" in screens
+    assert "params.set('csrf', csrf)" in screens
+    assert "cookieValue('arena_csrf')" in screens
     assert screens.count("link: true") == 1
     assert "Connect with GitHub" in screens
     assert "Continue with GitHub" in screens
