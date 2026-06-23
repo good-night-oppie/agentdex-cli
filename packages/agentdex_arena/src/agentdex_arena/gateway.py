@@ -2972,32 +2972,40 @@ def create_app(
             capacity=_rl_capacity,
         )
 
-    def _client_ip(request: Request) -> str:
-        """Trustworthy client IP for rate-limit keying. With ARENA_TRUST_PROXIES=N>0 we
-        trust exactly N proxy hops and read the Nth-from-the-right X-Forwarded-For entry
-        (every trusted proxy APPENDS the peer it saw, so the real client sits at -N) — a
-        client can forge the left of the chain but never that slot, PROVIDED N equals the
-        real appending-proxy count. With N=0 (the default) XFF is ignored entirely and
-        the socket peer is used. If the chain is shorter than N (the request bypassed the
-        expected proxy topology) we fall back to the socket peer rather than trust a
-        client-controlled slot."""
+    def _client_ip(request: Request) -> tuple[str, bool]:
+        """Returns ``(key, trusted)`` for rate-limit keying. With ARENA_TRUST_PROXIES=N>0
+        we trust exactly N proxy hops and read the Nth-from-the-right X-Forwarded-For
+        entry (every trusted proxy APPENDS the peer it saw, so the real client sits at
+        -N) — a client can forge the left of the chain but never that slot, PROVIDED N
+        equals the real appending-proxy count. With N=0 (the default) XFF is ignored and
+        the socket peer is used (it IS the direct client).
+
+        ``trusted`` is True only when ``key`` is a real client slot safe to LOCK OUT.
+        It is False on the fallback path (ARENA_TRUST_PROXIES>0 but the XFF chain is
+        absent/shorter than N — the request bypassed the expected proxy topology): the
+        key is then the SHARED ingress peer, so callers must NOT apply the brute-force
+        lockout to it (it would deny every client behind that proxy). The softer
+        volumetric guard still keys on it; only the latching lockout is withheld."""
         peer = request.client.host if request.client else "0.0.0.0"
         if _trust_proxies <= 0:
-            return peer
-        xff = request.headers.get("x-forwarded-for")
-        if not xff:
-            return peer
+            return peer, True
+        # A trusted proxy may APPEND its hop as a SEPARATE X-Forwarded-For header instead
+        # of rewriting the client's comma chain; ``.get()`` would read only the first
+        # (client-controlled) header and let a forged value move the key. Combine ALL
+        # XFF header values in wire order before indexing the trusted hop from the right.
+        xff = ",".join(request.headers.getlist("x-forwarded-for"))
         hops = [h.strip() for h in xff.split(",") if h.strip()]
         if len(hops) >= _trust_proxies:
-            return hops[-_trust_proxies]
-        return peer
+            return hops[-_trust_proxies], True
+        return peer, False
 
     def _auth_volumetric_guard(request: Request) -> None:
         """Opaque per-IP volumetric guard for the unauthenticated /auth/* flood surface.
         No-op when rate-limiting is disabled. 429 with no Retry-After (anti-enumeration)."""
         if _auth_ip_limiter is None:
             return
-        rate_limited, _ = _auth_ip_limiter.acquire(_client_ip(request))
+        ip, _ = _client_ip(request)
+        rate_limited, _ = _auth_ip_limiter.acquire(ip)
         if rate_limited:
             raise _opaque_error(429, "too many requests")
 
@@ -3081,7 +3089,7 @@ def create_app(
         response: Response,
         web: int = 0,
     ) -> dict:
-        ip = _client_ip(request)
+        ip, trusted = _client_ip(request)
         if _auth_verify_limiter is not None:
             rate_limited, locked_out = _auth_verify_limiter.acquire(ip)
             if rate_limited or locked_out:
@@ -3095,14 +3103,20 @@ def create_app(
             result = gateway.email_login_verify(req.code)
         except HTTPException:
             # email_login_verify raises the opaque 403 'invalid or expired login code'
-            # here — a credential-guess miss, so count it toward the per-IP lockout.
-            if _auth_verify_limiter is not None:
+            # here — a credential-guess miss, so count it toward the per-IP lockout, but
+            # ONLY when the key is a trusted per-client slot. On the proxy-peer fallback
+            # (trusted is False) the key is a SHARED ingress IP — locking it would deny
+            # every client behind that proxy (an arena-wide killswitch), so withhold the
+            # latching lockout there and rely on the volumetric guard + the unguessable
+            # one-time code.
+            if _auth_verify_limiter is not None and trusted:
                 _auth_verify_limiter.record_failure(ip)
             raise
         except Exception as e:  # noqa: BLE001 — opaque boundary (server-side, not a guess)
             raise _opaque_error(400, e) from None
-        if _auth_verify_limiter is not None:
-            # A real login clears the failure window + any pending lockout for this IP.
+        if _auth_verify_limiter is not None and trusted:
+            # A real login clears the failure window + any pending lockout for this IP
+            # (only the trusted per-client key ever accrues one — see the miss path).
             _auth_verify_limiter.record_success(ip)
         if web == 1:
             # Browser SPA: HttpOnly session cookie + STRIP the token from the body
