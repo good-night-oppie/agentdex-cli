@@ -86,7 +86,14 @@ def _cookie_value(resp, name):
     return line.split(";", 1)[0].split("=", 1)[1]
 
 
-def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=True):
+def _gateway(
+    tmp_path: Path,
+    *,
+    transport=None,
+    with_session=True,
+    with_flow=True,
+    client_secret: str | None = "test-oauth-secret",  # pragma: allowlist secret
+):
     authority = ConsentAuthority(
         signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
     )
@@ -96,7 +103,11 @@ def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=Tru
         else None
     )
     flow = (
-        GitHubDeviceFlow(client_id="Iv1.test", transport=transport or (lambda *a: (200, {})))
+        GitHubDeviceFlow(
+            client_id="Iv1.test",
+            client_secret=client_secret,
+            transport=transport or (lambda *a: (200, {})),
+        )
         if with_flow
         else None
     )
@@ -420,6 +431,25 @@ def test_poll_503_when_session_auth_unconfigured(tmp_path):
         browser = c.get("/auth/github/status")
     assert r.status_code == 503
     assert browser.status_code == 503
+
+
+def test_browser_oauth_503_when_client_secret_unset(tmp_path):
+    """Web OAuth needs BOTH the device-flow client id (for the authorize
+    redirect) AND ``GITHUB_OAUTH_CLIENT_SECRET`` (for the access-token exchange).
+    Without the secret, /auth/github would happily redirect users to GitHub and
+    the callback would always 502 — a worse UX than refusing the dance up front.
+    Device-flow login (``/auth/device/*``) is unaffected: that flow does not
+    require the secret. PR #499 review PRRT_kwDOS0FXt86LrpL8."""
+    gw = _gateway(tmp_path, transport=_FakeTransport(_start_script()), client_secret="")
+    with _client(gw) as c:
+        # Browser CTA blocked at the door — no redirect, no doomed callback.
+        start = c.get("/auth/github", follow_redirects=False)
+        status = c.get("/auth/github/status")
+        # Device flow (no client_secret needed) still works.
+        device = c.post("/auth/device/start")
+    assert start.status_code == 503
+    assert status.status_code == 503
+    assert device.status_code == 200, device.text
 
 
 def test_existing_routes_unaffected_when_onboarding_unconfigured(tmp_path):
