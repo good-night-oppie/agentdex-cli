@@ -306,3 +306,41 @@ def test_verify_lockout_skipped_on_proxy_peer_fallback(tmp_path, monkeypatch):
         client.post("/auth/email/verify", json={"code": "wrong"}).status_code for _ in range(6)
     ]
     assert codes == [403] * 6  # never latches a lockout 429 on the shared fallback peer
+
+
+# ---- pre-parse throttling: invalid bodies can't bypass the limiter ----
+
+
+def test_invalid_body_flood_throttled_pre_parse(tmp_path, monkeypatch):
+    # FastAPI parses+validates the Pydantic body BEFORE the endpoint runs, so a pre-#1
+    # in-endpoint guard never saw a malformed/schema-invalid flood (it 422s first), letting
+    # an attacker burn parser/validation work uncapped. The _auth_preparse_throttle
+    # middleware runs before routing/body-parsing, so BOTH invalid-body kinds still drain
+    # the per-IP bucket: 2 invalid bodies spend the 2 tokens, the 3rd is an opaque 429.
+    _enable(monkeypatch, ARENA_AUTH_IP_MAX_TOKENS=2)
+    client = _client(_gw(tmp_path))
+    schema_invalid = client.post("/auth/email/start", json={})  # missing 'email' → 422
+    malformed = client.post(
+        "/auth/email/start", content=b"not json", headers={"content-type": "application/json"}
+    )  # unparseable JSON → 422 (after the pre-parse guard ran)
+    throttled = client.post("/auth/email/start", json={})  # bucket drained pre-parse → 429
+    assert throttled.status_code == 429, (
+        schema_invalid.status_code,
+        malformed.status_code,
+        throttled.status_code,
+    )
+    assert not _has_retry_after(throttled)  # anti-enumeration preserved through the middleware
+
+
+def test_verify_invalid_body_flood_throttled_pre_parse(tmp_path, monkeypatch):
+    # Same bypass on the OTP-verify surface: an invalid-body flood must drain the verify
+    # limiter pre-parse, not get free 422s. With a 2-token verify bucket the 3rd invalid
+    # body is an opaque 429.
+    _enable(monkeypatch, ARENA_TRUST_PROXIES=1, ARENA_AUTH_VERIFY_MAX_TOKENS=2)
+    client = _client(_gw(tmp_path))
+    xff = {"X-Forwarded-For": "1.2.3.4"}
+    codes = [
+        client.post("/auth/email/verify", json={}, headers=xff).status_code  # missing 'code'
+        for _ in range(3)
+    ]
+    assert codes[-1] == 429, codes  # 2 invalid bodies spend the bucket, 3rd 429s pre-parse
