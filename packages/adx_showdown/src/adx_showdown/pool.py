@@ -250,14 +250,19 @@ class SidecarPool:
             async with self._lock:
                 # Slot re-check: a concurrent reclaim touch may have already swapped
                 # this slot while we were starting. Only swap if it's still the same
-                # corpse; otherwise our fresh member is redundant — reap it.
-                if self._sidecars[i] is not dead_s:
-                    with contextlib.suppress(Exception):
-                        await fresh.stop()
-                    continue
-                evicted.extend(b for b, o in self._owner.items() if o is dead_s)
-                self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
-                self._load.pop(id(dead_s), None)
-                self._sidecars[i] = fresh
-                self._load[id(fresh)] = 0
+                # corpse; otherwise our fresh member is redundant.
+                redundant = self._sidecars[i] is not dead_s
+                if not redundant:
+                    evicted.extend(b for b, o in self._owner.items() if o is dead_s)
+                    self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
+                    self._load.pop(id(dead_s), None)
+                    self._sidecars[i] = fresh
+                    self._load[id(fresh)] = 0
+            if redundant:
+                # Reap the redundant replacement OUTSIDE the lock: Sidecar.stop() can
+                # block on a graceful shutdown + process exit, and request()/_least_loaded
+                # also need self._lock — stopping under it would reintroduce the global
+                # routing stall the start-outside-lock change fixed (#522 review P2).
+                with contextlib.suppress(Exception):
+                    await fresh.stop()
         return evicted
