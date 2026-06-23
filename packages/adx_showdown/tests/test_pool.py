@@ -418,7 +418,7 @@ def test_reclaim_dead_respawns_and_evicts_routes():
         dead = p._owner["b1"]
         dead.returncode = 137  # OOM-killed
 
-        assert await p.reclaim_dead() == 1
+        assert await p.reclaim_dead() == ["b1"]  # the evicted battle_id is returned
         # b1's route is evicted (its state died with the process)
         assert "b1" not in p._owner
         # a fresh, live member sits in the slot; the corpse + its load are gone
@@ -436,7 +436,7 @@ def test_reclaim_dead_respawns_and_evicts_routes():
 def test_reclaim_dead_is_noop_when_all_alive():
     p = SidecarPool(size=2)
     _run(p.start())
-    assert _run(p.reclaim_dead()) == 0
+    assert _run(p.reclaim_dead()) == []
 
 
 def test_reclaim_dead_tears_down_a_failed_respawn(monkeypatch):
@@ -460,10 +460,96 @@ def test_reclaim_dead_tears_down_a_failed_respawn(monkeypatch):
     monkeypatch.setattr(FakeSidecar, "start", boom)
     monkeypatch.setattr(FakeSidecar, "stop", rec_stop)
 
-    with pytest.raises(RuntimeError, match="node ready-event timeout"):
-        _run(p.reclaim_dead())
+    # Best-effort: a failed respawn is reaped and skipped (NOT raised), so the
+    # probe still reports the member dead (any_dead → 503) and retries next touch.
+    assert _run(p.reclaim_dead()) == []
 
     # the half-started replacement was stopped (child reaped), not leaked
     assert len(stopped) == 1, "failed respawn was not torn down → leaks a Node child"
     # routing state untouched: the dead corpse is still in place, retried next touch
     assert p._sidecars[0].returncode == 1
+    assert p.any_dead() is True  # still degraded → /healthz keeps 503ing
+
+
+def test_reclaim_does_not_hold_the_lock_while_starting_a_replacement(monkeypatch):
+    """#2847: a slow Sidecar.start() must NOT block routing on healthy members —
+    the pool lock has to be FREE while the replacement is starting, so one shard's
+    multi-second respawn can't stall every live battle on the other shards."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+    p._sidecars[0].returncode = 137  # crash the member → reclaim will respawn it
+
+    lock_free_observations: list[bool] = []
+    orig_start = FakeSidecar.start
+
+    async def slow_start(self) -> None:
+        # Snapshot the lock the moment we're inside start() — it must be released.
+        lock_free_observations.append(not p._lock.locked())
+        await orig_start(self)
+
+    monkeypatch.setattr(FakeSidecar, "start", slow_start)
+    _run(p.reclaim_dead())
+    assert lock_free_observations == [True], "pool lock was held across Sidecar.start()"
+
+
+def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
+    """#2847: two concurrent reclaim touches on the same crashed member must swap it
+    EXACTLY once — the slot re-check makes the loser reap its redundant fresh member
+    instead of clobbering the winner's live replacement."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+    dead = p._sidecars[0]
+    dead.returncode = 137
+
+    gate = asyncio.Event()
+    stopped: list = []
+    orig_stop = FakeSidecar.stop
+
+    async def gated_start(self) -> None:
+        await gate.wait()  # hold both racers inside start() until released
+        self.started = True
+
+    async def rec_stop(self) -> None:
+        stopped.append(self)
+        await orig_stop(self)
+
+    monkeypatch.setattr(FakeSidecar, "start", gated_start)
+    monkeypatch.setattr(FakeSidecar, "stop", rec_stop)
+
+    async def go():
+        t1 = asyncio.create_task(p.reclaim_dead())
+        t2 = asyncio.create_task(p.reclaim_dead())
+        await asyncio.sleep(0)  # let both reach `await gate.wait()` inside start()
+        gate.set()
+        await asyncio.gather(t1, t2)
+
+    _run(go())
+    # exactly one fresh member sits in the slot (alive); the corpse is gone
+    assert p._sidecars[0] is not dead and p._sidecars[0].returncode is None
+    assert p.size == 1 and not p.any_dead()
+    # the redundant replacement (the loser's) was reaped, not leaked
+    assert len(stopped) == 1, "slot re-check did not reap the redundant fresh member"
+
+
+def test_reclaim_dead_returns_all_evicted_battle_ids():
+    """The gateway needs EVERY battle_id that died with a crashed member so it can
+    fail each session closed (#2835), not just a count. Battles on surviving members
+    are untouched."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+
+    async def go():
+        await p.request("start", battle="a")
+        await p.request("start", battle="b")
+        victim = p._owner["a"]
+        expected = {bid for bid, owner in p._owner.items() if owner is victim}
+        survivors = {bid for bid, owner in p._owner.items() if owner is not victim}
+        victim.returncode = 137  # OOM-kill the member that owns "a"
+
+        evicted = await p.reclaim_dead()
+
+        assert set(evicted) == expected  # exactly the dead member's battle_ids
+        assert all(bid not in p._owner for bid in expected)  # their routes are gone
+        assert all(bid in p._owner for bid in survivors)  # the rest keep routing
+
+    _run(go())

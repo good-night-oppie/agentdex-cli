@@ -2667,9 +2667,19 @@ def create_app(
         # probe from ever 500-ing on a respawn failure. No-op (cheap) when live.
         if isinstance(sc, SidecarPool) and sc.any_dead():
             try:
-                await sc.reclaim_dead()
+                evicted = await sc.reclaim_dead()
             except Exception:  # noqa: BLE001 — failed respawn stays 503 below, never 500 the probe
-                pass
+                evicted = []
+            # Fail the crashed battles closed (#2835): a member's death took its
+            # in-process sim state with it, so the pool just evicted those routes.
+            # Move the still-live sessions to the _interrupted set (same 409 signal
+            # as a gateway restart, PR #246) and drop them from self.sessions — else
+            # the owner's next /state|/choose finds a session whose battle_id no
+            # longer routes and 400-loops instead of getting a clean 409.
+            for bid in evicted:
+                sess = gateway.sessions.pop(bid, None)
+                if sess is not None and sess.ended is None:
+                    gateway._interrupted[bid] = sess.claims_token_id
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read

@@ -133,6 +133,47 @@ def test_healthz_503_when_sidecar_crashed(client):
         app.state.sidecar = None
 
 
+def test_healthz_reclaim_fails_crashed_battles_closed(tmp_path: Path, monkeypatch):
+    """#2835: when the /healthz touch evicts a crashed member's battle_ids, the
+    gateway moves those live sessions to the _interrupted set (owner's next touch
+    gets a clean 409, PR #246) and drops them from self.sessions — otherwise the
+    owner 400-loops on a session whose battle_id no longer routes."""
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+    app = create_app(gateway, sidecar_factory=Sidecar)
+
+    pool = SidecarPool(size=1)
+    pool._sidecars[0]._last_returncode = 137  # crashed → any_dead() True → reclaim runs
+
+    async def _reclaim() -> list[str]:
+        return ["b-crashed"]  # the battle that died with the member
+
+    monkeypatch.setattr(pool, "reclaim_dead", _reclaim)
+
+    class _LiveSess:
+        ended = None
+        claims_token_id = "t" + "0" * 16
+
+    gateway.sessions["b-crashed"] = _LiveSess()
+
+    with TestClient(app, raise_server_exceptions=False) as c:
+        app.state.sidecar = pool
+        try:
+            c.get("/healthz")
+            # failed closed: dropped from sessions + owner now gets the 409 signal
+            assert "b-crashed" not in gateway.sessions
+            assert gateway._interrupted.get("b-crashed") == "t" + "0" * 16
+        finally:
+            app.state.sidecar = None
+
+
 def test_healthz_503_when_dead_pool_member_respawn_fails(client, monkeypatch):
     """A dead pool member whose touch-driven respawn FAILS (e.g. node_modules
     missing) must leave the probe at 503 so the platform recycles the container
@@ -166,10 +207,10 @@ def test_healthz_respawns_dead_pool_member_on_touch(client, monkeypatch):
 
     calls: list[int] = []
 
-    async def _ok_reclaim() -> int:
+    async def _ok_reclaim() -> list[str]:
         calls.append(1)
         pool._sidecars[1]._last_returncode = None  # simulate a successful respawn
-        return 1
+        return []  # respawned a member with no routed battles → nothing evicted
 
     monkeypatch.setattr(pool, "reclaim_dead", _ok_reclaim)
     app.state.sidecar = pool
