@@ -49,6 +49,12 @@ class TouchDrivenRateLimiter:
     ) -> None:
         if max_tokens <= 0 or refill_per_sec <= 0 or capacity < 1:
             raise ValueError("max_tokens and refill_per_sec must be > 0, capacity >= 1")
+        if max_failures and lockout_sec <= 0:
+            # A non-zero threshold with a non-positive lockout makes lock_until <= now,
+            # so acquire()'s `now < state[_LOCK]` never trips and reaching the threshold
+            # just resets the counter — brute-force lockout silently disabled. Fail loud
+            # at construction instead of shipping auth wiring with no lockout.
+            raise ValueError("lockout_sec must be > 0 when max_failures is set")
         self.max_tokens = float(max_tokens)
         self.refill_per_sec = float(refill_per_sec)
         self.max_failures = int(max_failures)
