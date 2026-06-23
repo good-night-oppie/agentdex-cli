@@ -77,6 +77,11 @@ on conflict (tenant_id, battle_id, seq) do nothing
 HOUSE_TENANT = "_house"  # rating-chain events (register/period) have no visitor tenant
 LADDER_BATTLE = "_ladder"
 
+# GA-ARENA-MODES: PvP event types logged in the battle_begin payload.
+# mode="pvp" is stored in payload JSONB (no DDL column change needed).
+PVP_QUEUE_ENTER = "pvp_queue_enter"  # owner entered the matchmaking queue
+PVP_MATCH = "pvp_match"  # two owners paired; battle_id + roles logged
+
 
 def _event_row(event: dict[str, Any]) -> tuple[str, str, int, str, str, str]:
     payload = event.get("payload") or {}

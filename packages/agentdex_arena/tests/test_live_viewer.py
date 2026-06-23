@@ -159,7 +159,7 @@ def test_spectator_stream_projects_public_only_and_ends(tmp_path):
     # frame schema
     f0 = frames[0]
     assert f0["battle_id"] == bid and f0["side"] == "spectator"
-    assert set(f0) == {"battle_id", "turn", "seq", "side", "lines", "ts_ms"}
+    assert set(f0) == {"battle_id", "turn", "seq", "side", "lines", "ts_ms", "scene", "trace_lines"}
 
 
 def test_spectator_stream_404_on_unknown_battle(tmp_path):
