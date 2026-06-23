@@ -33,8 +33,11 @@ function esc(s) {
 
 function fmtWL(wins, losses, games) {
   if (games === 0) return '<span class="ld-new">new</span>';
-  const w = wins ?? 0;
-  const l = losses ?? 0;
+  if (wins == null || losses == null) {
+    return '<span class="ld-wl ld-unavailable" title="W/L unavailable">&mdash;</span>';
+  }
+  const w = wins;
+  const l = losses;
   const pct = games > 0 ? Math.round((w / games) * 100) : 0;
   return `<span class="ld-wl">${w}W/${l}L</span> <span class="ld-pct dim">${pct}%</span>`;
 }

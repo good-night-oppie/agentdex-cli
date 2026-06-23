@@ -50,6 +50,8 @@ grep -Fq "goal" <<<"$DOM"                     && ok "goal tag rendered"         
 grep -Fq "mine" <<<"$DOM"                     && ok "'mine' owner tag rendered"                            || no "mine tag"
 grep -Eq "138[0-9]|1487|1500|1601|1820" <<<"$DOM" && ok "Glicko ratings rendered"                        || no "ratings"
 grep -Fq "gen9randombattle" <<<"$DOM"         && ok "format label rendered (gen9randombattle)"             || no "format label"
+grep -Fq "ld-unavailable" <<<"$DOM"           && ok "missing live W/L renders unavailable"                 || no "missing W/L unavailable"
+grep -Fq "0W/0L" <<<"$DOM"                    && no "missing live W/L fabricated 0W/0L"                    || ok "missing live W/L does not fabricate 0W/0L"
 
 echo "----"
 [ "$fails" -eq 0 ] && { echo "RENDER-VERIFY PASS (all assertions)"; exit 0; } || { echo "RENDER-VERIFY FAIL ($fails)"; exit 1; }
