@@ -3360,6 +3360,27 @@ def create_app(
             samesite="lax",
             path="/",
         )
+        # Explicit account-LINK intent only: callers that want to attach a GitHub id to
+        # the CURRENT logged-in account pass ?link=1. The default "Continue with GitHub"
+        # CTA is a LOGIN (no flag) → the callback ignores any existing arena_session so a
+        # stale/shared cookie can't hijack the fresh login (#522 review P1).
+        if request.query_params.get("link") == "1":
+            response.set_cookie(
+                "arena_oauth_link",
+                "1",
+                max_age=GITHUB_OAUTH_STATE_TTL_SEC,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                path="/",
+            )
+        else:
+            # Plain LOGIN: clear any stale arena_oauth_link from an abandoned earlier
+            # /auth/github?link=1 in this browser. Without this the leftover cookie (alive
+            # for the OAuth TTL) would make the callback treat this login as a link and
+            # preserve the existing session's owner — re-opening the stale-session
+            # takeover #529 just closed (#529 review).
+            response.delete_cookie("arena_oauth_link", path="/")
         return response
 
     @app.get("/oauth/github", include_in_schema=False)
@@ -3390,8 +3411,14 @@ def create_app(
             raise _opaque_error(502, e) from None
         github_id = result.github_id or ""
         owner = result.owner or ""
+        # Only an EXPLICIT account-link flow (/auth/github?link=1, which set this cookie)
+        # may keep the CURRENT session's owner — attaching the freshly-proven GitHub id to
+        # the already-logged-in account. A plain LOGIN must use the GitHub-proven identity
+        # and IGNORE any existing arena_session, or a stale/shared-browser cookie would
+        # mint a session for + write an account_link to the WRONG owner (#522 review P1).
+        link_intent = request.cookies.get("arena_oauth_link") == "1"
         current_session = request.cookies.get("arena_session")
-        if current_session:
+        if link_intent and current_session:
             with contextlib.suppress(SessionError):
                 owner = gateway.session_auth.verify_session(current_session).owner
         gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
@@ -3406,6 +3433,7 @@ def create_app(
         response.delete_cookie("arena_oauth_state", path="/")
         response.delete_cookie("arena_oauth_pkce", path="/")
         response.delete_cookie("arena_oauth_return_to", path="/")
+        response.delete_cookie("arena_oauth_link", path="/")
         return response
 
     # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------
