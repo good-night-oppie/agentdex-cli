@@ -3612,7 +3612,6 @@ def create_app(
                         break
                     await asyncio.sleep(0.1)
                 _hand_off()  # release slot after session is confirmed published
-                sess = gateway.sessions.get(battle_id)
                 result: dict = {
                     "battle_id": battle_id,
                     "role": "p2",

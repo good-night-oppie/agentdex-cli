@@ -14,6 +14,7 @@ from pathlib import Path
 import pydantic
 import pytest
 from adx_showdown.pvp import PvPChoiceRouter, PvPQueue
+from agentdex_arena import gateway as gateway_mod
 from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_owner
 from agentdex_arena.eventsync import PVP_MATCH, PVP_QUEUE_ENTER
 from agentdex_arena.gateway import (
@@ -21,7 +22,6 @@ from agentdex_arena.gateway import (
     BeginRequest,
     create_app,
 )
-from agentdex_arena import gateway as gateway_mod
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
