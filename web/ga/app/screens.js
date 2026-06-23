@@ -62,8 +62,40 @@ function authErr(r) {
 function isAuthed(r) {
   return r.ok && r.data && typeof r.data.owner === 'string';
 }
-function startBrowserGitHub() {
-  window.location.assign('/auth/github');
+async function startBrowserGitHub({
+  setBusy,
+  setErr,
+  returnTo = '/enroll'
+} = {}) {
+  const target = '/auth/github?next=' + encodeURIComponent(returnTo);
+  if (setErr) setErr('');
+  if (setBusy) setBusy(true);
+  try {
+    const r = await fetch('/auth/github/status', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        accept: 'application/json'
+      }
+    });
+    if (r.ok) {
+      window.location.assign(target);
+    } else if (setErr) {
+      setErr(authErr({
+        status: r.status,
+        data: null
+      }));
+    } else {
+      window.location.assign(target);
+    }
+  } catch (e) {
+    if (setErr) setErr(authErr({
+      status: 0,
+      data: null
+    }));else window.location.assign(target);
+  } finally {
+    if (setBusy) setBusy(false);
+  }
 }
 
 // Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
@@ -326,7 +358,10 @@ function AuthMethods({
     variant: "secondary",
     size: "lg",
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
-    onClick: startBrowserGitHub,
+    onClick: () => startBrowserGitHub({
+      setBusy,
+      setErr
+    }),
     disabled: busy
   }, "Continue with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
     variant: "ghost",
@@ -490,6 +525,8 @@ const GithubGlyph = ({
 function GithubScreen({
   go
 }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
   return /*#__PURE__*/React.createElement(AuthShell, {
     eyebrow: "Step 02 \xB7 \u8FDE\u63A5 GitHub",
     title: "Connect",
@@ -563,11 +600,23 @@ function GithubScreen({
     variant: "primary",
     size: "lg",
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
-    onClick: startBrowserGitHub
+    onClick: () => startBrowserGitHub({
+      setBusy,
+      setErr
+    }),
+    disabled: busy
   }, "Connect with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
     variant: "ghost",
     onClick: () => go('enroll')
-  }, "Skip for now")));
+  }, "Skip for now")), err ? /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 12,
+      lineHeight: 1.6,
+      marginTop: 12,
+      color: 'var(--text-winner)'
+    }
+  }, err) : null);
 }
 
 /* ───────────────────────── 03 · ENROLL AGENT ───────────────────────── */

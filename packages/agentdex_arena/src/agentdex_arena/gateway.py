@@ -3200,9 +3200,34 @@ def create_app(
         base = gateway.public_base_url or str(request.base_url).rstrip("/")
         return f"{base}/oauth/github"
 
+    _OAUTH_RETURN_TO_DEFAULT = "/dashboard/"
+    _OAUTH_RETURN_TO_ALLOWED = {
+        "/signup",
+        "/login",
+        "/github",
+        "/enroll",
+        "/modes",
+        "/arena",
+        "/battle/new",
+        "/dashboard/",
+    }
+
+    def _oauth_return_to(raw: str | None) -> str:
+        if not raw:
+            return _OAUTH_RETURN_TO_DEFAULT
+        if raw in _OAUTH_RETURN_TO_ALLOWED:
+            return raw
+        return _OAUTH_RETURN_TO_DEFAULT
+
     def _pkce_challenge(verifier: str) -> str:
         digest = hashlib.sha256(verifier.encode("ascii")).digest()
         return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+    @app.get("/auth/github/status", include_in_schema=False)
+    async def auth_github_status() -> Response:
+        if gateway.device_flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        return Response(status_code=204)
 
     @app.get("/auth/github", include_in_schema=False)
     async def auth_github(request: Request) -> RedirectResponse:
@@ -3210,6 +3235,7 @@ def create_app(
             raise _opaque_error(503, "session auth not configured")
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(32)
+        return_to = _oauth_return_to(request.query_params.get("next"))
         try:
             url = gateway.device_flow.web_authorize_url(
                 redirect_uri=_oauth_redirect_uri(request),
@@ -3231,6 +3257,15 @@ def create_app(
         response.set_cookie(
             "arena_oauth_pkce",
             verifier,
+            max_age=GITHUB_OAUTH_STATE_TTL_SEC,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+        response.set_cookie(
+            "arena_oauth_return_to",
+            return_to,
             max_age=GITHUB_OAUTH_STATE_TTL_SEC,
             httponly=True,
             secure=True,
@@ -3265,16 +3300,24 @@ def create_app(
             )
         except DeviceFlowError as e:
             raise _opaque_error(502, e) from None
-        owner = result.owner or ""
         github_id = result.github_id or ""
+        owner = result.owner or ""
+        current_session = request.cookies.get("arena_session")
+        if current_session:
+            with contextlib.suppress(SessionError):
+                owner = gateway.session_auth.verify_session(current_session).owner
         gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
         gateway.accounts.link(github_id, owner)
         token = gateway.session_auth.mint_session(owner, github_id)
         claims = gateway.session_auth.verify_session(token)
-        response = RedirectResponse(url="/dashboard/", status_code=303)
+        response = RedirectResponse(
+            url=_oauth_return_to(request.cookies.get("arena_oauth_return_to")),
+            status_code=303,
+        )
         _set_web_session(response, token, claims.expires_at)
         response.delete_cookie("arena_oauth_state", path="/")
         response.delete_cookie("arena_oauth_pkce", path="/")
+        response.delete_cookie("arena_oauth_return_to", path="/")
         return response
 
     # ---------- account onboarding: email magic-link login (GA-CORE-2) ----------

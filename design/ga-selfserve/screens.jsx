@@ -42,8 +42,29 @@ function authErr(r) {
 // A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
 function isAuthed(r) { return r.ok && r.data && typeof r.data.owner === 'string'; }
 
-function startBrowserGitHub() {
-  window.location.assign('/auth/github');
+async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll' } = {}) {
+  const target = '/auth/github?next=' + encodeURIComponent(returnTo);
+  if (setErr) setErr('');
+  if (setBusy) setBusy(true);
+  try {
+    const r = await fetch('/auth/github/status', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { accept: 'application/json' },
+    });
+    if (r.ok) {
+      window.location.assign(target);
+    } else if (setErr) {
+      setErr(authErr({ status: r.status, data: null }));
+    } else {
+      window.location.assign(target);
+    }
+  } catch (e) {
+    if (setErr) setErr(authErr({ status: 0, data: null }));
+    else window.location.assign(target);
+  } finally {
+    if (setBusy) setBusy(false);
+  }
 }
 
 // Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
@@ -160,7 +181,7 @@ function AuthMethods({ go, onAuthed, emailHint }) {
         hint={emailHint || 'Passwordless — we email a one-time magic link (ADR-0013). No password to remember.'} />
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
         <DS.Button variant="primary" size="lg" onClick={startEmail} disabled={busy} iconRight="→">{busy ? 'Sending…' : 'Email me a magic link'}</DS.Button>
-        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={startBrowserGitHub} disabled={busy}>Continue with GitHub</DS.Button>
+        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr })} disabled={busy}>Continue with GitHub</DS.Button>
         <DS.Button variant="ghost" size="lg" iconLeft={<GithubGlyph />} onClick={startDevice} disabled={busy}>Use device code</DS.Button>
       </div>
       {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
@@ -236,6 +257,8 @@ const GithubGlyph = ({ size = 18 }) => (
   </svg>
 );
 function GithubScreen({ go }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
   return (
     <AuthShell
       eyebrow="Step 02 · 连接 GitHub"
@@ -262,9 +285,10 @@ function GithubScreen({ go }) {
         </div>
       </DS.Card>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 18 }}>
-        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={startBrowserGitHub}>Connect with GitHub</DS.Button>
+        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr })} disabled={busy}>Connect with GitHub</DS.Button>
         <DS.Button variant="ghost" onClick={() => go('enroll')}>Skip for now</DS.Button>
       </div>
+      {err ? <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, marginTop: 12, color: 'var(--text-winner)' }}>{err}</p> : null}
     </AuthShell>
   );
 }
