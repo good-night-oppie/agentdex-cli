@@ -2468,18 +2468,18 @@
       "impact": "Free battle modes. Blocked on GA-DESIGN. Mode selection wired to battle backend.",
       "lane": "ga-selfserve",
       "priority": "P1",
+      "probes": {
+        "authored_at": "2026-06-23T19:29:28Z",
+        "authored_by": "harness",
+        "db": "/home/admin/gh/harness-engineering/.harness/kanban-probes.db",
+        "lock_sha256": "48496ffe2f7f4d229134d3fc727125078364f2dda22fb0ba0cc95559d72c663f",
+        "probe": "kanban-card-GA-ARENA-MODES-9aeb67b0702f",
+        "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
+        "status": "admissible"
+      },
       "status": "todo",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
-      "updated_at": "2026-06-23T19:29:28Z",
-      "probes": {
-        "probe": "kanban-card-GA-ARENA-MODES-9aeb67b0702f",
-        "lock_sha256": "48496ffe2f7f4d229134d3fc727125078364f2dda22fb0ba0cc95559d72c663f",
-        "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
-        "status": "admissible",
-        "authored_by": "harness",
-        "authored_at": "2026-06-23T19:29:28Z",
-        "db": "/home/admin/gh/harness-engineering/.harness/kanban-probes.db"
-      }
+      "updated_at": "2026-06-23T19:29:28Z"
     },
     {
       "assignee": "bene",
@@ -2522,6 +2522,11 @@
           "author": "bene",
           "body": "MILESTONE (bene-5, 2026-06-23T19:10Z): PR #485 MERGED to main at 18:41:25Z by Eddie/harness (head dd8203cd, rebased onto current main after #489). All bene-side substrate work for this card is now durably on main:\n  1. battle_format_for_mode(mode, battle_format) bridge + run_selfplay_battle(mode=) wire\n  2. RunnerNotReadyForFormat fail-loud guard for doubles + team_required (Codex P1/P2#3)\n  3. agentdex_arena.mcp_surface.selfplay_battle(mode=) plumbing (Codex P2, originally #491 stacked, auto-merged)\n  4. mcp_surface mode-validation error surfacing before broad-except (adx-cli #1035 P2)\nRequired gates green: pre-commit, doc-lint, ga-auth-invariants, signoff. CodeQL Analyze fails at startup (known infra pattern per Eddie's merge note).\n\nCard stays blocked on the remaining cross-team scope, NOT bene-actionable:\n- HarnessPlayer doubles-decision (~500+ LOC, crosses GA-ARENA-MODES blast-radius \u2014 bene-core #725 split still no response)\n- 2-agent team-up topology (poke-env multi-team API spike)\n- Live PS-server e2e\n- harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only)\n\nThe bene-side commitment for this card is COMPLETE on main. bene-5 STANDING BY.",
           "created_at": "2026-06-23T19:28:15Z"
+        },
+        {
+          "author": "bene",
+          "body": "PROGRESS (bene-5, 2026-06-23T19:35Z): shipped PR #509 \u2014 HarnessPlayer doubles-decision support. Builds on merged #485 substrate. Insight: valid_orders is topology-agnostic (returns DoubleBattleOrder on a DoubleBattle), so a new _is_doubles_battle shape probe (poke-env-free) lets choose_move defer ALL strategies to _seeded_order on doubles \u2014 the singles-shaped max_damage / codex paths only ever see singles input. Doubles guard LIFTED from battle_format_for_mode; arena 'team' mode + gen9randomdoublesbattle override now flow through to the runner. 13/13 offline tests PASS (5 new shape-probe + 8 rebridged); ruff clean. Card stays blocked on remaining scope: per-slot max_damage/codex (next tiny PR opportunity); team-builder for team_required formats; live PS-server e2e; harness probe-spec authorship (kanban_probe_gate.py:301).",
+          "created_at": "2026-06-23T19:50:01Z"
         }
       ],
       "created": "2026-06-22",
@@ -2532,7 +2537,7 @@
       "priority": "P1",
       "status": "blocked",
       "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
-      "updated_at": "2026-06-23T19:28:15Z"
+      "updated_at": "2026-06-23T19:50:01Z"
     },
     {
       "assignee": "adx-core",
@@ -6251,8 +6256,15 @@
       "card_id": "GA-SELFPLAY-EVOLVE",
       "created_at": "2026-06-23T19:28:15Z",
       "detail": {}
+    },
+    {
+      "action": "comment",
+      "actor": "bene",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-23T19:50:01Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T19:28:15Z"
+  "updated_at": "2026-06-23T19:50:01Z"
 }
