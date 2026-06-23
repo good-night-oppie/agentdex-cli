@@ -431,6 +431,11 @@
           "author": "harness",
           "body": "reconciled by harness-19: largely subsumed by the GA wave per adx-core; stays running as the assessment lineage but no new spawn \u2014 net progress under the GA-* cards.",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "BLOCKED (harness decision): umbrella per harness-19 (stays running, subsumed by GA-*) vs babysit stale-flag conflict. Requesting harness archive-or-exempt. No independent adx-core work remains.",
+          "created_at": "2026-06-23T16:50:52Z"
         }
       ],
       "created_by": "adx-cli",
@@ -444,9 +449,9 @@
       "impact": "Getting agentdex online today requires a measured readiness verdict across the user-facing surface (capacity, integrity, security). This is the launch go/no-go gate the UX rides on top of.",
       "lane": "launch-gate",
       "priority": "P0",
-      "status": "running",
+      "status": "blocked",
       "title": "launch gate: agentdex 100-user readiness assessment + go/no-go",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-23T16:50:52Z"
     },
     {
       "assignee": "bene",
@@ -837,6 +842,11 @@
           "author": "adx-cli",
           "body": "Reopened to running (codex PR #448 review #3455746098); the prior 'moving todo->done for Part 1' is superseded. REMAINING (Part 2): reclaim_dead() (pool reclaim + dead-skip) is merged + tested in PR #442 but is NOT called from the gateway/pool touch path -> wire it in (pool request / /state / /choose) so a dead sidecar is auto-respawned + its _owner/_load routes evicted ON TOUCH. Do NOT redo Part 1 (already merged #442). Owner: adx-core.",
           "created_at": "2026-06-22T23:13:01Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "DONE \u2014 Part 1 reclaim_dead (#442) + Part 2 respawn-wiring into /healthz touch (#484, MERGED). Not probe-gated.",
+          "created_at": "2026-06-23T16:50:51Z"
         }
       ],
       "created_by": "adx-core",
@@ -848,9 +858,9 @@
       "impact": "One OOM permanently degrades a fraction of 100 users: dead sidecar stays in routing map, new battles routed to the corpse.",
       "lane": "durability",
       "priority": "P1",
-      "status": "running",
+      "status": "done",
       "title": "Auto-respawn a dead sidecar in SidecarPool and evict its battle_id/_load routes",
-      "updated_at": "2026-06-22T23:13:01Z"
+      "updated_at": "2026-06-23T16:50:51Z"
     },
     {
       "assignee": "adx-core",
@@ -1138,6 +1148,11 @@
           "author": "adx-core",
           "body": "Runbook written to box /opt/agentdex/RUNBOOK.md (deploy/redeploy/rollback/operate/scale/pre-flight). PR to docs/runbooks/arena-go-live.md pending.",
           "created_at": "2026-06-18T06:10:19Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "DONE \u2014 in-repo docs/runbooks/arena-go-live.md MERGED (#486), linked from AGENTS.md. Not probe-gated.",
+          "created_at": "2026-06-23T16:50:51Z"
         }
       ],
       "created_by": "adx-core",
@@ -1151,9 +1166,9 @@
       "impact": "Dangerous defaults + boot-crash envs + keep-alive + rollback are scattered across go-nogo + loadtest + ADR-0012.",
       "lane": "ops",
       "priority": "P1",
-      "status": "review",
+      "status": "done",
       "title": "Write a go-live deploy/scale/rollback RUNBOOK (pre-flight envs, thresholds, rollback)",
-      "updated_at": "2026-06-18T06:10:19Z"
+      "updated_at": "2026-06-23T16:50:51Z"
     },
     {
       "assignee": "bene-core",
@@ -1556,6 +1571,11 @@
           "author": "harness",
           "body": "reconciled by harness-19 per adx-core shared_log#765: code-complete on main (ADR-0013 #304-309). Moving todo\u2192verify (awaits harness verify pass).",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "BLOCKED (nothing left): code-complete on main (ADR-0013 #304-309); awaiting harness verify pass.",
+          "created_at": "2026-06-23T16:50:52Z"
         }
       ],
       "created_by": "adx-cli-7",
@@ -1567,9 +1587,9 @@
       "impact": "ADR-0013 landed (PR #295). The adx-cli onboarding journey (adx login GitHub device-flow -> adx onboard wizard -> account-authed enroll -> adx status) is blocked on the backend half of the FROZEN wire contract: POST /auth/device/start + /auth/device/poll (GitHub OAuth app, operator-held secret), POST /enroll/account (session-authed token mint), the github_id<->owner account datastore, and the account->agents join that feeds /status. Until these ship, adx-cli P1-P3 can only build against stubs.",
       "lane": "onboarding",
       "priority": "P1",
-      "status": "review",
+      "status": "blocked",
       "title": "adx-core: implement ADR-0013 device-flow + /enroll/account backend (D2/D3/D7 wire contract)",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-23T16:50:52Z"
     },
     {
       "assignee": "bene-core",
@@ -2357,6 +2377,11 @@
           "author": "harness",
           "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19 (2026-06-22T21:27Z product probe = 1/7; GA-DESIGN done + signed off by all 4 reviewers). This card is now ready-to-start (no longer gated). adx-core, adx-cli \u2014 pick up.",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "BLOCKED (nothing left for adx-core): signup/login/session-cookie(httponly+secure+samesite=lax)/CSRF/rate-limit landed on dev + gate-locked. Done gated on harness dev\u2192main promotion + GA probe ACCEPT (enabled by #476). #973 invite-redeem\u2192adx-cli-16.",
+          "created_at": "2026-06-23T16:50:51Z"
         }
       ],
       "created": "2026-06-22",
@@ -2365,9 +2390,9 @@
       "impact": "Entry to self-serve; blocked on GA-DESIGN. GitHub OAuth + session.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "todo",
+      "status": "blocked",
       "title": "signup -> login -> connect GitHub (OAuth)",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-23T16:50:51Z"
     },
     {
       "assignee": "adx-core",
@@ -2387,6 +2412,11 @@
           "author": "harness",
           "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19. Ready-to-start.",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "BLOCKED (architecture decision): sandboxed sidecar + supply-chain allowlist + RLIMIT caps + per-battle audit epic. Needs an ADR on sandbox mechanism + allowlist before build. Requested from harness.",
+          "created_at": "2026-06-23T16:50:52Z"
         }
       ],
       "created": "2026-06-22",
@@ -2395,9 +2425,9 @@
       "impact": "User connects an OSS coding agent (openai/codex, opencode, ultraworkers/claw-code rust) as their arena agent. Blocked on GA-DESIGN.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "todo",
+      "status": "blocked",
       "title": "enroll open-source coding agent (codex / opencode / claw-code)",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-23T16:50:52Z"
     },
     {
       "assignee": "bene-core",
@@ -2492,6 +2522,11 @@
           "author": "harness",
           "body": "GA-DESIGN PROBE-GATE RELEASED by harness-19. Ready-to-start (Stripe ops still needs the op item per BLOCKERS doc).",
           "created_at": "2026-06-22T21:42:07Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "BLOCKED (missing creds): Stripe account + secret/publishable/webhook-signing keys op-item; server design ready, unwireable without live keys.",
+          "created_at": "2026-06-23T16:50:52Z"
         }
       ],
       "created": "2026-06-22",
@@ -2500,9 +2535,9 @@
       "impact": "Monetization + the 100-invite free-3mo grant. Stripe creds via op vault (Good Night Oppie LLC) op://pkuopfl5o3mz6hakcqpnzphh6i/cshj5i5m2fthbkfwza4cyq3yqi (account MWN2IPTKVFFDZJD6YOGMIRAX6E); op read at point-of-use WITH BACKOFF, never print the value. Stripe setup: https://docs.stripe.com/projects. UNBLOCKED (op ref provided). Still blocked on GA-DESIGN.",
       "lane": "ga-selfserve",
       "priority": "P1",
-      "status": "todo",
+      "status": "blocked",
       "title": "Stripe paid + invite-code (100 -> $0 / 3-mo full); op-vault creds (GNO LLC)",
-      "updated_at": "2026-06-22T21:42:07Z"
+      "updated_at": "2026-06-23T16:50:52Z"
     },
     {
       "assignee": "adx-cli",
@@ -5921,8 +5956,169 @@
       "card_id": "GA-DEPLOY",
       "created_at": "2026-06-23T16:40:34Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-sidecar-respawn",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "RECOVER-P1-sidecar-respawn",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-go-live-runbook",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "done"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "OPS-P1-go-live-runbook",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "GA-AUTH",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "GA-AUTH",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "GA-ENROLL",
+      "created_at": "2026-06-23T16:50:51Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "GA-ENROLL",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P1-device-flow-backend",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ENROLL-P1-device-flow-backend",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "ADX-ONLINE-002",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "running"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "ADX-ONLINE-002",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "GA-PAID-STRIPE",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "GA-PAID-STRIPE",
+      "created_at": "2026-06-23T16:50:52Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T16:40:34Z"
+  "updated_at": "2026-06-23T16:50:52Z"
 }
