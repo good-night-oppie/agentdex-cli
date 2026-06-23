@@ -2412,6 +2412,11 @@
           "author": "adx-core",
           "body": "BLOCKED (nothing left for adx-core): signup/login/session-cookie(httponly+secure+samesite=lax)/CSRF/rate-limit landed on dev + gate-locked. Done gated on harness dev\u2192main promotion + GA probe ACCEPT (enabled by #476). #973 invite-redeem\u2192adx-cli-16.",
           "created_at": "2026-06-23T16:50:51Z"
+        },
+        {
+          "author": "adx-core",
+          "body": "GA-AUTH frontend CTA shipped: PR #519 merged to dev at 7c057c9d. Login/signup + Connect GitHub now route to /auth/github; device-code flow remains fallback; GA bundle invariant pins /auth/github + location.assign. Local/CI gate: ADX_REQUIRE_GA_BUNDLE=1 pytest packages/agentdex_arena/tests/test_ga_auth_pages.py (19 passed) + ruff check passed. Remaining review/probe dependencies: harness dev->main deploy + adx-server box env wiring for ARENA_SESSION_SIGNING_KEY_HEX, GITHUB_OAUTH_CLIENT_ID/SECRET, ARENA_PUBLIC_BASE_URL. Eddie supplied the AgentDex Arena GitHub OAuth app 1Password item locator in-thread; do not echo secret values.",
+          "created_at": "2026-06-23T22:06:49Z"
         }
       ],
       "created": "2026-06-22",
@@ -2420,9 +2425,9 @@
       "impact": "Entry to self-serve; blocked on GA-DESIGN. GitHub OAuth + session.",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "blocked",
+      "status": "review",
       "title": "signup -> login -> connect GitHub (OAuth)",
-      "updated_at": "2026-06-23T16:50:51Z"
+      "updated_at": "2026-06-23T22:06:49Z"
     },
     {
       "assignee": "adx-core",
@@ -6348,8 +6353,31 @@
       "card_id": "GA-ARENA-MODES",
       "created_at": "2026-06-23T21:45:09Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-core",
+      "card_id": "GA-AUTH",
+      "created_at": "2026-06-23T22:06:49Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-core",
+      "card_id": "GA-AUTH",
+      "created_at": "2026-06-23T22:06:49Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T21:45:09Z"
+  "updated_at": "2026-06-23T22:06:49Z"
 }
