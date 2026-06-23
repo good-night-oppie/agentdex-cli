@@ -503,6 +503,7 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
 
     gate = asyncio.Event()
     stopped: list = []
+    stop_lock_free: list = []
     orig_stop = FakeSidecar.stop
 
     async def gated_start(self) -> None:
@@ -510,6 +511,10 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
         self.started = True
 
     async def rec_stop(self) -> None:
+        # #522 review P2: the redundant fresh member must be reaped OUTSIDE the pool
+        # lock — Sidecar.stop() can block on graceful shutdown, and request() needs the
+        # lock, so stopping under it stalls routing on every healthy member.
+        stop_lock_free.append(not p._lock.locked())
         stopped.append(self)
         await orig_stop(self)
 
@@ -529,6 +534,7 @@ def test_concurrent_reclaim_does_not_double_swap(monkeypatch):
     assert p.size == 1 and not p.any_dead()
     # the redundant replacement (the loser's) was reaped, not leaked
     assert len(stopped) == 1, "slot re-check did not reap the redundant fresh member"
+    assert stop_lock_free == [True], "redundant sidecar stopped while holding the pool lock"
 
 
 def test_reclaim_dead_returns_all_evicted_battle_ids():
