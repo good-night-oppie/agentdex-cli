@@ -2619,7 +2619,18 @@ def create_app(
     # Exposed for tests + non-request callers to drive the lazy start deterministically.
     app.state.ensure_sidecar = _sidecar
 
-    _ARENA_HEALTH = {"ok": True, "service": "agentdex-arena", "lanes": ["sandbox", "rated"]}
+    # Deployed-commit SHA surfaced on /healthz so a probe can confirm WHICH build
+    # is live (the deploy pipeline injects ARENA_GIT_SHA = the image tag = commit
+    # SHA on the box). Read once at app construction — the SHA is fixed for the
+    # container's lifetime. "unknown" when unset (local/dev) so the field is always
+    # present and the probe never KeyErrors.
+    _arena_git_sha = (os.environ.get("ARENA_GIT_SHA") or "unknown").strip() or "unknown"
+    _ARENA_HEALTH = {
+        "ok": True,
+        "service": "agentdex-arena",
+        "version": _arena_git_sha,
+        "lanes": ["sandbox", "rated"],
+    }
 
     @app.get("/", include_in_schema=False)
     async def root(request: Request):
@@ -2649,7 +2660,14 @@ def create_app(
         sc = app.state.sidecar
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
-            return {"ok": False, "service": "agentdex-arena", "detail": "sidecar unavailable"}
+            # Carry version even when degraded: a deploy probe must be able to read
+            # the live build SHA off a 503 box (e.g. to confirm a rollback landed).
+            return {
+                "ok": False,
+                "service": "agentdex-arena",
+                "version": _arena_git_sha,
+                "detail": "sidecar unavailable",
+            }
         return _ARENA_HEALTH
 
     @app.get("/metrics", include_in_schema=False)
