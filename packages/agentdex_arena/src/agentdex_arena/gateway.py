@@ -2931,7 +2931,8 @@ def create_app(
         # Hard cap on tracked keys, floored at 1 — the limiter raises on capacity<1, and
         # an unfloored 0 would fail the control OPEN; a security control must not.
         _rl_capacity = _env_int("ARENA_AUTH_LIMIT_CAPACITY", 20_000, floor=1)
-        # Volumetric per-IP bucket (no lockout) for email/start + device/start.
+        # Volumetric per-IP bucket (no lockout) for the flood surfaces email/start +
+        # device/start + device/poll (the unauthenticated GitHub-poll fan-out).
         _auth_ip_limiter = TouchDrivenRateLimiter(
             max_tokens=_env_float("ARENA_AUTH_IP_MAX_TOKENS", 30.0, floor=1.0),
             refill_per_sec=_env_float("ARENA_AUTH_IP_REFILL_PER_SEC", 0.5, floor=1e-9),
@@ -3027,6 +3028,12 @@ def create_app(
     # which executes before routing/body-parsing, to close that bypass.
     _auth_preparse_guards = {
         "/auth/device/start": _auth_volumetric_guard,
+        # /auth/device/poll is unauthenticated and fans out to the GitHub token URL in a
+        # worker thread, so a flood of random/malformed device codes would otherwise
+        # bypass the limiter and drive unbounded GitHub-token POST + body-parse cost on
+        # the login surface. Same per-IP volumetric bucket as device/start; the 30-token
+        # @ 0.5/s refill comfortably covers the ~5s adx-login poll cadence.
+        "/auth/device/poll": _auth_volumetric_guard,
         "/auth/email/start": _auth_volumetric_guard,
         "/auth/email/verify": _auth_verify_acquire_guard,
     }

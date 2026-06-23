@@ -73,6 +73,19 @@ def test_volumetric_guard_429s_after_bucket_empty(tmp_path, monkeypatch):
     assert codes == [503, 503, 429]
 
 
+def test_device_poll_is_rate_limited(tmp_path, monkeypatch):
+    # F4 security floor: /auth/device/poll is unauthenticated and fans out to the GitHub
+    # token URL, so it MUST sit behind the same per-IP volumetric guard as device/start.
+    # device_flow is unconfigured → 503 while the bucket has tokens, then 429 once drained
+    # (the pre-parse guard fronts the handler, so a malformed-code flood is capped).
+    _enable(monkeypatch, ARENA_AUTH_IP_MAX_TOKENS=2)
+    client = _client(_gw(tmp_path))
+    codes = [
+        client.post("/auth/device/poll", json={"device_code": "x"}).status_code for _ in range(3)
+    ]
+    assert codes == [503, 503, 429]
+
+
 def test_disabled_by_default_never_rate_limits(tmp_path, monkeypatch):
     monkeypatch.delenv("ARENA_RATE_LIMIT_ENABLED", raising=False)
     client = _client(_gw(tmp_path))
