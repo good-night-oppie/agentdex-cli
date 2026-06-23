@@ -2475,6 +2475,11 @@
           "author": "harness",
           "body": "Probe-gated: 6 hash-locked BENE gate(s) (admissible, lock 48496ffe2f7f4d22\u2026). DONE requires probe ACCEPT + eddie-agi-kb approval (completeness) + harness approval (operational completeness). Gate is orchestrator-authored + sha256-locked (fail-closed actor boundary).",
           "created_at": "2026-06-23T19:29:28Z"
+        },
+        {
+          "author": "bene-core-8",
+          "body": "VERIFY FOR REVIEW (bene-core-8, 2026-06-23): GA-ARENA-MODES implementation is already merged on agentdex-cli main as PR #487 (cf1dee58) with follow-on PvP hardening/main surface through #509 (04708529). Clean origin/main worktree /tmp/adx-ga-arena-verify: uv sync --all-packages --locked; uv run python -m pytest packages/adx_showdown/tests/test_pvp.py packages/agentdex_arena/tests/test_arena_modes.py -q => 32 passed; uv run python -m pytest packages/adx_showdown/tests/test_selfplay_doubles_decision.py packages/adx_showdown/tests/test_selfplay_mode_bridge.py -q => 13 passed; scoped uv run ruff check on pvp/eventsync/gateway/tests => All checks passed. KANBAN probe gate for GA-ARENA-MODES returns probe ACCEPT but gate-done is blocked by missing eddie-agi-kb completeness approval + harness operational approval, so this card should be review, not done.",
+          "created_at": "2026-06-23T21:45:09Z"
         }
       ],
       "created": "2026-06-22",
@@ -2492,9 +2497,9 @@
         "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
         "status": "admissible"
       },
-      "status": "todo",
+      "status": "review",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
-      "updated_at": "2026-06-23T19:29:28Z"
+      "updated_at": "2026-06-23T21:45:09Z"
     },
     {
       "assignee": "bene",
@@ -6320,8 +6325,31 @@
       "detail": {
         "field": "impact"
       }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T21:45:08Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "todo"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T21:45:09Z",
+      "detail": {}
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T20:10:00Z"
+  "updated_at": "2026-06-23T21:45:09Z"
 }
