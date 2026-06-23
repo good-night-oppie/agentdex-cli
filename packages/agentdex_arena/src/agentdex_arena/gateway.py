@@ -3374,6 +3374,13 @@ def create_app(
                 samesite="lax",
                 path="/",
             )
+        else:
+            # Plain LOGIN: clear any stale arena_oauth_link from an abandoned earlier
+            # /auth/github?link=1 in this browser. Without this the leftover cookie (alive
+            # for the OAuth TTL) would make the callback treat this login as a link and
+            # preserve the existing session's owner — re-opening the stale-session
+            # takeover #529 just closed (#529 review).
+            response.delete_cookie("arena_oauth_link", path="/")
         return response
 
     @app.get("/oauth/github", include_in_schema=False)

@@ -263,8 +263,9 @@ def test_browser_github_login_ignores_stale_session_owner(tmp_path):
         state = _cookie_value(start, "arena_oauth_state")
         verifier = _cookie_value(start, "arena_oauth_pkce")
         return_to = _cookie_value(start, "arena_oauth_return_to")
-        # no arena_oauth_link cookie is set on a plain login start
-        assert _setcookie(start, "arena_oauth_link") == ""
+        # a plain login start never sets link intent (it clears any stale one — see
+        # test_browser_github_login_start_clears_stale_link_cookie)
+        assert '="1"' not in _setcookie(start, "arena_oauth_link")
         done = c.get(
             f"/oauth/github?code=abc123&state={state}",
             cookies={
@@ -311,6 +312,42 @@ def test_browser_github_link_flow_preserves_owner(tmp_path):
     assert gw.accounts.owner_for(_GH_ID) == invite_owner
     claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
     assert claims.owner == invite_owner and claims.github_id == _GH_ID
+
+
+def test_browser_github_login_start_clears_stale_link_cookie(tmp_path):
+    """A plain /auth/github login start must CLEAR any stale arena_oauth_link left by an
+    abandoned earlier ?link=1 — else the leftover cookie (alive for the OAuth TTL) makes
+    the callback preserve the existing session's owner and re-opens the #529 takeover."""
+    gw = _gateway(tmp_path, transport=_github_transport())
+    assert gw.session_auth is not None
+    foreign_owner = "someone-else@example.test"
+    stale = gw.session_auth.mint_session(foreign_owner, f"email:{foreign_owner}")
+    with _client(gw) as c:
+        # 1) start an account-link flow, then abandon it (link cookie now in the jar)
+        c.get("/auth/github?link=1", follow_redirects=False)
+        # 2) a later plain login start must emit a CLEAR for the link cookie
+        start = c.get("/auth/github?next=/enroll", follow_redirects=False)
+        cleared = _setcookie(start, "arena_oauth_link")
+        assert cleared != "" and '="1"' not in cleared  # a delete, not a set
+        # 3) the callback (client jar now has the cleared cookie) treats it as LOGIN
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        return_to = _cookie_value(start, "arena_oauth_return_to")
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={
+                "arena_session": stale,
+                "arena_oauth_state": state,
+                "arena_oauth_pkce": verifier,
+                "arena_oauth_return_to": return_to,
+            },
+            follow_redirects=False,
+        )
+    assert done.status_code == 303, done.text
+    # proven identity wins — the stale link cookie did NOT leak link intent into this login
+    assert gw.accounts.owner_for(_GH_ID) == _OWNER
+    claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
+    assert claims.owner == _OWNER
 
 
 def test_browser_github_callback_rejects_state_mismatch(tmp_path):
