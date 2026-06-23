@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="AgentDex GA self-serve — passwordless signup, GitHub device flow, email magic link.">
+<meta name="agentdex:auth" content="passwordless; methods=github-device,email-magic-link; no-password">
+<title>AgentDex · GA self-serve</title>
+<link rel="stylesheet" href="/ga/styles.css">
+<link rel="stylesheet" href="/ga/page.css">
+</head>
+<body>
+<noscript>
+  <div class="ga-noscript">
+    <strong>AgentDex sign-in is passwordless.</strong>
+    <p>We never use passwords. Continue with the <strong>GitHub device flow</strong>
+    or an <strong>email magic link</strong> (ADR-0013). Please enable JavaScript to
+    run the self-serve funnel, or use the CLI: <code>adx login</code>.</p>
+  </div>
+</noscript>
+<div id="root"></div>
+<script src="/ga/app/react.production.min.js"></script>
+<script src="/ga/app/react-dom.production.min.js"></script>
+<script src="/ga/app/ds-bundle.js"></script>
+<script src="/ga/app/data.js"></script>
+<script src="/ga/app/shell.js"></script>
+<script src="/ga/app/screens.js"></script>
+<script src="/ga/app/boot.js"></script>
+</body>
+</html>
