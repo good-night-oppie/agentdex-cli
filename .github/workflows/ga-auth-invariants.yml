@@ -1,0 +1,56 @@
+# ga-auth-invariants.yml — gate the GA-AUTH security floor at the merge boundary.
+#
+# Why this exists: lint.yml + the review-comment-signoff gate only trigger on
+# PRs to `main`, and the test suite (`uv run pytest packages/`) only runs in
+# release.yml (nightly). But day-to-day work lands via PRs to `dev`, which had
+# NO test gate at all — so a regression in the GA-AUTH security invariants
+# (passwordless per ADR-0013, strict-CSP-safe assets, rate-limit fail-closed,
+# anti-enumeration opaque errors, double-submit CSRF, anti-pay-to-rank) would
+# slip silently to the nightly release instead of being caught when it merges.
+#
+# This job runs ONLY the fast (~4s), deterministic, sidecar-free GA-AUTH
+# invariant modules on every dev/main PR. Scope is deliberate: a REAL, narrow
+# security gate — not a full-suite green-chase (AGENTS.md §CI-POLICY: merge
+# UNSTABLE on the real gates; don't chase full-green over vendor/aaop drift).
+
+name: ga-auth-invariants
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  ga-auth-invariants:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace
+        # --all-packages so agentdex_arena + adx_showdown import (the invariant
+        # modules import adx_showdown.sidecar.Sidecar but never spawn a battle,
+        # so no node_modules / live sidecar is needed — the gate stays fast).
+        run: uv sync --all-packages
+
+      - name: Run GA-AUTH security invariant gate
+        # ADX_REQUIRE_GA_BUNDLE=1 turns a missing/broken web/ga bundle from a
+        # silent skip into a hard failure — a skipped security-invariant test is
+        # a false-green, so the passwordless/CSP suite MUST actually execute.
+        env:
+          ADX_REQUIRE_GA_BUNDLE: "1"
+        run: |
+          uv run --no-sync pytest -q \
+            packages/agentdex_arena/tests/test_ga_auth_rate_limit.py \
+            packages/agentdex_arena/tests/test_ga_auth_pages.py \
+            packages/agentdex_arena/tests/test_ga_auth_cookie_csrf.py \
+            packages/agentdex_arena/tests/test_limiter.py \
+            packages/agentdex_arena/tests/test_session_auth.py \
+            packages/agentdex_arena/tests/test_admin_auth.py \
+            packages/agentdex_arena/tests/test_email_login.py \
+            packages/agentdex_arena/tests/test_badge_auth.py \
+            packages/agentdex_arena/tests/test_q5_anti_pay_to_rank_property.py
