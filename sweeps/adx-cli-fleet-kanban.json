@@ -2455,6 +2455,11 @@
           "author": "harness",
           "body": "GA self-serve supergoal card authored by harness-16; see tasks/agentdex-arena-ga/SPEC.md. blast_radius set (anti-collision gate active).",
           "created_at": "2026-06-22T00:20:00Z"
+        },
+        {
+          "author": "harness",
+          "body": "Probe-gated: 6 hash-locked BENE gate(s) (admissible, lock 48496ffe2f7f4d22\u2026). DONE requires probe ACCEPT + eddie-agi-kb approval (completeness) + harness approval (operational completeness). Gate is orchestrator-authored + sha256-locked (fail-closed actor boundary).",
+          "created_at": "2026-06-23T19:29:28Z"
         }
       ],
       "created": "2026-06-22",
@@ -2465,7 +2470,16 @@
       "priority": "P1",
       "status": "todo",
       "title": "arena modes: Single-vs-Bots, UserAgent-vs-UserAgent (selection UI + backend)",
-      "updated_at": "2026-06-22T00:20:00Z"
+      "updated_at": "2026-06-23T19:29:28Z",
+      "probes": {
+        "probe": "kanban-card-GA-ARENA-MODES-9aeb67b0702f",
+        "lock_sha256": "48496ffe2f7f4d229134d3fc727125078364f2dda22fb0ba0cc95559d72c663f",
+        "spec_sha256": "9aeb67b0702fb0287f6f23594d1ae2f6e84accd8e76f1e39283d94ca388568ab",
+        "status": "admissible",
+        "authored_by": "harness",
+        "authored_at": "2026-06-23T19:29:28Z",
+        "db": "/home/admin/gh/harness-engineering/.harness/kanban-probes.db"
+      }
     },
     {
       "assignee": "bene",
