@@ -19,10 +19,12 @@ from agentdex_arena.consent import ConsentAuthority, ConsentClaims, _normalize_o
 from agentdex_arena.eventsync import PVP_MATCH, PVP_QUEUE_ENTER
 from agentdex_arena.gateway import (
     ArenaGateway,
+    BattleSession,
     BeginRequest,
     create_app,
 )
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi import HTTPException
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,36 @@ def _begin_req(gw: ArenaGateway, token: str, key, **kwargs) -> BeginRequest:
         lane="sandbox",
         **kwargs,
     )
+
+
+def _move_request(side: str) -> dict:
+    return {
+        "active": [
+            {
+                "moves": [
+                    {
+                        "move": "Tackle",
+                        "id": "tackle",
+                        "pp": 35,
+                        "maxpp": 35,
+                        "disabled": False,
+                    }
+                ]
+            }
+        ],
+        "side": {
+            "id": side,
+            "pokemon": [
+                {
+                    "ident": f"{side}: Bulbasaur",
+                    "details": "Bulbasaur, L50",
+                    "condition": "100/100",
+                    "active": True,
+                    "moves": ["tackle"],
+                }
+            ],
+        },
+    }
 
 
 # ── ArenaMode field on BeginRequest ───────────────────────────────────────────
@@ -265,10 +297,107 @@ def test_pvp_choose_uses_forfeit_enabled_stale_expiry():
 def test_p2_match_receipt_does_not_return_raw_last_state():
     src = inspect.getsource(gateway_mod.create_app)
     p2_receipt = src.split('"role": "p2"', 1)[1].split("return result", 1)[0]
-    assert "last_state" not in p2_receipt
+    assert '"last_state"' not in p2_receipt
 
 
 def test_p2_disconnect_does_not_cleanup_p1_choice_router():
     src = inspect.getsource(gateway_mod.create_app)
     assert 'pairing.role == "p1"' in src
     assert "gateway.pvp_choice_router.cleanup(battle_id)" in src
+
+
+def test_p2_owner_counts_against_concurrency_cap(gw: ArenaGateway, monkeypatch):
+    monkeypatch.setenv("ARENA_MAX_BATTLES_PER_OWNER", "1")
+    owner = _normalize_owner("p2@example.com")
+    gw.sessions["pvp-live"] = BattleSession(
+        battle_id="pvp-live",
+        claims_token_id="p1-token",
+        visitor_name="AgentA",
+        lane="sandbox",
+        opponent="AgentB",
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type] - cap check only reads owners.
+        opponent_policy=None,
+        owner="p1@example.com",
+        pvp_p2_owner=owner,
+    )
+    with pytest.raises(HTTPException) as exc:
+        gw._reserve_owner_slot(owner)
+    assert exc.value.status_code == 429
+
+
+def test_p2_match_receipt_returns_indexed_choice_options():
+    src = inspect.getsource(gateway_mod.create_app)
+    p2_receipt = src.split('"role": "p2"', 1)[1].split("return result", 1)[0]
+    assert '"choices": [' in p2_receipt
+    assert '"n_choices": len(choices)' in p2_receipt
+    assert '"index": idx' in p2_receipt
+
+
+def test_p2_queue_timeout_is_retryable_not_false_matched():
+    src = inspect.getsource(gateway_mod.create_app)
+    pvp_queue = src.split("async def me_battle_queue", 1)[1].split(
+        '@app.post("/battle/{battle_id}/pvp-choose")', 1
+    )[0]
+    assert "pvp match startup not ready" in pvp_queue
+    assert 'headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")}' in pvp_queue
+
+
+def test_p2_team_invalid_path_does_not_silently_substitute_starter_pack():
+    src = inspect.getsource(gateway_mod.create_app)
+    p2_team_branch = src.split("if pairing.p2_team is not None:", 1)[1].split("else:", 1)[0]
+    assert "opp_team = pairing.p2_team" in p2_team_branch
+    assert "pack_team" not in p2_team_branch
+
+
+def test_pvp_initial_advance_failure_tears_down_published_session():
+    src = inspect.getsource(gateway_mod.create_app)
+    initial_advance = src.split("state = await gateway._advance", 1)[1].split('"role": "p1"', 1)[0]
+    assert "gateway.pvp_choice_router.cleanup(battle_id)" in initial_advance
+    assert "await gateway._stop_battle_robustly(sidecar, battle_id)" in initial_advance
+    assert "gateway.sessions.pop(battle_id, None)" in initial_advance
+
+
+def test_pvp_start_capacity_uses_retry_after_503():
+    src = inspect.getsource(gateway_mod.create_app)
+    pvp_queue = src.split("async def me_battle_queue", 1)[1].split(
+        '@app.post("/battle/{battle_id}/pvp-choose")', 1
+    )[0]
+    assert "arena at capacity" in pvp_queue
+    assert "status_code=503" in pvp_queue
+    assert 'headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")}' in pvp_queue
+
+
+def test_pvp_advance_renders_p1_before_awaiting_p2_choice(gw: ArenaGateway):
+    """Opening simultaneous-choice state must publish P1 before waiting on P2."""
+
+    async def _blocking_p2_policy(_req, _ctx=None):
+        await asyncio.Event().wait()
+
+    async def _go():
+        session = BattleSession(
+            battle_id="pvp-start",
+            claims_token_id="p1-token",
+            visitor_name="AgentA",
+            lane="sandbox",
+            opponent="AgentB",
+            seed=[1, 2, 3, 4],
+            sidecar=None,  # type: ignore[arg-type] - this path must return before stepping.
+            opponent_policy=_blocking_p2_policy,
+        )
+        state = {
+            "pending": {"p1": _move_request("p1"), "p2": _move_request("p2")},
+            "active": {"p1": "Bulbasaur", "p2": "Bulbasaur"},
+            "active_hp": {"p1": 100, "p2": 100},
+            "turns": 1,
+        }
+
+        result = await asyncio.wait_for(
+            gw._advance(session, state, visitor_choice=None),
+            timeout=0.25,
+        )
+        assert result["status"] == "your_move"
+        assert session.last_state is state
+        assert not gw.pvp_choice_router.is_waiting_for_p2("pvp-start")
+
+    asyncio.run(_go())

@@ -1,14 +1,3 @@
----
-title: "agentdex.builders dashboard SPA"
-status: active
-owner: bene
-created: 2026-06-20
-updated: 2026-06-20
-type: reference
-scope: task
-layer: ui
----
-
 # GA-BENE-1 — dashboard SPA assembly (bene lineage, build-ahead)
 
 The **agentdex.builders dashboard**, assembled from the three render-verified
@@ -17,9 +6,9 @@ explicit `bene` deliverable ("`bene` assembles the GA-BENE-1 SPA from the 3 +
 wires live /me/* + SSE + smoke"). Both GA backends are merged (GA-CORE-5 #370,
 GA-CORE-3 #377), so the only step beyond this is the DNS/TLS-gated live smoke.
 
-Checked in under `web/dashboard/` and served by the arena gateway at `/dashboard/`
-when the deploy image includes this directory. The coordination/design home stays
-`tasks/agentdex-builders-ga/`.
+Built ahead in this scratch dir (untracked, same convention as the 3 panels);
+offered to adx-cli for integration into `agentdex-cli/tasks/agentdex-builders-ga/`
++ deploy (adx-cli owns the agentdex.builders deploy lane).
 
 ## What it is
 
@@ -51,17 +40,18 @@ all render, and the honesty gate holds (a real `pokeenv` result is NOT mock-badg
 ## The one data seam — `?live=1` flips fixtures → live (same call shape)
 
 ```
-roster   ./fixtures/me_agents.json          ⇄  GET /me/agents                    (Bearer session token)
+roster   ./fixtures/me_agents.json          ⇄  GET /me/agents                    (session token)
 evo      ./fixtures/done.json               ⇄  GET /me/agents/<id>/evolution
-battle   MockLiveSource(golden fixture)     ⇄  SseLiveSource(battleId, "own")     (GA-CORE-3)
+battle   MockLiveSource(golden fixture)     ⇄  SseLiveSource(battleId, "own", {sessionToken})
 ```
 
-`SseLiveSource` encodes the endpoint-by-intent rule: owner
+`SseLiveSource` already encodes the endpoint-by-intent rule: owner
 `/me/battle/<id>/live` uses `fetch` + `ReadableStream` with
-`Authorization: Bearer <session_token>`, while public spectator
-`/battle/<id>/live` can use native `EventSource`. For live smoke, pass the token
-with `?session_token=...` or set `localStorage.agentdex_session_token` before
-loading `/dashboard/?live=1`.
+`Authorization: Bearer <sessionToken>`, while public `/battle/<id>/live` remains native
+`EventSource` with no credentials. `app.js` accepts the token from
+`window.AGENTDEX_SESSION_TOKEN`, `?session_token=...` for smoke, or
+`localStorage.agentdex_session_token`; the production shell should inject it without
+putting tokens in URLs.
 
 ## Remaining for integration (adx-cli's deploy lane)
 
@@ -71,5 +61,5 @@ loading `/dashboard/?live=1`.
 3. **Design polish (adx-cli design lane)** — agent_hud + evo were authored on the
    Geist token set; this shell unifies everything onto the DESIGN/dashboard.html
    tokens (Chakra Petch / IBM Plex Mono). A design pass can reconcile fonts/weights.
-4. **Task-home docs** — keep contract/design coordination in
-   `tasks/agentdex-builders-ga/`; deployable bits live here in `web/dashboard/`.
+4. **Home** — land under `agentdex-cli/tasks/agentdex-builders-ga/` and mount on
+   the deploy.
