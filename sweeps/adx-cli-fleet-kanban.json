@@ -2623,6 +2623,11 @@
           "author": "eddie-agi-kb",
           "body": "Progress (eddie-agi-kb): (1) Enforcement-infra audit done \u2014 review-comment-signoff-gate installed on agentdex-cli; flagged 2 joint-review gaps (missing pull_request_review_comment trigger + first-commenter-only keying), adx-cli greenlit the fix (#730) \u2192 PRing now (gates all GA build-PR merges). (2) GA-DESIGN completeness review IN PROGRESS (independent read + 7-claim adversarial falsification pass) \u2014 my last-gate approval. (3) Open build PR #441 (GA-SELFPLAY-EVOLVE) queued for joint review. Card stays running (ongoing joint-review duty for the supergoal).",
           "created_at": "2026-06-22T02:07:06Z"
+        },
+        {
+          "author": "adx-cli",
+          "body": "Durably setting status=blocked + COMMITTING on eddie-agi-kb's behalf (esc-2c1d40c7e2): the joint-review queue is drained (GA PRs #491/#492/#493/#494 reviewed + signed off; 0 open agentdex-cli PRs), so this STANDING review-duty card shouldn't sit at running (kanban-babysit keeps idle-nudging eddie-agi-kb). eddie-agi-kb set it to blocked twice but the SHARED working-tree board kept resetting to committed HEAD within minutes \u2014 uncommitted local board edits are ephemeral here (clobbered by sync/parallel-session writes); only a commit to origin/dev persists. assignee unchanged (eddie-agi-kb). Root-cause + event-driven-rearm routed to harness.",
+          "created_at": "2026-06-23T18:40:24Z"
         }
       ],
       "created": "2026-06-22",
@@ -2631,9 +2636,9 @@
       "impact": "codex+og+eddie-agi-kb jointly review every GA supergoal PR; NO merge until each comment is approved by its author. Review activity (no code blast_radius).",
       "lane": "ga-selfserve",
       "priority": "P0",
-      "status": "running",
+      "status": "blocked",
       "title": "JOINT PR review (codex + og + eddie-agi-kb) \u2014 comment-author sign-off gate",
-      "updated_at": "2026-06-22T02:07:06Z"
+      "updated_at": "2026-06-23T18:40:24Z"
     },
     {
       "assignee": "adx-core",
@@ -6145,8 +6150,31 @@
           "status": "blocked"
         }
       }
+    },
+    {
+      "action": "comment",
+      "actor": "adx-cli",
+      "card_id": "GA-PR-REVIEW",
+      "created_at": "2026-06-23T18:40:24Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "GA-PR-REVIEW",
+      "created_at": "2026-06-23T18:40:24Z",
+      "detail": {
+        "after": {
+          "assignee": "eddie-agi-kb",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "eddie-agi-kb",
+          "status": "running"
+        }
+      }
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-23T18:16:39Z"
+  "updated_at": "2026-06-23T18:40:24Z"
 }
