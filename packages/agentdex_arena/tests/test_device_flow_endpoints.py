@@ -10,11 +10,13 @@ unconfigured posture (no session auth / no device-flow)."""
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from adx_showdown.sidecar import Sidecar
 from agentdex_arena.consent import ConsentAuthority
 from agentdex_arena.device_flow import (
     GITHUB_ACCESS_TOKEN_URL,
+    GITHUB_AUTHORIZE_URL,
     GITHUB_DEVICE_CODE_URL,
     GITHUB_EMAILS_URL,
     GITHUB_USER_URL,
@@ -68,6 +70,20 @@ def _authorized_script():
         GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
         GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
     }
+
+
+def _setcookie(resp, name):
+    for line in resp.headers.get_list("set-cookie"):
+        if line.startswith(f"{name}="):
+            return line
+    return ""
+
+
+def _cookie_value(resp, name):
+    line = _setcookie(resp, name)
+    if not line:
+        return ""
+    return line.split(";", 1)[0].split("=", 1)[1]
 
 
 def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=True):
@@ -136,6 +152,72 @@ def test_poll_pending_then_authorized_full_login(tmp_path):
     assert claims.owner == _OWNER
     assert claims.github_id == _GH_ID
     assert body["expires_at"] == claims.expires_at
+
+
+# ---- browser OAuth: /auth/github -> /oauth/github ----
+
+
+def test_browser_github_start_redirects_with_state_and_pkce(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport({}))
+    with _client(gw) as c:
+        r = c.get("/auth/github", follow_redirects=False)
+    assert r.status_code == 302
+    loc = r.headers["location"]
+    parsed = urlparse(loc)
+    assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == GITHUB_AUTHORIZE_URL
+    qs = parse_qs(parsed.query)
+    assert qs["client_id"] == ["Iv1.test"]
+    assert qs["redirect_uri"] == ["http://testserver/oauth/github"]
+    assert qs["scope"] == ["read:user user:email"]
+    assert qs["state"] == [_cookie_value(r, "arena_oauth_state")]
+    assert qs["code_challenge_method"] == ["S256"]
+    assert len(qs["code_challenge"][0]) == 43
+    state_cookie = _setcookie(r, "arena_oauth_state").lower()
+    pkce_cookie = _setcookie(r, "arena_oauth_pkce").lower()
+    assert "httponly" in state_cookie and "secure" in state_cookie
+    assert "httponly" in pkce_cookie and "secure" in pkce_cookie
+
+
+def test_browser_github_callback_mints_web_session_without_returning_tokens(tmp_path):
+    transport = _FakeTransport(
+        {
+            GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
+            GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
+            GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+        }
+    )
+    gw = _gateway(tmp_path, transport=transport)
+    with _client(gw) as c:
+        start = c.get("/auth/github", follow_redirects=False)
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={"arena_oauth_state": state, "arena_oauth_pkce": verifier},
+            follow_redirects=False,
+        )
+    assert done.status_code == 303, done.text
+    assert done.headers["location"] == "/dashboard/"
+    assert "arena_session=" in _setcookie(done, "arena_session")
+    assert "httponly" in _setcookie(done, "arena_session").lower()
+    assert "arena_csrf=" in _setcookie(done, "arena_csrf")
+    assert gw.accounts.owner_for(_GH_ID) == _OWNER
+    method, url, _headers, body = transport.calls[0]
+    assert method == "POST" and url == GITHUB_ACCESS_TOKEN_URL
+    assert body["code"] == "abc123"
+    assert body["redirect_uri"] == "http://testserver/oauth/github"
+    assert body["code_verifier"] == verifier
+
+
+def test_browser_github_callback_rejects_state_mismatch(tmp_path):
+    gw = _gateway(tmp_path, transport=_FakeTransport({}))
+    with _client(gw) as c:
+        r = c.get(
+            "/oauth/github?code=abc123&state=attacker",
+            cookies={"arena_oauth_state": "real", "arena_oauth_pkce": "verifier"},
+            follow_redirects=False,
+        )
+    assert r.status_code == 403
 
 
 def test_successful_login_writes_durable_account_link(tmp_path):
