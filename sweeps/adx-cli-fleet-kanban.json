@@ -2556,7 +2556,7 @@
       "created": "2026-06-22",
       "created_by": "harness",
       "id": "GA-DEPLOY",
-      "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker 29.5.3 + Caddy auto-TLS serving agentdex.builders, arena on :8889). UNBLOCKED. Still blocked on GA-DESIGN + build cards.",
+      "impact": "Ship to agentdex.builders on Lightsail agentdex-arena-1 \u2014 TARGET CONFIRMED + reachable (54.203.252.69, user ubuntu, key ~/.ssh/agentdex-arena.pem; Docker + Caddy auto-TLS serving agentdex.builders, arena on :8889). GA-DESIGN satisfied (probe-gate done 2026-06-22); still BLOCKED on the unfinished build cards GA-AUTH/GA-ENROLL/GA-PAID-STRIPE (adx-core), GA-ARENA-MODES (bene-core), GA-SELFPLAY-EVOLVE (bene). Deploy mechanism = dev->main promotion (ga-deploy.yml lives on origin/main, NOT origin/dev).",
       "lane": "ga-selfserve",
       "priority": "P0",
       "status": "blocked",
@@ -5893,6 +5893,22 @@
       "card_id": "ADX-PX-csp-hardening",
       "created_at": "2026-06-23T13:13:27Z",
       "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "adx-cli",
+      "card_id": "ADX-PX-csp-hardening",
+      "created_at": "2026-06-23T13:13:27Z",
+      "detail": {
+        "after": {
+          "assignee": "adx-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "adx-cli",
+          "status": "blocked"
+        }
+      }
     }
   ],
   "schema_version": 1,
