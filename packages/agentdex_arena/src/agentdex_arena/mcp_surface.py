@@ -462,6 +462,7 @@ async def selfplay_battle(
     harness_b: dict[str, Any],
     seed: int,
     n_battles: int = 10,
+    mode: str | None = None,
 ) -> dict[str, Any]:
     """Run a self-play matchup on the Pokémon Showdown server: ``harness_a`` (the
     candidate) vs ``harness_b`` over ``n_battles``, returning the Contract-2
@@ -469,6 +470,14 @@ async def selfplay_battle(
     the evolution-loop surface codex drives (ADR-0014); it is EVAL, not a rated
     arena battle, so it spends NO battle quota. Required scope: 'battle'. Needs a
     running PS server (ADX_PS_HOST/PORT); ``n_battles`` is capped at 50.
+
+    Optional ``mode`` (``solo_bots|pvp|team|selfplay``, the GA-SELFPLAY-EVOLVE
+    arena-mode contract): when set, the runner resolves the battle format via the
+    ``team_modes`` substrate instead of the default ``gen9randombattle``. ``None``
+    keeps existing behavior (back-compat for current MCP callers). Modes that
+    resolve to a doubles or ``team_required`` format raise
+    ``RunnerNotReadyForFormat`` today — fail-loud, not silently broken — until
+    the player-side increments (per-slot decision + team-builder) land.
 
     The opponent label in the result is DERIVED from ``harness_b`` (never caller-
     supplied), so a run cannot be mislabeled as having beaten an anchored held-out
@@ -504,7 +513,12 @@ async def selfplay_battle(
 
     try:
         result = await run_selfplay_battle(
-            a, b, seed=int(seed), n_battles=n, opponent_baseline=_selfplay_opponent_label(b)
+            a,
+            b,
+            seed=int(seed),
+            n_battles=n,
+            opponent_baseline=_selfplay_opponent_label(b),
+            mode=mode,
         )
     except Exception as e:  # PS-server / poke-env failure
         raise _opaque_mcp_error("selfplay_battle", e) from None

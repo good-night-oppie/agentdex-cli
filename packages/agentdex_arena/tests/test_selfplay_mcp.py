@@ -56,3 +56,17 @@ def test_tool_is_importable():
     from agentdex_arena import mcp_surface
 
     assert hasattr(mcp_surface, "selfplay_battle")
+
+
+def test_tool_exposes_mode_param():
+    # GA-SELFPLAY-EVOLVE: the MCP surface MUST expose ``mode`` so callers can
+    # drive the runner by arena mode (solo_bots|pvp|team|selfplay). Without
+    # this, the documented arena entrypoint cannot use the bridge that
+    # ``run_selfplay_battle`` exposes (Codex P2 on PR #485).
+    import inspect
+
+    from agentdex_arena import mcp_surface
+
+    sig = inspect.signature(mcp_surface.selfplay_battle)
+    assert "mode" in sig.parameters
+    assert sig.parameters["mode"].default is None  # back-compat default
