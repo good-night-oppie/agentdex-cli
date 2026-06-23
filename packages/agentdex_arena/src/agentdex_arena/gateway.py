@@ -1802,6 +1802,16 @@ class ArenaGateway:
             # are atomic (no await between them); the second caller only runs once we
             # await below, by which point session.forfeiting is already True.
             session.forfeiting = True
+            # PvP-aware forfeit side. In UserAgent-vs-UserAgent mode, the engine
+            # can be suspended waiting for P2's explicit choice via the PvP
+            # router; if that side blew the turn budget, the timeout MUST be
+            # charged to P2 — the prior visitor-only code always charged P1, so
+            # P2 timing out wrongly counted as a P1 forfeit and inverted the
+            # PvP outcome (PR #508 review). The visitor (P1) path is unchanged.
+            p2_on_clock = self.pvp_choice_router.is_waiting_for_p2(session.battle_id)
+            other_side = "p2" if session.visitor_side == "p1" else "p1"
+            forfeit_side = other_side if p2_on_clock else session.visitor_side
+            timeout_winner = session.visitor_name if p2_on_clock else session.opponent
             try:
                 input_log = []
                 if session.sidecar is not None:
@@ -1809,7 +1819,7 @@ class ArenaGateway:
                         resp = await session.sidecar.request(
                             "stop",
                             battle=session.battle_id,
-                            forfeit_side=session.visitor_side,
+                            forfeit_side=forfeit_side,
                         )
                         if len(session.visitor_choices) > 0:
                             input_log = list(resp.get("inputLog") or [])
@@ -1818,7 +1828,7 @@ class ArenaGateway:
                 await self._finish(
                     session,
                     {
-                        "winner": session.opponent,
+                        "winner": timeout_winner,
                         "turns": session.turns,
                         "inputLog": input_log,
                         "keyLines": [],
