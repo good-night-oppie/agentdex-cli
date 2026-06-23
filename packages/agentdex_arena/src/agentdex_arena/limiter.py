@@ -114,7 +114,13 @@ class TouchDrivenRateLimiter:
     def record_failure(self, key: str) -> None:
         """Count a failed attempt for ``key``; trip the lockout at the threshold."""
         now = self._now()
+        # Same bounded-touch cleanup as acquire(): the failure path also inserts new
+        # keys, so a unique-key failure flood (random emails / codes) must run the
+        # lazy evict + hard cap or it grows _store past ``capacity``, defeating the
+        # memory bound this module guarantees.
+        self._evict_idle(now)
         state = self._touch(key, now)
+        self._enforce_cap()
         state[_FAILS] += 1.0
         if self.max_failures and state[_FAILS] >= self.max_failures:
             state[_LOCK] = now + self.lockout_sec

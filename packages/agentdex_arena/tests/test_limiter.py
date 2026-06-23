@@ -59,6 +59,17 @@ def test_memory_is_hard_bounded_under_a_volumetric_attack():
     assert len(lim._store) <= 100  # force-eviction kept it bounded — no OOM
 
 
+def test_failure_path_is_also_hard_bounded_under_a_volumetric_attack():
+    # The brute-force path inserts keys too; a unique-email/code failure flood must
+    # obey the same hard cap as acquire() or it grows _store past capacity (OOM).
+    lim = TouchDrivenRateLimiter(
+        max_tokens=1, refill_per_sec=1e-9, max_failures=3, lockout_sec=900.0, capacity=100
+    )
+    for i in range(500):  # 5x capacity of distinct failing keys
+        lim.record_failure(f"user-{i}@x")
+    assert len(lim._store) <= 100  # failure path force-evicts the LRU front too
+
+
 def test_idle_entries_are_lazily_evicted_on_touch():
     clk = _Clock()
     lim = TouchDrivenRateLimiter(max_tokens=2, refill_per_sec=1.0, now=clk)
