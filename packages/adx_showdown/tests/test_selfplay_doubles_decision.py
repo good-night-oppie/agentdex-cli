@@ -2,8 +2,8 @@
 
 Offline tests for the doubles-defer path: ``HarnessPlayer.choose_move`` now
 detects a ``DoubleBattle`` via shape probe (``_is_doubles_battle``) and routes
-ALL strategies through the seeded random path on doubles, because ``valid_orders``
-is topology-agnostic (returns ``DoubleBattleOrder`` on doubles) while
+ALL strategies through poke-env's ``choose_random_move`` on doubles, because ``valid_orders``
+is nested per active slot on doubles while
 ``available_moves`` is shape-shifted (``list[list[Move]]`` on doubles vs
 ``list[Move]`` on singles), which would misfeed ``max_base_power_choice`` /
 ``select_codex_move``.
@@ -85,8 +85,8 @@ def test_missing_attributes_default_to_singles():
 # An end-to-end behavioral test against a real ``HarnessPlayer`` would need
 # poke-env websocket scaffolding; the shape-probe tests above are the offline
 # contract for ``_is_doubles_battle`` — the only routing seam in
-# ``choose_move`` (which immediately defers to ``_seeded_order`` when the probe
-# returns True, sampling ``valid_orders`` which is topology-agnostic). Bridge
-# tests in ``test_selfplay_mode_bridge.py`` cover that doubles formats are no
-# longer rejected at the format-resolution layer. Live doubles verification
-# belongs to the next increment (live PS-server e2e).
+# ``choose_move``. ``test_selfplay_runner.py`` covers that the doubles branch
+# calls poke-env's ``choose_random_move`` instead of the singles-only seeded
+# order sampler. Bridge tests in ``test_selfplay_mode_bridge.py`` cover that
+# doubles formats are no longer rejected at the format-resolution layer. Live
+# doubles verification belongs to the next increment (live PS-server e2e).

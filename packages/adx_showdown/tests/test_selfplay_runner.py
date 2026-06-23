@@ -44,6 +44,15 @@ class _Battle:
         self.turn = 1
 
 
+class _DoubleBattle:
+    def __init__(self) -> None:
+        self.available_moves = [[_Move("tackle", 40)], [_Move("ember", 40)]]
+        self.available_switches = []
+        self.valid_orders = [[_Order("/choose move tackle")], [_Order("/choose move ember")]]
+        self.force_switch = [False, False]
+        self.turn = 1
+
+
 def _install_fake_poke_env(monkeypatch: pytest.MonkeyPatch) -> None:
     class _FakePlayer:
         def __init__(self, **_kw) -> None:
@@ -84,6 +93,22 @@ def test_native_strategy_dispatch_does_not_use_codex_adapter(monkeypatch):
     )
     chosen = asyncio.run(player.choose_move(_Battle([_Move("tackle", 40), _Move("eruption", 150)])))
     assert chosen == ("order", "eruption")
+
+
+def test_doubles_choose_move_uses_poke_env_random_order(monkeypatch):
+    """DoubleBattle.valid_orders is nested; choose_move must not feed it to _seeded_order."""
+    from adx_showdown.selfplay.runner import make_harness_player
+
+    _install_fake_poke_env(monkeypatch)
+    player = make_harness_player(
+        BattleHarness(harness_id="native-doubles", move_selection_strategy="max_damage"),
+        server=object(),
+    )
+    battle = _DoubleBattle()
+
+    chosen = asyncio.run(player.choose_move(battle))
+
+    assert chosen == ("random", battle)
 
 
 def test_runner_dispatch_tracks_codex_strategy_constant(monkeypatch):
