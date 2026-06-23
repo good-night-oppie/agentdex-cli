@@ -540,3 +540,125 @@ def project_frame(lines: list[str], *, side: str) -> list[str]:
         out.append(ln)
         i += 1
     return out
+
+
+# ---------------------------------------------------------------------------
+# UI-5: server-side scene snapshot
+# ---------------------------------------------------------------------------
+
+
+def _parse_hpstatus(hpstatus: str) -> tuple[float, str]:
+    """Parse ``'cur/max [STATUS]'`` or ``'0 fnt'`` into ``(hpFrac, status)``."""
+    parts = hpstatus.strip().split(None, 2)
+    if not parts:
+        return 1.0, ""
+    hp_part = parts[0]
+    status = parts[1] if len(parts) > 1 else ""
+    if hp_part == "0" and status == "fnt":
+        return 0.0, "fnt"
+    if "/" in hp_part:
+        try:
+            cur_s, max_s = hp_part.split("/", 1)
+            cur, mx = float(cur_s), float(max_s)
+            return (cur / mx if mx > 0 else 0.0), status
+        except ValueError:
+            pass
+    return 1.0, status
+
+
+def scene_initial() -> dict:
+    """Return a default scene state dict for incremental accumulation."""
+    return {
+        "p1": {"name": "", "hpFrac": 1.0, "status": ""},
+        "p2": {"name": "", "hpFrac": 1.0, "status": ""},
+        "weather": "",
+    }
+
+
+def fold_scene(lines: list[str], state: dict) -> None:
+    """Update mutable *state* in-place from PROJECTED protocol lines.
+
+    Caller passes the same dict on every frame to get a running cumulative
+    scene snapshot (name + hpFrac + status per side + weather).
+    """
+    for raw_line in lines:
+        lt = line_type(raw_line)
+        if lt in NONDETERMINISTIC_TYPES:
+            continue
+        ev = parse_line(raw_line)
+
+        if lt == "player":
+            parts = raw_line.split("|")
+            if len(parts) >= 4:
+                player_side = parts[2]
+                if player_side in ("p1", "p2"):
+                    state[player_side]["name"] = parts[3]
+
+        elif lt in ("switch", "drag", "replace", "detailschange"):
+            if len(ev.args) >= 3:
+                ident = ev.idents[0] if ev.idents else None
+                hp_frac, status = _parse_hpstatus(ev.args[2])
+                if ident and ident.side in ("p1", "p2"):
+                    s = state[ident.side]
+                    if ident.name:
+                        s["name"] = ident.name
+                    s["hpFrac"] = hp_frac
+                    if status:
+                        s["status"] = status
+
+        elif lt in ("-damage", "-heal", "-sethp"):
+            if len(ev.args) >= 2:
+                ident = ev.idents[0] if ev.idents else None
+                hp_frac, status = _parse_hpstatus(ev.args[1])
+                if ident and ident.side in ("p1", "p2"):
+                    s = state[ident.side]
+                    s["hpFrac"] = hp_frac
+                    if status:
+                        s["status"] = status
+
+        elif lt == "faint":
+            ident = ev.idents[0] if ev.idents else None
+            if ident and ident.side in ("p1", "p2"):
+                state[ident.side]["hpFrac"] = 0.0
+                state[ident.side]["status"] = "fnt"
+
+        elif lt == "-status":
+            if len(ev.args) >= 2:
+                ident = ev.idents[0] if ev.idents else None
+                if ident and ident.side in ("p1", "p2"):
+                    state[ident.side]["status"] = ev.args[1]
+
+        elif lt == "-curestatus":
+            ident = ev.idents[0] if ev.idents else None
+            if ident and ident.side in ("p1", "p2"):
+                state[ident.side]["status"] = ""
+
+        elif lt == "-weather":
+            if ev.args:
+                w = ev.args[0]
+                state["weather"] = "" if w.lower() == "none" else w
+
+
+# ---------------------------------------------------------------------------
+# UI-6: per-move reasoning trace extraction
+# ---------------------------------------------------------------------------
+
+
+def extract_trace_lines(lines: list[str]) -> list[dict]:
+    """Extract reasoning/say entries from PROJECTED protocol lines.
+
+    Returns ``[{side, text}, ...]`` for every ``|-reasoning|SIDE|TEXT`` and
+    ``|say|SIDE|TEXT`` line.  Attach as ``trace_lines`` in the SSE payload so
+    the Agent Pane can render per-move rationale.
+    """
+    out: list[dict] = []
+    for raw_line in lines:
+        lt = line_type(raw_line)
+        if lt not in (REASONING_TYPE, SAY_TYPE):
+            continue
+        ev = parse_line(raw_line)
+        if len(ev.args) >= 2:
+            out.append({"side": ev.args[0], "text": ev.args[1]})
+        elif len(ev.args) == 1:
+            out.append({"side": "", "text": ev.args[0]})
+    return out

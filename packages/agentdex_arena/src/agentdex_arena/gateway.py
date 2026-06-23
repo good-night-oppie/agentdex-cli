@@ -2513,8 +2513,12 @@ async def _sse_battle_stream(
     spectator must not decide when a rated battle is durably committed (PR #377 review
     3443669242). Frame-buffer reclamation still runs either way.
     """
+    from adx_showdown.lineproto import extract_trace_lines, fold_scene, scene_initial
+
     poll_sec = float(os.environ.get("ARENA_SSE_POLL_SEC", "0.4"))
     sent = 0
+    # UI-5: running scene state accumulated across all frames sent so far.
+    _scene: dict = scene_initial()
     # NOTE: _BattleSseResponse registered the viewer before returning the response
     # object, and owns the matching decrement in its ASGI-call finally. Keep the
     # generator refcount-free: unstarted async generators do not run finally blocks.
@@ -2532,12 +2536,23 @@ async def _sse_battle_stream(
         while sent < len(frames):
             fr = frames[sent]
             sent += 1
+            projected = project_frame(fr.get("raw_lines") or [], side=side)
+            # UI-5: update cumulative scene state from this frame's projected lines.
+            fold_scene(projected, _scene)
+            # UI-6: extract per-move reasoning/say trace from this frame.
+            trace_lines = extract_trace_lines(projected)
             payload = {
                 "battle_id": session.battle_id,
                 "turn": fr.get("turn", 0),
                 "seq": fr.get("seq", sent),
                 "side": side,
-                "lines": project_frame(fr.get("raw_lines") or [], side=side),
+                "lines": projected,
+                "scene": {
+                    "p1": dict(_scene["p1"]),
+                    "p2": dict(_scene["p2"]),
+                    "weather": _scene["weather"],
+                },
+                "trace_lines": trace_lines,
                 "ts_ms": int(gateway.now() * 1000),
             }
             yield f"data: {json.dumps(payload)}\n\n"
