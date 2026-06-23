@@ -4164,7 +4164,7 @@ def create_app(
         )
 
     # agentdex.builders SELF-SERVE funnel — GET /signup, /login, /enroll page routes
-    # (ADX-Online Track A, GA-AUTH steps 2-3). Serves the GA self-serve SPA that
+    # plus the arena-mode entry aliases /modes, /arena, /battle/new. Serves the GA self-serve SPA that
     # tools/ga_spa/build.mjs compiles (CSP-safe: build-time JSX, vendored React, no
     # eval / no CDN / no inline JS) from design/ga-selfserve/ into web/ga/, which the
     # Dockerfile ships via `COPY web/` (design/ is NOT in the image, so the old
@@ -4184,7 +4184,7 @@ def create_app(
             # location.pathname to select the initial funnel screen.
             return FileResponse(str(_ga_index), media_type="text/html")
 
-        for _ga_entry in ("/signup", "/login", "/enroll"):
+        for _ga_entry in ("/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"):
             app.add_api_route(_ga_entry, _ga_page, methods=["GET"], include_in_schema=False)
 
     return app
