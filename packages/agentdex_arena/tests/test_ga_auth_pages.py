@@ -188,15 +188,29 @@ def test_funnel_wires_the_auth_backends(tmp_path, monkeypatch):
     for endpoint in (
         "/auth/github",
         "/auth/github/status",
-        "/auth/github?next=",
         "/auth/email/start",
         "/auth/email/verify?web=1",
         "/auth/device/start",
         "/auth/device/poll?web=1",
     ):
         assert endpoint in screens, f"funnel does not wire {endpoint}"
+    assert "new URLSearchParams" in screens and "next: returnTo" in screens
     assert "location.assign" in screens, "browser GitHub OAuth CTA must redirect"
     assert "setErr(authErr" in screens and "r.status" in screens
+
+
+@_needs_ga
+def test_connect_github_cta_uses_link_intent_only_after_login(tmp_path, monkeypatch):
+    # The post-login "Connect with GitHub" CTA is an account-link flow and must pass
+    # link=1. The signup/login "Continue with GitHub" CTAs are login flows and must
+    # not set link intent, or stale-session owner preservation is re-opened.
+    monkeypatch.chdir(_REPO_ROOT)
+    screens = _client(tmp_path).get("/ga/app/screens.js").text
+    assert "new URLSearchParams" in screens
+    assert "params.set('link', '1')" in screens
+    assert screens.count("link: true") == 1
+    assert "Connect with GitHub" in screens
+    assert "Continue with GitHub" in screens
 
 
 @_needs_ga

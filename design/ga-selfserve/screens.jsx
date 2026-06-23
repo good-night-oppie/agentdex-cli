@@ -42,8 +42,10 @@ function authErr(r) {
 // A poll outcome carries `owner` on success; `status` ∈ {pending,denied,expired} otherwise.
 function isAuthed(r) { return r.ok && r.data && typeof r.data.owner === 'string'; }
 
-async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll' } = {}) {
-  const target = '/auth/github?next=' + encodeURIComponent(returnTo);
+async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll', link = false } = {}) {
+  const params = new URLSearchParams({ next: returnTo });
+  if (link) params.set('link', '1');
+  const target = '/auth/github?' + params.toString();
   if (setErr) setErr('');
   if (setBusy) setBusy(true);
   try {
@@ -285,7 +287,7 @@ function GithubScreen({ go }) {
         </div>
       </DS.Card>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 18 }}>
-        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr })} disabled={busy}>Connect with GitHub</DS.Button>
+        <DS.Button variant="primary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr, link: true })} disabled={busy}>Connect with GitHub</DS.Button>
         <DS.Button variant="ghost" onClick={() => go('enroll')}>Skip for now</DS.Button>
       </div>
       {err ? <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, marginTop: 12, color: 'var(--text-winner)' }}>{err}</p> : null}
