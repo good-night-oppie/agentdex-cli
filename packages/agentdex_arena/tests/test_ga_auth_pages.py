@@ -126,6 +126,25 @@ def test_no_password_in_compiled_funnel(tmp_path, monkeypatch):
 
 
 @_needs_ga
+def test_funnel_wires_the_auth_backends(tmp_path, monkeypatch):
+    # F1 anti-dead-stub floor: the served funnel must actually CALL the /auth/* backends,
+    # not just navigate locally (the buttons were `onClick={()=>go('github')}` with zero
+    # network — a funnel that serves 200 but can never sign anyone in). Pins that the
+    # compiled bundle issues same-origin fetches to all four endpoints, with ?web=1 on
+    # the session-establishing verify/poll so the token lands in the HttpOnly cookie.
+    monkeypatch.chdir(_REPO_ROOT)
+    screens = _client(tmp_path).get("/ga/app/screens.js").text
+    assert "fetch(" in screens, "funnel issues no network call (dead-stub regression)"
+    for endpoint in (
+        "/auth/email/start",
+        "/auth/email/verify?web=1",
+        "/auth/device/start",
+        "/auth/device/poll?web=1",
+    ):
+        assert endpoint in screens, f"funnel does not wire {endpoint}"
+
+
+@_needs_ga
 def test_css_surface_is_same_origin(tmp_path, monkeypatch):
     # No third-party origin anywhere in the served CSS: the Google Fonts @import is
     # stripped at build time so the auth funnel never beacons to fonts.googleapis.com /
