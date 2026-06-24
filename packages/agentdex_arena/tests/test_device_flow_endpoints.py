@@ -29,6 +29,8 @@ from fastapi.testclient import TestClient
 
 _OWNER = "eddie@oppie.xyz"
 _GH_ID = "12345678"
+_WEB_PUBLIC_BASE = "https://arena.example"
+_WEB_CLIENT_SECRET = "web-oauth-test-value"
 
 
 class _FakeTransport:
@@ -86,7 +88,15 @@ def _cookie_value(resp, name):
     return line.split(";", 1)[0].split("=", 1)[1]
 
 
-def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=True):
+def _gateway(
+    tmp_path: Path,
+    *,
+    transport=None,
+    with_session=True,
+    with_flow=True,
+    public_base_url: str = _WEB_PUBLIC_BASE,
+    client_secret: str = _WEB_CLIENT_SECRET,
+):
     authority = ConsentAuthority(
         signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
     )
@@ -96,7 +106,11 @@ def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=Tru
         else None
     )
     flow = (
-        GitHubDeviceFlow(client_id="Iv1.test", transport=transport or (lambda *a: (200, {})))
+        GitHubDeviceFlow(
+            client_id="Iv1.test",
+            client_secret=client_secret,
+            transport=transport or (lambda *a: (200, {})),
+        )
         if with_flow
         else None
     )
@@ -107,6 +121,7 @@ def _gateway(tmp_path: Path, *, transport=None, with_session=True, with_flow=Tru
         notify_owner=lambda owner, code: None,
         session_authority=session,
         device_flow=flow,
+        public_base_url=public_base_url,
     )
 
 
@@ -167,7 +182,7 @@ def test_browser_github_start_redirects_with_state_and_pkce(tmp_path):
     assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == GITHUB_AUTHORIZE_URL
     qs = parse_qs(parsed.query)
     assert qs["client_id"] == ["Iv1.test"]
-    assert qs["redirect_uri"] == ["http://testserver/oauth/github"]
+    assert qs["redirect_uri"] == [f"{_WEB_PUBLIC_BASE}/oauth/github"]
     assert qs["scope"] == ["read:user user:email"]
     assert qs["state"] == [_cookie_value(r, "arena_oauth_state")]
     assert qs["code_challenge_method"] == ["S256"]
@@ -207,8 +222,57 @@ def test_browser_github_callback_mints_web_session_without_returning_tokens(tmp_
     method, url, _headers, body = transport.calls[0]
     assert method == "POST" and url == GITHUB_ACCESS_TOKEN_URL
     assert body["code"] == "abc123"
-    assert body["redirect_uri"] == "http://testserver/oauth/github"
+    assert body["redirect_uri"] == f"{_WEB_PUBLIC_BASE}/oauth/github"
     assert body["code_verifier"] == verifier
+    assert body["client_secret"] == _WEB_CLIENT_SECRET
+
+
+def test_browser_github_start_requires_public_base_url(tmp_path):
+    gw = _gateway(tmp_path, public_base_url="")
+    with _client(gw) as c:
+        status = c.get("/auth/github/status")
+        start = c.get("/auth/github", follow_redirects=False)
+    assert status.status_code == 503
+    assert start.status_code == 503
+
+
+def test_browser_github_start_requires_client_secret(tmp_path):
+    gw = _gateway(tmp_path, client_secret="")
+    with _client(gw) as c:
+        status = c.get("/auth/github/status")
+        start = c.get("/auth/github", follow_redirects=False)
+    assert status.status_code == 503
+    assert start.status_code == 503
+
+
+def test_browser_github_callback_missing_secret_fails_before_exchange(tmp_path):
+    transport = _FakeTransport(
+        {
+            GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
+        }
+    )
+    gw = _gateway(tmp_path, transport=transport, client_secret="")
+    with _client(gw) as c:
+        done = c.get(
+            "/oauth/github?code=abc123&state=real",
+            cookies={"arena_oauth_state": "real", "arena_oauth_pkce": "verifier"},
+            follow_redirects=False,
+        )
+    assert done.status_code == 503
+    assert transport.calls == []
+
+
+def test_device_start_does_not_require_client_secret(tmp_path):
+    gw = _gateway(
+        tmp_path,
+        transport=_FakeTransport(_start_script()),
+        client_secret="",
+    )
+    with _client(gw) as c:
+        device = c.post("/auth/device/start")
+        browser = c.get("/auth/github/status")
+    assert device.status_code == 200
+    assert browser.status_code == 503
 
 
 def test_browser_github_roundtrip_can_return_to_ga_funnel(tmp_path):
