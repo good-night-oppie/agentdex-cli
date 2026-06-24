@@ -14,8 +14,10 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import math
 import os
 import statistics
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -24,6 +26,45 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_LEVELS = "1,2,4,8,16,32,64,100"
+
+# (base-URL env, matching bearer-token env) — selected as a PAIR so the token always
+# matches the proxy it is sent to. Resolving them independently could send e.g.
+# AI_BUILDER_TOKEN to OPENAI_BASE_URL — leaking the credential to the wrong service AND
+# measuring a different proxy than the production decision path (#528 review).
+_PROXY_PROVIDERS: list[tuple[str, str]] = [
+    ("AI_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN"),
+    ("ADX_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN"),
+    ("PURE100_PROXY_URL", "PURE100_PROXY_KEY"),
+    ("OPENAI_BASE_URL", "OPENAI_API_KEY"),
+]
+# The arena bridge's default proxy (adx_bridges/showdown_battle_bridge.py) — fall back to
+# it so the probe measures the SAME path the arena LLM bridge uses for ADR-0012.
+_BRIDGE_DEFAULT_PROXY = "https://space.ai-builders.com/backend/v1"
+
+
+def _resolve_base_and_token(base_url_arg: str | None, token_env_arg: str) -> tuple[str, str | None]:
+    """Resolve (base_url, token) as a matched pair. Default base URL = the first provider
+    whose URL env is set, else the bridge default; the token is always the env bound to the
+    chosen provider. An explicit --base-url binds the matching provider's token when it is a
+    known proxy, else falls back to the explicit --token-env list."""
+    base_url = base_url_arg
+    token_env: str | None = None
+    if not base_url:
+        for url_env, tok_env in _PROXY_PROVIDERS:
+            if os.environ.get(url_env):
+                base_url, token_env = os.environ[url_env], tok_env
+                break
+        else:
+            base_url, token_env = _BRIDGE_DEFAULT_PROXY, "AI_BUILDER_TOKEN"
+    else:
+        for url_env, tok_env in _PROXY_PROVIDERS:
+            if os.environ.get(url_env) == base_url:
+                token_env = tok_env
+                break
+    if token_env is not None:
+        return base_url, os.environ.get(token_env)
+    # base_url is not a known provider — fall back to the explicit token-env search
+    return base_url, _env_first([n.strip() for n in token_env_arg.split(",") if n.strip()])
 
 
 @dataclass(frozen=True)
@@ -148,10 +189,14 @@ def _as_int(value: Any) -> int | None:
 def _percentile(values: list[float], pct: float) -> float | None:
     if not values:
         return None
-    if len(values) == 1:
-        return round(values[0], 1)
-    idx = min(len(values) - 1, max(0, int((len(values) - 1) * pct)))
-    return round(sorted(values)[idx], 1)
+    # Nearest-rank (ceil): the lower-element index int((n-1)*pct) understates the tail
+    # on the small samples this probe prints — at n=2 it returned the FASTEST request as
+    # p95, at n=4 it ignored the slowest entirely (#528 review). 1-based rank = ceil(pct*n),
+    # clamped to [1, n].
+    ordered = sorted(values)
+    n = len(ordered)
+    rank = min(n, max(1, math.ceil(pct * n)))
+    return round(ordered[rank - 1], 1)
 
 
 def _summarize(level: int, results: list[RequestResult]) -> dict[str, Any]:
@@ -194,19 +239,26 @@ def _run_level(
     timeout: float,
 ) -> dict[str, Any]:
     total = level * requests_per_worker
+    # Hold every worker at a shared gate until all `level` are parked, then release them
+    # together — otherwise an early future can finish (or be proxy-rejected) before later
+    # ones are even submitted, so `--levels N` only caps the pool at N instead of putting
+    # N requests simultaneously in flight, under-testing the ADR-0012 fan-out (#528 review).
+    start_gate = threading.Event()
+
+    def _gated_chat() -> dict[str, Any]:
+        start_gate.wait()
+        return _one_chat(
+            url,
+            token=token,
+            model=model,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=level) as executor:
-        futures = [
-            executor.submit(
-                _one_chat,
-                url,
-                token=token,
-                model=model,
-                prompt=prompt,
-                max_tokens=max_tokens,
-                timeout=timeout,
-            )
-            for _ in range(total)
-        ]
+        futures = [executor.submit(_gated_chat) for _ in range(total)]
+        start_gate.set()  # release all queued workers at once
         results = [future.result() for future in concurrent.futures.as_completed(futures)]
     return _summarize(level, results)
 
@@ -223,13 +275,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--base-url",
-        default=_env_first(["AI_BUILDER_PROXY_URL", "PURE100_PROXY_URL", "OPENAI_BASE_URL"]),
-        help="Proxy base URL. Defaults to AI_BUILDER_PROXY_URL, PURE100_PROXY_URL, or OPENAI_BASE_URL.",
+        default=None,
+        help=(
+            "Proxy base URL. Default: the first set of AI_BUILDER_PROXY_URL / "
+            "ADX_BUILDER_PROXY_URL / PURE100_PROXY_URL / OPENAI_BASE_URL, else the arena "
+            "bridge proxy. The bearer token is bound to the chosen proxy (never mixed)."
+        ),
     )
     parser.add_argument(
         "--token-env",
         default="AI_BUILDER_TOKEN,PURE100_PROXY_KEY,OPENAI_API_KEY",
-        help="Comma-separated env vars to search for the bearer token.",
+        help="Fallback bearer-token env(s), comma-separated — used only for an explicit "
+        "--base-url that is not one of the known proxies.",
     )
     parser.add_argument("--endpoint", default="/v1/chat/completions")
     parser.add_argument("--usage-endpoint", default="/v1/usage/summary")
@@ -240,16 +297,24 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=1)
     parser.add_argument("--prompt", default="Reply with exactly: ok")
     parser.add_argument("--skip-usage", action="store_true")
-    parser.add_argument("--dry-run", action="store_true", help="Validate config without network calls.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Validate config without network calls."
+    )
     args = parser.parse_args()
 
-    token = _env_first([name.strip() for name in args.token_env.split(",") if name.strip()])
-    if not args.base_url:
+    # Resolve base URL + token as a MATCHED pair (no cross-proxy credential leak, #528 review).
+    base_url, token = _resolve_base_and_token(args.base_url, args.token_env)
+    args.base_url = base_url
+    if not base_url:
         raise SystemExit(
-            "missing proxy base URL; set AI_BUILDER_PROXY_URL, PURE100_PROXY_URL, or --base-url"
+            "missing proxy base URL; set AI_BUILDER_PROXY_URL / ADX_BUILDER_PROXY_URL / "
+            "PURE100_PROXY_URL / OPENAI_BASE_URL or pass --base-url"
         )
     if not token:
-        raise SystemExit(f"missing bearer token; searched {args.token_env}")
+        raise SystemExit(
+            f"missing bearer token for proxy {_redact_url(base_url)}; set the matching token "
+            f"env (e.g. AI_BUILDER_TOKEN) or --token-env"
+        )
 
     levels = [int(item) for item in args.levels.split(",") if item.strip()]
     if not levels or any(level < 1 for level in levels):
