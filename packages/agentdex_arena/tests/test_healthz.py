@@ -241,6 +241,47 @@ def test_sidecar_eviction_cleans_up_pvp_choice_router(tmp_path: Path):
     asyncio.run(_run())
 
 
+def test_partial_start_cleanup_survives_repeated_cancellation(tmp_path: Path):
+    """A second cancellation while draining stop() must not cancel stop() itself."""
+    gateway = _make_gateway(tmp_path)
+    stop_started = asyncio.Event()
+    release_stop = asyncio.Event()
+    stopped: list[int] = []
+    stop_cancelled: list[int] = []
+
+    class _PartialStartSlowStop:
+        returncode = None
+
+        async def start(self) -> None:
+            raise SidecarError("ready-event timeout after spawn")
+
+        async def stop(self) -> None:
+            stop_started.set()
+            try:
+                await release_stop.wait()
+            except asyncio.CancelledError:
+                stop_cancelled.append(1)
+                raise
+            stopped.append(1)
+
+    app = create_app(gateway, sidecar_factory=_PartialStartSlowStop)
+
+    async def _run() -> None:
+        t = asyncio.create_task(app.state.ensure_sidecar())
+        await stop_started.wait()
+        t.cancel()
+        await asyncio.sleep(0)
+        t.cancel()
+        release_stop.set()
+        with pytest.raises(asyncio.CancelledError):
+            await t
+        assert stopped == [1]
+        assert stop_cancelled == []
+        assert app.state.sidecar_start_failed is True
+
+    asyncio.run(_run())
+
+
 def test_healthz_503_when_dead_pool_member_respawn_fails(client, monkeypatch):
     """A dead pool member whose touch-driven respawn FAILS (e.g. node_modules
     missing) must leave the probe at 503 so the platform recycles the container
