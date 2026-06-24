@@ -504,6 +504,49 @@ def test_reclaim_dead_evicts_routes_even_when_respawn_fails(monkeypatch):
     assert "b1" not in p._owner
 
 
+def test_reclaim_dead_evicts_before_failed_respawn_stop_can_be_cancelled(monkeypatch):
+    """Evict the corpse-owned routes before awaiting failed-respawn cleanup.
+
+    If the /healthz touch is cancelled while Sidecar.stop() waits on process exit,
+    reclaim_dead may not return to the gateway, but the owner rows must already be
+    gone so the next touch cannot leave live sessions pointing at the corpse.
+    """
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        await p.request("start", battle="b1")
+        dead = p._owner["b1"]
+        dead.returncode = 137
+
+        stop_entered = asyncio.Event()
+        stop_release = asyncio.Event()
+
+        async def boom(self) -> None:
+            self.started = True
+            raise RuntimeError("node ready-event timeout")
+
+        async def slow_stop(self) -> None:
+            stop_entered.set()
+            await stop_release.wait()
+            self.started = False
+
+        monkeypatch.setattr(FakeSidecar, "start", boom)
+        monkeypatch.setattr(FakeSidecar, "stop", slow_stop)
+
+        task = asyncio.create_task(p.reclaim_dead())
+        await stop_entered.wait()
+        task.cancel()
+        stop_release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert "b1" not in p._owner
+        assert p.any_dead() is True
+
+    _run(go())
+
+
 def test_reclaim_dead_reaps_fresh_sidecar_when_cancelled_post_start():
     """When the caller is cancelled between fresh.start() succeeding and the
     swap landing, the replacement Node child must still be reaped — otherwise
@@ -561,6 +604,55 @@ def test_reclaim_dead_reaps_fresh_sidecar_when_cancelled_post_start():
     )
     # The dead corpse is still in place; the next touch retries the respawn.
     assert p._sidecars[0] is dead and p._sidecars[0].returncode == 137
+
+
+def test_reclaim_dead_shields_post_start_stop_from_second_cancellation(monkeypatch):
+    """A second cancellation while stop() drains must not interrupt fresh cleanup."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+    dead = p._sidecars[0]
+    dead.returncode = 137
+
+    class _CancelOnSecondAcquireLock:
+        def __init__(self, real: asyncio.Lock, raise_on_acquire: int) -> None:
+            self._real = real
+            self._raise_on = raise_on_acquire
+            self.count = 0
+
+        async def __aenter__(self):
+            self.count += 1
+            if self.count == self._raise_on:
+                raise asyncio.CancelledError()
+            return await self._real.__aenter__()
+
+        async def __aexit__(self, *a):
+            return await self._real.__aexit__(*a)
+
+        def locked(self) -> bool:
+            return self._real.locked()
+
+    p._lock = _CancelOnSecondAcquireLock(p._lock, raise_on_acquire=2)  # type: ignore[assignment]
+    parent_task: asyncio.Task | None = None
+
+    async def stop_with_second_cancel(self) -> None:
+        assert parent_task is not None
+        parent_task.cancel()
+        await asyncio.sleep(0)
+        self.started = False
+
+    monkeypatch.setattr(FakeSidecar, "stop", stop_with_second_cancel)
+    before = list(FakeSidecar.instances)
+
+    async def go():
+        nonlocal parent_task
+        parent_task = asyncio.current_task()
+        with pytest.raises(asyncio.CancelledError):
+            await p.reclaim_dead()
+
+    _run(go())
+    new_members = [s for s in FakeSidecar.instances if s not in before]
+    assert new_members, "expected reclaim_dead to spawn a fresh replacement"
+    assert new_members[-1].started is False
 
 
 def test_reclaim_does_not_hold_the_lock_while_starting_a_replacement(monkeypatch):

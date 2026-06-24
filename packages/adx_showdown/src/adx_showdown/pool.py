@@ -42,6 +42,16 @@ class SidecarPool:
         self._rr = 0  # round-robin cursor for battle-less ops
         self._lock = asyncio.Lock()
 
+    async def _stop_sidecar_uninterruptibly(self, sidecar: Sidecar) -> None:
+        """Stop a freshly spawned sidecar even if this reclaim touch is cancelled."""
+        task = asyncio.create_task(sidecar.stop())
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await task
+            raise
+
     @property
     def size(self) -> int:
         return len(self._sidecars)
@@ -235,7 +245,7 @@ class SidecarPool:
             except asyncio.CancelledError:
                 # Caller cancelled mid-start; reap the half-spawned child, propagate.
                 with contextlib.suppress(Exception):
-                    await fresh.stop()
+                    await self._stop_sidecar_uninterruptibly(fresh)
                 raise
             except Exception:
                 # Sidecar.start() can spawn the Node child and THEN raise (ready-event
@@ -244,8 +254,6 @@ class SidecarPool:
                 # any_dead() flag stays set → reclaim_dead re-runs each touch → OOM
                 # spiral). The slot stays dead (any_dead stays True → /healthz still
                 # 503s) and retries on the next touch.
-                with contextlib.suppress(Exception):
-                    await fresh.stop()
                 # Even with no live replacement, the dead member's battle routes MUST
                 # be evicted — otherwise reclaim_dead returns no IDs, the gateway
                 # leaves those sessions live, and /choose keeps routing into the dead
@@ -254,6 +262,12 @@ class SidecarPool:
                 async with self._lock:
                     evicted.extend(b for b, o in self._owner.items() if o is dead_s)
                     self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
+                # Eviction is complete before this potentially blocking cleanup. If this
+                # touch is cancelled while stop waits on process exit, the gateway still
+                # sees those battle ids as evicted on the next touch instead of leaving
+                # live sessions pointed at the corpse.
+                with contextlib.suppress(Exception):
+                    await self._stop_sidecar_uninterruptibly(fresh)
                 continue
             # Post-start, pre-swap: `fresh` is a live Node child the caller now owns.
             # Any cancellation between here and the swap MUST reap it — otherwise the
@@ -281,7 +295,7 @@ class SidecarPool:
                 # request()/_least_loaded need the lock; #522 review P2) and re-raise.
                 if not swapped_in:
                     with contextlib.suppress(Exception):
-                        await fresh.stop()
+                        await self._stop_sidecar_uninterruptibly(fresh)
                 raise
             if not swapped_in:
                 # Lost the slot re-check to a concurrent reclaim — reap the redundant
@@ -290,5 +304,5 @@ class SidecarPool:
                 # self._lock — stopping under it would reintroduce the global routing
                 # stall the start-outside-lock change fixed (#522 review P2).
                 with contextlib.suppress(Exception):
-                    await fresh.stop()
+                    await self._stop_sidecar_uninterruptibly(fresh)
         return evicted
