@@ -4015,7 +4015,10 @@ def create_app(
         if last is None:
             raise _opaque_error(409, "no pending state yet — wait for P1 to begin")
 
-        choices = _p2_choice_options(session)
+        p2_side = "p2" if session.visitor_side == "p1" else "p1"
+        raw_p2 = (last.get("pending") or {}).get(p2_side)
+        p2_pending = parse_request(raw_p2) if raw_p2 is not None else None
+        choices = legal_choices(p2_pending) if p2_pending is not None else []
         if not choices:
             raise _opaque_error(409, "no pending request for P2 right now")
         idx = req.choice_index - 1
@@ -4024,6 +4027,25 @@ def create_app(
                 400, f"choice_index {req.choice_index} out of range (P2 has {len(choices)} choices)"
             )
         choice_str = choices[idx]
+        choice_label = _choice_label(choice_str, p2_pending)
+        try:
+            await gateway._append_or_fail_closed(
+                "battle",
+                {
+                    "tenant_id": claims.token_id,
+                    "battle_id": battle_id,
+                    "turn": session.turns,
+                    "side": p2_side,
+                    "choice": choice_str,
+                    "choice_label": choice_label,
+                },
+                sidecar=session.sidecar,
+                battle_id=battle_id,
+                session=session,
+            )
+        except HTTPException:
+            gateway.pvp_choice_router.cleanup(battle_id)
+            raise
         try:
             accepted = gateway.pvp_choice_router.submit_p2_choice(battle_id, choice_str)
         except ValueError:

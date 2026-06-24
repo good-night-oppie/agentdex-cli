@@ -25,6 +25,7 @@ from agentdex_arena.gateway import (
 )
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,50 @@ def test_pvp_queue_duplicate_choice_raises(gw: ArenaGateway):
 def test_pvp_choose_uses_forfeit_enabled_stale_expiry():
     src = inspect.getsource(gateway_mod.create_app)
     assert "await gateway._expire_if_stale(session, allow_forfeit=True)" in src
+
+
+def test_pvp_choose_appends_p2_choice_before_ack(gw: ArenaGateway):
+    key = Ed25519PrivateKey.generate()
+    token = _mint(gw, "p2-audit@example.com", "AgentB", key)
+    claims = gw.authority.verify(token, scope="battle")
+    session = BattleSession(
+        battle_id="pvp-audit",
+        claims_token_id="p1-token",
+        visitor_name="AgentA",
+        lane="sandbox",
+        opponent="AgentB",
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type] - pvp-choose only appends + routes.
+        opponent_policy=None,
+    )
+    session.visitor_side = "p1"
+    session.pvp_p2_claims_token_id = claims.token_id
+    session.turns = 3
+    session.last_state = {
+        "pending": {"p2": _move_request("p2")},
+        "active": {"p1": "Bulbasaur", "p2": "Bulbasaur"},
+        "turns": 3,
+    }
+    gw.sessions[session.battle_id] = session
+    app = create_app(gw, sidecar_factory=lambda: None)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            f"/battle/{session.battle_id}/pvp-choose",
+            json={"token": token, "choice_index": 1},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "submitted"
+    battle_events = [event for event in gw.events.iter_events() if event["type"] == "battle"]
+    assert len(battle_events) == 1
+    payload = battle_events[0]["payload"]
+    assert payload["tenant_id"] == claims.token_id
+    assert payload["battle_id"] == session.battle_id
+    assert payload["turn"] == 3
+    assert payload["side"] == "p2"
+    assert payload["choice"] == "move 1"
+    assert payload["choice_label"] == "tackle"
 
 
 def test_p2_match_receipt_does_not_return_raw_last_state():
