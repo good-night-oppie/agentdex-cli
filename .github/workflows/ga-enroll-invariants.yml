@@ -54,11 +54,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only the latest commit per ref needs gating; supersede in-flight runs on
-# push-spam so the shared self-hosted runner is not held by stale commits.
+# Supersede in-flight PR runs on push-spam so the shared self-hosted runner is not
+# held by stale commits — but NEVER cancel a push:main run: the live-SHA attester
+# (ga_enroll_ci_attest.sh) needs that success record, and ga-deploy queues/continues
+# (doesn't cancel) deploys, so a canceled main-push gate would leave a deployed SHA
+# with no green run to attest.
 concurrency:
   group: ga-enroll-invariants-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ga-enroll-invariants:
@@ -120,4 +123,9 @@ jobs:
           uv run --no-sync pytest -q \
             packages/agentdex_arena/tests/test_enroll_account.py \
             packages/agentdex_arena/tests/test_account_quota.py \
-            packages/agentdex_arena/tests/test_membership_primitive.py
+            packages/agentdex_arena/tests/test_membership_primitive.py \
+            packages/agentdex_arena/tests/test_invite_flow.py \
+            packages/agentdex_arena/tests/test_device_flow_endpoints.py \
+            packages/agentdex_arena/tests/test_email_login.py \
+            packages/agentdex_arena/tests/test_session_auth.py \
+            packages/agentdex_arena/tests/test_quota_persists_across_restart.py
