@@ -343,6 +343,26 @@ def test_p2_queue_timeout_is_retryable_not_false_matched():
     assert 'headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")}' in pvp_queue
 
 
+def test_p2_queue_timeout_cancels_p1_startup_before_publish():
+    src = inspect.getsource(gateway_mod.create_app)
+    pvp_queue = src.split("async def me_battle_queue", 1)[1].split(
+        '@app.post("/battle/{battle_id}/pvp-choose")', 1
+    )[0]
+    timeout_branch = pvp_queue.split(
+        "if published is None or published.last_state is None:", 1
+    )[1].split("raise HTTPException", 1)[0]
+    assert "gateway._pvp_cancelled_startups.add(battle_id)" in timeout_branch
+    assert "gateway.pvp_choice_router.cleanup(battle_id)" in timeout_branch
+
+    p1_branch = pvp_queue.split('if pairing.role == "p1":', 1)[1].split(
+        "            else:\n                # P2:", 1
+    )[0]
+    assert "async def _abort_if_p2_startup_cancelled()" in p1_branch
+    assert "pvp match startup expired" in p1_branch
+    assert "await gateway._stop_battle_robustly(sidecar, battle_id)" in p1_branch
+    assert "await _abort_if_p2_startup_cancelled()" in p1_branch
+
+
 def test_p2_team_invalid_path_does_not_silently_substitute_starter_pack():
     src = inspect.getsource(gateway_mod.create_app)
     p2_team_branch = src.split("if pairing.p2_team is not None:", 1)[1].split("else:", 1)[0]

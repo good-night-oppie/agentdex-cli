@@ -891,6 +891,7 @@ class ArenaGateway:
         # GA-ARENA-MODES: PvP matchmaking queue + per-battle P2 choice router.
         self.pvp_queue = PvPQueue()
         self.pvp_choice_router = PvPChoiceRouter()
+        self._pvp_cancelled_startups: set[str] = set()
 
     @property
     def publication_allowed(self) -> bool:
@@ -3824,6 +3825,22 @@ def create_app(
                     7,
                     7,
                 ]
+
+                async def _abort_if_p2_startup_cancelled() -> None:
+                    if battle_id not in gateway._pvp_cancelled_startups:
+                        return
+                    gateway._pvp_cancelled_startups.discard(battle_id)
+                    gateway.pvp_choice_router.cleanup(battle_id)
+                    try:
+                        await gateway._stop_battle_robustly(sidecar, battle_id)
+                    finally:
+                        gateway.sessions.pop(battle_id, None)
+                    raise HTTPException(
+                        status_code=503,
+                        detail="pvp match startup expired — requeue",
+                        headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+                    ) from None
+
                 gateway._mark_battle_start_pending(battle_id, claims.token_id)
                 try:
                     try:
@@ -3850,6 +3867,7 @@ def create_app(
                             ) from None
                         raise
                     gateway._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                    await _abort_if_p2_startup_cancelled()
                     session = BattleSession(
                         battle_id=battle_id,
                         claims_token_id=claims.token_id,
@@ -3879,6 +3897,7 @@ def create_app(
                         battle_id=battle_id,
                     )
                     gateway._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                    await _abort_if_p2_startup_cancelled()
                     gateway._publish_session(battle_id, session)
                 finally:
                     gateway._clear_battle_start_pending(battle_id)
@@ -3892,6 +3911,8 @@ def create_app(
                     finally:
                         gateway.sessions.pop(battle_id, None)
                     raise
+                await _abort_if_p2_startup_cancelled()
+                gateway._pvp_cancelled_startups.discard(battle_id)
                 return {
                     "battle_id": battle_id,
                     "role": "p1",
@@ -3912,6 +3933,8 @@ def create_app(
                         break
                     await asyncio.sleep(0.1)
                 if published is None or published.last_state is None:
+                    gateway._pvp_cancelled_startups.add(battle_id)
+                    gateway.pvp_choice_router.cleanup(battle_id)
                     _hand_off()
                     raise HTTPException(
                         status_code=503,
