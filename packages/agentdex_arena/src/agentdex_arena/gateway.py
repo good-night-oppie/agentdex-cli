@@ -3342,7 +3342,10 @@ def create_app(
             }
         # pending / denied / expired — all 200 so the CLI switches on the field,
         # never on a status code (keeps the frozen pending→success shape intact).
-        return {"status": result.status}
+        poll_body = {"status": result.status}
+        if result.interval is not None:
+            poll_body["interval"] = result.interval
+        return poll_body
 
     # ---------- account onboarding: browser GitHub OAuth (GA Step 4) ----------
     #

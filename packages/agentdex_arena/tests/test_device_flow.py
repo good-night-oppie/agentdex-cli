@@ -130,8 +130,17 @@ def test_poll_authorization_pending_is_pending():
 
 
 def test_poll_slow_down_is_pending():
+    flow, _ = _flow({GITHUB_ACCESS_TOKEN_URL: [(200, {"error": "slow_down", "interval": 10})]})
+    poll = flow.poll("dev-123")
+    assert poll.status == "pending"
+    assert poll.interval == 10
+
+
+def test_poll_slow_down_defaults_backoff_interval_when_absent():
     flow, _ = _flow({GITHUB_ACCESS_TOKEN_URL: [(200, {"error": "slow_down"})]})
-    assert flow.poll("dev-123").status == "pending"
+    poll = flow.poll("dev-123")
+    assert poll.status == "pending"
+    assert poll.interval == 10
 
 
 def test_poll_access_denied_is_denied():

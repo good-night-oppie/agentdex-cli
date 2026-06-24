@@ -88,11 +88,13 @@ class DeviceStart:
 @dataclass(frozen=True)
 class DevicePoll:
     """One poll outcome. ``pending`` (keep polling), ``denied`` / ``expired``
-    (terminal client faults), or ``authorized`` carrying the proven identity."""
+    (terminal client faults), or ``authorized`` carrying the proven identity.
+    ``interval`` is set only when GitHub asks the client to back off."""
 
     status: Literal["pending", "authorized", "denied", "expired"]
     github_id: str | None = None
     owner: str | None = None  # primary verified email
+    interval: int | None = None
 
 
 def _urllib_transport(method: str, url: str, headers: dict, body: dict | None) -> tuple[int, dict]:
@@ -251,8 +253,11 @@ class GitHubDeviceFlow:
             return DevicePoll(status="authorized", github_id=github_id, owner=owner)
 
         error = body.get("error")
-        if error in ("authorization_pending", "slow_down"):
+        if error == "authorization_pending":
             return DevicePoll(status="pending")
+        if error == "slow_down":
+            interval = int(body.get("interval", _DEFAULT_INTERVAL + 5))
+            return DevicePoll(status="pending", interval=max(1, interval))
         if error == "access_denied":
             return DevicePoll(status="denied")
         if error == "expired_token":
