@@ -211,8 +211,10 @@ def test_connect_github_cta_uses_link_intent_only_after_login(tmp_path, monkeypa
     assert "params.set('csrf', csrf)" in screens
     assert "cookieValue('arena_csrf')" in screens
     assert screens.count("link: true") == 1
-    assert "Connect with GitHub" in screens
-    assert "Continue with GitHub" in screens
+    continue_idx = screens.index("Continue with GitHub")
+    connect_idx = screens.index("Connect with GitHub")
+    assert "link: true" not in screens[max(0, continue_idx - 300) : continue_idx]
+    assert "link: true" in screens[max(0, connect_idx - 300) : connect_idx]
 
 
 @_needs_ga
