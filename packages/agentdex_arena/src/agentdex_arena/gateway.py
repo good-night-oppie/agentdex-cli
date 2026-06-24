@@ -283,6 +283,24 @@ def _opaque_error(
     return HTTPException(status_code=status, detail=f"arena error (ref: {err_id})", headers=headers)
 
 
+async def _drain_shielded_task(task: asyncio.Future[Any]) -> None:
+    """Await ``task`` to completion without letting caller cancellation cancel it."""
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+    try:
+        task.result()
+    except Exception:
+        if cancelled:
+            raise asyncio.CancelledError from None
+        raise
+    if cancelled:
+        raise asyncio.CancelledError
+
+
 def _anchor_policy(name: str, sidecar: Sidecar, seed: int):
     kind = name.removeprefix("anchor-")
     if kind == "random":
@@ -1584,7 +1602,7 @@ class ArenaGateway:
             await asyncio.shield(stop_task)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception):
-                await stop_task
+                await _drain_shielded_task(stop_task)
             raise
 
     def _reserve_owner_slot(self, owner_norm: str) -> None:
@@ -2793,7 +2811,7 @@ def create_app(
                         await asyncio.shield(stop_task)
                     except asyncio.CancelledError:
                         with contextlib.suppress(Exception):
-                            await stop_task
+                            await _drain_shielded_task(stop_task)
                         raise
                     except Exception:
                         pass

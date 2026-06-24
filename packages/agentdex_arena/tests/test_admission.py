@@ -182,6 +182,40 @@ def test_concurrent_begins_cannot_burst_past_cap(gw):
     asyncio.run(_run())
 
 
+def test_post_publish_stop_survives_repeated_cleanup_cancellation(gw):
+    """A second cancellation while draining must not cancel the shielded stop task."""
+    stop_started = asyncio.Event()
+    release_stop = asyncio.Event()
+    stopped: list[int] = []
+    stop_cancelled: list[int] = []
+
+    class _SlowStopSidecar:
+        async def request(self, op: str, **kwargs):
+            assert op == "stop"
+            stop_started.set()
+            try:
+                await release_stop.wait()
+            except asyncio.CancelledError:
+                stop_cancelled.append(1)
+                raise
+            stopped.append(1)
+            return {"ok": True}
+
+    async def _run() -> None:
+        t = asyncio.create_task(gw._stop_battle_robustly(_SlowStopSidecar(), "battle-1"))
+        await stop_started.wait()
+        t.cancel()
+        await asyncio.sleep(0)
+        t.cancel()
+        release_stop.set()
+        with pytest.raises(asyncio.CancelledError):
+            await t
+        assert stopped == [1]
+        assert stop_cancelled == []
+
+    asyncio.run(_run())
+
+
 def test_reclaimed_pending_begin_aborts_before_publish(gw):
     """If /healthz reclaims the sidecar route after start but before publication,
     battle_begin must return the interrupted signal and never publish a stale session."""
