@@ -820,11 +820,14 @@ class ArenaGateway:
                     # `adx status` reads. Same defensive shape as above.
                     owner_raw = payload.get("owner")
                     agent_name = payload.get("agent_name")
+                    quotas = payload.get("quotas")
                     if not isinstance(owner_raw, str) or not owner_raw:
                         raise ValueError("account_enroll owner missing/non-string")
                     if not isinstance(agent_name, str) or not agent_name:
                         raise ValueError("account_enroll agent_name missing/non-string")
-                    self.accounts.add_agent(owner_raw, agent_name)
+                    if quotas is not None and not isinstance(quotas, dict):
+                        raise ValueError("account_enroll quotas non-object")
+                    self.accounts.add_agent(owner_raw, agent_name, quotas=quotas)
                 elif etype == "invite_grant":
                     # GA-CORE-1: rehydrate a minted invite by its hash (idempotent).
                     # Tolerate a legacy plaintext "code" payload by hashing it
@@ -930,9 +933,7 @@ class ArenaGateway:
     def _clear_battle_start_pending(self, battle_id: str) -> None:
         self._pending_battle_owners.pop(battle_id, None)
 
-    def _raise_if_battle_start_reclaimed(
-        self, battle_id: str, claims_token_id: str
-    ) -> None:
+    def _raise_if_battle_start_reclaimed(self, battle_id: str, claims_token_id: str) -> None:
         if (
             self._pending_battle_owners.get(battle_id) != claims_token_id
             and self._interrupted.get(battle_id) == claims_token_id
@@ -1015,7 +1016,13 @@ class ArenaGateway:
         """Mint a 7-day consent token with the standard scopes. Shared by every
         enrollment path so the token shape never diverges by how it was obtained
         (D3: account-enroll changes only HOW the token is obtained)."""
-        claims = ConsentClaims(
+        claims = self._new_consent_claims(owner, agent_name, agent_pubkey_hex, confirmed_via)
+        return self._mint_consent_claims(claims)
+
+    def _new_consent_claims(
+        self, owner: str, agent_name: str, agent_pubkey_hex: str, confirmed_via: str
+    ) -> ConsentClaims:
+        return ConsentClaims(
             token_id=uuid.uuid4().hex[:16],
             owner=owner,
             agent_name=agent_name,
@@ -1025,6 +1032,8 @@ class ArenaGateway:
             expires_at=self.now() + 7 * 86_400,
             confirmed_via=confirmed_via,
         )
+
+    def _mint_consent_claims(self, claims: ConsentClaims) -> dict[str, Any]:
         return {"token": self.authority.mint(claims), "expires_at": claims.expires_at}
 
     def enroll_request(self, req: EnrollRequest) -> dict[str, Any]:
@@ -1195,13 +1204,30 @@ class ArenaGateway:
         if self._invite_required() and not self.invites.is_admitted(claims.owner):
             raise PermissionError("an invitation code is required for the beta")
         clean_name = self._guard_reserved_name(agent_name)
-        self._register_agent(clean_name)
-        # account->agents join (D6) — durable BEFORE returning the token.
-        self.events.append("account_enroll", {"owner": claims.owner, "agent_name": clean_name})
-        self.accounts.add_agent(claims.owner, clean_name)
-        return self._mint_consent(
+        if clean_name in self._registered:
+            raise _opaque_error(409, "agent name already registered")
+        consent = self._new_consent_claims(
             claims.owner, clean_name, agent_pubkey_hex, f"account:{claims.session_id}"
         )
+        # account-enroll publishes a two-row receipt: global name registration +
+        # owner->agent join. Commit both rows atomically, including the token's quota
+        # caps, before mutating memory or returning the token.
+        self.events.append_many(
+            [
+                ("register", {"name": clean_name, "frozen": False}),
+                (
+                    "account_enroll",
+                    {
+                        "owner": claims.owner,
+                        "agent_name": clean_name,
+                        "quotas": dict(consent.quotas),
+                    },
+                ),
+            ]
+        )
+        self._registered.add(clean_name)
+        self.accounts.add_agent(claims.owner, clean_name, quotas=consent.quotas)
+        return self._mint_consent_claims(consent)
 
     @staticmethod
     def _invite_required() -> bool:
@@ -1280,7 +1306,8 @@ class ArenaGateway:
         (the account->agents join). Delegates the key/cap/remaining math to the
         ConsentAuthority so it reports against the exact keys spend_quota debits."""
         names = self.accounts.agents_for(claims.owner)
-        return self.authority.account_quota_report(claims.owner, names)
+        quotas = self.accounts.agent_quotas_for(claims.owner)
+        return self.authority.account_quota_report(claims.owner, names, agent_quotas=quotas)
 
     # ---------- GA-CORE-5: dashboard data API (session-authed, owner-scoped) ----------
 
@@ -3872,9 +3899,7 @@ def create_app(
                                 status_code=503,
                                 detail="arena at capacity — finish or forfeit an active battle, then retry",
                                 headers={
-                                    "Retry-After": os.environ.get(
-                                        "ARENA_RETRY_AFTER_SEC", "5"
-                                    )
+                                    "Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")
                                 },
                             ) from None
                         raise

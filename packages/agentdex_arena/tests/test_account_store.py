@@ -65,6 +65,22 @@ def test_add_agent_join_is_sorted_and_deduped():
     assert store.agents_for(_OWNER) == ["alpha", "zeta"]
 
 
+def test_add_agent_retains_quota_snapshot():
+    store = AccountStore()
+    store.add_agent(_OWNER, "oppie", quotas={"battle": 4, "evolve": 1, "badge_mint": 3})
+
+    assert store.agents_for(_OWNER) == ["oppie"]
+    assert store.agent_quotas_for(_OWNER) == {"oppie": {"battle": 4, "evolve": 1, "badge_mint": 3}}
+
+
+def test_legacy_add_agent_keeps_existing_quota_snapshot():
+    store = AccountStore()
+    store.add_agent(_OWNER, "oppie", quotas={"battle": 4})
+    store.add_agent(_OWNER, "oppie")
+
+    assert store.agent_quotas_for(_OWNER) == {"oppie": {"battle": 4}}
+
+
 def test_agents_for_unknown_owner_is_empty():
     assert AccountStore().agents_for("stranger@x.com") == []
 
@@ -117,12 +133,19 @@ def test_replay_hydrates_link_and_agents(tmp_path: Path):
     """Pre-seed the durable log, then a fresh gateway must rebuild the maps."""
     log = EventLog(tmp_path / "events.jsonl")
     log.append("account_link", {"github_id": _GH, "owner": _OWNER})
-    log.append("account_enroll", {"owner": _OWNER, "agent_name": "oppie"})
+    log.append(
+        "account_enroll",
+        {"owner": _OWNER, "agent_name": "oppie", "quotas": {"battle": 4, "evolve": 1}},
+    )
     log.append("account_enroll", {"owner": _OWNER, "agent_name": "scout"})
 
     gw = _gateway(tmp_path)
     assert gw.accounts.owner_for(_GH) == _OWNER
     assert gw.accounts.agents_for(_OWNER) == ["oppie", "scout"]
+    assert gw.accounts.agent_quotas_for(_OWNER) == {
+        "oppie": {"battle": 4, "evolve": 1},
+        "scout": None,
+    }
 
 
 def test_replay_link_last_write_wins(tmp_path: Path):
