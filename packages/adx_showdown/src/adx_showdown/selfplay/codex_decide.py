@@ -14,6 +14,8 @@ Design rails:
   None, so the adapter falls back to a random legal order; codex NEVER crashes a battle.
 - The codex invocation is INJECTABLE (``run=``) so unit tests never shell out; a gated
   live smoke exercises the real CLI.
+- The real CLI invocation runs read-only + ephemeral. Evolved prompts may choose
+  moves; they must not get a write-capable agent session from this per-turn hook.
 - Enabled in the runner by ``ADX_CODEX_LIVE=1`` (default = deterministic greedy, so
   tests + offline runs are unchanged).
 """
@@ -100,10 +102,28 @@ def _parse_last_json(text: str) -> dict[str, Any]:
     return json.loads(last) if last else {}
 
 
+def _codex_exec_args(codex_bin: str, schema_path: str, out_path: str, prompt: str) -> list[str]:
+    """The sandboxed non-interactive Codex invocation for one move choice."""
+    return [
+        codex_bin,
+        "exec",
+        "--sandbox",
+        "read-only",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--output-schema",
+        schema_path,
+        "--output-last-message",
+        out_path,
+        prompt,
+    ]
+
+
 def _run_codex_cli(prompt: str, schema: dict[str, Any], timeout: float) -> dict[str, Any]:
     """Invoke the real codex CLI once for a structured move choice. Honors
     ``ADX_CODEX_BIN`` (default ``codex``) + ``ADX_CODEX_HOME`` (default ``~/gh/codex`` =
-    the fork). Uses ``--output-schema`` for a schema-conforming last message."""
+    the fork). Uses a read-only, ephemeral sandbox plus ``--output-schema`` for a
+    schema-conforming last message."""
     codex_bin = os.environ.get("ADX_CODEX_BIN", "codex")
     codex_home = os.environ.get("ADX_CODEX_HOME", os.path.expanduser("~/gh/codex"))
     with tempfile.TemporaryDirectory() as td:
@@ -112,17 +132,7 @@ def _run_codex_cli(prompt: str, schema: dict[str, Any], timeout: float) -> dict[
         with open(schema_path, "w") as f:
             json.dump(schema, f)
         proc = subprocess.run(
-            [
-                codex_bin,
-                "exec",
-                "--dangerously-bypass-approvals-and-sandbox",
-                "--skip-git-repo-check",
-                "--output-schema",
-                schema_path,
-                "--output-last-message",
-                out_path,
-                prompt,
-            ],
+            _codex_exec_args(codex_bin, schema_path, out_path, prompt),
             capture_output=True,
             text=True,
             timeout=timeout,

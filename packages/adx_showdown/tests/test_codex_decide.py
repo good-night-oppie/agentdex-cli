@@ -10,6 +10,7 @@ import sys
 from adx_showdown.selfplay.codex_adapter import codex_context, select_codex_move
 from adx_showdown.selfplay.codex_decide import (
     _build_prompt,
+    _codex_exec_args,
     _parse_last_json,
     _timeout_sec,
     codex_decide,
@@ -126,6 +127,16 @@ def test_prompt_offers_legal_switches():
 
 def test_parse_last_json_takes_the_last_block():
     assert _parse_last_json('noise {"a": 1} more {"move_id": "surf"}') == {"move_id": "surf"}
+
+
+def test_live_codex_invocation_is_readonly_and_ephemeral():
+    """The per-turn move hook must not give an evolved prompt a write-capable Codex
+    session. It should use Codex's read-only sandbox rather than the dangerous
+    bypass flag (review #3440165074)."""
+    args = _codex_exec_args("codex", "schema.json", "last.txt", "pick thunderbolt")
+    assert "--dangerously-bypass-approvals-and-sandbox" not in args
+    assert args[args.index("--sandbox") + 1] == "read-only"
+    assert "--ephemeral" in args
 
 
 def test_end_to_end_through_select_codex_move():
