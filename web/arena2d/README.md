@@ -1,5 +1,5 @@
 ---
-title: "arena2d — barebones 2D battle viewer + agent mind readout"
+title: "arena2d — interactive 2D battle viewer + deep-thinking mind readout"
 status: active
 owner: "@EdwardTang"
 created: 2026-06-24
@@ -9,48 +9,58 @@ scope: web/arena2d
 layer: ui
 ---
 
-# arena2d — barebones 2D battle viewer + agent "mind readout"
+# arena2d — barebones 2D battle viewer + interactive "mind readout"
 
-A static, `file://`-safe proof-of-loop: it renders a **real** Pokémon Showdown
-battle log in a 2D view and narrates the agent's play turn-by-turn, pairing each
-of our coarse PRIMITIVE labels with the agent's **own** per-decision words.
+A static, `file://`-safe demo: it renders a **real** Pokémon Showdown battle in a
+2D view and, per decision, shows an **interactive deep-thinking readout** on a hard
+**epistemic boundary** — what the agent *knew* vs what it *thought*.
 
-## What's honest here
+## The epistemic boundary (the honesty contract)
 
-- `data.js` is **generated from a real live-codex battle** (`battle2`: the
-  opponent-aware policy from PR #597, p1 WON). `LOG` is the raw Showdown server
-  log; `RATIONALES` are the agent's actual `codex_decide` outputs, in order.
-- `anim.js` greedily matches each rationale to the move that produced it, so a
-  shown rationale is always the agent's real word for **that** action.
-- The PRIMITIVE chips (setup/punish/pivot/…) are **our** coarse classifier and
-  can be imprecise — the agent's real words carry the truth. The footer says so.
+| Layer | Source | Shown as |
+|---|---|---|
+| **OPPONENT MODEL** | reconstructed forward-only from the log, **up to that decision** (fog of war — never future moves) | derived game facts |
+| **TYPE MATCHUP** | the real Gen-9 type chart vs the *revealed* types | derived, interactive |
+| **AGENT** | `RATIONALES[]` — the agent's own `codex_decide` words, streamed verbatim | the agent's real cognition |
+| **OUTCOME** (PRIMITIVE) | the real `-supereffective`/`-immune`/`faint` log lines | stamped **only after** the move resolves (no hindsight) |
+
+The type matchup *grounds* the agent's claims: when it says "resists Grass" or
+"immune to Close Combat", the derived chart confirms it (×0.5 / ×0) — and when the
+agent and the chart disagree, the UI shows both, honestly.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `index.html` | shell + styles + 2D stage |
-| `battle.js` | log/rationale helpers (pure logic, no authored narration) |
-| `anim.js` | one pass over the log → animation + per-decision mind-readout |
-| `data.js` | **generated** capture (do not hand-edit; regenerate from a live battle) |
+| `index.html` | layout + styles + 2D stage + decision timeline |
+| `data.js` | **generated** capture: `LOG` (Showdown protocol) + `RATIONALES` (do not hand-edit) |
+| `battle.js` | log helpers (pure logic, no authored narration) |
+| `dex.js` | **derived** reference: type chart + this battle's species/move typings |
+| `mind.js` | the mind-readout panel (opponent model, interactive type lenses, streaming, outcome) |
+| `anim.js` | single forward-only pass → 2D replay + zero-leakage opponent snapshots; drives both panes + scrub |
+
+## Interactions
+
+- **Play / Step / Restart / speed** — the 2D replay; the readout streams in sync.
+- **Decision timeline** — click any node to scrub the battle + readout to that decision; nodes color by outcome as it plays.
+- **Type lenses** — click an attack-type pill to recompute the matchup verdict live.
+- **Click a past decision** — inspect its full opponent model + matchup while paused.
 
 ## Serving
 
-Static assets only. The live page at `https://agentdex.builders/arena2d/` is
-served by **Caddy on the deploy box** (config is box-side, not in this repo).
-To preview locally: open `index.html` directly, or `python3 -m http.server`
-from this directory.
+Static assets only. The live page at `https://agentdex.builders/arena2d/` is served
+by **Caddy on the deploy box** (config is box-side, not in this repo). Preview locally:
+open `index.html` directly, or `python3 -m http.server` from this directory.
 
 ## Known caveats (pre-ship)
 
-- **Sprites** load from `play.pokemonshowdown.com` CDN (same engine as the
-  arena). **Reskin before any public ship** — IP.
-- This is a throwaway-grade prototype, **not** baked into the gateway image.
-- The local self-play capture path needs the showdown loopback patch
-  (`packages/adx_showdown/scripts/patch-showdown-loopback.cjs`, applied via
-  `postinstall`) so poke-env login works on a dev host. See that script's header.
+- **Sprites** load from `play.pokemonshowdown.com` CDN — **reskin before any public ship** (IP).
+- Throwaway-grade prototype, **not** baked into the gateway image.
+- `dex.js` covers only **this battle's** cast — a fuller demo needs a real Pokédex.
+- Local self-play capture needs the showdown loopback patch
+  (`packages/adx_showdown/scripts/patch-showdown-loopback.cjs`, applied via `postinstall`).
 
 ## Related
 
-- PR #597 — `feat(codex): give the live-codex policy an opponent model` (the
-  reasoning behind the rationales shown here). Still under review.
+- PR #597 — `feat(codex): give the live-codex policy an opponent model` (the reasoning
+  behind the rationales shown here). Still under review.
