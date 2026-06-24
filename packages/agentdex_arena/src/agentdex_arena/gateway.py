@@ -930,9 +930,7 @@ class ArenaGateway:
     def _clear_battle_start_pending(self, battle_id: str) -> None:
         self._pending_battle_owners.pop(battle_id, None)
 
-    def _raise_if_battle_start_reclaimed(
-        self, battle_id: str, claims_token_id: str
-    ) -> None:
+    def _raise_if_battle_start_reclaimed(self, battle_id: str, claims_token_id: str) -> None:
         if (
             self._pending_battle_owners.get(battle_id) != claims_token_id
             and self._interrupted.get(battle_id) == claims_token_id
@@ -3866,9 +3864,7 @@ def create_app(
                                 status_code=503,
                                 detail="arena at capacity — finish or forfeit an active battle, then retry",
                                 headers={
-                                    "Retry-After": os.environ.get(
-                                        "ARENA_RETRY_AFTER_SEC", "5"
-                                    )
+                                    "Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")
                                 },
                             ) from None
                         raise
@@ -4028,6 +4024,12 @@ def create_app(
             )
         choice_str = choices[idx]
         choice_label = _choice_label(choice_str, p2_pending)
+        # Reject a duplicate retry BEFORE writing the durable audit row: submit_p2_choice
+        # below is the authoritative guard, but it runs AFTER the append, so without this
+        # a P2 retry (prior choice still buffered/unconsumed) would 409 yet still leave an
+        # extra `battle` row that replay/audit would show as a move never consumed (#558).
+        if gateway.pvp_choice_router.has_unconsumed_p2_choice(battle_id):
+            raise _opaque_error(409, "duplicate P2 choice — prior choice not yet consumed")
         try:
             await gateway._append_or_fail_closed(
                 "battle",

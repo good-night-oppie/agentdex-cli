@@ -180,6 +180,16 @@ class PvPChoiceRouter:
         self._state[battle_id] = (None, choice_str, True)
         return False
 
+    def has_unconsumed_p2_choice(self, battle_id: str) -> bool:
+        """True if a prior P2 choice is still buffered or resolved-but-unconsumed — i.e. a
+        fresh :meth:`submit_p2_choice` would raise the duplicate ``ValueError``. Read-only
+        (no state mutation): lets the gateway reject a duplicate ``/pvp-choose`` retry
+        BEFORE it writes a durable ``battle`` audit row, so a rejected choice never appears
+        in replay/audit (#558 review). Mirrors the duplicate condition in submit_p2_choice.
+        """
+        fut, buffered, submitted = self._state.get(battle_id, (None, None, False))
+        return submitted or buffered is not None or (fut is not None and fut.done())
+
     def is_waiting_for_p2(self, battle_id: str) -> bool:
         """True when _advance is suspended awaiting P2's choice."""
         fut, _, _ = self._state.get(battle_id, (None, None, False))

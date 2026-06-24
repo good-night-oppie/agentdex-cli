@@ -208,6 +208,35 @@ def test_pvp_choice_router_duplicate_buffered_raises():
         router.submit_p2_choice("dup", "move 2")  # duplicate → ValueError
 
 
+def test_has_unconsumed_p2_choice_tracks_the_duplicate_guard():
+    """has_unconsumed_p2_choice is True exactly when submit_p2_choice would raise the
+    duplicate ValueError — the gateway reads it to reject a /pvp-choose retry BEFORE
+    writing a durable audit row (#558)."""
+    router = PvPChoiceRouter()
+    assert router.has_unconsumed_p2_choice("b") is False  # fresh battle: not a duplicate
+    router.submit_p2_choice("b", "move 1")  # buffers a choice
+    assert router.has_unconsumed_p2_choice("b") is True  # a retry WOULD now be rejected
+    with pytest.raises(ValueError, match="duplicate"):
+        router.submit_p2_choice("b", "move 2")  # ...and submit indeed raises in that state
+
+
+def test_has_unconsumed_p2_choice_clears_once_turn_advances():
+    """The marker stays set through policy-consumption (so a same-turn retry is still a
+    duplicate) and only clears when the gateway advances the turn — matching the guard."""
+
+    async def _go():
+        router = PvPChoiceRouter()
+        policy = router.make_p2_policy("seq")
+        router.submit_p2_choice("seq", "move 1")  # buffers
+        assert router.has_unconsumed_p2_choice("seq") is True
+        assert await policy(None) == "move 1"  # consumed by _advance...
+        assert router.has_unconsumed_p2_choice("seq") is True  # ...still a same-turn dup
+        router.mark_turn_advanced("seq")
+        assert router.has_unconsumed_p2_choice("seq") is False  # cleared → next choice allowed
+
+    _run(_go())
+
+
 def test_pvp_choice_router_rejects_retry_until_gateway_advances_turn():
     """After policy consumption, HTTP retries are rejected until gateway advances."""
 
