@@ -17,13 +17,15 @@ const {
  * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
  * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
  * HttpOnly cookie (the security floor) — JS never sees the raw token. */
-async function postJSON(url, body) {
+const SIGNUP_INVITE_STORAGE_KEY = 'agentdex:signup_invite_code';
+async function postJSON(url, body, extraHeaders = {}) {
   let res;
   try {
     res = await fetch(url, {
       method: 'POST',
       headers: {
-        'content-type': 'application/json'
+        'content-type': 'application/json',
+        ...extraHeaders
       },
       credentials: 'same-origin',
       // carry/set the HttpOnly arena_session cookie
@@ -76,11 +78,48 @@ async function csrfToken() {
   });
   return cookieValue('arena_csrf');
 }
+function rememberSignupInvite(inviteCode) {
+  try {
+    window.sessionStorage.setItem(SIGNUP_INVITE_STORAGE_KEY, inviteCode);
+  } catch (e) {}
+}
+function pendingSignupInvite() {
+  try {
+    return window.sessionStorage.getItem(SIGNUP_INVITE_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+function clearSignupInvite() {
+  try {
+    window.sessionStorage.removeItem(SIGNUP_INVITE_STORAGE_KEY);
+  } catch (e) {}
+}
+async function redeemInvite(inviteCode) {
+  const code = String(inviteCode || '').trim();
+  if (!code) return {
+    ok: true,
+    status: 204,
+    data: null
+  };
+  const csrf = await csrfToken();
+  return postJSON('/enroll/redeem-invite', {
+    invite_code: code
+  }, {
+    'X-CSRF-Token': csrf
+  });
+}
+async function redeemInviteOrThrow(inviteCode) {
+  const r = await redeemInvite(inviteCode);
+  if (!r.ok) throw new Error(authErr(r));
+  return r;
+}
 async function startBrowserGitHub({
   setBusy,
   setErr,
   returnTo = '/enroll',
-  link = false
+  link = false,
+  beforeRedirect
 } = {}) {
   if (setErr) setErr('');
   if (setBusy) setBusy(true);
@@ -102,6 +141,7 @@ async function startBrowserGitHub({
       }
     });
     if (r.ok) {
+      if (beforeRedirect) beforeRedirect();
       window.location.assign(target);
     } else if (setErr) {
       setErr(authErr({
@@ -126,7 +166,8 @@ async function startBrowserGitHub({
 function AuthMethods({
   go,
   onAuthed,
-  emailHint
+  emailHint,
+  beforeBrowserRedirect
 }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -162,10 +203,10 @@ function AuthMethods({
     const r = await postJSON('/auth/email/verify?web=1', {
       code: code.trim()
     });
-    setBusy(false);
     if (isAuthed(r)) {
-      onAuthed('email');
+      await finishAuthed('email');
     } else {
+      setBusy(false);
       setErr(r.status === 403 ? 'That code is invalid or expired. Request a new one below.' : authErr(r));
     }
   }
@@ -179,6 +220,15 @@ function AuthMethods({
       setPhase('device');
     } else {
       setErr(authErr(r));
+    }
+  }
+  async function finishAuthed(method) {
+    setBusy(true);
+    try {
+      await onAuthed(method);
+    } catch (e) {
+      setBusy(false);
+      setErr(e && e.message ? e.message : 'Something went wrong. Please try again.');
     }
   }
 
@@ -202,7 +252,7 @@ function AuthMethods({
       });
       if (cancelled) return;
       if (isAuthed(r)) {
-        onAuthed('github');
+        await finishAuthed('github');
         return;
       }
       if (r.ok && r.data && (r.data.status === 'denied' || r.data.status === 'expired')) {
@@ -383,7 +433,8 @@ function AuthMethods({
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
     onClick: () => startBrowserGitHub({
       setBusy,
-      setErr
+      setErr,
+      beforeRedirect: beforeBrowserRedirect
     }),
     disabled: busy
   }, "Continue with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
@@ -407,6 +458,10 @@ function SignupScreen({
   const {
     INVITE
   } = window.GA;
+  const redeemThenAdvance = async method => {
+    await redeemInviteOrThrow(INVITE.code);
+    go(method === 'github' ? 'enroll' : 'github');
+  };
   return /*#__PURE__*/React.createElement(AuthShell, {
     eyebrow: "\u25CF Invited beta \xB7 \u53D7\u9080\u5185\u6D4B",
     title: "Put your agent in the",
@@ -467,7 +522,8 @@ function SignupScreen({
     hint: "Holders pay $0 and get the full paid set free for 3 months."
   }), /*#__PURE__*/React.createElement(AuthMethods, {
     go: go,
-    onAuthed: m => go(m === 'github' ? 'enroll' : 'github'),
+    onAuthed: redeemThenAdvance,
+    beforeBrowserRedirect: () => rememberSignupInvite(INVITE.code),
     emailHint: "Passwordless \u2014 we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password."
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -707,6 +763,23 @@ function EnrollScreen({
     AGENTS
   } = window.GA;
   const a = AGENTS.find(x => x.id === selectedAgent) || AGENTS[0];
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function continueToModes() {
+    setErr('');
+    setBusy(true);
+    const inviteCode = pendingSignupInvite();
+    if (inviteCode) {
+      const r = await redeemInvite(inviteCode);
+      if (!r.ok) {
+        setBusy(false);
+        setErr(authErr(r));
+        return;
+      }
+      clearSignupInvite();
+    }
+    go('modes');
+  }
   return /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 1080,
@@ -754,9 +827,10 @@ function EnrollScreen({
   }, /*#__PURE__*/React.createElement(DS.Button, {
     variant: "primary",
     size: "lg",
-    onClick: () => go('modes'),
+    onClick: continueToModes,
+    disabled: busy,
     iconRight: "\u2192"
-  }, "Enroll ", a.name), /*#__PURE__*/React.createElement("span", {
+  }, busy ? 'Redeeming invite…' : `Enroll ${a.name}`), /*#__PURE__*/React.createElement("span", {
     style: {
       fontFamily: 'var(--font-mono)',
       fontSize: 12,
@@ -766,7 +840,15 @@ function EnrollScreen({
     style: {
       color: 'var(--text-strong)'
     }
-  }, a.name), " \xB7 gen9 OU \xB7 sandbox-first")));
+  }, a.name), " \xB7 gen9 OU \xB7 sandbox-first")), err ? /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 12,
+      lineHeight: 1.6,
+      marginTop: 12,
+      color: 'var(--text-winner)'
+    }
+  }, err) : null);
 }
 
 /* ───────────────────────── 04 · ARENA MODES (dark stadium) ───────────────────────── */
