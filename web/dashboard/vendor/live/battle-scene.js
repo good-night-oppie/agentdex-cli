@@ -161,13 +161,24 @@
 
     // ---- apply + render --------------------------------------------------
     _apply(frame, animate) {
-      // authoritative layout from the pre-parsed snapshot…
-      if (frame.scene) this.scene = frame.scene;
+      // authoritative layout from the pre-parsed snapshot, with a line-folding
+      // fallback for live SSE frames that omit `scene`.
+      this._applyFrameScene(frame);
       // …transient FX + ticker from the raw (already-redacted) lines.
       if (LP && frame.lines) {
         for (const line of frame.lines) this._reduceLine(line, animate);
       }
       this._render(frame, animate);
+    }
+
+    _applyFrameScene(frame) {
+      if (!frame) return;
+      if (frame.scene) {
+        this.scene = frame.scene;
+        return;
+      }
+      if (!SR || !frame.lines) return;
+      for (const line of frame.lines) SR.applyLine(this.scene, line);
     }
 
     _reduceLine(line, animate) {
@@ -315,7 +326,7 @@
         if (i > seq) break;
         const f = this.frames[i];
         if (!f) continue;
-        if (f.scene) this.scene = f.scene;
+        this._applyFrameScene(f);
         if (LP && f.lines && i === seq) for (const line of f.lines) this._reduceLine(line, false);
       }
       this.sideLabel = (this.frames[seq] && this.frames[seq].side) || this.sideLabel;
