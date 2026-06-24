@@ -30,11 +30,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only the latest commit per ref needs gating; supersede in-flight runs on
-# push-spam so the shared self-hosted runner is not held by stale commits.
+# Supersede in-flight PR runs on push-spam so the shared self-hosted runner is not
+# held by stale commits. Non-PR runs get a unique group because GitHub Actions also
+# replaces older pending runs in the same concurrency group even when
+# cancel-in-progress is false; every push:main run must keep its own attestation row.
 concurrency:
-  group: ga-auth-invariants-${{ github.ref }}
-  cancel-in-progress: true
+  group: ga-auth-invariants-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ga-auth-invariants:
