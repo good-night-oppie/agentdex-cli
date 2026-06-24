@@ -51,6 +51,7 @@ _FRAMES_WITH_REASONING = [
         "turn": 1,
         "raw_lines": [
             "|-reasoning|p1|Earthquake hits both — max damage output",
+            "|say|p2|secret counter-plan",
             "|move|p1a: Garchomp|Earthquake|p2a: Rotom",
             "|-damage|p2a: Rotom|35/100",
         ],
@@ -225,6 +226,11 @@ def test_sse_trace_lines_redacted_for_public_spectator(tmp_path: Path):
     assert frames
     assert all(fr["side"] == "spectator" for fr in frames)
     assert all(fr["trace_lines"] == [] for fr in frames)
+    public_lines = [line for fr in frames for line in fr["lines"]]
+    assert not any(line.startswith("|-reasoning|") for line in public_lines)
+    assert not any(line.startswith("|say|") for line in public_lines)
+    assert "max damage output" not in "\n".join(public_lines)
+    assert "secret counter-plan" not in "\n".join(public_lines)
 
 
 def test_sse_trace_lines_have_side_and_text_keys(tmp_path: Path):
