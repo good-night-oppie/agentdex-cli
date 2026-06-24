@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import subprocess
+import tempfile
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
@@ -583,9 +584,10 @@ def gh_pr_publisher(
     remote_url: str | None = None,
     runner: Callable[..., Any] = subprocess.run,
 ) -> PrPublisher:
-    """Build a :data:`PrPublisher` that commits the EvolutionCard into the
-    workspace, pushes the generation as a branch to ``repo``, and opens a GitHub
-    PR via the ambient ``gh`` CLI (fleet auth / ``GITHUB_TOKEN``).
+    """Build a :data:`PrPublisher` that commits the EvolutionCard onto the
+    measured ``gen-{N}`` snapshot, pushes the generation as a branch to ``repo``,
+    and opens a GitHub PR via the ambient ``gh`` CLI (fleet auth /
+    ``GITHUB_TOKEN``).
 
     ``repo`` = ``owner/name``. ``remote_url`` defaults to the repo's https URL.
     ``runner`` is injectable for tests. The target repo should be seeded once from
@@ -597,35 +599,55 @@ def gh_pr_publisher(
 
     def publish(ws: HarnessWorkspace, report: GenerationReport, card: EvolutionCard) -> str | None:
         branch = f"evolution/gen-{report.generation}-{report.verdict.lower()}"
-        # Card artifact alongside the evolved stores, captured by commit_edits.
-        (ws.root / "evolution_card.json").write_text(card.model_dump_json(indent=1) + "\n")
-        ws.commit_edits(f"evolution gen {report.generation}: {report.verdict}")
-        _git(ws.root, "branch", "-f", branch)
-        try:
-            _git(ws.root, "remote", "add", remote, url)
-        except subprocess.CalledProcessError:
-            _git(ws.root, "remote", "set-url", remote, url)
-        _git(ws.root, "push", "-f", remote, branch)
-        result = runner(
-            [
-                "gh",
-                "pr",
-                "create",
-                "--repo",
-                repo,
-                "--head",
-                branch,
-                "--base",
-                base,
-                "--title",
-                f"evolution gen {report.generation}: {report.verdict}",
-                "--body",
-                _pr_body(report, card),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        snapshot_ref = f"gen-{report.generation}"
+        _git(ws.root, "rev-parse", "--verify", snapshot_ref)
+
+        with tempfile.TemporaryDirectory(prefix="adx-evolution-pr-") as tmp:
+            publish_root = Path(tmp) / "publish"
+            _git(ws.root, "worktree", "add", "-B", branch, str(publish_root), snapshot_ref)
+            try:
+                # Card artifact alongside the measured evolved stores. This
+                # happens in an isolated publish worktree so the authoritative
+                # harness workspace does not advance on publish-only failures.
+                (publish_root / "evolution_card.json").write_text(
+                    card.model_dump_json(indent=1) + "\n"
+                )
+                _git(publish_root, "add", "-A")
+                _git(
+                    publish_root,
+                    "commit",
+                    "-q",
+                    "--allow-empty",
+                    "-m",
+                    f"evolution gen {report.generation}: {report.verdict}",
+                )
+                try:
+                    _git(publish_root, "remote", "add", remote, url)
+                except subprocess.CalledProcessError:
+                    _git(publish_root, "remote", "set-url", remote, url)
+                _git(publish_root, "push", "-f", remote, branch)
+                result = runner(
+                    [
+                        "gh",
+                        "pr",
+                        "create",
+                        "--repo",
+                        repo,
+                        "--head",
+                        branch,
+                        "--base",
+                        base,
+                        "--title",
+                        f"evolution gen {report.generation}: {report.verdict}",
+                        "--body",
+                        _pr_body(report, card),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            finally:
+                _git(ws.root, "worktree", "remove", "--force", str(publish_root))
         return (getattr(result, "stdout", "") or "").strip() or None
 
     return publish

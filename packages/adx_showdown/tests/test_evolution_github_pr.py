@@ -7,10 +7,12 @@ gate: publish on a MEASURED verdict / rollback, skip NEUTRAL.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from adx_showdown import evolution as evo
 from adx_showdown.evolution import (
     EvolutionLoop,
@@ -59,6 +61,14 @@ def _report(gen: int = 1, verdict: str = "EFFECTIVE") -> GenerationReport:
     )
 
 
+def _commit_team(ws: HarnessWorkspace, team: str, *, tag: str | None = None) -> str:
+    (ws.root / "teams.json").write_text(json.dumps({"active": team}, indent=1) + "\n")
+    commit = ws.commit_edits(f"set team {team}")
+    if tag is not None:
+        ws.tag_state(tag)
+    return commit
+
+
 def test_pr_body_carries_verdict_and_metrics() -> None:
     body = _pr_body(_report(), _card())
     assert "generation 1" in body
@@ -67,12 +77,14 @@ def test_pr_body_carries_verdict_and_metrics() -> None:
     assert "evolution_card.json" in body
 
 
-def test_gh_pr_publisher_pushes_branch_and_opens_pr(tmp_path: Path) -> None:
+def test_gh_pr_publisher_pushes_generation_snapshot_and_opens_pr(tmp_path: Path) -> None:
     # A real local bare repo stands in for GitHub — the push is genuine (offline);
     # only `gh pr create` is faked via an injected runner.
     bare = tmp_path / "remote.git"
     subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
     ws = HarnessWorkspace.init(tmp_path / "ws", team_packed="packed-team-v0")
+    _commit_team(ws, "packed-team-v1", tag="gen-1")
+    head_before_publish = _commit_team(ws, "packed-team-v2")
 
     calls: list[list[str]] = []
 
@@ -85,18 +97,90 @@ def test_gh_pr_publisher_pushes_branch_and_opens_pr(tmp_path: Path) -> None:
 
     # the publisher returned the PR url from `gh`
     assert url == "https://github.com/o/r/pull/7"
-    # the card artifact landed in the workspace
-    assert (ws.root / "evolution_card.json").is_file()
+    # the authoritative harness workspace stays on the next/current generation.
+    assert (
+        subprocess.run(
+            ["git", "-C", str(ws.root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        == head_before_publish
+    )
+    assert not (ws.root / "evolution_card.json").exists()
     # the generation branch was really pushed to the (bare) remote
     refs = subprocess.run(
         ["git", "ls-remote", "--heads", str(bare)], capture_output=True, text=True, check=True
     ).stdout
     assert "evolution/gen-1-effective" in refs
+    pushed_team = subprocess.run(
+        [
+            "git",
+            "--git-dir",
+            str(bare),
+            "show",
+            "refs/heads/evolution/gen-1-effective:teams.json",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert json.loads(pushed_team)["active"] == "packed-team-v1"
+    pushed_card = subprocess.run(
+        [
+            "git",
+            "--git-dir",
+            str(bare),
+            "show",
+            "refs/heads/evolution/gen-1-effective:evolution_card.json",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "arena-gen-1" in pushed_card
     # `gh pr create` was invoked with the right repo/head/base
     gh_call = next(c for c in calls if c[:3] == ["gh", "pr", "create"])
     assert "--repo" in gh_call and "o/r" in gh_call
     assert "evolution/gen-1-effective" in gh_call
     assert "--base" in gh_call and "main" in gh_call
+
+
+def test_gh_pr_publisher_failure_does_not_mutate_harness_workspace(tmp_path: Path) -> None:
+    bare = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    ws = HarnessWorkspace.init(tmp_path / "ws", team_packed="packed-team-v0")
+    _commit_team(ws, "packed-team-v1", tag="gen-1")
+    head_before_publish = _commit_team(ws, "packed-team-v2")
+
+    def failing_runner(cmd, **kwargs):
+        raise subprocess.CalledProcessError(1, cmd)
+
+    publish = gh_pr_publisher("o/r", remote_url=str(bare), runner=failing_runner)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        publish(ws, _report(gen=1, verdict="EFFECTIVE"), _card(1))
+
+    assert (
+        subprocess.run(
+            ["git", "-C", str(ws.root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        == head_before_publish
+    )
+    assert (
+        subprocess.run(
+            ["git", "-C", str(ws.root), "status", "--short"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        == ""
+    )
+    assert not (ws.root / "evolution_card.json").exists()
+    assert ws.team == "packed-team-v2"
 
 
 # ---- cadence gate (sidecar-free run_generation with faked windows) ----
