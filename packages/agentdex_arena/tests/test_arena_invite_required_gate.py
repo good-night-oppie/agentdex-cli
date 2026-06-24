@@ -76,8 +76,11 @@ def _admin():
 # ---- Flag OFF: open enroll (optional-at-boot posture) ----------------------
 
 
-def test_gate_off_session_enroll_proceeds_without_invite(tmp_path):
+def test_gate_off_session_enroll_proceeds_without_invite(tmp_path, monkeypatch):
     """``/enroll/account`` is open when ``ARENA_INVITE_REQUIRED`` is unset."""
+    # Hermetic: clear an inherited flag (e.g. a beta-gated probe shell exports
+    # ARENA_INVITE_REQUIRED=1) so this proves the UNSET/default behavior (#585 review).
+    monkeypatch.delenv("ARENA_INVITE_REQUIRED", raising=False)
     gw, _sent = _gateway(tmp_path)
     with _client(gw) as c:
         r = c.post(
@@ -88,9 +91,12 @@ def test_gate_off_session_enroll_proceeds_without_invite(tmp_path):
     assert r.status_code == 200, r.text
 
 
-def test_gate_off_oob_confirm_proceeds_without_invite(tmp_path):
+def test_gate_off_oob_confirm_proceeds_without_invite(tmp_path, monkeypatch):
     """``/enroll/confirm`` is open when ``ARENA_INVITE_REQUIRED`` is unset —
     the OOB code proves ownership of the email, no extra gate."""
+    # Hermetic: clear an inherited ARENA_INVITE_REQUIRED so this proves the
+    # unset/default path even under a beta-gated shell (#585 review).
+    monkeypatch.delenv("ARENA_INVITE_REQUIRED", raising=False)
     gw, sent = _gateway(tmp_path)
     with _client(gw) as c:
         c.post(
@@ -122,6 +128,10 @@ def test_gate_on_session_enroll_403_when_owner_not_admitted(tmp_path, monkeypatc
             headers=_sess(gw),
         )
     assert r.status_code == 403
+    # Lock the no-enumeration invariant: the body must be the GENERIC opaque shape,
+    # not "invite code is invalid" vs "an invitation code is required" (which would let a
+    # regression leak the gate reason while this attestation still passes) (#585 review).
+    assert r.json().get("detail", "").startswith("arena error (ref:"), r.text
 
 
 def test_gate_on_session_enroll_succeeds_after_redeem(tmp_path, monkeypatch):
@@ -167,6 +177,8 @@ def test_gate_on_oob_confirm_403_when_no_invite_code_carried(tmp_path, monkeypat
         oob = sent[-1][1]
         r = c.post(f"/enroll/confirm/{oob}")
     assert r.status_code == 403
+    # No-enumeration: generic opaque body, not invite-specific text (#585 review).
+    assert r.json().get("detail", "").startswith("arena error (ref:"), r.text
     # The pending code is preserved — invariant from the gateway docstring
     # ("Peek (not pop) first so a rejected confirm does not consume").
     assert oob in gw.pending_enrollments
@@ -190,10 +202,16 @@ def test_gate_on_oob_confirm_redeems_carried_invite_code(tmp_path, monkeypatch):
                 "invite_code": code,
             },
         )
+        # The carried code must NOT be redeemed by the UNAUTHENTICATED /enroll/request —
+        # only the OOB /enroll/confirm (which proves control of bob@x.com) may burn it.
+        # Without this, a regression that redeems on the request would pass because the
+        # final admitted/burned state is identical (#585 review).
+        assert not gw.invites.is_admitted("bob@x.com")
+        assert gw.invites.redeemable(code) is True
         oob = sent[-1][1]
         r = c.post(f"/enroll/confirm/{oob}")
     assert r.status_code == 200, r.text
-    assert gw.invites.is_admitted("bob@x.com")
+    assert gw.invites.is_admitted("bob@x.com")  # redeemed only now, after OOB proof
     assert gw.invites.redeemable(code) is False  # burned by the OOB confirm
 
 
