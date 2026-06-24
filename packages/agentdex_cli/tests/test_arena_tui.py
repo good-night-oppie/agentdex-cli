@@ -3,6 +3,8 @@ ArenaClient (no network, no TTY)."""
 
 from __future__ import annotations
 
+import types
+
 import pytest
 from agentdex_cli import arena_tui
 from rich.console import Console
@@ -151,6 +153,46 @@ def test_play_requires_token_or_owner(monkeypatch) -> None:
     monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: _FakeClient())
     with pytest.raises(SystemExit):
         arena_tui.cmd_arena_play(["--agent", "nobody"])
+
+
+def test_resolve_token_passes_invite_code_to_oob_enroll(monkeypatch, tmp_path) -> None:
+    class EnrollClient:
+        def __init__(self):
+            self.requests: list[dict] = []
+            self.confirm_codes: list[str] = []
+
+        def enroll_request(self, **kwargs):
+            self.requests.append(kwargs)
+            return {"status": "pending"}
+
+        def enroll_confirm(self, code):
+            self.confirm_codes.append(code)
+            return "tok"
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("ADX_ARENA_TOKEN", raising=False)
+    monkeypatch.setattr("rich.prompt.Prompt.ask", lambda *a, **k: "oob-code")
+    args = types.SimpleNamespace(
+        agent="terminal-player",
+        token=None,
+        owner="owner@example.com",
+        key=None,
+        invite_code="invite-123",
+    )
+    client = EnrollClient()
+
+    token, identity = arena_tui._resolve_token(client, args, _rec())
+
+    assert token == "tok"
+    assert identity.name == "terminal-player"
+    assert client.confirm_codes == ["oob-code"]
+    assert client.requests == [
+        {
+            "owner_email": "owner@example.com",
+            "agent": identity,
+            "invite_code": "invite-123",
+        }
+    ]
 
 
 class _MultiTurnClient(_FakeClient):

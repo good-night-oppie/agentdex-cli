@@ -117,21 +117,19 @@ class ArenaClient:
         self._http = httpx.Client(base_url=self.base, timeout=timeout)
 
     # ---- enroll ----
-    def enroll_request(self, *, owner_email: str, agent: AgentIdentity) -> dict[str, Any]:
+    def enroll_request(
+        self, *, owner_email: str, agent: AgentIdentity, invite_code: str | None = None
+    ) -> dict[str, Any]:
         if any(c in owner_email for c in "{}<> ") or "@" not in owner_email:
             raise ValueError("owner_email must be a real contact, not a placeholder")
-        return (
-            self._http.post(
-                "/enroll/request",
-                json={
-                    "owner": owner_email,
-                    "agent_name": agent.name,
-                    "agent_pubkey_hex": agent.pub_hex,
-                },
-            )
-            .raise_for_status()
-            .json()
-        )
+        body = {
+            "owner": owner_email,
+            "agent_name": agent.name,
+            "agent_pubkey_hex": agent.pub_hex,
+        }
+        if invite_code is not None:
+            body["invite_code"] = invite_code
+        return self._http.post("/enroll/request", json=body).raise_for_status().json()
 
     def enroll_confirm(self, code: str) -> str:
         """Return the bearer token (7-day; scopes enroll/battle/evolve/badge_mint)."""
