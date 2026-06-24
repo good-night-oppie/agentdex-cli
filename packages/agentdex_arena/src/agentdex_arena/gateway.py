@@ -3511,6 +3511,44 @@ def create_app(
         except InviteError as e:
             raise _opaque_error(403, e) from None
 
+    @app.get("/auth/invite/lookup", include_in_schema=False)
+    async def invite_lookup(code: str | None = None) -> dict:
+        """Pre-signup read of an invite code's current state, so the GA SignupScreen
+        can replace the design-prototype hardcoded "✓ valid" fixture with an honest
+        chip driven by server truth (GA-ENROLL-INVITE-MINT, Eddie 2026-06-24 ~01:00Z:
+        "why the fuck is the invitation code already populated"). Public on purpose
+        — the SignupScreen is pre-auth; the existing rate-limit on /auth/* (the
+        ``_auth_volumetric_guard`` family) caps probe-style enumeration.
+
+        Returns one of three honest shapes (no "valid" lie when the code is gone):
+          - unknown code           → {"valid": False, "redeemed": False, "code_present": <bool>}
+          - minted, unredeemed     → {"valid": True,  "redeemed": False, "seats_remaining": N, "grant": "..."}
+          - minted, already redeemed → {"valid": False, "redeemed": True, "seats_remaining": N, "grant": "..."}
+
+        The plaintext code is hashed before the InviteStore lookup (same discipline
+        as redeem); we never leak which-of-unknown/used a code is to a probing client.
+        """
+        present = bool(code and code.strip())
+        if not present:
+            # No code supplied (the typical SPA mount path) — surface a benign "show
+            # the placeholder" payload; no store probe runs, so no enumeration risk.
+            return {"valid": False, "redeemed": False, "code_present": False}
+        store = gateway.invites
+        exists = store.exists(code)
+        redeemable = store.redeemable(code)
+        stats = store.stats()
+        body: dict = {
+            "valid": bool(redeemable),
+            "redeemed": bool(exists and not redeemable),
+            "code_present": True,
+            "seats_remaining": int(stats.get("remaining", 0)),
+        }
+        if exists:
+            # Only describe the grant when the code is real — never advertise grants
+            # to bogus codes (an attacker would learn nothing the SPA can render).
+            body["grant"] = "Full paid set · free 3 months"
+        return body
+
     @app.get("/account/quota")
     async def account_quota(authorization: str | None = Header(default=None)) -> dict:
         """Session-authed, read-only quota dashboard for `adx status` (ADR-0013

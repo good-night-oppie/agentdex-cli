@@ -95,7 +95,13 @@ window.GA = (function () {
   };
 
   // The "100 invited" path: invite code → $0, full paid set free for 3 months.
-  const INVITE = { code: 'AGENTDEX-OU-7F3A', status: 'valid', grant: 'Full paid set · free 3 months', seats: '100 invited' };
+  // Populated at runtime from GET /auth/invite/lookup (follow-up wiring). NEVER
+  // hardcode a code+status here: the pre-fix shape baked a design-fixture code
+  // + a green "valid" chip into the bundle and that lie shipped to live
+  // agentdex.builders (Eddie 2026-06-24 incident). SignupScreen + BillingScreen
+  // render the chip only when status === 'valid'; an invariant test in
+  // test_ga_auth_pages.py pins these defaults to a falsy state.
+  const INVITE = { code: '', status: 'unknown', grant: 'Full paid set · free 3 months', seats: '100-seat beta' };
 
   // Canonical funnel steps (the stepper). 'account' covers signup OR login.
   const STEPS = [
