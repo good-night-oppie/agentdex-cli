@@ -177,7 +177,11 @@ def _resolve_token(
         else AgentIdentity.new(agent)
     )
     identity.save(key_path)
-    client.enroll_request(owner_email=args.owner, agent=identity)
+    client.enroll_request(
+        owner_email=args.owner,
+        agent=identity,
+        invite_code=getattr(args, "invite_code", None),
+    )
     console.print(
         f"[yellow]enrollment requested[/yellow] — a confirmation code was sent to "
         f"[bold]{args.owner}[/bold] (check email / the owner inbox)."
@@ -285,6 +289,11 @@ def cmd_arena_play(argv: list[str]) -> int:
     )
     p.add_argument("--token", help="consent token (default: $ADX_ARENA_TOKEN; else enroll)")
     p.add_argument("--owner", help="owner email for enrollment (if no token)")
+    p.add_argument(
+        "--invite-code",
+        default=os.environ.get("ADX_ARENA_INVITE_CODE"),
+        help="invite code to pass through the OOB enrollment request",
+    )
     p.add_argument(
         "--agent",
         default=_default_agent_name(),

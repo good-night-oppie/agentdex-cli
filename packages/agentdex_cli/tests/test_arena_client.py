@@ -9,6 +9,9 @@ transient as terminal (arena PR #381 review 3443812758). A 409 WITHOUT Retry-Aft
 
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+
 import httpx
 import pytest
 from agentdex_cli.arena_client import _INFLIGHT_MAX_ATTEMPTS, ArenaClient
@@ -33,6 +36,29 @@ def test_battle_state_retries_inflight_409_then_succeeds():
     out = _client_with(handler).battle_state("tok", "b")
     assert calls["n"] == 2  # retried once
     assert out["status"] == "your_move"
+
+
+def test_enroll_request_sends_optional_invite_code():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={"status": "pending"})
+
+    agent = SimpleNamespace(name="bot", pub_hex="ab" * 32)
+    out = _client_with(handler).enroll_request(
+        owner_email="owner@example.com",
+        agent=agent,
+        invite_code="invite-123",
+    )
+
+    assert out == {"status": "pending"}
+    assert seen == {
+        "owner": "owner@example.com",
+        "agent_name": "bot",
+        "agent_pubkey_hex": "ab" * 32,
+        "invite_code": "invite-123",
+    }
 
 
 def test_battle_choose_retries_inflight_409_then_succeeds():
