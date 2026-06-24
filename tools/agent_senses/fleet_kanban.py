@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import importlib.util
 import json
 import os
 import shlex
@@ -24,6 +25,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # repo root (restart/CWD robus
 DEFAULT_BOARD_PATH = _REPO_ROOT / "sweeps/adx-cli-fleet-kanban.json"
 DEFAULT_MARKDOWN_PATH = _REPO_ROOT / "sweeps/2026-06-16-adx-cli-fleet-kanban.md"
 DEFAULT_ACTOR = os.environ.get("HARNESS_A2A_AGENT") or os.environ.get("USER") or "agent"
+KTUI_ADAPTER_PATH = Path(
+    os.environ.get("FLEET_KANBAN_KTUI_ADAPTER", "~/gh/harness-engineering/scripts/kanban_store.py")
+).expanduser()
 
 STATUSES = ("triage", "todo", "ready", "running", "blocked", "review", "done", "archived")
 PRIORITIES = ("P0", "P1", "P2")
@@ -57,15 +61,16 @@ def _try_mirror_to_ktui(board: dict[str, Any]) -> None:
     and the next write skips the mirror.
     """
     try:
-        import os
-        import sys
-
-        store_path = os.path.expanduser("~/gh/harness-engineering/scripts")
-        if store_path not in sys.path:
-            sys.path.insert(0, store_path)
-        from kanban_store import mirror_to_ktui  # type: ignore[import-not-found]
-
-        mirror_to_ktui(board)
+        if not KTUI_ADAPTER_PATH.is_file():
+            return
+        spec = importlib.util.spec_from_file_location(
+            "fleet_kanban_ktui_adapter", KTUI_ADAPTER_PATH
+        )
+        if spec is None or spec.loader is None:
+            return
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.mirror_to_ktui(board)  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001 — mirror is best-effort by contract
         pass
 
@@ -77,9 +82,10 @@ def write_board(path: Path, board: dict[str, Any]) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(board, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     tmp.replace(path)
-    # Phase A v0.1: best-effort ktui mirror (after the canonical JSON write
-    # succeeds; never blocks the write contract). See _try_mirror_to_ktui above.
-    _try_mirror_to_ktui(board)
+    # Phase A v0.1: best-effort ktui mirror for the canonical JSON board only
+    # (after the write succeeds; never blocks the write contract).
+    if is_default_board_path(path):
+        _try_mirror_to_ktui(board)
 
 
 def backup_existing_board(path: Path) -> Path | None:
