@@ -174,6 +174,73 @@ def test_healthz_reclaim_fails_crashed_battles_closed(tmp_path: Path, monkeypatc
             app.state.sidecar = None
 
 
+def test_healthz_reclaim_marks_pending_start_interrupted(tmp_path: Path, monkeypatch):
+    """If reclaim_dead returns a battle_id that is still between sidecar.start and
+    BattleSession publication, the owner must still get the clean interrupted signal."""
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+    app = create_app(gateway, sidecar_factory=Sidecar)
+
+    pool = SidecarPool(size=1)
+    pool._sidecars[0]._last_returncode = 137
+
+    async def _reclaim() -> list[str]:
+        return ["sandbox-starting"]
+
+    monkeypatch.setattr(pool, "reclaim_dead", _reclaim)
+    gateway._mark_battle_start_pending("sandbox-starting", "t" + "1" * 16)
+
+    with TestClient(app, raise_server_exceptions=False) as c:
+        app.state.sidecar = pool
+        try:
+            c.get("/healthz")
+            assert "sandbox-starting" not in gateway._pending_battle_owners
+            assert gateway._interrupted.get("sandbox-starting") == "t" + "1" * 16
+        finally:
+            app.state.sidecar = None
+
+
+def test_sidecar_eviction_cleans_up_pvp_choice_router(tmp_path: Path):
+    """Evicting a live PvP battle must cancel any P1 _advance waiter."""
+    authority = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+    )
+    gateway = ArenaGateway(
+        authority=authority,
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+
+    class _LivePvpSess:
+        ended = None
+        claims_token_id = "t" + "2" * 16
+
+    async def _run() -> None:
+        policy = gateway.pvp_choice_router.make_p2_policy("pvp-crashed")
+        task = asyncio.create_task(policy(None))
+        await asyncio.sleep(0)
+        assert gateway.pvp_choice_router.is_waiting_for_p2("pvp-crashed")
+        gateway.sessions["pvp-crashed"] = _LivePvpSess()
+
+        gateway._mark_sidecar_evicted_battle("pvp-crashed")
+
+        assert "pvp-crashed" not in gateway.sessions
+        assert gateway._interrupted.get("pvp-crashed") == "t" + "2" * 16
+        assert not gateway.pvp_choice_router.is_waiting_for_p2("pvp-crashed")
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(_run())
+
+
 def test_healthz_503_when_dead_pool_member_respawn_fails(client, monkeypatch):
     """A dead pool member whose touch-driven respawn FAILS (e.g. node_modules
     missing) must leave the probe at 503 so the platform recycles the container

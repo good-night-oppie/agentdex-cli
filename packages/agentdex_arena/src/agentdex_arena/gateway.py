@@ -875,6 +875,10 @@ class ArenaGateway:
         # an atomic reservation so concurrent starts from one owner can't burst past
         # the cap (ADR-0012 §7; PR #243 review). owner_norm -> reserved count.
         self._owner_inflight: dict[str, int] = {}
+        # Sidecar starts that have claimed a battle_id in the pool but have not yet
+        # published a BattleSession. If /healthz reclaims the sidecar in that window,
+        # this lets the owner get the same 409 interrupted signal as a published battle.
+        self._pending_battle_owners: dict[str, str] = {}
         self.cap_503_total = 0  # capacity-shed counter (sidecar pool full) — surfaced on /metrics
         self.pending_enrollments: dict[str, EnrollRequest] = {}
         # GA-CORE-2: in-flight email magic-link login codes — code -> (email,
@@ -918,6 +922,32 @@ class ArenaGateway:
         self.sessions[battle_id] = session
         self.sessions.move_to_end(battle_id)
         self._evict_finished_sessions()
+
+    def _mark_battle_start_pending(self, battle_id: str, claims_token_id: str) -> None:
+        self._pending_battle_owners[battle_id] = claims_token_id
+
+    def _clear_battle_start_pending(self, battle_id: str) -> None:
+        self._pending_battle_owners.pop(battle_id, None)
+
+    def _raise_if_battle_start_reclaimed(
+        self, battle_id: str, claims_token_id: str
+    ) -> None:
+        if (
+            self._pending_battle_owners.get(battle_id) != claims_token_id
+            and self._interrupted.get(battle_id) == claims_token_id
+            and battle_id not in self.sessions
+        ):
+            raise HTTPException(status_code=409, detail=INTERRUPTED_RESTART_MSG) from None
+
+    def _mark_sidecar_evicted_battle(self, battle_id: str) -> None:
+        pending_claims_token_id = self._pending_battle_owners.pop(battle_id, None)
+        sess = self.sessions.pop(battle_id, None)
+        claims_token_id = pending_claims_token_id
+        if sess is not None and sess.ended is None:
+            claims_token_id = sess.claims_token_id
+        if claims_token_id is not None:
+            self._interrupted[battle_id] = claims_token_id
+            self.pvp_choice_router.cleanup(battle_id)
 
     def _evict_finished_sessions(self) -> None:
         """Keep live battles reachable, but bound old finished receipt sessions.
@@ -1723,68 +1753,75 @@ class ArenaGateway:
         session.p1_team, session.p2_team = team, opp_team
         # (Rated quota preflight ran at the top of battle_begin — before any team or
         # sidecar work — so an exhausted caller never reaches here. PR #230 review.)
+        self._mark_battle_start_pending(battle_id, claims.token_id)
         try:
-            resp = await sidecar.request(
-                "start",
-                battle=battle_id,
-                format="gen9ou",
-                seed=seed,
-                p1={"name": visitor, "team": team},
-                p2={"name": opponent, "team": opp_team},
-            )
-        except SidecarError as e:
-            # The shared sim caps concurrent live battles. Surface that as a clear,
-            # RETRYABLE 503 (not an opaque 400 a client reads as its own fault) so a
-            # visiting agent knows to finish/forfeit a battle and retry (playtest G-03).
-            if "capacity" in str(e).lower():
-                self.cap_503_total += 1  # operator-visible shed counter (/metrics)
-                raise HTTPException(
-                    status_code=503,
-                    detail="arena at capacity — finish or forfeit an active battle, then retry",
-                    headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
-                ) from None
-            raise
-        # Class A (atomicity): the durable begin receipt MUST exist before the
-        # session is published into self.sessions — otherwise an append failure
-        # would leave a live, choosable battle the log never recorded. Append
-        # fail-closed FIRST; on failure the live sidecar battle is stopped and
-        # we 500, so the session below is never reached. Chain event mirrors to
-        # Postgres write-behind. NO seed in the payload: mirror rows are
-        # tenant-readable and the rated seed stays secret until the post-result
-        # disclosure (A3).
-        await self._append_or_fail_closed(
-            "battle_begin",
-            {
-                "tenant_id": claims.token_id,
-                "battle_id": battle_id,
-                "lane": req.lane,
-                "mode": req.mode,
-                "visitor": visitor,
-                "opponent": opponent,
-            },
-            sidecar=sidecar,
-            battle_id=battle_id,
-        )
-        # Class B (quota spend-after-success): the rated battle has now passed
-        # every fallible gate (verify / pop / publication_allowed / team-
-        # validate / pack_team / sidecar.start / durable append). Spend the
-        # daily slot HERE so any earlier failure cannot cost the user a slot.
-        # If the cap is exhausted the sidecar battle is stopped before we
-        # return 403, so no orphan live battle is left behind. Sandbox lanes
-        # don't have a "battle" quota, so this stays behind the `rated` guard.
-        if req.lane == "rated":
             try:
-                _, spent_key = self.authority.spend_quota(claims, scope="battle")
-            except ConsentError as e:
+                resp = await sidecar.request(
+                    "start",
+                    battle=battle_id,
+                    format="gen9ou",
+                    seed=seed,
+                    p1={"name": visitor, "team": team},
+                    p2={"name": opponent, "team": opp_team},
+                )
+            except SidecarError as e:
+                self._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                # The shared sim caps concurrent live battles. Surface that as a clear,
+                # RETRYABLE 503 (not an opaque 400 a client reads as its own fault) so a
+                # visiting agent knows to finish/forfeit a battle and retry (playtest G-03).
+                if "capacity" in str(e).lower():
+                    self.cap_503_total += 1  # operator-visible shed counter (/metrics)
+                    raise HTTPException(
+                        status_code=503,
+                        detail="arena at capacity — finish or forfeit an active battle, then retry",
+                        headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
+                    ) from None
+                raise
+            self._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+            # Class A (atomicity): the durable begin receipt MUST exist before the
+            # session is published into self.sessions — otherwise an append failure
+            # would leave a live, choosable battle the log never recorded. Append
+            # fail-closed FIRST; on failure the live sidecar battle is stopped and
+            # we 500, so the session below is never reached. Chain event mirrors to
+            # Postgres write-behind. NO seed in the payload: mirror rows are
+            # tenant-readable and the rated seed stays secret until the post-result
+            # disclosure (A3).
+            await self._append_or_fail_closed(
+                "battle_begin",
+                {
+                    "tenant_id": claims.token_id,
+                    "battle_id": battle_id,
+                    "lane": req.lane,
+                    "mode": req.mode,
+                    "visitor": visitor,
+                    "opponent": opponent,
+                },
+                sidecar=sidecar,
+                battle_id=battle_id,
+            )
+            self._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+            # Class B (quota spend-after-success): the rated battle has now passed
+            # every fallible gate (verify / pop / publication_allowed / team-
+            # validate / pack_team / sidecar.start / durable append). Spend the
+            # daily slot HERE so any earlier failure cannot cost the user a slot.
+            # If the cap is exhausted the sidecar battle is stopped before we
+            # return 403, so no orphan live battle is left behind. Sandbox lanes
+            # don't have a "battle" quota, so this stays behind the `rated` guard.
+            if req.lane == "rated":
                 try:
-                    await sidecar.request("stop", battle=battle_id)
-                except Exception:  # noqa: BLE001 — best-effort teardown
-                    pass
-                raise _opaque_error(403, e) from None
-            # Durable so the daily cap survives a restart (ADX-P2-004).
-            self._record_quota_spend(spent_key)
-        self._publish_session(battle_id, session)
-        on_published()  # cap count handed off to the live session; drop the reservation
+                    _, spent_key = self.authority.spend_quota(claims, scope="battle")
+                except ConsentError as e:
+                    try:
+                        await sidecar.request("stop", battle=battle_id)
+                    except Exception:  # noqa: BLE001 — best-effort teardown
+                        pass
+                    raise _opaque_error(403, e) from None
+                # Durable so the daily cap survives a restart (ADX-P2-004).
+                self._record_quota_spend(spent_key)
+            self._publish_session(battle_id, session)
+            on_published()  # cap count handed off to the live session; drop the reservation
+        finally:
+            self._clear_battle_start_pending(battle_id)
         try:
             state = await self._advance(session, resp["state"], visitor_choice=None)
             out = {"battle_id": battle_id, "lane": req.lane, **state}
@@ -2790,9 +2827,7 @@ def create_app(
             # _interrupted set (same 409 signal as a gateway restart, PR #246) and
             # drop them so the owner gets a clean 409 instead of a stale-session loop.
             for bid in evicted:
-                sess = gateway.sessions.pop(bid, None)
-                if sess is not None and sess.ended is None:
-                    gateway._interrupted[bid] = sess.claims_token_id
+                gateway._mark_sidecar_evicted_battle(bid)
         if app.state.sidecar_start_failed or (sc is not None and _sidecar_dead(sc)):
             response.status_code = 503
             # Carry version even when degraded: a deploy probe must be able to read
@@ -3789,53 +3824,64 @@ def create_app(
                     7,
                     7,
                 ]
+                gateway._mark_battle_start_pending(battle_id, claims.token_id)
                 try:
-                    resp = await sidecar.request(
-                        "start",
-                        battle=battle_id,
-                        format="gen9ou",
+                    try:
+                        resp = await sidecar.request(
+                            "start",
+                            battle=battle_id,
+                            format="gen9ou",
+                            seed=seed,
+                            p1={"name": visitor, "team": team},
+                            p2={"name": opponent_name, "team": opp_team},
+                        )
+                    except SidecarError as e:
+                        gateway._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                        if "capacity" in str(e).lower():
+                            gateway.cap_503_total += 1
+                            raise HTTPException(
+                                status_code=503,
+                                detail="arena at capacity — finish or forfeit an active battle, then retry",
+                                headers={
+                                    "Retry-After": os.environ.get(
+                                        "ARENA_RETRY_AFTER_SEC", "5"
+                                    )
+                                },
+                            ) from None
+                        raise
+                    gateway._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                    session = BattleSession(
+                        battle_id=battle_id,
+                        claims_token_id=claims.token_id,
+                        owner=owner_norm,
+                        visitor_name=visitor,
+                        lane="sandbox",
+                        opponent=opponent_name,
                         seed=seed,
-                        p1={"name": visitor, "team": team},
-                        p2={"name": opponent_name, "team": opp_team},
+                        sidecar=sidecar,
+                        opponent_policy=p2_policy,
                     )
-                except SidecarError as e:
-                    if "capacity" in str(e).lower():
-                        gateway.cap_503_total += 1
-                        raise HTTPException(
-                            status_code=503,
-                            detail="arena at capacity — finish or forfeit an active battle, then retry",
-                            headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")},
-                        ) from None
-                    raise
-                session = BattleSession(
-                    battle_id=battle_id,
-                    claims_token_id=claims.token_id,
-                    owner=owner_norm,
-                    visitor_name=visitor,
-                    lane="sandbox",
-                    opponent=opponent_name,
-                    seed=seed,
-                    sidecar=sidecar,
-                    opponent_policy=p2_policy,
-                )
-                session.p1_team, session.p2_team = team, opp_team
-                # Bind P2's token_id for pvp-choose authentication.
-                session.pvp_p2_claims_token_id = pairing.p2_claims_token_id
-                session.pvp_p2_owner = pairing.opponent_owner
-                await gateway._append_or_fail_closed(
-                    "battle_begin",
-                    {
-                        "tenant_id": claims.token_id,
-                        "battle_id": battle_id,
-                        "lane": "sandbox",
-                        "mode": "pvp",
-                        "visitor": visitor,
-                        "opponent": opponent_name,
-                    },
-                    sidecar=sidecar,
-                    battle_id=battle_id,
-                )
-                gateway._publish_session(battle_id, session)
+                    session.p1_team, session.p2_team = team, opp_team
+                    # Bind P2's token_id for pvp-choose authentication.
+                    session.pvp_p2_claims_token_id = pairing.p2_claims_token_id
+                    session.pvp_p2_owner = pairing.opponent_owner
+                    await gateway._append_or_fail_closed(
+                        "battle_begin",
+                        {
+                            "tenant_id": claims.token_id,
+                            "battle_id": battle_id,
+                            "lane": "sandbox",
+                            "mode": "pvp",
+                            "visitor": visitor,
+                            "opponent": opponent_name,
+                        },
+                        sidecar=sidecar,
+                        battle_id=battle_id,
+                    )
+                    gateway._raise_if_battle_start_reclaimed(battle_id, claims.token_id)
+                    gateway._publish_session(battle_id, session)
+                finally:
+                    gateway._clear_battle_start_pending(battle_id)
                 _hand_off()
                 try:
                     state = await gateway._advance(session, resp["state"], visitor_choice=None)
