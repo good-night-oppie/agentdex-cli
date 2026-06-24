@@ -95,9 +95,9 @@ def test_native_strategy_dispatch_does_not_use_codex_adapter(monkeypatch):
     assert chosen == ("order", "eruption")
 
 
-def test_doubles_choose_move_uses_poke_env_random_order(monkeypatch):
-    """DoubleBattle.valid_orders is nested; choose_move must not feed it to _seeded_order."""
-    from adx_showdown.selfplay.runner import make_harness_player
+def test_doubles_choose_move_fails_closed_until_seeded_order_exists(monkeypatch):
+    """DoubleBattle must not fall back to poke-env's unseeded random picker."""
+    from adx_showdown.selfplay.runner import RunnerNotReadyForFormat, make_harness_player
 
     _install_fake_poke_env(monkeypatch)
     player = make_harness_player(
@@ -106,9 +106,8 @@ def test_doubles_choose_move_uses_poke_env_random_order(monkeypatch):
     )
     battle = _DoubleBattle()
 
-    chosen = asyncio.run(player.choose_move(battle))
-
-    assert chosen == ("random", battle)
+    with pytest.raises(RunnerNotReadyForFormat, match="DoubleBattleOrder"):
+        asyncio.run(player.choose_move(battle))
 
 
 def test_runner_dispatch_tracks_codex_strategy_constant(monkeypatch):
