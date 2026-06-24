@@ -4,6 +4,9 @@
   "private": true,
   "description": "Node sidecar host for pokemon-showdown BattleStream multiplexing (driven by adx_showdown over NDJSON/stdio)",
   "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/patch-showdown-loopback.cjs"
+  },
   "dependencies": {
     "pokemon-showdown": "0.11.10"
   }
