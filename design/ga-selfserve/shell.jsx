@@ -59,8 +59,8 @@ function Stepper({ current }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap' }}>
       {steps.map((s, i) => {
-        const done = i < idx, active = i === idx;
-        const dot = done ? 'var(--accent-primary)' : active ? 'var(--accent-primary)' : 'var(--border-strong)';
+        const done = i < idx;
+        const active = i === idx;
         const ink = done || active ? 'var(--text-strong)' : 'var(--text-faint)';
         return (
           <React.Fragment key={s.id}>
