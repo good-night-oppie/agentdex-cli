@@ -30,7 +30,7 @@ from fastapi.testclient import TestClient
 _OWNER = "eddie@oppie.xyz"
 _GH_ID = "12345678"
 _WEB_PUBLIC_BASE = "https://arena.example"
-_WEB_CLIENT_SECRET = "web-oauth-test-value"
+_WEB_CLIENT_SECRET = "web-oauth-test-value"  # pragma: allowlist secret
 
 
 class _FakeTransport:
@@ -63,14 +63,14 @@ def _start_script():
     }
 
 
-def _authorized_script():
+def _authorized_script(owner: str = _OWNER):
     return {
         GITHUB_ACCESS_TOKEN_URL: [
             (200, {"error": "authorization_pending"}),  # first poll
             (200, {"access_token": "gho_token"}),  # second poll
         ],
         GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
-        GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+        GITHUB_EMAILS_URL: [(200, [{"email": owner, "primary": True, "verified": True}])],
     }
 
 
@@ -167,6 +167,28 @@ def test_poll_pending_then_authorized_full_login(tmp_path):
     assert claims.owner == _OWNER
     assert claims.github_id == _GH_ID
     assert body["expires_at"] == claims.expires_at
+
+
+def test_poll_authorized_preserves_existing_github_owner_link(tmp_path):
+    original_owner = "old-primary@example.test"
+    changed_primary = "new-primary@example.test"
+    gw = _gateway(tmp_path, transport=_FakeTransport(_authorized_script(owner=changed_primary)))
+    gw.events.append("account_link", {"github_id": _GH_ID, "owner": original_owner})
+    gw.accounts.link(_GH_ID, original_owner)
+
+    with _client(gw) as c:
+        c.post("/auth/device/poll", json={"device_code": "dev-abc"})  # pending
+        done = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+
+    assert done.status_code == 200
+    body = done.json()
+    assert body["owner"] == original_owner
+    claims = gw.session_auth.verify_session(body["session_token"])
+    assert claims.owner == original_owner
+    assert gw.accounts.owner_for(_GH_ID) == original_owner
+    account_link_events = [e for e in gw.events.iter_events() if e.get("type") == "account_link"]
+    assert len(account_link_events) == 1
+    assert account_link_events[0]["payload"] == {"github_id": _GH_ID, "owner": original_owner}
 
 
 # ---- browser OAuth: /auth/github -> /oauth/github ----
@@ -303,12 +325,12 @@ def test_browser_github_roundtrip_can_return_to_ga_funnel(tmp_path):
     assert _setcookie(done, "arena_oauth_return_to").lower().startswith('arena_oauth_return_to=""')
 
 
-def _github_transport() -> _FakeTransport:
+def _github_transport(owner: str = _OWNER) -> _FakeTransport:
     return _FakeTransport(
         {
             GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token"})],
             GITHUB_USER_URL: [(200, {"id": int(_GH_ID), "login": "eddie"})],
-            GITHUB_EMAILS_URL: [(200, [{"email": _OWNER, "primary": True, "verified": True}])],
+            GITHUB_EMAILS_URL: [(200, [{"email": owner, "primary": True, "verified": True}])],
         }
     )
 
@@ -345,6 +367,38 @@ def test_browser_github_login_ignores_stale_session_owner(tmp_path):
     assert gw.accounts.owner_for(_GH_ID) == _OWNER
     claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
     assert claims.owner == _OWNER and claims.github_id == _GH_ID
+
+
+def test_browser_github_login_preserves_existing_github_owner_link(tmp_path):
+    original_owner = "old-primary@example.test"
+    changed_primary = "new-primary@example.test"
+    gw = _gateway(tmp_path, transport=_github_transport(owner=changed_primary))
+    assert gw.session_auth is not None
+    gw.events.append("account_link", {"github_id": _GH_ID, "owner": original_owner})
+    gw.accounts.link(_GH_ID, original_owner)
+
+    with _client(gw) as c:
+        start = c.get("/auth/github?next=/enroll", follow_redirects=False)
+        state = _cookie_value(start, "arena_oauth_state")
+        verifier = _cookie_value(start, "arena_oauth_pkce")
+        return_to = _cookie_value(start, "arena_oauth_return_to")
+        done = c.get(
+            f"/oauth/github?code=abc123&state={state}",
+            cookies={
+                "arena_oauth_state": state,
+                "arena_oauth_pkce": verifier,
+                "arena_oauth_return_to": return_to,
+            },
+            follow_redirects=False,
+        )
+
+    assert done.status_code == 303, done.text
+    assert gw.accounts.owner_for(_GH_ID) == original_owner
+    claims = gw.session_auth.verify_session(_cookie_value(done, "arena_session"))
+    assert claims.owner == original_owner and claims.github_id == _GH_ID
+    account_link_events = [e for e in gw.events.iter_events() if e.get("type") == "account_link"]
+    assert len(account_link_events) == 1
+    assert account_link_events[0]["payload"] == {"github_id": _GH_ID, "owner": original_owner}
 
 
 def test_browser_github_link_flow_preserves_owner(tmp_path):

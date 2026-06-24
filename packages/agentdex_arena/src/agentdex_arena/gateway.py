@@ -3318,13 +3318,17 @@ def create_app(
         if result.status == "authorized":
             # result.owner / result.github_id are non-None on the authorized
             # branch (the broker only returns authorized with both resolved).
-            owner = result.owner or ""
             github_id = result.github_id or ""
+            linked_owner = gateway.accounts.owner_for(github_id)
+            owner = linked_owner or result.owner or ""
             # Durable link BEFORE handing out the session, so a returning login
-            # resolves to the same verified email across restarts (Class-A
-            # write-then-publish: append, then mutate, then return).
-            gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
-            gateway.accounts.link(github_id, owner)
+            # resolves to the same verified email across restarts. If the GitHub
+            # id is already linked, preserve that durable owner even if GitHub's
+            # current primary email changed; otherwise memberships, quotas, and
+            # enrolled agents would fork onto a new owner key.
+            if linked_owner is None:
+                gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
+                gateway.accounts.link(github_id, owner)
             token = gateway.session_auth.mint_session(owner, github_id)
             claims = gateway.session_auth.verify_session(token)
             if web == 1:
@@ -3513,8 +3517,11 @@ def create_app(
         if link_intent and current_session:
             with contextlib.suppress(SessionError):
                 owner = gateway.session_auth.verify_session(current_session).owner
-        gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
-        gateway.accounts.link(github_id, owner)
+        else:
+            owner = gateway.accounts.owner_for(github_id) or owner
+        if link_intent or gateway.accounts.owner_for(github_id) is None:
+            gateway.events.append("account_link", {"github_id": github_id, "owner": owner})
+            gateway.accounts.link(github_id, owner)
         token = gateway.session_auth.mint_session(owner, github_id)
         claims = gateway.session_auth.verify_session(token)
         response = RedirectResponse(
