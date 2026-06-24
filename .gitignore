@@ -35,6 +35,9 @@ blog/
 !site/blog/**
 !site/zh/blog/
 !site/zh/blog/**
+# ...and keep the source markdown that reproduces those generated pages.
+!blog/
+!blog/**/*.md
 # ...but keep the repo-wide secret/cache/db excludes ACTIVE under the re-included
 # blog dirs — a blog build must never commit .pyc caches, sqlite files, or .env
 # secrets just because the dir itself is tracked (the `!...**` above would otherwise

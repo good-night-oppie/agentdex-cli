@@ -86,12 +86,13 @@ kill-gated probe everything else does — <em>disposes</em>.</p>
 <div class="codehilite"><pre><span></span><code>bene<span class="w"> </span>--json<span class="w"> </span>mh<span class="w"> </span>search<span class="w"> </span>--benchmark<span class="w"> </span>agentic_coding<span class="w">   </span><span class="c1"># mutate + evaluate; .search_agent_id holds the full id</span>
 bene<span class="w"> </span>mh<span class="w"> </span>frontier<span class="w"> </span>&lt;search-agent-id&gt;<span class="w">                 </span><span class="c1"># the Pareto frontier that survived</span>
 <span class="c1"># (the plain-TTY run abbreviates the id in its summary; --json prints the exact one mh frontier needs.</span>
-<span class="c1">#  add --background to detach a worker instead of running in the foreground.)</span>
+<span class="c1">#  add --background to detach a worker — but it returns only {pid, log_path}, NOT the search-agent</span>
+<span class="c1">#  id (the detached worker never prints it), so use the foreground form above when you need the id.)</span>
 </code></pre></div>
 
 <p>Selection is patient and gated: no candidate promotes by looking good in a demo,
-only by passing a held-out gate that could have killed it. Progress that can't be
-falsified isn't progress.</p>
+only by passing the hash-locked improvement probe that could have ACCEPT-or-killed
+it. Progress that can't be falsified isn't progress.</p>
 <h2 id="what-ties-the-loops-together-memory">What ties the loops together: memory</h2>
 <p>Each loop leaves a trace, and traces become <strong>engrams</strong> — searchable memory of
 the path already walked. The agent that picks up the next PR, the next gate, the
