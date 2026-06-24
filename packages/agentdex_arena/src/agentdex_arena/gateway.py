@@ -2670,6 +2670,12 @@ async def _sse_battle_stream(
             fr = frames[sent]
             sent += 1
             projected = project_frame(fr.get("raw_lines") or [], side=side)
+            if side == "spectator":
+                projected = [
+                    line
+                    for line in projected
+                    if not (line.startswith("|-reasoning|") or line.startswith("|say|"))
+                ]
             # UI-5: update cumulative scene state from this frame's projected lines.
             fold_scene(projected, _scene)
             # UI-6: extract per-move reasoning/say trace from this frame.
