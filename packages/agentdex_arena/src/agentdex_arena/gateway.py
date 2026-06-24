@@ -3326,9 +3326,18 @@ def create_app(
     # - scopes are inherited from GitHubDeviceFlow.DEFAULT_SCOPE
     # - GitHub access tokens are not persisted or returned to the browser
 
-    def _oauth_redirect_uri(request: Request) -> str:
-        base = gateway.public_base_url or str(request.base_url).rstrip("/")
-        return f"{base}/oauth/github"
+    def _require_browser_oauth_config() -> GitHubDeviceFlow:
+        flow = gateway.device_flow
+        if flow is None or gateway.session_auth is None:
+            raise _opaque_error(503, "session auth not configured")
+        if not gateway.public_base_url:
+            raise _opaque_error(503, "GitHub OAuth public base URL not configured")
+        if not flow.client_secret:
+            raise _opaque_error(503, "GitHub OAuth client secret not configured")
+        return flow
+
+    def _oauth_redirect_uri() -> str:
+        return f"{gateway.public_base_url}/oauth/github"
 
     _OAUTH_RETURN_TO_DEFAULT = "/dashboard/"
     _OAUTH_RETURN_TO_ALLOWED = {
@@ -3355,14 +3364,12 @@ def create_app(
 
     @app.get("/auth/github/status", include_in_schema=False)
     async def auth_github_status() -> Response:
-        if gateway.device_flow is None or gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
+        _require_browser_oauth_config()
         return Response(status_code=204)
 
     @app.get("/auth/github", include_in_schema=False)
     async def auth_github(request: Request) -> RedirectResponse:
-        if gateway.device_flow is None or gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
+        flow = _require_browser_oauth_config()
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(32)
         return_to = _oauth_return_to(request.query_params.get("next"))
@@ -3383,8 +3390,8 @@ def create_app(
             except SessionError as e:
                 raise _opaque_error(403, e) from None
         try:
-            url = gateway.device_flow.web_authorize_url(
-                redirect_uri=_oauth_redirect_uri(request),
+            url = flow.web_authorize_url(
+                redirect_uri=_oauth_redirect_uri(),
                 state=state,
                 code_challenge=_pkce_challenge(verifier),
             )
@@ -3448,8 +3455,7 @@ def create_app(
         state: str | None = None,
         error: str | None = None,
     ) -> RedirectResponse:
-        if gateway.device_flow is None or gateway.session_auth is None:
-            raise _opaque_error(503, "session auth not configured")
+        flow = _require_browser_oauth_config()
         if error:
             raise _opaque_error(403, "GitHub OAuth was not authorized")
         cookie_state = request.cookies.get("arena_oauth_state")
@@ -3460,9 +3466,9 @@ def create_app(
             raise _opaque_error(403, "GitHub OAuth state mismatch")
         try:
             result = await asyncio.to_thread(
-                gateway.device_flow.exchange_web_code,
+                flow.exchange_web_code,
                 code=code,
-                redirect_uri=_oauth_redirect_uri(request),
+                redirect_uri=_oauth_redirect_uri(),
                 code_verifier=verifier,
             )
         except DeviceFlowError as e:
