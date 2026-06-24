@@ -55,12 +55,11 @@ on:
   workflow_dispatch:
 
 # Supersede in-flight PR runs on push-spam so the shared self-hosted runner is not
-# held by stale commits — but NEVER cancel a push:main run: the live-SHA attester
-# (ga_enroll_ci_attest.sh) needs that success record, and ga-deploy queues/continues
-# (doesn't cancel) deploys, so a canceled main-push gate would leave a deployed SHA
-# with no green run to attest.
+# held by stale commits. Non-PR runs get a unique group because GitHub Actions also
+# replaces older pending runs in the same concurrency group even when
+# cancel-in-progress is false; every push:main run must keep its own attestation row.
 concurrency:
-  group: ga-enroll-invariants-${{ github.ref }}
+  group: ga-enroll-invariants-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
