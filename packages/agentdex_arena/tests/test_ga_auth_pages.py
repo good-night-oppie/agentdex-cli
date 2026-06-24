@@ -192,11 +192,17 @@ def test_funnel_wires_the_auth_backends(tmp_path, monkeypatch):
         "/auth/email/verify?web=1",
         "/auth/device/start",
         "/auth/device/poll?web=1",
+        "/enroll/redeem-invite",
     ):
         assert endpoint in screens, f"funnel does not wire {endpoint}"
     assert "new URLSearchParams" in screens and "next: returnTo" in screens
     assert "location.assign" in screens, "browser GitHub OAuth CTA must redirect"
     assert "setErr(authErr" in screens and "r.status" in screens
+    assert "invite_code" in screens
+    assert "X-CSRF-Token" in screens
+    assert "agentdex:signup_invite_code" in screens
+    assert "sessionStorage.setItem" in screens
+    assert "pendingSignupInvite" in screens and "clearSignupInvite" in screens
 
 
 @_needs_ga

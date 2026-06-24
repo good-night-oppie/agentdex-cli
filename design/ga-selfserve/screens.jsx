@@ -13,12 +13,14 @@ const { useState, useEffect } = React;
  * Same-origin relative fetch, no eval, no inline JS, no third-party origin → runs
  * under the strict `script-src 'self'` box CSP. ?web=1 keeps the session in an
  * HttpOnly cookie (the security floor) — JS never sees the raw token. */
-async function postJSON(url, body) {
+const SIGNUP_INVITE_STORAGE_KEY = 'agentdex:signup_invite_code';
+
+async function postJSON(url, body, extraHeaders = {}) {
   let res;
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...extraHeaders },
       credentials: 'same-origin', // carry/set the HttpOnly arena_session cookie
       body: JSON.stringify(body || {}),
     });
@@ -55,7 +57,32 @@ async function csrfToken() {
   return cookieValue('arena_csrf');
 }
 
-async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll', link = false } = {}) {
+function rememberSignupInvite(inviteCode) {
+  try { window.sessionStorage.setItem(SIGNUP_INVITE_STORAGE_KEY, inviteCode); } catch (e) {}
+}
+
+function pendingSignupInvite() {
+  try { return window.sessionStorage.getItem(SIGNUP_INVITE_STORAGE_KEY) || ''; } catch (e) { return ''; }
+}
+
+function clearSignupInvite() {
+  try { window.sessionStorage.removeItem(SIGNUP_INVITE_STORAGE_KEY); } catch (e) {}
+}
+
+async function redeemInvite(inviteCode) {
+  const code = String(inviteCode || '').trim();
+  if (!code) return { ok: true, status: 204, data: null };
+  const csrf = await csrfToken();
+  return postJSON('/enroll/redeem-invite', { invite_code: code }, { 'X-CSRF-Token': csrf });
+}
+
+async function redeemInviteOrThrow(inviteCode) {
+  const r = await redeemInvite(inviteCode);
+  if (!r.ok) throw new Error(authErr(r));
+  return r;
+}
+
+async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll', link = false, beforeRedirect } = {}) {
   if (setErr) setErr('');
   if (setBusy) setBusy(true);
   try {
@@ -72,6 +99,7 @@ async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll', link 
       headers: { accept: 'application/json' },
     });
     if (r.ok) {
+      if (beforeRedirect) beforeRedirect();
       window.location.assign(target);
     } else if (setErr) {
       setErr(authErr({ status: r.status, data: null }));
@@ -88,7 +116,7 @@ async function startBrowserGitHub({ setBusy, setErr, returnTo = '/enroll', link 
 
 // Shared passwordless auth block for SignupScreen + LoginScreen. `onAuthed(method)`
 // fires once the arena_session cookie is set; the screen decides where to go next.
-function AuthMethods({ go, onAuthed, emailHint }) {
+function AuthMethods({ go, onAuthed, emailHint, beforeBrowserRedirect }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [phase, setPhase] = useState('idle'); // idle | sent | device
@@ -112,9 +140,11 @@ function AuthMethods({ go, onAuthed, emailHint }) {
     if (!code.trim()) { setErr('Enter the code from your email.'); return; }
     setBusy(true);
     const r = await postJSON('/auth/email/verify?web=1', { code: code.trim() });
-    setBusy(false);
-    if (isAuthed(r)) { onAuthed('email'); }
-    else { setErr(r.status === 403 ? 'That code is invalid or expired. Request a new one below.' : authErr(r)); }
+    if (isAuthed(r)) { await finishAuthed('email'); }
+    else {
+      setBusy(false);
+      setErr(r.status === 403 ? 'That code is invalid or expired. Request a new one below.' : authErr(r));
+    }
   }
   async function startDevice() {
     setErr(''); setBusy(true);
@@ -122,6 +152,15 @@ function AuthMethods({ go, onAuthed, emailHint }) {
     setBusy(false);
     if (r.ok && r.data && r.data.device_code) { setDevice(r.data); setPhase('device'); }
     else { setErr(authErr(r)); }
+  }
+  async function finishAuthed(method) {
+    setBusy(true);
+    try {
+      await onAuthed(method);
+    } catch (e) {
+      setBusy(false);
+      setErr(e && e.message ? e.message : 'Something went wrong. Please try again.');
+    }
   }
 
   // Poll /auth/device/poll while in the device phase; clean up on unmount/cancel.
@@ -139,7 +178,7 @@ function AuthMethods({ go, onAuthed, emailHint }) {
       }
       const r = await postJSON('/auth/device/poll?web=1', { device_code: device.device_code });
       if (cancelled) return;
-      if (isAuthed(r)) { onAuthed('github'); return; }
+      if (isAuthed(r)) { await finishAuthed('github'); return; }
       if (r.ok && r.data && (r.data.status === 'denied' || r.data.status === 'expired')) {
         setErr('GitHub authorization was ' + r.data.status + '. Please try again.');
         setPhase('idle'); setDevice(null); return;
@@ -200,7 +239,7 @@ function AuthMethods({ go, onAuthed, emailHint }) {
         hint={emailHint || 'Passwordless — we email a one-time magic link (ADR-0013). No password to remember.'} />
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
         <DS.Button variant="primary" size="lg" onClick={startEmail} disabled={busy} iconRight="→">{busy ? 'Sending…' : 'Email me a magic link'}</DS.Button>
-        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr })} disabled={busy}>Continue with GitHub</DS.Button>
+        <DS.Button variant="secondary" size="lg" iconLeft={<GithubGlyph />} onClick={() => startBrowserGitHub({ setBusy, setErr, beforeRedirect: beforeBrowserRedirect })} disabled={busy}>Continue with GitHub</DS.Button>
         <DS.Button variant="ghost" size="lg" iconLeft={<GithubGlyph />} onClick={startDevice} disabled={busy}>Use device code</DS.Button>
       </div>
       {err ? <p style={{ ...note, color: 'var(--text-winner)' }}>{err}</p> : null}
@@ -211,6 +250,10 @@ function AuthMethods({ go, onAuthed, emailHint }) {
 /* ───────────────────────── 01 · SIGN UP (invite) ───────────────────────── */
 function SignupScreen({ go }) {
   const { INVITE } = window.GA;
+  const redeemThenAdvance = async (method) => {
+    await redeemInviteOrThrow(INVITE.code);
+    go(method === 'github' ? 'enroll' : 'github');
+  };
   return (
     <AuthShell
       eyebrow="● Invited beta · 受邀内测"
@@ -234,7 +277,7 @@ function SignupScreen({ go }) {
       }
     >
       <Field label="Invitation code" zh="邀请码" value={INVITE.code} mono hint="Holders pay $0 and get the full paid set free for 3 months." />
-      <AuthMethods go={go} onAuthed={(m) => go(m === 'github' ? 'enroll' : 'github')}
+      <AuthMethods go={go} onAuthed={redeemThenAdvance} beforeBrowserRedirect={() => rememberSignupInvite(INVITE.code)}
         emailHint="Passwordless — we email a one-time magic link. Your agent identity is an Ed25519 keypair (ADR-0013), not a password." />
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
         Have an account? <a {...clickable(() => go('login'))} style={{ color: 'var(--text-accent)', cursor: 'pointer' }}>Log in</a>
@@ -330,6 +373,23 @@ function AgentChoice({ a, selected, onSelect }) {
 function EnrollScreen({ go, selectedAgent, setSelectedAgent }) {
   const { AGENTS } = window.GA;
   const a = AGENTS.find((x) => x.id === selectedAgent) || AGENTS[0];
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function continueToModes() {
+    setErr('');
+    setBusy(true);
+    const inviteCode = pendingSignupInvite();
+    if (inviteCode) {
+      const r = await redeemInvite(inviteCode);
+      if (!r.ok) {
+        setBusy(false);
+        setErr(authErr(r));
+        return;
+      }
+      clearSignupInvite();
+    }
+    go('modes');
+  }
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '48px 24px 40px' }}>
       <Eyebrow>Step 03 · 注册智能体</Eyebrow>
@@ -343,11 +403,12 @@ function EnrollScreen({ go, selectedAgent, setSelectedAgent }) {
         {AGENTS.map((ag) => <AgentChoice key={ag.id} a={ag} selected={ag.id === a.id} onSelect={setSelectedAgent} />)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <DS.Button variant="primary" size="lg" onClick={() => go('modes')} iconRight="→">Enroll {a.name}</DS.Button>
+        <DS.Button variant="primary" size="lg" onClick={continueToModes} disabled={busy} iconRight="→">{busy ? 'Redeeming invite…' : `Enroll ${a.name}`}</DS.Button>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>
           Mints an Ed25519 identity for <span style={{ color: 'var(--text-strong)' }}>{a.name}</span> · gen9 OU · sandbox-first
         </span>
       </div>
+      {err ? <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, marginTop: 12, color: 'var(--text-winner)' }}>{err}</p> : null}
     </div>
   );
 }
