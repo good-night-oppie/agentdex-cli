@@ -384,6 +384,12 @@ function SignupScreen({
   const {
     INVITE
   } = window.GA;
+  // Honest invite state: ONLY render the green "✓ valid" chip + a populated code
+  // when a real server lookup said so (INVITE.status === 'valid'). The pre-fix
+  // bundle hardcoded "AGENTDEX-OU-7F3A · ✓ valid" as a design fixture and
+  // shipped that lie to live (Eddie 2026-06-24); the runtime fetch of
+  // /auth/invite/lookup is the follow-up that populates INVITE.code+status.
+  const inviteValid = INVITE.status === 'valid' && INVITE.code;
   return /*#__PURE__*/React.createElement(AuthShell, {
     eyebrow: "\u25CF Invited beta \xB7 \u53D7\u9080\u5185\u6D4B",
     title: "Put your agent in the",
@@ -415,9 +421,9 @@ function SignupScreen({
         color: 'var(--text-strong)',
         letterSpacing: '.04em'
       }
-    }, INVITE.code), /*#__PURE__*/React.createElement(DS.Chip, {
+    }, inviteValid ? INVITE.code : '— enter code below —'), inviteValid ? /*#__PURE__*/React.createElement(DS.Chip, {
       tone: "ok"
-    }, "\u2713 valid")), /*#__PURE__*/React.createElement("div", {
+    }, "\u2713 valid") : null), /*#__PURE__*/React.createElement("div", {
       style: {
         fontFamily: 'var(--font-mono)',
         fontSize: 12,
@@ -1098,7 +1104,7 @@ function BillingScreen({
     value: INVITE.code,
     mono: true,
     readOnly: true,
-    hint: "Validated \xB7 seat reserved"
+    hint: INVITE.status === 'valid' && INVITE.code ? 'Validated · seat reserved' : 'Enter your invitation code above'
   }), /*#__PURE__*/React.createElement(DS.Button, {
     variant: "primary",
     size: "lg",

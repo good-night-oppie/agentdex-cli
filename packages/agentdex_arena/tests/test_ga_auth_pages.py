@@ -200,6 +200,33 @@ def test_funnel_wires_the_auth_backends(tmp_path, monkeypatch):
 
 
 @_needs_ga
+def test_funnel_does_not_hardcode_an_invite_code(tmp_path, monkeypatch):
+    """The served funnel must NOT carry a hardcoded valid invite (the pre-fix
+    shape baked `code: 'AGENTDEX-OU-7F3A', status: 'valid'` into data.js as a
+    design fixture and that lie shipped to live agentdex.builders — Eddie
+    2026-06-24 ~01:00Z: "why the fuck is the invitation code already
+    populated"). The lookup truth source is GET /auth/invite/lookup; the
+    bundled INVITE block must start empty + 'unknown'."""
+    monkeypatch.chdir(_REPO_ROOT)
+    c = _client(tmp_path)
+    data_js = c.get("/ga/app/data.js")
+    assert data_js.status_code == 200, "data.js not served"
+    src = data_js.text
+    # Pin the literal hardcoded code shape from the pre-fix bundle.
+    assert "AGENTDEX-OU-7F3A" not in src, (
+        "data.js carries the design-fixture invite code that shipped the false "
+        "'✓ valid' chip to live; INVITE.code must start empty + status='unknown'"
+    )
+    # And no other 'valid' INVITE preset — the SignupScreen gates the chip on
+    # INVITE.status === 'valid' and we want the bundled default to never hit
+    # that branch without a real server round-trip.
+    assert "status: 'valid'" not in src and 'status: "valid"' not in src, (
+        "data.js presets INVITE.status='valid' — a fresh /signup load would "
+        "render the green chip without ever calling /auth/invite/lookup"
+    )
+
+
+@_needs_ga
 def test_css_surface_is_same_origin(tmp_path, monkeypatch):
     # No third-party origin anywhere in the served CSS: the Google Fonts @import is
     # stripped at build time so the auth funnel never beacons to fonts.googleapis.com /

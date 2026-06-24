@@ -431,3 +431,82 @@ def test_blank_invite_code_is_opaque_403_not_500(tmp_path, monkeypatch):
         )
         oob_code = sent[-1][1]
         assert c.post(f"/enroll/confirm/{oob_code}").status_code == 403
+
+
+# ---- GET /auth/invite/lookup (GA-ENROLL-INVITE-MINT) ----
+
+
+def test_invite_lookup_no_code_returns_benign_placeholder(tmp_path):
+    """The GA SignupScreen calls /auth/invite/lookup with no code on mount when
+    the URL has no ?invite=... param — return a benign 'show the placeholder'
+    payload so the SPA can render the empty-state without any store probe (no
+    enumeration leak, no chip lie)."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        r = c.get("/auth/invite/lookup")
+    assert r.status_code == 200
+    assert r.json() == {"valid": False, "redeemed": False, "code_present": False}
+
+
+def test_invite_lookup_unknown_code_returns_invalid(tmp_path):
+    """An unknown / never-minted code looks up as not valid, not redeemed. The
+    response intentionally does NOT advertise the grant (would let an attacker
+    grep the SPA's render path to enumerate code existence). The pre-fix bundle
+    hardcoded a 'valid' chip for a fake code — the lookup is the truth source."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        r = c.get("/auth/invite/lookup", params={"code": "never-minted"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is False
+    assert body["redeemed"] is False
+    assert body["code_present"] is True
+    assert "grant" not in body  # unknown code: do not advertise grants
+
+
+def test_invite_lookup_minted_unredeemed_returns_valid(tmp_path):
+    """A minted, unredeemed code is the only state that lets the SignupScreen
+    render the green '✓ valid' chip + the grant text. seats_remaining reflects
+    InviteStore.stats() so the aside chip can show real beta supply."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 3}, headers=_admin()).json()["codes"][0]
+        r = c.get("/auth/invite/lookup", params={"code": code})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is True
+    assert body["redeemed"] is False
+    assert body["code_present"] is True
+    assert body["seats_remaining"] == 3
+    assert body["grant"]  # describes the grant for the real code
+
+
+def test_invite_lookup_redeemed_code_is_not_valid(tmp_path):
+    """Once redeemed, the same code looks up as not valid + redeemed=True so the
+    SPA can show 'this code has been used'. seats_remaining decrements."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        code = c.post("/admin/mint-invites", json={"count": 2}, headers=_admin()).json()["codes"][0]
+        assert (
+            c.post(
+                "/enroll/redeem-invite", json={"invite_code": code}, headers=_sess(gw)
+            ).status_code
+            == 200
+        )
+        r = c.get("/auth/invite/lookup", params={"code": code})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is False
+    assert body["redeemed"] is True
+    assert body["seats_remaining"] == 1  # the other minted code is still free
+
+
+def test_invite_lookup_blank_code_treated_as_no_code(tmp_path):
+    """A whitespace-only code (the typical SPA empty-input case) is treated as
+    'no code' — same benign shape, no store probe. Guards the InviteStore from
+    a `hash_invite_code('')` ValueError (PR #363 hardening shape)."""
+    gw = _gateway(tmp_path)
+    with _client(gw) as c:
+        r = c.get("/auth/invite/lookup", params={"code": "   "})
+    assert r.status_code == 200
+    assert r.json() == {"valid": False, "redeemed": False, "code_present": False}

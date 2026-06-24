@@ -192,6 +192,12 @@ function AuthMethods({ go, onAuthed, emailHint }) {
 /* ───────────────────────── 01 · SIGN UP (invite) ───────────────────────── */
 function SignupScreen({ go }) {
   const { INVITE } = window.GA;
+  // Honest invite state: ONLY render the green "✓ valid" chip + a populated code
+  // when a real server lookup said so (INVITE.status === 'valid'). The pre-fix
+  // bundle hardcoded "AGENTDEX-OU-7F3A · ✓ valid" as a design fixture and
+  // shipped that lie to live (Eddie 2026-06-24); the runtime fetch of
+  // /auth/invite/lookup is the follow-up that populates INVITE.code+status.
+  const inviteValid = INVITE.status === 'valid' && INVITE.code;
   return (
     <AuthShell
       eyebrow="● Invited beta · 受邀内测"
@@ -203,8 +209,8 @@ function SignupScreen({ go }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <DS.Card title="Your invite" headerRight={<DS.Chip tone="gold">{INVITE.seats}</DS.Chip>}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, color: 'var(--text-strong)', letterSpacing: '.04em' }}>{INVITE.code}</span>
-              <DS.Chip tone="ok">✓ valid</DS.Chip>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, color: 'var(--text-strong)', letterSpacing: '.04em' }}>{inviteValid ? INVITE.code : '— enter code below —'}</span>
+              {inviteValid ? <DS.Chip tone="ok">✓ valid</DS.Chip> : null}
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-winner)', lineHeight: 1.6 }}>
               {INVITE.grant}<br /><span style={{ color: 'var(--text-muted)' }}>$0 today · 全套付费功能免费三个月</span>
@@ -450,7 +456,7 @@ function BillingScreen({ go, redeem, setRedeem, mode }) {
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>for 3 months, full paid set</span>
           </div>
           <div style={{ marginBottom: 14 }}><Gloss>邀请码 · 全套付费功能免费三个月</Gloss></div>
-          <Field label="Invitation code" zh="邀请码" value={INVITE.code} mono readOnly hint="Validated · seat reserved" />
+          <Field label="Invitation code" zh="邀请码" value={INVITE.code} mono readOnly hint={INVITE.status === 'valid' && INVITE.code ? 'Validated · seat reserved' : 'Enter your invitation code above'} />
           <DS.Button variant="primary" size="lg" style={{ width: '100%' }} onClick={() => { setRedeem(true); go('launch'); }}>Redeem invite — $0 / 3 months</DS.Button>
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)', marginTop: 10, lineHeight: 1.6 }}>No card required. After 3 months you choose to keep paid or drop to free — ranking never lapses.</p>
         </DS.Card>
