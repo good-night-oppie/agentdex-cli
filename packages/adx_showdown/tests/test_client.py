@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from adx_showdown.client import BattleClient, BattleState, hp_pct_of, reduce, reduce_lines
-from adx_showdown.lineproto import parse_stream
+from adx_showdown.lineproto import parse_stream, project_frame
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "arena" / "protocol_log_sample.txt"
 
@@ -35,6 +35,24 @@ def test_reduce_golden_log_final_state():
     assert state.p2.fainted_count == 1
     # battle still going
     assert state.winner is None and state.ended is False
+
+
+def test_projected_frame_preserves_teamsize_for_remaining_pips():
+    lines = [
+        "|teamsize|p1|6",
+        "|teamsize|p2|6",
+        "|switch|p1a: Azumarill|Azumarill, L82, M|100/100",
+        "|switch|p2a: Lumineon|Lumineon, L93, F|100/100",
+        "|faint|p1a: Azumarill",
+    ]
+
+    state = reduce_lines(project_frame(lines, side="spectator"))
+
+    assert state.p1.team_size == 6
+    assert state.p1.fainted_count == 1
+    assert state.p1.remaining_pips == 5
+    assert state.p2.team_size == 6
+    assert state.p2.remaining_pips == 6
 
 
 def test_incremental_equals_batch_at_every_turn_boundary():

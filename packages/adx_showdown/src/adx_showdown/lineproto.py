@@ -207,7 +207,7 @@ MESSAGE_TYPES: dict[str, _Spec] = {
     SPLIT_TYPE: _spec(Tier.META, "SIDE", "hidden", "secret-share: next=private, then=public"),
     "gametype": _spec(Tier.META, "GAMETYPE", "hidden", "singles/doubles"),
     "player": _spec(Tier.META, "SIDE|NAME|AVATAR|RATING", "hidden", "player intro"),
-    "teamsize": _spec(Tier.META, "SIDE|SIZE", "hidden", "roster cardinality"),
+    "teamsize": _spec(Tier.META, "SIDE|SIZE", "rule", "public roster cardinality"),
     "gen": _spec(Tier.META, "NUM", "hidden", "generation"),
     "tier": _spec(Tier.META, "FORMAT", "hidden", "format name"),
     "rule": _spec(Tier.META, "RULE", "hidden", "clause announcement"),
@@ -493,11 +493,12 @@ def project_frame(lines: list[str], *, side: str) -> list[str]:
     NEW hidden meta type added later, so the projector can never silently leak a future
     hidden channel (an allowlist of *redacted* types is unsound; this denies by default).
     Public battle EVENTS (``|move|`` / ``|-damage|`` / ``|switch|`` / ``|turn|`` /
-    ``|faint|`` …) are ``Tier.MAJOR`` / ``Tier.MINOR``, never META-hidden, so they pass
-    through untouched. A bare ``|split|`` marker, the opponent's exact HP / team / rating,
-    and the battle seed therefore never reach a viewer that should only see the public
-    projection. (The owner sees their OWN exact HP via the kept ``|split|pX`` private
-    line, not via ``|request|``.)
+    ``|faint|`` …) are ``Tier.MAJOR`` / ``Tier.MINOR``, and public reducer metadata like
+    ``|teamsize|`` is META-but-not-hidden, so they pass through untouched. A bare
+    ``|split|`` marker, the opponent's exact HP / team / rating, and the battle seed
+    therefore never reach a viewer that should only see the public projection. (The owner
+    sees their OWN exact HP via the kept ``|split|pX`` private line, not via
+    ``|request|``.)
     """
     out: list[str] = []
     i = 0
