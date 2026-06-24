@@ -64,19 +64,15 @@ jobs:
           version: "0.11.19"
 
       - name: Sync workspace
-        # --frozen (NOT --locked): installs from the committed uv.lock without
-        # re-resolving. --locked would additionally assert lock==pyproject and FAIL —
-        # the committed uv.lock is already drifted from pyproject (CI-proven: `uv sync
-        # --locked` errors "lockfile needs to be updated"), a pre-existing vendored-
-        # package condition. Enforcing drift-detection requires first relocking the
-        # whole workspace (separate change); until then --frozen keeps the gate
-        # reproducible (no silent re-resolve) without false-failing on the stale lock.
+        # --locked installs from the committed uv.lock AND fails if workspace
+        # pyproject metadata drifted from it. That keeps dependency changes from
+        # silently running the GA-AUTH invariants against stale locked deps.
         # --all-packages (not --package scoping): pytest lives in the workspace-ROOT
         # dev-dependency group, which a `--package <member>` sync drops (it installs
         # only that member's dependency tree) — scoping made the gate fail with
         # "Failed to spawn: pytest". The invariant modules import adx_showdown.sidecar
         # but never spawn a battle, so no node_modules / live sidecar is needed.
-        run: uv sync --all-packages --frozen
+        run: uv sync --all-packages --locked
 
       - name: Run GA-AUTH security invariant gate
         # ADX_REQUIRE_GA_BUNDLE=1 turns a missing/broken web/ga bundle from a
