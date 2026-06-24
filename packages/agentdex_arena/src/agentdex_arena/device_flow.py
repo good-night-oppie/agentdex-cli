@@ -50,6 +50,7 @@ DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 # user's public profile email is private.
 DEFAULT_SCOPE = "read:user user:email"
 _DEFAULT_INTERVAL = 5
+_EMAILS_PAGE_SIZE = 30
 
 # (method, url, headers, json_body) -> (status_code, parsed_json)
 Transport = Callable[[str, str, dict, dict | None], "tuple[int, dict]"]
@@ -281,13 +282,31 @@ class GitHubDeviceFlow:
             raise DeviceFlowError(f"/user failed (status={ustatus})")
         github_id = str(user["id"])
 
-        estatus, emails = self._transport("GET", GITHUB_EMAILS_URL, auth, None)
-        if estatus != 200 or not isinstance(emails, list):
-            raise DeviceFlowError(f"/user/emails failed (status={estatus})")
+        emails = self._emails(auth)
         owner = _pick_primary_verified_email(emails)
         if owner is None:
             raise DeviceFlowError("no primary verified email on the GitHub account")
         return github_id, owner
+
+    def _emails(self, auth: dict) -> list:
+        """Fetch all GitHub email pages before choosing the canonical owner.
+
+        The transport surface intentionally returns only parsed JSON, not response
+        headers, so pagination follows the stable default page size: a full page
+        may have a next page; a short page is terminal.
+        """
+        all_emails: list = []
+        page = 1
+        url = GITHUB_EMAILS_URL
+        while True:
+            estatus, emails = self._transport("GET", url, auth, None)
+            if estatus != 200 or not isinstance(emails, list):
+                raise DeviceFlowError(f"/user/emails failed (status={estatus})")
+            all_emails.extend(emails)
+            if len(emails) < _EMAILS_PAGE_SIZE:
+                return all_emails
+            page += 1
+            url = f"{GITHUB_EMAILS_URL}?page={page}"
 
 
 def _pick_primary_verified_email(emails: list) -> str | None:

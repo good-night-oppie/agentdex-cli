@@ -196,6 +196,25 @@ def test_poll_authorized_resolves_primary_verified_email():
     assert exchange_body["grant_type"].endswith("device_code")
 
 
+def test_poll_authorized_fetches_all_email_pages_before_owner_selection():
+    first_page = [
+        {"email": f"alt-{i}@x.com", "primary": False, "verified": True} for i in range(30)
+    ]
+    second_page = [{"email": "primary@x.com", "primary": True, "verified": True}]
+    flow, t = _flow(
+        {
+            GITHUB_ACCESS_TOKEN_URL: [(200, {"access_token": "gho_token", "token_type": "bearer"})],
+            GITHUB_USER_URL: [(200, {"id": 12345678, "login": "eddie"})],
+            GITHUB_EMAILS_URL: [(200, first_page)],
+            f"{GITHUB_EMAILS_URL}?page=2": [(200, second_page)],
+        }
+    )
+
+    assert flow.poll("dev-123").owner == "primary@x.com"
+    email_urls = [call[1] for call in t.calls if call[1].startswith(GITHUB_EMAILS_URL)]
+    assert email_urls == [GITHUB_EMAILS_URL, f"{GITHUB_EMAILS_URL}?page=2"]
+
+
 def test_poll_authorized_includes_client_secret_when_set():
     flow, t = _flow(
         _authorized_scripts([{"email": "e@x.com", "primary": True, "verified": True}]),
