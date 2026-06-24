@@ -58,6 +58,33 @@ def test_report_default_caps_and_full_remaining_when_unspent():
     assert rep["utc_day"] == auth.current_utc_day()
 
 
+def test_report_snapshots_utc_day_once_across_midnight():
+    ticks = iter([86_399.0, 86_400.0, 86_400.0, 86_400.0])
+    auth = ConsentAuthority(
+        signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex(),
+        now=lambda: next(ticks),
+    )
+    auth.quota_used["oppie:evolve:19700101"] = 1
+
+    rep = auth.account_quota_report(_OWNER, ["oppie"])
+
+    assert rep["utc_day"] == "19700101"
+    assert rep["agents"]["oppie"]["evolve"] == {"remaining": 1, "cap": 2}
+
+
+def test_report_uses_enrolled_token_quota_caps():
+    auth = ConsentAuthority(signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex())
+    rep = auth.account_quota_report(
+        _OWNER,
+        ["oppie"],
+        agent_quotas={"oppie": {"battle": 4, "evolve": 1, "badge_mint": 3}},
+    )
+
+    assert rep["battle"] == {"remaining": 4, "cap": 4}
+    assert rep["agents"]["oppie"]["evolve"] == {"remaining": 1, "cap": 1}
+    assert rep["agents"]["oppie"]["badge_mint"] == {"remaining": 3, "cap": 3}
+
+
 def test_battle_is_owner_pooled_across_agents():
     """Spending battle (keyed on owner) decrements the single account-level
     battle counter, no matter which agent spent it."""
@@ -112,16 +139,18 @@ def _client(gw):
 
 def test_endpoint_returns_frozen_shape_with_account_agents(tmp_path):
     gw = _gateway(tmp_path)
-    gw.accounts.add_agent(_OWNER, "oppie")
+    gw.accounts.add_agent(_OWNER, "oppie", quotas={"battle": 4, "evolve": 1, "badge_mint": 3})
     tok = gw.session_auth.mint_session(_OWNER, _GH_ID)
     with _client(gw) as c:
         r = c.get("/account/quota", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
     body = r.json()
     assert set(body) == {"utc_day", "battle", "agents"}
-    assert body["battle"] == {"remaining": 5, "cap": 5}
+    assert body["battle"] == {"remaining": 4, "cap": 4}
     assert set(body["agents"]) == {"oppie"}
     assert set(body["agents"]["oppie"]) == {"evolve", "badge_mint"}
+    assert body["agents"]["oppie"]["evolve"] == {"remaining": 1, "cap": 1}
+    assert body["agents"]["oppie"]["badge_mint"] == {"remaining": 3, "cap": 3}
 
 
 def test_endpoint_reflects_spent_battle(tmp_path):

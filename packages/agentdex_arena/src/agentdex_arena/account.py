@@ -26,6 +26,8 @@ for a link this store does not know.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from agentdex_arena.consent import _normalize_owner
 
 
@@ -38,7 +40,7 @@ class AccountStore:
 
     def __init__(self) -> None:
         self._owner_by_github: dict[str, str] = {}
-        self._agents_by_owner: dict[str, set[str]] = {}
+        self._agents_by_owner: dict[str, dict[str, dict[str, int] | None]] = {}
 
     # ---- github_id <-> owner email ----
 
@@ -62,19 +64,49 @@ class AccountStore:
 
     # ---- owner -> agents join (D6 /status) ----
 
-    def add_agent(self, owner: str, agent_name: str) -> None:
+    @staticmethod
+    def _quota_snapshot(quotas: Mapping[str, object]) -> dict[str, int]:
+        snap: dict[str, int] = {}
+        for scope, cap in quotas.items():
+            if not isinstance(scope, str) or not scope.strip():
+                raise ValueError("quota scope required")
+            if isinstance(cap, bool) or not isinstance(cap, int) or cap < 0:
+                raise ValueError(f"quota cap for {scope!r} must be a non-negative int")
+            snap[scope] = cap
+        return snap
+
+    def add_agent(
+        self, owner: str, agent_name: str, *, quotas: Mapping[str, object] | None = None
+    ) -> None:
         """Record that ``owner``'s account enrolled ``agent_name``. Keyed by
         normalized owner so it agrees with the quota/membership keys. Idempotent
-        (a re-enroll of the same name is a no-op on the set)."""
+        for legacy rows; newer rows may include the token's quota caps so
+        ``adx status`` reports against the enrolled token rather than today's
+        defaults."""
         if not isinstance(agent_name, str) or not agent_name.strip():
             raise ValueError("agent_name required")
         key = _normalize_owner(owner)
-        self._agents_by_owner.setdefault(key, set()).add(agent_name)
+        agents = self._agents_by_owner.setdefault(key, {})
+        if quotas is not None:
+            agents[agent_name] = self._quota_snapshot(quotas)
+        else:
+            agents.setdefault(agent_name, None)
 
     def agents_for(self, owner: str) -> list[str]:
         """The account's enrolled agent names, sorted (stable for `adx status`
         rendering + contract tests). Empty list for an unknown owner."""
-        return sorted(self._agents_by_owner.get(_normalize_owner(owner), set()))
+        return sorted(self._agents_by_owner.get(_normalize_owner(owner), {}))
+
+    def agent_quotas_for(self, owner: str) -> dict[str, dict[str, int] | None]:
+        """Per-agent quota snapshots from the enrollment token, keyed by agent.
+
+        ``None`` means a legacy ``account_enroll`` row without quota metadata; the
+        caller should fall back to the current default caps for that agent.
+        """
+        agents = self._agents_by_owner.get(_normalize_owner(owner), {})
+        return {
+            name: (dict(quotas) if quotas is not None else None) for name, quotas in agents.items()
+        }
 
 
 __all__ = ["AccountStore"]

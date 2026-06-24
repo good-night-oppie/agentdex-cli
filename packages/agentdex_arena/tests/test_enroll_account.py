@@ -87,10 +87,36 @@ def test_account_enroll_records_account_to_agents_join_durably(tmp_path):
             headers=_bearer(tok),
         )
     assert gw.accounts.agents_for(_OWNER) == ["oppie"]
+    enroll_events = [e for e in gw.events.iter_events() if e.get("type") == "account_enroll"]
+    assert enroll_events[0]["payload"]["quotas"] == {"battle": 5, "evolve": 2, "badge_mint": 5}
     # durable: a fresh gateway over the same log rehydrates the join + the name
     gw2 = _gateway(tmp_path)
     assert gw2.accounts.agents_for(_OWNER) == ["oppie"]
+    assert gw2.accounts.agent_quotas_for(_OWNER) == {
+        "oppie": {"battle": 5, "evolve": 2, "badge_mint": 5}
+    }
     assert "oppie" in gw2._registered  # the register event replayed too
+
+
+def test_account_enroll_register_and_join_append_atomically(tmp_path):
+    gw = _gateway(tmp_path)
+    tok = _session_token(gw)
+
+    def boom(items):
+        raise OSError("disk full")
+
+    gw.events.append_many = boom  # type: ignore[method-assign]
+    with _client(gw) as c:
+        r = c.post(
+            "/enroll/account",
+            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            headers=_bearer(tok),
+        )
+
+    assert r.status_code == 400
+    assert "oppie" not in gw._registered
+    assert gw.accounts.agents_for(_OWNER) == []
+    assert list(gw.events.iter_events()) == []
 
 
 # ---- the load-bearing shared-validator invariant ----

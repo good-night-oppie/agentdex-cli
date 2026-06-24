@@ -30,6 +30,7 @@ import base64
 import os
 import time
 import unicodedata
+from collections.abc import Mapping
 from typing import Literal
 
 from cryptography.exceptions import InvalidSignature
@@ -175,13 +176,15 @@ class ConsentAuthority:
         """
         return self.quota_key_for(claims.owner, claims.agent_name, scope=scope)
 
-    def quota_key_for(self, owner: str, agent_name: str, *, scope: Scope) -> str:
+    def quota_key_for(
+        self, owner: str, agent_name: str, *, scope: Scope, day: str | None = None
+    ) -> str:
         """The same day-stamped counter key as ``quota_key`` but from raw
         ``(owner, agent_name)`` rather than a full ``ConsentClaims`` — so the
         read-only account quota surface (ADR-0013 D6) reports against the EXACT
         bytes ``spend_quota`` debits, with no second copy of the key formula to
         drift. ``quota_key`` delegates here, keeping one source of truth."""
-        day = time.strftime("%Y%m%d", time.gmtime(self._now()))
+        day = day or time.strftime("%Y%m%d", time.gmtime(self._now()))
         if scope == "battle":
             return f"{_normalize_owner(owner)}:{scope}:{day}"
         return f"{agent_name}:{scope}:{day}"
@@ -192,33 +195,52 @@ class ConsentAuthority:
         keys across the UTC-midnight boundary."""
         return time.strftime("%Y%m%d", time.gmtime(self._now()))
 
-    def account_quota_report(self, owner: str, agent_names: list[str]) -> dict:
+    def account_quota_report(
+        self,
+        owner: str,
+        agent_names: list[str],
+        *,
+        agent_quotas: Mapping[str, Mapping[str, int] | None] | None = None,
+    ) -> dict:
         """The ADR-0013 D6 ``GET /account/quota`` body for one account.
 
         ``battle`` is owner-pooled (one counter per account, keyed on normalized
         owner); ``evolve`` / ``badge_mint`` are per-agent, nested under each
-        ``agent_name`` from the account->agents join. Caps are the canonical
-        ``ConsentClaims.quotas`` defaults (every token mints with these today),
-        ``remaining = max(0, cap - used)`` for TODAY's key. Read-only — it never
-        debits and is never an input to ladder recompute, so the anti-pay-to-rank
-        invariant is unaffected."""
-        caps = ConsentClaims.model_fields["quotas"].get_default(call_default_factory=True)
+        ``agent_name`` from the account->agents join. Caps come from the enrolled
+        token when the account join recorded them, falling back to current
+        defaults for legacy rows. Read-only — it never debits and is never an
+        input to ladder recompute, so the anti-pay-to-rank invariant is
+        unaffected."""
+        default_caps = ConsentClaims.model_fields["quotas"].get_default(call_default_factory=True)
+        day = self.current_utc_day()
+
+        def caps_for(agent_name: str) -> dict[str, int]:
+            caps = dict(default_caps)
+            if agent_quotas and agent_quotas.get(agent_name):
+                caps.update(agent_quotas[agent_name] or {})
+            return caps
 
         def block(key: str, cap: int) -> dict:
             return {"remaining": max(0, cap - self.quota_used.get(key, 0)), "cap": cap}
 
-        battle_key = self.quota_key_for(owner, "", scope="battle")
+        battle_key = self.quota_key_for(owner, "", scope="battle", day=day)
+        battle_caps = [caps_for(name).get("battle", default_caps["battle"]) for name in agent_names]
+        battle_cap = min(battle_caps) if battle_caps else default_caps["battle"]
         agents: dict[str, dict] = {}
         for name in agent_names:
+            caps = caps_for(name)
             agents[name] = {
-                "evolve": block(self.quota_key_for(owner, name, scope="evolve"), caps["evolve"]),
+                "evolve": block(
+                    self.quota_key_for(owner, name, scope="evolve", day=day), caps["evolve"]
+                ),
                 "badge_mint": block(
-                    self.quota_key_for(owner, name, scope="badge_mint"), caps["badge_mint"]
+                    self.quota_key_for(owner, name, scope="badge_mint", day=day),
+                    caps["badge_mint"],
                 ),
             }
         return {
-            "utc_day": self.current_utc_day(),
-            "battle": block(battle_key, caps["battle"]),
+            "utc_day": day,
+            "battle": block(battle_key, battle_cap),
             "agents": agents,
         }
 
