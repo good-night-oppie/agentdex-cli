@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":3,"namespace":"AgentDexDesignSystem_26893a","components":[{"name":"StatusPill","sourcePath":"components/badges/StatusPill.jsx"},{"name":"Tier","sourcePath":"components/badges/Tier.jsx"},{"name":"TypeBadge","sourcePath":"components/badges/TypeBadge.jsx"},{"name":"AgentCard","sourcePath":"components/battle/AgentCard.jsx"},{"name":"HPBar","sourcePath":"components/battle/HPBar.jsx"},{"name":"MoveButton","sourcePath":"components/battle/MoveButton.jsx"},{"name":"StatBar","sourcePath":"components/battle/StatBar.jsx"},{"name":"Avatar","sourcePath":"components/core/Avatar.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Card","sourcePath":"components/core/Card.jsx"},{"name":"Chip","sourcePath":"components/core/Chip.jsx"},{"name":"LogLine","sourcePath":"components/data/LogLine.jsx"},{"name":"MetricStat","sourcePath":"components/data/MetricStat.jsx"},{"name":"Tabs","sourcePath":"components/data/Tabs.jsx"}],"sourceHashes":{"components/badges/StatusPill.jsx":"56469e8c10e3","components/badges/Tier.jsx":"26d8b283bd64","components/badges/TypeBadge.jsx":"c4e09cbb2de4","components/battle/AgentCard.jsx":"90fbf63f7d0f","components/battle/HPBar.jsx":"161fce48005c","components/battle/MoveButton.jsx":"4affcfa71e7c","components/battle/StatBar.jsx":"2cfa3db658b6","components/core/Avatar.jsx":"dcd24835b203","components/core/Button.jsx":"52906abaeb78","components/core/Card.jsx":"a6d9b1cd0ff4","components/core/Chip.jsx":"74d93843b342","components/data/LogLine.jsx":"9ef941942f71","components/data/MetricStat.jsx":"0b3b05ba7a17","components/data/Tabs.jsx":"f8548ada011a","ui_kits/arena/battle.jsx":"05651f9d9ca8","ui_kits/arena/data.js":"128174439829","ui_kits/arena/panels.jsx":"3559a600d7ad","ui_kits/ladder/landing.jsx":"0e3b297aa0f8"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"AgentDexDesignSystem_26893a","components":[{"name":"StatusPill","sourcePath":"components/badges/StatusPill.jsx"},{"name":"Tier","sourcePath":"components/badges/Tier.jsx"},{"name":"TypeBadge","sourcePath":"components/badges/TypeBadge.jsx"},{"name":"AgentCard","sourcePath":"components/battle/AgentCard.jsx"},{"name":"HPBar","sourcePath":"components/battle/HPBar.jsx"},{"name":"MoveButton","sourcePath":"components/battle/MoveButton.jsx"},{"name":"StatBar","sourcePath":"components/battle/StatBar.jsx"},{"name":"Avatar","sourcePath":"components/core/Avatar.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Card","sourcePath":"components/core/Card.jsx"},{"name":"Chip","sourcePath":"components/core/Chip.jsx"},{"name":"LogLine","sourcePath":"components/data/LogLine.jsx"},{"name":"MetricStat","sourcePath":"components/data/MetricStat.jsx"},{"name":"Tabs","sourcePath":"components/data/Tabs.jsx"}],"sourceHashes":{"components/badges/StatusPill.jsx":"56469e8c10e3","components/badges/Tier.jsx":"26d8b283bd64","components/badges/TypeBadge.jsx":"c4e09cbb2de4","components/battle/AgentCard.jsx":"90fbf63f7d0f","components/battle/HPBar.jsx":"161fce48005c","components/battle/MoveButton.jsx":"4affcfa71e7c","components/battle/StatBar.jsx":"2cfa3db658b6","components/core/Avatar.jsx":"dcd24835b203","components/core/Button.jsx":"52906abaeb78","components/core/Card.jsx":"a6d9b1cd0ff4","components/core/Chip.jsx":"74d93843b342","components/data/LogLine.jsx":"9ef941942f71","components/data/MetricStat.jsx":"0b3b05ba7a17","components/data/Tabs.jsx":"f8548ada011a","ui_kits/arena/battle.jsx":"05651f9d9ca8","ui_kits/arena/data.js":"128174439829","ui_kits/arena/panels.jsx":"667926a9ea35","ui_kits/ladder/landing.jsx":"0e3b297aa0f8"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
@@ -1830,14 +1830,10 @@ const {
   Avatar,
   TypeBadge,
   Tier,
-  StatusPill,
-  HPBar,
   StatBar,
-  MoveButton,
   AgentCard,
   MetricStat,
-  Tabs,
-  LogLine
+  Tabs
 } = DS;
 const HexMark = ({
   size = 22

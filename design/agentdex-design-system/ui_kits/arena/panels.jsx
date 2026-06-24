@@ -1,8 +1,8 @@
 // Arena UI kit screens — composes the AgentDex DS components.
 const DS = window.AgentDexDesignSystem_26893a;
-const { Button, Chip, Avatar, TypeBadge, Tier, StatusPill,
-        HPBar, StatBar, MoveButton, AgentCard,
-        MetricStat, Tabs, LogLine } = DS;
+const { Button, Chip, Avatar, TypeBadge, Tier,
+        StatBar, AgentCard,
+        MetricStat, Tabs } = DS;
 
 const HexMark = ({ size = 22 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent-primary)' }}>
