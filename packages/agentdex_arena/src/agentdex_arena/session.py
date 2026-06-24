@@ -87,7 +87,11 @@ class SessionAuthority:
         signing_key_hex: str | None = None,
         now: callable = time.time,
     ) -> None:
-        key_hex = signing_key_hex or os.environ.get(SESSION_SIGNING_KEY_ENV, "")
+        key_hex = (
+            os.environ.get(SESSION_SIGNING_KEY_ENV, "")
+            if signing_key_hex is None
+            else signing_key_hex
+        )
         if not key_hex:
             raise SessionError(f"{SESSION_SIGNING_KEY_ENV} not set — refusing (fail-closed)")
         if not _KEY_HEX_RE.match(key_hex):
