@@ -55,3 +55,35 @@ def test_build_allows_empty_source_tree_and_clears_stale_output(tmp_path: Path) 
     assert not stale_zh.exists()
     assert (builder.OUT / "index.html").is_file()
     assert (builder.ZH_OUT / "index.html").is_file()
+
+
+def test_parse_post_ignores_frontmatter(tmp_path: Path) -> None:
+    builder = load_builder()
+    post = tmp_path / "frontmatter-post.md"
+    post.write_text(
+        """---
+title: "Frontmatter Title"
+status: active
+owner: "@EdwardTang"
+created: 2026-06-18
+updated: 2026-06-24
+type: reference
+scope: blog
+layer: ui
+---
+
+# Rendered Title
+
+*BENE blog · the TEST · 2026-06-18*
+
+First rendered paragraph.
+""",
+        encoding="utf-8",
+    )
+
+    parsed = builder.parse_post(post)
+
+    assert parsed["title"] == "Rendered Title"
+    assert parsed["kind"] == "the TEST"
+    assert parsed["date"] == "2026-06-18"
+    assert parsed["excerpt"] == "First rendered paragraph."

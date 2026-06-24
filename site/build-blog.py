@@ -36,6 +36,16 @@ ZH_OUT = SITE / "zh" / "blog"
 MD_EXTS = ["tables", "fenced_code", "codehilite", "toc", "sane_lists"]
 MD_CFG = {"codehilite": {"guess_lang": False, "noclasses": False}}
 
+
+def strip_frontmatter(text: str) -> str:
+    if not text.startswith("---\n"):
+        return text
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return text
+    return text[end + len("\n---\n") :].lstrip("\n")
+
+
 # Shared design tokens — kept byte-identical to site/build-docs.py's :root so the
 # blog feels native next to the docs. Blog-specific layout overrides follow.
 CSS = """
@@ -196,7 +206,7 @@ def rewrite_links(body: str) -> str:
 
 def parse_post(md_path: Path) -> dict:
     """Pull slug/title/kind/date/excerpt/body_html out of a post markdown file."""
-    text = md_path.read_text(encoding="utf-8")
+    text = strip_frontmatter(md_path.read_text(encoding="utf-8"))
     # Title = first markdown h1.
     m_title = re.search(r"^#\s+(.+?)\s*$", text, re.M)
     title = m_title.group(1).strip() if m_title else md_path.stem
