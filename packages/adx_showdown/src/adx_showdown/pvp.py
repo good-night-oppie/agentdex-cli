@@ -135,6 +135,8 @@ class PvPChoiceRouter:
         # The submitted marker rejects HTTP retries for the same pending P2 turn after
         # the policy consumes the choice but before the gateway publishes the next turn.
         self._state: dict[str, tuple[asyncio.Future[str] | None, str | None, bool]] = {}
+        # battle_ids with a P2 choice accepted by the gateway but not yet released to P1.
+        self._reserved: set[str] = set()
 
     def make_p2_policy(self, battle_id: str):
         """Return an async Policy that waits for P2's explicit choice."""
@@ -163,7 +165,20 @@ class PvPChoiceRouter:
         Raises ValueError on a duplicate: a prior choice is already buffered or
         a resolved future hasn't been consumed yet by _advance.
         """
+        self.reserve_p2_choice(battle_id)
+        return self.submit_reserved_p2_choice(battle_id, choice_str)
+
+    def reserve_p2_choice(self, battle_id: str) -> None:
+        """Reserve the current P2 turn before a durable audit append.
+
+        The gateway needs to reject duplicates before writing the EventLog row,
+        but must not release the choice to P1 until that append succeeds.
+        """
         fut, buffered, submitted = self._state.get(battle_id, (None, None, False))
+        if battle_id in self._reserved:
+            raise ValueError(
+                f"duplicate P2 choice for {battle_id!r}: prior choice not yet consumed"
+            )
         if submitted or buffered is not None:
             raise ValueError(
                 f"duplicate P2 choice for {battle_id!r}: prior choice not yet consumed"
@@ -172,13 +187,35 @@ class PvPChoiceRouter:
             raise ValueError(
                 f"duplicate P2 choice for {battle_id!r}: prior choice not yet consumed"
             )
-        if fut is not None and not fut.done():
-            fut.set_result(choice_str)
-            self._state[battle_id] = (fut, None, True)
-            return True
-        # Buffer: policy not yet called (P2 chose before _advance ran)
-        self._state[battle_id] = (None, choice_str, True)
-        return False
+        self._reserved.add(battle_id)
+
+    def cancel_reserved_p2_choice(self, battle_id: str) -> None:
+        """Release a reservation when the gateway fails before committing it."""
+        self._reserved.discard(battle_id)
+
+    def submit_reserved_p2_choice(self, battle_id: str, choice_str: str) -> bool:
+        """Commit a previously reserved P2 choice to the waiting policy."""
+        if battle_id not in self._reserved:
+            raise ValueError(f"no reserved P2 choice for {battle_id!r}")
+        try:
+            fut, buffered, submitted = self._state.get(battle_id, (None, None, False))
+            if submitted or buffered is not None:
+                raise ValueError(
+                    f"duplicate P2 choice for {battle_id!r}: prior choice not yet consumed"
+                )
+            if fut is not None and fut.done():
+                raise ValueError(
+                    f"duplicate P2 choice for {battle_id!r}: prior choice not yet consumed"
+                )
+            if fut is not None and not fut.done():
+                fut.set_result(choice_str)
+                self._state[battle_id] = (fut, None, True)
+                return True
+            # Buffer: policy not yet called (P2 chose before _advance ran)
+            self._state[battle_id] = (None, choice_str, True)
+            return False
+        finally:
+            self._reserved.discard(battle_id)
 
     def is_waiting_for_p2(self, battle_id: str) -> bool:
         """True when _advance is suspended awaiting P2's choice."""
@@ -193,6 +230,7 @@ class PvPChoiceRouter:
 
     def cleanup(self, battle_id: str) -> None:
         """Release resources when a PvP battle ends."""
+        self._reserved.discard(battle_id)
         fut, _, _ = self._state.pop(battle_id, (None, None, False))
         if fut is not None and not fut.done():
             fut.cancel()

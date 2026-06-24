@@ -352,6 +352,48 @@ def test_pvp_choose_appends_p2_choice_before_ack(gw: ArenaGateway):
     assert payload["choice_label"] == "tackle"
 
 
+def test_pvp_choose_duplicate_rejection_does_not_append_battle_event(gw: ArenaGateway):
+    key = Ed25519PrivateKey.generate()
+    token = _mint(gw, "p2-dup@example.com", "AgentB", key)
+    claims = gw.authority.verify(token, scope="battle")
+    session = BattleSession(
+        battle_id="pvp-dup-audit",
+        claims_token_id="p1-token",
+        visitor_name="AgentA",
+        lane="sandbox",
+        opponent="AgentB",
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type] - pvp-choose only appends + routes.
+        opponent_policy=None,
+    )
+    session.visitor_side = "p1"
+    session.pvp_p2_claims_token_id = claims.token_id
+    session.turns = 3
+    session.last_state = {
+        "pending": {"p2": _move_request("p2")},
+        "active": {"p1": "Bulbasaur", "p2": "Bulbasaur"},
+        "turns": 3,
+    }
+    gw.sessions[session.battle_id] = session
+    app = create_app(gw, sidecar_factory=lambda: None)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        first = client.post(
+            f"/battle/{session.battle_id}/pvp-choose",
+            json={"token": token, "choice_index": 1},
+        )
+        duplicate = client.post(
+            f"/battle/{session.battle_id}/pvp-choose",
+            json={"token": token, "choice_index": 1},
+        )
+
+    assert first.status_code == 200
+    assert duplicate.status_code == 409
+    battle_events = [event for event in gw.events.iter_events() if event["type"] == "battle"]
+    assert len(battle_events) == 1
+    assert battle_events[0]["payload"]["battle_id"] == session.battle_id
+
+
 def test_p2_match_receipt_does_not_return_raw_last_state():
     src = inspect.getsource(gateway_mod.create_app)
     p2_receipt = src.split('"role": "p2"', 1)[1].split("return result", 1)[0]
