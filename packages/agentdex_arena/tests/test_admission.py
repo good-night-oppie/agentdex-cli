@@ -182,6 +182,40 @@ def test_concurrent_begins_cannot_burst_past_cap(gw):
     asyncio.run(_run())
 
 
+def test_reclaimed_pending_begin_aborts_before_publish(gw):
+    """If /healthz reclaims the sidecar route after start but before publication,
+    battle_begin must return the interrupted signal and never publish a stale session."""
+    agent_key = Ed25519PrivateKey.generate()
+    token = _token(gw, agent_key)
+    claims = gw.authority.verify(token, scope="battle")
+    req = _begin_req(gw, token, agent_key)
+    started_battle_ids: list[str] = []
+
+    class _ReclaimedStartSidecar:
+        returncode = None
+
+        async def request(self, op: str, **kwargs):
+            if op == "pack-team":
+                return {"packed": "fakepacked"}
+            if op == "start":
+                battle_id = kwargs["battle"]
+                started_battle_ids.append(battle_id)
+                gw._mark_sidecar_evicted_battle(battle_id)
+                return {"state": {}}
+            raise AssertionError(f"unexpected sidecar op: {op}")
+
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(gw.battle_begin(req, sidecar=_ReclaimedStartSidecar()))
+
+    assert ei.value.status_code == 409
+    assert started_battle_ids
+    battle_id = started_battle_ids[0]
+    assert battle_id not in gw.sessions
+    assert gw._interrupted.get(battle_id) == claims.token_id
+    assert [event["type"] for event in gw.events.iter_events()] == []
+    assert gw._owner_inflight == {}
+
+
 def test_cap_keys_on_owner_not_token_id(gw):
     """5 live battles under a DIFFERENT owner do NOT count → this owner gets past
     the cap (and then hits the sentinel sidecar, proving it passed the check)."""
