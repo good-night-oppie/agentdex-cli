@@ -70,17 +70,37 @@ def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) ->
     policy = str(getattr(harness, "system_prompt", "") or "").strip()
     moves = ctx.get("available_moves") or []
     switches = ctx.get("available_switches") or []
-    move_lines = ", ".join(f"{m.get('id')} (power {m.get('base_power', 0)})" for m in moves)
-    switch_lines = ", ".join(str(s.get("species") or "") for s in switches)
+    move_lines = ", ".join(
+        f"{m.get('id')} [{m.get('type') or '?'}] (power {m.get('base_power', 0)})" for m in moves
+    )
+    switch_lines = ", ".join(
+        f"{s.get('species') or ''} ({'/'.join(s.get('types') or []) or '?'})" for s in switches
+    )
     species = ctx.get("active_species") or "your active Pokemon"
+    active_types = "/".join(ctx.get("active_types") or []) or "?"
     hp = float(ctx.get("active_hp_fraction") or 0.0)
     header = policy + "\n\n" if policy else ""
-    moves_line = f"Legal moves (id: base power): {move_lines}.\n" if moves else ""
-    switch_line = f"Legal switches (species): {switch_lines}.\n" if switches else ""
+    opp = ctx.get("opponent") or {}
+    if opp:
+        opp_types = "/".join(opp.get("types") or []) or "?"
+        opp_moves = ", ".join(opp.get("revealed_moves") or []) or "none revealed yet"
+        opp_line = (
+            f"Opponent active: {opp.get('species') or '?'} ({opp_types}) "
+            f"at {float(opp.get('hp_fraction') or 0.0):.0%} HP; "
+            f"ability {opp.get('ability') or '?'}, item {opp.get('item') or '?'}; "
+            f"revealed moves: {opp_moves}.\n"
+        )
+    else:
+        opp_line = ""
+    moves_line = f"Legal moves (id [type]: base power): {move_lines}.\n" if moves else ""
+    switch_line = f"Legal switches (species, types): {switch_lines}.\n" if switches else ""
     return (
         f"{header}You are choosing exactly ONE action in a Pokemon Showdown singles battle.\n"
-        f"Active: {species} at {hp:.0%} HP.\n"
+        f"Active: {species} ({active_types}) at {hp:.0%} HP.\n"
+        f"{opp_line}"
         f"{moves_line}{switch_line}"
+        f"Use the type matchup — your move types vs the opponent's types — to pick "
+        f"super-effective offense, or switch to a Pokemon that resists the opponent.\n"
         f"Pick the single best action id (a move id or a switch species) from: "
         f"{', '.join(legal_ids)}.\n"
         'Reply ONLY with JSON {"move_id": "<one of the legal ids>", "rationale": "<=12 words"}.'
