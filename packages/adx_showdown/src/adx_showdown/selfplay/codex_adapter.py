@@ -94,16 +94,61 @@ def codex_context(battle: Any, *, allow_switch: bool = True) -> dict[str, Any]:
         "available_moves": [
             {
                 "id": str(getattr(m, "id", "") or ""),
+                "type": (_type_names(m) or [""])[0],
                 "base_power": int(getattr(m, "base_power", 0) or 0),
             }
             for m in moves
         ],
-        "available_switches": [{"species": str(getattr(s, "species", "") or "")} for s in switches],
+        "available_switches": [
+            {"species": str(getattr(s, "species", "") or ""), "types": _type_names(s)}
+            for s in switches
+        ],
         "active_species": str(getattr(active, "species", "") or "") if active else "",
+        "active_types": _type_names(active) if active else [],
         "active_hp_fraction": float(getattr(active, "current_hp_fraction", 0.0) or 0.0)
         if active
         else 0.0,
+        # the matchup model the policy was MISSING — why it played blind before.
+        "opponent": _opponent_view(battle),
         "force_switch": bool(getattr(battle, "force_switch", False)),
+    }
+
+
+def _type_names(obj: Any) -> list[str]:
+    """Lowercased type names of a poke-env Pokemon/Move (duck-typed: a ``.types`` list or
+    a single ``.type``). Empty when unknown. Pure — reads only ``.name`` off the type
+    enum, so it stays import-safe + unit-testable on a duck-typed battle."""
+    seq = getattr(obj, "types", None)
+    if seq is None:
+        one = getattr(obj, "type", None)
+        seq = [one] if one is not None else []
+    out: list[str] = []
+    for t in seq or []:
+        if t is None:
+            continue
+        name = str(getattr(t, "name", t) or "").lower()
+        if name:
+            out.append(name)
+    return out
+
+
+def _opponent_view(battle: Any) -> dict[str, Any] | None:
+    """The visible model of the opponent's active Pokemon — the matchup info the policy
+    needs to reason (species, types, HP, revealed ability/item/moves). Duck-typed; None
+    when there is no opponent active mon. THIS is the context the agent was missing."""
+    opp = getattr(battle, "opponent_active_pokemon", None)
+    if opp is None:
+        return None
+    revealed = list((getattr(opp, "moves", None) or {}).keys())
+    status = getattr(opp, "status", None)
+    return {
+        "species": str(getattr(opp, "species", "") or ""),
+        "types": _type_names(opp),
+        "hp_fraction": float(getattr(opp, "current_hp_fraction", 0.0) or 0.0),
+        "ability": str(getattr(opp, "ability", "") or "") or None,
+        "item": str(getattr(opp, "item", "") or "") or None,
+        "revealed_moves": [str(m) for m in revealed],
+        "status": str(getattr(status, "name", "") or "").lower() or None,
     }
 
 

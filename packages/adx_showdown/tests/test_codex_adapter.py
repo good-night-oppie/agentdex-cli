@@ -21,15 +21,22 @@ from adx_showdown.selfplay.codex_adapter import (
 )
 
 
+class _Type:
+    def __init__(self, name: str):
+        self.name = name
+
+
 class _Move:
-    def __init__(self, mid: str, base_power: int):
+    def __init__(self, mid: str, base_power: int, move_type: str | None = None):
         self.id = mid
         self.base_power = base_power
+        self.type = _Type(move_type) if move_type else None
 
 
 class _Switch:
-    def __init__(self, species: str):
+    def __init__(self, species: str, types: list[str] | None = None):
         self.species = species
+        self.types = [_Type(t) for t in (types or [])]
 
 
 class _Battle:
@@ -136,11 +143,11 @@ def test_on_illegal_not_called_for_legal_or_abstaining_decisions():
 
 
 def test_codex_context_exposes_moves_with_power():
-    battle = _Battle([_Move("eruption", 150), _Move("ember", 40)])
+    battle = _Battle([_Move("eruption", 150, "fire"), _Move("ember", 40, "fire")])
     ctx = codex_context(battle)
     assert ctx["available_moves"] == [
-        {"id": "eruption", "base_power": 150},
-        {"id": "ember", "base_power": 40},
+        {"id": "eruption", "type": "fire", "base_power": 150},
+        {"id": "ember", "type": "fire", "base_power": 40},
     ]
     assert "force_switch" in ctx and "active_hp_fraction" in ctx
 
@@ -149,9 +156,15 @@ def test_codex_context_exposes_moves_with_power():
 
 
 def test_codex_context_exposes_available_switches():
-    battle = _Battle([_Move("ember", 40)], switches=[_Switch("blastoise"), _Switch("venusaur")])
+    battle = _Battle(
+        [_Move("ember", 40)],
+        switches=[_Switch("blastoise", ["water"]), _Switch("venusaur", ["grass", "poison"])],
+    )
     ctx = codex_context(battle)
-    assert ctx["available_switches"] == [{"species": "blastoise"}, {"species": "venusaur"}]
+    assert ctx["available_switches"] == [
+        {"species": "blastoise", "types": ["water"]},
+        {"species": "venusaur", "types": ["grass", "poison"]},
+    ]
 
 
 def test_decide_can_choose_a_switch_by_species():
@@ -278,7 +291,7 @@ def test_no_move_forced_switch_keeps_switches():
     blastoise = _Switch("blastoise")
     battle = _Battle([], force_switch=True, switches=[blastoise])
     ctx = codex_context(battle, allow_switch=False)
-    assert ctx["available_switches"] == [{"species": "blastoise"}]
+    assert ctx["available_switches"] == [{"species": "blastoise", "types": []}]
     assert select_codex_move(harness=_PolicyHarness(allow_switch=False), battle=battle) is blastoise
 
 
