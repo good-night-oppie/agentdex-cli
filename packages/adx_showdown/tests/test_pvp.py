@@ -187,6 +187,17 @@ def test_pvp_choice_router_submit_buffered_when_not_waiting():
     assert not router.is_waiting_for_p2("b3")
 
 
+def test_pvp_choice_router_reservation_rejects_duplicate_until_commit():
+    router = PvPChoiceRouter()
+    router.reserve_p2_choice("reserved")
+    with pytest.raises(ValueError, match="duplicate"):
+        router.submit_p2_choice("reserved", "move 2")
+    accepted = router.submit_reserved_p2_choice("reserved", "move 1")
+    assert accepted is False
+    with pytest.raises(ValueError, match="duplicate"):
+        router.submit_p2_choice("reserved", "move 2")
+
+
 def test_pvp_choice_router_cleanup():
     async def _clean():
         router = PvPChoiceRouter()

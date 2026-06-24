@@ -4038,6 +4038,12 @@ def create_app(
         choice_str = choices[idx]
         choice_label = _choice_label(choice_str, p2_pending)
         try:
+            gateway.pvp_choice_router.reserve_p2_choice(battle_id)
+        except ValueError:
+            raise _opaque_error(
+                409, "duplicate P2 choice — prior choice not yet consumed"
+            ) from None
+        try:
             await gateway._append_or_fail_closed(
                 "battle",
                 {
@@ -4053,14 +4059,10 @@ def create_app(
                 session=session,
             )
         except HTTPException:
+            gateway.pvp_choice_router.cancel_reserved_p2_choice(battle_id)
             gateway.pvp_choice_router.cleanup(battle_id)
             raise
-        try:
-            accepted = gateway.pvp_choice_router.submit_p2_choice(battle_id, choice_str)
-        except ValueError:
-            raise _opaque_error(
-                409, "duplicate P2 choice — prior choice not yet consumed"
-            ) from None
+        accepted = gateway.pvp_choice_router.submit_reserved_p2_choice(battle_id, choice_str)
         return {"status": "submitted", "choice": choice_str, "accepted": accepted}
 
     @app.get("/battle/{battle_id}/live")
