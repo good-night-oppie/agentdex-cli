@@ -657,6 +657,20 @@ def test_reclaim_dead_shields_post_start_stop_from_second_cancellation(monkeypat
     assert new_members[-1].started is False
 
 
+def test_pending_evictions_keep_health_reclaim_visible():
+    """Pending evictions need another health touch even if every sidecar is alive."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+    assert not p.any_dead()
+
+    p._pending_evictions.append("b1")
+
+    assert p.any_dead()
+    assert _run(p.reclaim_dead()) == ["b1"]
+    assert p._pending_evictions == []
+    assert not p.any_dead()
+
+
 def test_reclaim_does_not_hold_the_lock_while_starting_a_replacement(monkeypatch):
     """#2847: a slow Sidecar.start() must NOT block routing on healthy members —
     the pool lock has to be FREE while the replacement is starting, so one shard's

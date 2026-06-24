@@ -216,10 +216,12 @@ class SidecarPool:
         Synchronous + IPC-free — reads each member's cached ``returncode`` (``None``
         while running), so it is safe to call from the ``/healthz`` readiness probe
         without risking a hang on a wedged sidecar. A never-started member reports
-        ``returncode is None`` (not dead). Auto-respawn is :meth:`reclaim_dead`;
-        this only *reports* liveness.
+        ``returncode is None`` (not dead). Pending evictions also require a
+        reclaim touch so the gateway can consume the battle_ids even after a
+        successful respawn. Auto-respawn is :meth:`reclaim_dead`; this only
+        *reports* liveness.
         """
-        return any(s.returncode is not None for s in self._sidecars)
+        return bool(self._pending_evictions) or any(s.returncode is not None for s in self._sidecars)
 
     async def reclaim_dead(self) -> list[str]:
         """Touch-driven crash recovery: respawn any exited sidecar in place and
