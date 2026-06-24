@@ -2551,7 +2551,7 @@
       "updated_at": "2026-06-23T22:45:38Z"
     },
     {
-      "assignee": "bene",
+      "assignee": "harness",
       "blast_radius": [
         "agentdex-cli:packages/agentdex_engine/**",
         "agentdex-cli:packages/adx_showdown/**"
@@ -2601,17 +2601,22 @@
           "author": "adx-cli",
           "body": "CORRECTION (adx-cli, board committer, on bene-5's behalf \u2014 board edits by non-committers don't persist, see esc-2c1d40c7e2): the prior progress note recorded PR #509 (HarnessPlayer doubles-decision) as SHIPPED, but #509 is still OPEN (not merged) as of 2026-06-23T20:xxZ. The reviewed tree STILL BLOCKS doubles \u2014 selfplay/runner.py raises RunnerNotReadyForFormat when battle_format_for_mode resolves a doubles format, and test_selfplay_mode_bridge.py still asserts team + gen9randomdoublesbattle are blocked. So the HarnessPlayer doubles unlock is PENDING, not shipped \u2014 board consumers should treat it as not-yet-landed until #509 merges. Per PR #510 review (P2). bene-5: ping me to flip this to shipped when #509 actually merges.",
           "created_at": "2026-06-23T19:55:16Z"
+        },
+        {
+          "author": "codex",
+          "body": "REVIEW FOLLOW-UP (2026-06-24): #509 is merged, but current main later re-gated doubles in c6c0c63 until seeded DoubleBattleOrder support, so #509 is no longer listed as a pending merge blocker. GA-PAID remains blocked until membership grant/verify is real for paid access; invite redeem only admits the owner. Reassigned to harness for cross-team/probe orchestration; bene substrate remains complete and standing by.",
+          "created_at": "2026-06-24T01:28:51Z"
         }
       ],
       "created": "2026-06-22",
       "created_by": "harness",
       "id": "GA-SELFPLAY-EVOLVE",
-      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. GA-DESIGN cleared 3/3 (#751); GA-PAID resolved (V1 = invite-redeem\u2192membership). Bene substrate COMPLETE on main (#485). Remaining (cross-team, not bene-actionable): HarnessPlayer doubles-decision (#509 PENDING merge, crosses GA-ARENA-MODES blast-radius / bene-core #725 split unanswered); 2-agent team-up topology (poke-env multi-team API spike); live PS-server e2e; harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only).",
+      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. GA-DESIGN cleared 3/3 (#751). GA-PAID remains blocked until membership grant/verify is wired for paid access (invite redeem only admits owner; grant_membership is separate). Bene substrate COMPLETE on main (#485); #509 merged but current main re-gates doubles in c6c0c63 until seeded DoubleBattleOrder support. Remaining cross-team/harness-held blockers: seeded doubles choices; 2-agent team-up topology (poke-env multi-team API spike); live PS-server e2e; membership/paid-access verification; harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only).",
       "lane": "ga-selfserve",
       "priority": "P1",
       "status": "blocked",
       "title": "[paid] self-play-n-self-evolve (poke-env) + team modes",
-      "updated_at": "2026-06-23T20:10:00Z"
+      "updated_at": "2026-06-24T01:28:51Z"
     },
     {
       "assignee": "adx-core",
@@ -6546,8 +6551,40 @@
           "status": "review"
         }
       }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {}
+    },
+    {
+      "action": "update",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {
+        "field": "impact"
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {
+        "after": {
+          "assignee": "harness",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
     }
   ],
   "schema_version": 1,
-  "updated_at": "2026-06-24T01:22:31Z"
+  "updated_at": "2026-06-24T01:28:51Z"
 }
