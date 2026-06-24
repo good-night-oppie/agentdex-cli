@@ -383,8 +383,7 @@ function AuthMethods({
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
     onClick: () => startBrowserGitHub({
       setBusy,
-      setErr,
-      link: true
+      setErr
     }),
     disabled: busy
   }, "Continue with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
@@ -626,7 +625,8 @@ function GithubScreen({
     iconLeft: /*#__PURE__*/React.createElement(GithubGlyph, null),
     onClick: () => startBrowserGitHub({
       setBusy,
-      setErr
+      setErr,
+      link: true
     }),
     disabled: busy
   }, "Connect with GitHub"), /*#__PURE__*/React.createElement(DS.Button, {
