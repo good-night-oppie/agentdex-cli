@@ -121,6 +121,12 @@ jobs:
         #                                 rejects-retry-until-turn-advances).
         #   test_eventsync.py           — EventLog tenant/battle_id mapping and migration
         #                                drift checks for audit-event partition behavior.
+        #   test_arena_pvp_idor_negative.py
+        #                               — battle_id share-nothing partition (ADR-0010): pins
+        #                                opaque-403 D7 collapse on every IDOR surface
+        #                                (/battle/{id}/pvp-choose, /me/battle/{id}/live,
+        #                                /me/battles); /battle/{id}/live keeps explicit 404
+        #                                (public spectator, no cross-owner data).
         # Everything in the TODO block below is UNVERIFIED until its behavioral test lands.
         # The probe at .harness/kanban-probes/GA-ARENA-MODES.py independently gates the
         # static CODE contract (the Literal, field-type, route decorators, test-coverage
@@ -128,5 +134,6 @@ jobs:
         run: |
           uv run --no-sync pytest -q \
             packages/agentdex_arena/tests/test_arena_modes.py \
+            packages/agentdex_arena/tests/test_arena_pvp_idor_negative.py \
             packages/agentdex_arena/tests/test_eventsync.py \
             packages/adx_showdown/tests/test_pvp.py
