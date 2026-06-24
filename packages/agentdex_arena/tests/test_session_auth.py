@@ -57,6 +57,12 @@ def test_boot_reads_env_when_no_arg(monkeypatch):
     )
 
 
+def test_explicit_blank_key_does_not_fall_back_to_env(monkeypatch):
+    monkeypatch.setenv(SESSION_SIGNING_KEY_ENV, _KNOWN_KEY_HEX)
+    with pytest.raises(SessionError, match="not set"):
+        SessionAuthority(signing_key_hex="")
+
+
 def test_session_key_is_separate_from_consent_key():
     """Two independently-generated seeds yield different public keys — the D2
     blast-radius isolation only holds if the session authority is genuinely a
