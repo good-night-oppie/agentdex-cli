@@ -532,6 +532,15 @@ def test_poll_denied_is_200_status_denied(tmp_path):
     assert r.json() == {"status": "denied"}
 
 
+def test_poll_slow_down_surfaces_backoff_interval(tmp_path):
+    script = {GITHUB_ACCESS_TOKEN_URL: [(200, {"error": "slow_down", "interval": 10})]}
+    gw = _gateway(tmp_path, transport=_FakeTransport(script))
+    with _client(gw) as c:
+        r = c.post("/auth/device/poll", json={"device_code": "dev-abc"})
+    assert r.status_code == 200
+    assert r.json() == {"status": "pending", "interval": 10}
+
+
 def test_poll_github_fault_is_502(tmp_path):
     # access_token authorized but /user 401s → DeviceFlowError → opaque 502
     script = {
