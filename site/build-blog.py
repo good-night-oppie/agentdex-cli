@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import html
 import re
+import shutil
 from pathlib import Path
 
 import markdown
@@ -288,12 +289,22 @@ def collect(src_dir: Path) -> list[dict]:
     return posts
 
 
+def reset_output_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
 def build() -> None:
+    if not BLOG.is_dir():
+        raise SystemExit(f"refusing to clear blog output: source directory missing: {BLOG}")
+
     # Clear stale output first so a renamed/deleted post's old <slug>.html can't
     # linger and keep being deployed (the index would no longer list it). Keeps
-    # the build reproducible from sources alone, like site/build-docs.py.
-    OUT.mkdir(parents=True, exist_ok=True)
-    ZH_OUT.mkdir(parents=True, exist_ok=True)
+    # the build reproducible from sources alone, like site/build-docs.py. An
+    # empty-but-present blog/ tree is intentional and writes empty indexes.
+    reset_output_dir(OUT)
+    reset_output_dir(ZH_OUT)
 
     en_posts = collect(BLOG)
     zh_posts = collect(BLOG / "zh")
