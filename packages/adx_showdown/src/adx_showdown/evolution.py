@@ -157,6 +157,18 @@ class HarnessWorkspace:
     def team(self) -> str:
         return json.loads(self.read_store("teams.json"))["active"]
 
+    @property
+    def system_prompt(self) -> str:
+        """The Refiner-evolved prompt.md, read on the BEHAVIORAL path.
+
+        Parallel to :pyattr:`team`: a single behavioral read of an evolution
+        store, routed through :meth:`read_store` so it registers in
+        ``trace_store_reads``. Wiring this into the entrant policy
+        (:func:`prompt_steered_policy_factory`) is what turns prompt.md from an
+        inert, unmeasurable store into a load-bearing one the falsification rail
+        can finally measure (the gap flagged in the STORE_FILES note above)."""
+        return self.read_store("prompt.md")
+
     def store_shas(self) -> dict[str, str]:
         return {
             f: hashlib.blake2b((self.root / f).read_bytes(), digest_size=16).hexdigest()
@@ -279,6 +291,73 @@ def team_policy_factory(sidecar: Sidecar, seed: int) -> Policy:
     return max_damage_bot(sidecar, fallback_seed=seed)
 
 
+# prompt.md -> behavior. The entrant policy is steered by a directive parsed from
+# the Refiner-evolved prompt.md, so editing prompt.md now MOVES the battle outcome
+# — the edit the falsification rail can finally measure. Default ("house battler
+# v0") maps to max_damage, so existing house-lane behavior is unchanged; only a
+# Refiner that writes a strategy keyword changes play. (Production can instead
+# inject an LLM `entrant_factory` that threads ws.system_prompt verbatim into the
+# model's system prompt — the same seam, with the real LLM consumer.)
+_STRATEGY_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("trickroom", ("trick room", "trickroom")),
+    ("stall", ("defens", "stall", "status", "recover", "passive", "tank")),
+    ("offense", ("aggress", "offens", "hyper", "sweep", "setup", "attack")),
+    ("balance", ("balance", "pivot", "hazard")),
+)
+
+
+def select_strategy(system_prompt: str) -> str:
+    """Map a system prompt to an entrant archetype (pure, deterministic).
+
+    The FIRST keyword group that matches wins (tuple order = priority); no match
+    falls back to ``max_damage``. This is the house-lane consumer of prompt.md —
+    it MUST change with the prompt for the store to be load-bearing, which is
+    exactly what the load-bearing smoke falsifies."""
+    low = system_prompt.lower()
+    for strategy, keywords in _STRATEGY_KEYWORDS:
+        if any(kw in low for kw in keywords):
+            return strategy
+    return "max_damage"
+
+
+def _bot_for(strategy: str) -> Callable[..., Policy]:
+    from adx_showdown.bots import (
+        balance_bot,
+        hyper_offense_bot,
+        max_damage_bot,
+        stall_bot,
+        trick_room_bot,
+    )
+
+    return {
+        "offense": hyper_offense_bot,
+        "stall": stall_bot,
+        "balance": balance_bot,
+        "trickroom": trick_room_bot,
+        "max_damage": max_damage_bot,
+    }[strategy]
+
+
+def prompt_steered_policy_factory(
+    workspace: HarnessWorkspace, sidecar: Sidecar, seed: int
+) -> Policy:
+    """House entrant policy STEERED by ``workspace.system_prompt`` (prompt.md).
+
+    Reads prompt.md on the behavioral path (so it registers in
+    ``trace_store_reads``) and dispatches to the archetype the prompt selects.
+    Same opponent + same seed, two prompt.md variants -> different battle
+    behavior: that delta is the proof prompt.md is no longer inert. Team SKILL
+    still also flows from the evolving teams.json."""
+    strategy = select_strategy(workspace.system_prompt)
+    return _bot_for(strategy)(sidecar, fallback_seed=seed)
+
+
+EntrantFactory = Callable[[HarnessWorkspace, Sidecar, int], Policy]
+"""(workspace, sidecar, seed) -> entrant Policy. Workspace-aware so the entrant
+can read evolving stores (prompt.md via system_prompt); injectable so production
+can swap an LLM-backed entrant that threads ws.system_prompt into the model."""
+
+
 @dataclass
 class EvolutionLoop:
     """Generation cycle: window of battles -> distill -> refine (+manifest) ->
@@ -290,6 +369,10 @@ class EvolutionLoop:
     opponent_factory: Callable[[Sidecar, int], Policy]
     events_path: Path
     distiller: Distiller = default_distiller
+    # Workspace-aware entrant: reads prompt.md (system_prompt) so the evolved
+    # prompt is load-bearing. Defaults to the house prompt-steered bot; production
+    # can inject an LLM entrant that threads ws.system_prompt into the model.
+    entrant_factory: EntrantFactory = prompt_steered_policy_factory
     refiner: Refiner | None = None
     pr_publisher: PrPublisher | None = None
     k_battles: int = 5
@@ -319,7 +402,7 @@ class EvolutionLoop:
                     format_id=self.format_id,
                     p1_name=self.entrant,
                     p2_name=self.anchor,
-                    p1_policy=team_policy_factory(sidecar, seed_val),
+                    p1_policy=self.entrant_factory(self.workspace, sidecar, seed_val),
                     p2_policy=self.opponent_factory(sidecar, seed_val + 500),
                     seed=[seed_val, 3, 1, 4],
                     p1_team=team,

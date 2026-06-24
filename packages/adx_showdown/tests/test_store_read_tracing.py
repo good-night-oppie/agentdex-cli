@@ -1,16 +1,17 @@
 """Observability lock for the 'load-bearing surface' of the 5-store workspace.
 
-Consensus 2026-06-16 (adx-cli-9): of the five evolution stores only `teams.json`
-is behaviorally read — the battler (`max_damage_bot`) reads no store, and the
-loop's only behavioral store read is `workspace.team` -> teams.json. The other
-four (prompt.md, subagents.json, skills.json, memory.json) are written + committed
-but never read, so an LLM Refiner editing them produces unmeasurable no-ops (the
-'measurement illusion' the falsification rail cannot catch).
+Consensus 2026-06-16 (adx-cli-9): originally only `teams.json` was behaviorally
+read. As of A2A #1271, `prompt.md` is ALSO load-bearing — the entrant policy is
+steered by `workspace.system_prompt` (see `prompt_steered_policy_factory` and
+test_prompt_load_bearing, which pins prompt.md's read + battle-divergence). The
+remaining three (subagents.json, skills.json, memory.json) are still written +
+committed but never read, so an LLM Refiner editing them produces unmeasurable
+no-ops (the 'measurement illusion' the falsification rail cannot catch).
 
 `trace_store_reads` makes that surface observable; these tests pin it as a
 RED-on-regression invariant. When a follow-up PR wires a store into the policy
 (making it load-bearing), its read WILL show up here and the relevant assertion
-below MUST be updated in the SAME PR — that is the point.
+MUST be updated in the SAME PR — that is the point (as prompt.md just was).
 
 Sidecar-free: only HarnessWorkspace (git) is exercised; no Node battle stream.
 """
@@ -35,7 +36,9 @@ def test_team_read_traces_only_teams_store(tmp_path: Path):
     with trace_store_reads() as reads:
         assert ws.team == _TEAM
     assert dict(reads) == {"teams.json": 1}
-    # the four inert stores are not read on the behavioral path
+    # `workspace.team` itself touches ONLY teams.json. prompt.md is now read on a
+    # DIFFERENT behavioral path (the entrant policy — see test_prompt_load_bearing);
+    # the remaining three stores are still never read on any behavioral path.
     for dark in ("prompt.md", "subagents.json", "skills.json", "memory.json"):
         assert reads[dark] == 0
 
