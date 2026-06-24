@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -69,6 +71,17 @@ def _begin_req(gw: ArenaGateway, token: str, key, **kwargs) -> BeginRequest:
         lane="sandbox",
         **kwargs,
     )
+
+
+def _pvp_queue_body(gw: ArenaGateway, token: str, key) -> dict:
+    start = gw.battle_start(token)
+    sig = key.sign(start["pop_challenge"].encode()).hex()
+    return {
+        "token": token,
+        "battle_nonce": start["battle_nonce"],
+        "pop_signature_hex": sig,
+        "mode": "pvp",
+    }
 
 
 def _move_request(side: str) -> dict:
@@ -406,6 +419,79 @@ def test_p2_queue_timeout_cancels_p1_startup_before_publish():
     assert "pvp match startup expired" in p1_branch
     assert "await gateway._stop_battle_robustly(sidecar, battle_id)" in p1_branch
     assert "await _abort_if_p2_startup_cancelled()" in p1_branch
+
+
+def test_p2_queue_timeout_translates_cancelled_p1_waiter_to_503(gw: ArenaGateway, monkeypatch):
+    real_sleep = asyncio.sleep
+
+    async def fast_sleep(delay, result=None):  # noqa: ARG001
+        await real_sleep(0.001)
+        return result
+
+    monkeypatch.setattr(gateway_mod.asyncio, "sleep", fast_sleep)
+
+    class _P2ChoiceFirstSidecar:
+        returncode = None
+
+        def __init__(self) -> None:
+            self.stopped: list[str] = []
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+        async def request(self, op: str, **kwargs):
+            if op == "pack-team":
+                return {"packed": "packed-team"}
+            if op == "start":
+                return {
+                    "state": {
+                        "turns": 1,
+                        "pending": {"p2": _move_request("p2")},
+                        "active": {"p1": "Bulbasaur", "p2": "Bulbasaur"},
+                    }
+                }
+            if op == "stop":
+                self.stopped.append(kwargs["battle"])
+                return {"inputLog": []}
+            raise AssertionError(f"unexpected sidecar op: {op}")
+
+    sidecar = _P2ChoiceFirstSidecar()
+    app = create_app(gw, sidecar_factory=lambda: sidecar)
+    key_a = Ed25519PrivateKey.generate()
+    key_b = Ed25519PrivateKey.generate()
+    tok_a = _mint(gw, "alice@test.com", "AgentA", key_a)
+    tok_b = _mint(gw, "bob@test.com", "AgentB", key_b)
+    body_a = _pvp_queue_body(gw, tok_a, key_a)
+    body_b = _pvp_queue_body(gw, tok_b, key_b)
+    responses = {}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+
+        def post_queue(name: str, body: dict) -> None:
+            responses[name] = client.post("/me/battle/queue", json=body)
+
+        t1 = threading.Thread(target=post_queue, args=("p1", body_a))
+        t1.start()
+        deadline = time.monotonic() + 2.0
+        while gw.pvp_queue.queue_depth == 0 and t1.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert gw.pvp_queue.queue_depth == 1
+
+        t2 = threading.Thread(target=post_queue, args=("p2", body_b))
+        t2.start()
+        t1.join(timeout=2)
+        t2.join(timeout=2)
+
+    assert not t1.is_alive()
+    assert not t2.is_alive()
+    assert responses["p1"].status_code == 503
+    assert responses["p1"].json()["detail"] == "pvp match startup expired — requeue"
+    assert responses["p2"].status_code == 503
+    assert responses["p2"].json()["detail"] == "pvp match startup not ready — retry"
+    assert sidecar.stopped
 
 
 def test_p2_team_invalid_path_does_not_silently_substitute_starter_pack():

@@ -3910,6 +3910,15 @@ def create_app(
                 _hand_off()
                 try:
                     state = await gateway._advance(session, resp["state"], visitor_choice=None)
+                except asyncio.CancelledError:
+                    if battle_id in gateway._pvp_cancelled_startups:
+                        await _abort_if_p2_startup_cancelled()
+                    gateway.pvp_choice_router.cleanup(battle_id)
+                    try:
+                        await gateway._stop_battle_robustly(sidecar, battle_id)
+                    finally:
+                        gateway.sessions.pop(battle_id, None)
+                    raise
                 except BaseException:
                     gateway.pvp_choice_router.cleanup(battle_id)
                     try:
