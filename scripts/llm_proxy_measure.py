@@ -14,8 +14,10 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import math
 import os
 import statistics
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -24,6 +26,14 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_LEVELS = "1,2,4,8,16,32,64,100"
+DEFAULT_ARENA_PROXY_URL = "https://space.ai-builders.com/backend/v1"
+
+
+@dataclass(frozen=True)
+class ProxyConfig:
+    base_url: str
+    token: str
+    token_env: str
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,57 @@ def _env_first(names: list[str]) -> str | None:
         if value:
             return value
     return None
+
+
+def _provider_candidates() -> list[tuple[str, str, str | None]]:
+    return [
+        ("ADX_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN", DEFAULT_ARENA_PROXY_URL),
+        ("AI_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN", None),
+        ("PURE100_PROXY_URL", "PURE100_PROXY_KEY", None),
+        ("OPENAI_BASE_URL", "OPENAI_API_KEY", None),
+    ]
+
+
+def _select_proxy_config(base_url: str | None, token_env: str | None) -> ProxyConfig:
+    token_envs = [name.strip() for name in (token_env or "").split(",") if name.strip()]
+    if base_url:
+        selected_token_envs = token_envs or [
+            candidate_token
+            for env_name, candidate_token, default_url in _provider_candidates()
+            if base_url == os.environ.get(env_name) or (default_url is not None and base_url == default_url)
+        ]
+        if not selected_token_envs:
+            raise SystemExit(
+                "explicit --base-url requires --token-env so the bearer token matches the proxy"
+            )
+        token_name = next((name for name in selected_token_envs if os.environ.get(name)), None)
+        if token_name is None:
+            raise SystemExit(
+                f"missing bearer token; set one of {','.join(selected_token_envs)} for proxy {base_url}"
+            )
+        token = os.environ[token_name]
+        return ProxyConfig(base_url=base_url, token=token, token_env=token_name)
+
+    for url_env, provider_token_env, default_url in _provider_candidates():
+        candidate_url = os.environ.get(url_env)
+        if candidate_url:
+            token = os.environ.get(provider_token_env)
+            if not token:
+                raise SystemExit(
+                    f"missing bearer token; set {provider_token_env} for proxy from {url_env}"
+                )
+            return ProxyConfig(base_url=candidate_url, token=token, token_env=provider_token_env)
+        if default_url is not None and os.environ.get(provider_token_env):
+            return ProxyConfig(
+                base_url=default_url,
+                token=os.environ[provider_token_env],
+                token_env=provider_token_env,
+            )
+    raise SystemExit(
+        "missing proxy config; set ADX_BUILDER_PROXY_URL + AI_BUILDER_TOKEN, "
+        "AI_BUILDER_TOKEN for the arena default proxy, PURE100_PROXY_URL + "
+        "PURE100_PROXY_KEY, OPENAI_BASE_URL + OPENAI_API_KEY, or --base-url + --token-env"
+    )
 
 
 def _join_url(base_url: str, path: str) -> str:
@@ -148,9 +209,7 @@ def _as_int(value: Any) -> int | None:
 def _percentile(values: list[float], pct: float) -> float | None:
     if not values:
         return None
-    if len(values) == 1:
-        return round(values[0], 1)
-    idx = min(len(values) - 1, max(0, int((len(values) - 1) * pct)))
+    idx = min(len(values) - 1, max(0, math.ceil(len(values) * pct) - 1))
     return round(sorted(values)[idx], 1)
 
 
@@ -193,11 +252,12 @@ def _run_level(
     max_tokens: int,
     timeout: float,
 ) -> dict[str, Any]:
-    total = level * requests_per_worker
-    with concurrent.futures.ThreadPoolExecutor(max_workers=level) as executor:
-        futures = [
-            executor.submit(
-                _one_chat,
+    start_event = threading.Event()
+
+    def _worker() -> list[RequestResult]:
+        start_event.wait()
+        return [
+            _one_chat(
                 url,
                 token=token,
                 model=model,
@@ -205,9 +265,17 @@ def _run_level(
                 max_tokens=max_tokens,
                 timeout=timeout,
             )
-            for _ in range(total)
+            for _ in range(requests_per_worker)
         ]
-        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=level) as executor:
+        futures = [executor.submit(_worker) for _ in range(level)]
+        start_event.set()
+        results = [
+            result
+            for future in concurrent.futures.as_completed(futures)
+            for result in future.result()
+        ]
     return _summarize(level, results)
 
 
@@ -223,13 +291,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--base-url",
-        default=_env_first(["AI_BUILDER_PROXY_URL", "PURE100_PROXY_URL", "OPENAI_BASE_URL"]),
-        help="Proxy base URL. Defaults to AI_BUILDER_PROXY_URL, PURE100_PROXY_URL, or OPENAI_BASE_URL.",
+        default=None,
+        help=(
+            "Proxy base URL. Defaults to ADX_BUILDER_PROXY_URL, AI_BUILDER_PROXY_URL, "
+            "AI_BUILDER_TOKEN with the arena default proxy, PURE100_PROXY_URL, or OPENAI_BASE_URL."
+        ),
     )
     parser.add_argument(
         "--token-env",
-        default="AI_BUILDER_TOKEN,PURE100_PROXY_KEY,OPENAI_API_KEY",
-        help="Comma-separated env vars to search for the bearer token.",
+        default=None,
+        help="Bearer token env var. Required with custom --base-url when the provider cannot be inferred.",
     )
     parser.add_argument("--endpoint", default="/v1/chat/completions")
     parser.add_argument("--usage-endpoint", default="/v1/usage/summary")
@@ -243,13 +314,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="Validate config without network calls.")
     args = parser.parse_args()
 
-    token = _env_first([name.strip() for name in args.token_env.split(",") if name.strip()])
-    if not args.base_url:
-        raise SystemExit(
-            "missing proxy base URL; set AI_BUILDER_PROXY_URL, PURE100_PROXY_URL, or --base-url"
-        )
-    if not token:
-        raise SystemExit(f"missing bearer token; searched {args.token_env}")
+    proxy = _select_proxy_config(args.base_url, args.token_env)
 
     levels = [int(item) for item in args.levels.split(",") if item.strip()]
     if not levels or any(level < 1 for level in levels):
@@ -257,25 +322,26 @@ def main() -> int:
     if args.requests_per_worker < 1:
         raise SystemExit("--requests-per-worker must be >= 1")
 
-    chat_url = _join_url(args.base_url, args.endpoint)
-    usage_url = _join_url(args.base_url, args.usage_endpoint)
+    chat_url = _join_url(proxy.base_url, args.endpoint)
+    usage_url = _join_url(proxy.base_url, args.usage_endpoint)
     print(
         "# llm proxy fan-out measure "
-        f"base={_redact_url(args.base_url)} endpoint={args.endpoint} "
-        f"model={args.model} levels={levels} requests_per_worker={args.requests_per_worker}"
+        f"base={_redact_url(proxy.base_url)} endpoint={args.endpoint} "
+        f"token_env={proxy.token_env} model={args.model} levels={levels} "
+        f"requests_per_worker={args.requests_per_worker}"
     )
     if args.dry_run:
         print("DONE_JSON " + json.dumps({"ok": True, "dry_run": True, "levels": levels}))
         return 0
 
-    usage_before = None if args.skip_usage else _usage_summary(usage_url, token, args.timeout)
+    usage_before = None if args.skip_usage else _usage_summary(usage_url, proxy.token, args.timeout)
     rows = []
     for level in levels:
         row = _run_level(
             level,
             requests_per_worker=args.requests_per_worker,
             url=chat_url,
-            token=token,
+            token=proxy.token,
             model=args.model,
             prompt=args.prompt,
             max_tokens=args.max_tokens,
@@ -287,7 +353,7 @@ def main() -> int:
             f"errors={row['errors']:>3} p50={row['latency_ms_p50']}ms "
             f"p95={row['latency_ms_p95']}ms status={row['status_counts']}"
         )
-    usage_after = None if args.skip_usage else _usage_summary(usage_url, token, args.timeout)
+    usage_after = None if args.skip_usage else _usage_summary(usage_url, proxy.token, args.timeout)
     print(
         "DONE_JSON "
         + json.dumps(
