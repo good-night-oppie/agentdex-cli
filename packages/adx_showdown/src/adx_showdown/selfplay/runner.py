@@ -47,15 +47,14 @@ class RunnerNotReadyForFormat(NotImplementedError):
     """Format is substrate-valid but the runner/player isn't ready for it yet.
 
     Distinct from :class:`team_modes.UnsupportedFormat` (substrate-level — unknown
-    or topology-incompatible). Runner-level guard for the **team-required** rail:
+    or topology-incompatible). Runner-level guard for the **team-required** rail
+    and the **doubles** rail:
     no team-builder is wired into ``run_selfplay_battle`` yet (both players are
     constructed without a ``team=`` kwarg), so a ``gen9ou`` / ``gen9doublesou`` /
     ``gen9vgc2024regh`` matchup would silently drop into Showdown's default-team
-    fallback. The **doubles** rail no longer raises — ``HarnessPlayer.choose_move``
-    routes through ``valid_orders``, which returns ``DoubleBattleOrder`` on a
-    ``DoubleBattle``, so the seeded random + abstain-fallback paths handle doubles
-    transparently; ``max_damage`` / ``codex`` defer to the seeded random when the
-    battle is doubles (see ``_is_doubles_battle``).
+    fallback. Doubles also stays gated until the random/abstain fallback can build
+    seeded ``DoubleBattleOrder`` values instead of delegating to poke-env's
+    unseeded ``choose_random_move``.
     """
 
 
@@ -78,10 +77,8 @@ def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT
         (e.g. a team mode given a singles format → would drop the 2nd agent).
       - ``RunnerNotReadyForFormat`` — substrate is fine but ``run_selfplay_battle``
         cannot drive the format yet: ``team_required`` formats need a team-builder
-        (both players are constructed without a ``team=`` kwarg). The doubles
-        topology rail is now drivable — ``HarnessPlayer.choose_move`` routes
-        through ``valid_orders`` which returns ``DoubleBattleOrder`` on a
-        ``DoubleBattle``, so doubles formats no longer raise.
+        (both players are constructed without a ``team=`` kwarg), and doubles needs
+        a seeded ``DoubleBattleOrder`` fallback before it can honor ``rng_seed``.
     """
     if mode is None:
         return battle_format
@@ -94,6 +91,12 @@ def battle_format_for_mode(mode: str | None, battle_format: str = DEFAULT_FORMAT
             "constructed without a team= kwarg). Tracked as a follow-up "
             "increment; raising rather than silently dropping into Showdown's "
             "default-team fallback."
+        )
+    if fmt.topology == team_modes.DOUBLES:
+        raise RunnerNotReadyForFormat(
+            f"mode={mode!r} resolves to doubles format {fmt.id!r}, but seeded "
+            "DoubleBattleOrder selection is not implemented yet. Raising rather "
+            "than using poke-env's unseeded choose_random_move."
         )
     return fmt.id
 
@@ -310,16 +313,14 @@ def make_harness_player(
             # is async ONLY to keep the live-codex subprocess off the event loop
             # (below); the synchronous strategies just return inline.
             self.total_moves += 1
-            # Doubles: poke-env's ``DoubleBattle.valid_orders`` is
-            # ``List[List[SingleBattleOrder]]`` (one inner list per active slot),
-            # not a flat list of ``DoubleBattleOrder``. ``_seeded_order`` samples
-            # the outer list and returns an inner list, which lacks ``.message``
-            # and causes poke-env to fail before the order is sent. Use
-            # ``choose_random_move`` which handles the doubles structure correctly.
-            # The ``max_damage`` + ``codex`` paths are singles-shaped, so they are
-            # bypassed here regardless. Per-slot seeded doubles is a follow-up.
+            # Doubles: do NOT delegate to poke-env's unseeded choose_random_move.
+            # Until this runner can construct seeded DoubleBattleOrder values from the
+            # per-slot legal orders, fail closed so self-play/eval receipts cannot be
+            # corrupted by process/global RNG state.
             if _is_doubles_battle(battle):
-                return self.choose_random_move(battle)
+                raise RunnerNotReadyForFormat(
+                    "doubles choose_move requires seeded DoubleBattleOrder support"
+                )
             moves = list(getattr(battle, "available_moves", None) or [])
             if self.strategy == "random":
                 return self._seeded_order(battle)

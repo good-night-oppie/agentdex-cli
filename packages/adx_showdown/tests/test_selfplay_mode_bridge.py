@@ -5,10 +5,8 @@ raw format string. Pure resolution (no poke-env battle), so it runs offline.
 
 The bridge has TWO guard layers: the substrate (``team_modes``) rejects unknown
 modes + topology-incompatible overrides, and the *runner-level* guard refuses
-formats the runner can't drive yet (``team_required`` — no team-builder wired).
-The doubles topology rail used to also be guarded; that guard was LIFTED in this
-increment because ``HarnessPlayer.choose_move`` now drives doubles via the
-topology-agnostic ``valid_orders`` path (see ``_is_doubles_battle`` deferral).
+formats the runner can't drive yet: ``team_required`` needs a team-builder, and
+doubles stays gated until the runner can build seeded ``DoubleBattleOrder`` values.
 """
 
 import pytest
@@ -31,17 +29,19 @@ def test_singles_modes_resolve_to_singles():
 
 
 def test_team_mode_resolves_to_doubles_format():
-    # The doubles guard was LIFTED — HarnessPlayer.choose_move now defers to the
-    # seeded random path on a DoubleBattle (valid_orders returns DoubleBattleOrder
-    # transparently). The substrate-level resolve_format stays honest.
+    # The substrate-level resolve_format stays honest, even though the runner-level
+    # guard below refuses doubles until seeded DoubleBattleOrder selection exists.
     assert tm.resolve_format("team").topology == tm.DOUBLES
-    assert battle_format_for_mode("team") == tm.DEFAULT_TEAM  # gen9randomdoublesbattle
 
 
-def test_doubles_override_now_allowed():
-    # A valid doubles OVERRIDE on a doubles-mode is now allowed; the player
-    # handles it via the doubles-defer path.
-    assert battle_format_for_mode("team", "gen9randomdoublesbattle") == "gen9randomdoublesbattle"
+def test_default_doubles_mode_blocked_until_seeded_order_exists():
+    with pytest.raises(RunnerNotReadyForFormat, match="DoubleBattleOrder"):
+        battle_format_for_mode("team")
+
+
+def test_doubles_override_blocked_until_seeded_order_exists():
+    with pytest.raises(RunnerNotReadyForFormat, match="DoubleBattleOrder"):
+        battle_format_for_mode("team", "gen9randomdoublesbattle")
 
 
 def test_team_required_singles_override_blocked_until_teambuilder_lands():
