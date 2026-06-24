@@ -626,6 +626,32 @@ def gh_pr_publisher(
                 except subprocess.CalledProcessError:
                     _git(publish_root, "remote", "set-url", remote, url)
                 _git(publish_root, "push", "-f", remote, branch)
+
+                try:
+                    existing = runner(
+                        [
+                            "gh",
+                            "pr",
+                            "view",
+                            "--repo",
+                            repo,
+                            "--head",
+                            branch,
+                            "--json",
+                            "url",
+                            "--jq",
+                            ".url",
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                    existing_url = (getattr(existing, "stdout", "") or "").strip()
+                    if existing_url:
+                        return existing_url
+                except subprocess.CalledProcessError:
+                    pass
+
                 result = runner(
                     [
                         "gh",

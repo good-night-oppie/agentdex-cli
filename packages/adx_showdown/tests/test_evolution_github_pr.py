@@ -90,6 +90,9 @@ def test_gh_pr_publisher_pushes_generation_snapshot_and_opens_pr(tmp_path: Path)
 
     def fake_runner(cmd, **kwargs):
         calls.append(cmd)
+        if cmd[:3] == ["gh", "pr", "view"]:
+            raise subprocess.CalledProcessError(1, cmd)
+        assert cmd[:3] == ["gh", "pr", "create"]
         return SimpleNamespace(stdout="https://github.com/o/r/pull/7\n", returncode=0)
 
     publish = gh_pr_publisher("o/r", remote_url=str(bare), runner=fake_runner)
@@ -144,6 +147,27 @@ def test_gh_pr_publisher_pushes_generation_snapshot_and_opens_pr(tmp_path: Path)
     assert "--repo" in gh_call and "o/r" in gh_call
     assert "evolution/gen-1-effective" in gh_call
     assert "--base" in gh_call and "main" in gh_call
+
+
+def test_gh_pr_publisher_reuses_existing_pr_for_branch(tmp_path: Path) -> None:
+    bare = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(bare)], check=True)
+    ws = HarnessWorkspace.init(tmp_path / "ws", team_packed="packed-team-v0")
+    _commit_team(ws, "packed-team-v1", tag="gen-1")
+
+    calls: list[list[str]] = []
+
+    def fake_runner(cmd, **kwargs):
+        calls.append(cmd)
+        assert cmd[:3] == ["gh", "pr", "view"]
+        return SimpleNamespace(stdout="https://github.com/o/r/pull/7\n", returncode=0)
+
+    publish = gh_pr_publisher("o/r", remote_url=str(bare), runner=fake_runner)
+    url = publish(ws, _report(gen=1, verdict="EFFECTIVE"), _card(1))
+
+    assert url == "https://github.com/o/r/pull/7"
+    assert any(c[:3] == ["gh", "pr", "view"] for c in calls)
+    assert not any(c[:3] == ["gh", "pr", "create"] for c in calls)
 
 
 def test_gh_pr_publisher_failure_does_not_mutate_harness_workspace(tmp_path: Path) -> None:
