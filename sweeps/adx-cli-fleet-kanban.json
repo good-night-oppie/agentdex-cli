@@ -1964,9 +1964,9 @@
       "impact": "No beta dashboard without this; it's the user-facing surface (agent roster | Agent Pane | live battle | evolution+ladder).",
       "lane": "bene-core",
       "priority": "P0",
-      "status": "review",
+      "status": "blocked",
       "title": "agentdex.builders: build + deploy the dashboard web app (SPA reading GA-CORE-5 + GA-CORE-3)",
-      "updated_at": "2026-06-23T22:31:37Z"
+      "updated_at": "2026-06-24T01:16:10Z"
     },
     {
       "assignee": "bene",
