@@ -58,7 +58,7 @@ def _env_first(names: list[str]) -> str | None:
 
 def _provider_candidates() -> list[tuple[str, str, str | None]]:
     return [
-        ("ADX_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN", DEFAULT_ARENA_PROXY_URL),
+        ("ADX_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN", None),
         ("AI_BUILDER_PROXY_URL", "AI_BUILDER_TOKEN", None),
         ("PURE100_PROXY_URL", "PURE100_PROXY_KEY", None),
         ("OPENAI_BASE_URL", "OPENAI_API_KEY", None),
@@ -73,6 +73,8 @@ def _select_proxy_config(base_url: str | None, token_env: str | None) -> ProxyCo
             for env_name, candidate_token, default_url in _provider_candidates()
             if base_url == os.environ.get(env_name) or (default_url is not None and base_url == default_url)
         ]
+        if not selected_token_envs and base_url == DEFAULT_ARENA_PROXY_URL:
+            selected_token_envs = ["AI_BUILDER_TOKEN"]
         if not selected_token_envs:
             raise SystemExit(
                 "explicit --base-url requires --token-env so the bearer token matches the proxy"
@@ -85,21 +87,21 @@ def _select_proxy_config(base_url: str | None, token_env: str | None) -> ProxyCo
         token = os.environ[token_name]
         return ProxyConfig(base_url=base_url, token=token, token_env=token_name)
 
-    for url_env, provider_token_env, default_url in _provider_candidates():
+    for url_env, provider_token_env, _default_url in _provider_candidates():
         candidate_url = os.environ.get(url_env)
         if candidate_url:
             token = os.environ.get(provider_token_env)
             if not token:
                 raise SystemExit(
                     f"missing bearer token; set {provider_token_env} for proxy from {url_env}"
-                )
-            return ProxyConfig(base_url=candidate_url, token=token, token_env=provider_token_env)
-        if default_url is not None and os.environ.get(provider_token_env):
-            return ProxyConfig(
-                base_url=default_url,
-                token=os.environ[provider_token_env],
-                token_env=provider_token_env,
             )
+            return ProxyConfig(base_url=candidate_url, token=token, token_env=provider_token_env)
+    if os.environ.get("AI_BUILDER_TOKEN"):
+        return ProxyConfig(
+            base_url=DEFAULT_ARENA_PROXY_URL,
+            token=os.environ["AI_BUILDER_TOKEN"],
+            token_env="AI_BUILDER_TOKEN",
+        )
     raise SystemExit(
         "missing proxy config; set ADX_BUILDER_PROXY_URL + AI_BUILDER_TOKEN, "
         "AI_BUILDER_TOKEN for the arena default proxy, PURE100_PROXY_URL + "
@@ -359,7 +361,7 @@ def main() -> int:
         + json.dumps(
             {
                 "ok": True,
-                "base_url": _redact_url(args.base_url),
+                "base_url": _redact_url(proxy.base_url),
                 "endpoint": args.endpoint,
                 "usage_endpoint": None if args.skip_usage else args.usage_endpoint,
                 "model": args.model,
