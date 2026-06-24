@@ -39,18 +39,30 @@ class SidecarPool:
         self._cap = max_battles_per_sidecar
         self._owner: dict[str, Sidecar] = {}  # battle_id -> owning sidecar
         self._load: dict[int, int] = {}  # id(sidecar) -> live battle count
+        self._pending_evictions: list[str] = []
         self._rr = 0  # round-robin cursor for battle-less ops
         self._lock = asyncio.Lock()
 
     async def _stop_sidecar_uninterruptibly(self, sidecar: Sidecar) -> None:
         """Stop a freshly spawned sidecar even if this reclaim touch is cancelled."""
         task = asyncio.create_task(sidecar.stop())
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
+        cancelled = False
+        while True:
+            try:
+                await asyncio.shield(task)
+                break
+            except asyncio.CancelledError:
+                cancelled = True
+                if task.done():
+                    break
+            except BaseException as exc:
+                if cancelled:
+                    raise asyncio.CancelledError() from exc
+                raise
+        if cancelled:
             with contextlib.suppress(Exception):
                 await task
-            raise
+            raise asyncio.CancelledError()
 
     @property
     def size(self) -> int:
@@ -237,7 +249,7 @@ class SidecarPool:
         """
         async with self._lock:
             dead = [(i, s) for i, s in enumerate(self._sidecars) if s.returncode is not None]
-        evicted: list[str] = []
+            evicted: list[str] = list(self._pending_evictions)
         for i, dead_s in dead:
             fresh = Sidecar(max_battles=self._cap)
             try:
@@ -260,7 +272,11 @@ class SidecarPool:
                 # pipe (opaque 400 instead of the intended 409 'interrupted') until
                 # the container is recycled (PR #497 review PRRT_kwDOS0FXt86LqbQP).
                 async with self._lock:
-                    evicted.extend(b for b, o in self._owner.items() if o is dead_s)
+                    dead_evicted = [b for b, o in self._owner.items() if o is dead_s]
+                    evicted.extend(b for b in dead_evicted if b not in evicted)
+                    self._pending_evictions.extend(
+                        b for b in dead_evicted if b not in self._pending_evictions
+                    )
                     self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
                 # Eviction is complete before this potentially blocking cleanup. If this
                 # touch is cancelled while stop waits on process exit, the gateway still
@@ -283,7 +299,11 @@ class SidecarPool:
                     # swapped this slot while we were starting. Only swap if it's
                     # still the same corpse; otherwise our fresh member is redundant.
                     if self._sidecars[i] is dead_s:
-                        evicted.extend(b for b, o in self._owner.items() if o is dead_s)
+                        dead_evicted = [b for b, o in self._owner.items() if o is dead_s]
+                        evicted.extend(b for b in dead_evicted if b not in evicted)
+                        self._pending_evictions.extend(
+                            b for b in dead_evicted if b not in self._pending_evictions
+                        )
                         self._owner = {b: o for b, o in self._owner.items() if o is not dead_s}
                         self._load.pop(id(dead_s), None)
                         self._sidecars[i] = fresh
@@ -305,4 +325,8 @@ class SidecarPool:
                 # stall the start-outside-lock change fixed (#522 review P2).
                 with contextlib.suppress(Exception):
                     await self._stop_sidecar_uninterruptibly(fresh)
+        async with self._lock:
+            self._pending_evictions = [
+                battle_id for battle_id in self._pending_evictions if battle_id not in evicted
+            ]
         return evicted

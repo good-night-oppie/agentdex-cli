@@ -543,6 +543,8 @@ def test_reclaim_dead_evicts_before_failed_respawn_stop_can_be_cancelled(monkeyp
 
         assert "b1" not in p._owner
         assert p.any_dead() is True
+        assert await p.reclaim_dead() == ["b1"]
+        assert p._pending_evictions == []
 
     _run(go())
 
