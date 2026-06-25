@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 from adx_showdown.bots import hyper_offense_bot, max_damage_bot, stall_bot
 from adx_showdown.evolution import (
+    EvolutionLoop,
     HarnessWorkspace,
     _bot_for,
     prompt_steered_policy_factory,
@@ -64,16 +65,36 @@ def test_two_prompts_select_different_archetypes():
     assert select_strategy("aggressive") != select_strategy("defensive")
 
 
+def test_control_window_freezes_the_prompt(tmp_path: Path):
+    """P1 fix: the falsification CONTROL window must steer from the gen-(N-1) prompt,
+    not the live one — else a prompt-only edit steers both windows identically and
+    McNemar can never measure it. _prompt_at_tag returns the FROZEN prompt while the
+    live workspace shows the edited one, so the two windows pick different archetypes."""
+    ws = HarnessWorkspace.init(tmp_path / "ws", team_packed=_TEAM, prompt="aggressive sweeper")
+    ws.tag_state("gen-0")
+    # the Refiner edits prompt.md for the next generation
+    (ws.root / "prompt.md").write_text("defensive stall with status and recover\n")
+    ws.commit_edits("edit prompt for gen 1")
+    loop = EvolutionLoop(
+        workspace=ws, opponent_factory=lambda sc, s: None, events_path=tmp_path / "ev.jsonl"
+    )
+    frozen, live = loop._prompt_at_tag("gen-0"), ws.system_prompt
+    assert select_strategy(frozen) == "offense"  # pre-edit prompt steers the control
+    assert select_strategy(live) == "stall"  # edited prompt steers the live window
+    assert select_strategy(frozen) != select_strategy(live)  # measurable difference
+
+
 def test_prompt_is_read_on_the_behavioral_path(tmp_path: Path):
-    """LOAD-BEARING proof: constructing the entrant policy READS prompt.md, so it
-    now registers in trace_store_reads — it was 0 before this wire. If prompt.md
-    is ever un-wired, this assertion goes RED."""
+    """LOAD-BEARING proof: the loop reads prompt.md (via workspace.system_prompt) to
+    build the live entrant, so it registers in trace_store_reads — it was 0 before
+    this wire. If prompt.md is ever un-wired, this assertion goes RED."""
     ws = _ws(tmp_path, "aggressive sweeper")
     with trace_store_reads() as reads:
-        prompt_steered_policy_factory(ws, _DummySidecar(), 7)  # type: ignore[arg-type]
+        prompt = ws.system_prompt  # the behavioral read the live window performs
     assert reads["prompt.md"] >= 1
-    # teams.json is NOT read just to build the entrant (team flows in separately)
-    assert reads["teams.json"] == 0
+    assert reads["teams.json"] == 0  # reading the prompt does not touch teams.json
+    # and that prompt then steers the entrant (the factory takes the frozen string)
+    assert callable(prompt_steered_policy_factory(prompt, _DummySidecar(), 7))  # type: ignore[arg-type]
 
 
 # ----------------------------------------------------------------------------- #
@@ -100,7 +121,7 @@ def test_two_prompts_diverge_in_real_play(tmp_path: Path):
                 format_id="gen9randombattle",
                 p1_name="Entrant",
                 p2_name="Anchor",
-                p1_policy=prompt_steered_policy_factory(ws, sc, seed),
+                p1_policy=prompt_steered_policy_factory(ws.system_prompt, sc, seed),
                 p2_policy=_md_bot(sc, fallback_seed=seed + 7),
                 seed=[seed, 2, 3, 4],
             )

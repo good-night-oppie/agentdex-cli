@@ -338,24 +338,24 @@ def _bot_for(strategy: str) -> Callable[..., Policy]:
     }[strategy]
 
 
-def prompt_steered_policy_factory(
-    workspace: HarnessWorkspace, sidecar: Sidecar, seed: int
-) -> Policy:
-    """House entrant policy STEERED by ``workspace.system_prompt`` (prompt.md).
+def prompt_steered_policy_factory(system_prompt: str, sidecar: Sidecar, seed: int) -> Policy:
+    """House entrant policy STEERED by ``system_prompt`` (the window's prompt.md).
 
-    Reads prompt.md on the behavioral path (so it registers in
-    ``trace_store_reads``) and dispatches to the archetype the prompt selects.
-    Same opponent + same seed, two prompt.md variants -> different battle
-    behavior: that delta is the proof prompt.md is no longer inert. Team SKILL
-    still also flows from the evolving teams.json."""
-    strategy = select_strategy(workspace.system_prompt)
+    Takes the prompt for THIS window explicitly (not the live workspace) so the
+    falsification control window can be built from the FROZEN gen-(N-1) prompt —
+    otherwise a prompt-only edit would steer both the live and control windows the
+    same way and the McNemar comparison could never measure it. Dispatches to the
+    archetype the prompt selects: same opponent + same seed, two prompts -> different
+    play, the proof prompt.md is no longer inert. Team SKILL still flows from teams.json."""
+    strategy = select_strategy(system_prompt)
     return _bot_for(strategy)(sidecar, fallback_seed=seed)
 
 
-EntrantFactory = Callable[[HarnessWorkspace, Sidecar, int], Policy]
-"""(workspace, sidecar, seed) -> entrant Policy. Workspace-aware so the entrant
-can read evolving stores (prompt.md via system_prompt); injectable so production
-can swap an LLM-backed entrant that threads ws.system_prompt into the model."""
+EntrantFactory = Callable[[str, Sidecar, int], Policy]
+"""(system_prompt, sidecar, seed) -> entrant Policy. The prompt is passed in (frozen
+per window) rather than read from the live workspace, so the falsification control
+window is built from the pre-edit prompt. Injectable so production can swap an
+LLM-backed entrant that threads the given system_prompt into the model."""
 
 
 @dataclass
@@ -369,10 +369,6 @@ class EvolutionLoop:
     opponent_factory: Callable[[Sidecar, int], Policy]
     events_path: Path
     distiller: Distiller = default_distiller
-    # Workspace-aware entrant: reads prompt.md (system_prompt) so the evolved
-    # prompt is load-bearing. Defaults to the house prompt-steered bot; production
-    # can inject an LLM entrant that threads ws.system_prompt into the model.
-    entrant_factory: EntrantFactory = prompt_steered_policy_factory
     refiner: Refiner | None = None
     pr_publisher: PrPublisher | None = None
     k_battles: int = 5
@@ -382,6 +378,11 @@ class EvolutionLoop:
     anchor: str = "anchor-opponent"
     seed_base: int = 50_000
     reports: list[GenerationReport] = field(default_factory=list)
+    # APPENDED last so existing positional callers (workspace, opponent_factory,
+    # events_path, distiller, refiner, ...) keep their argument positions. The
+    # workspace-aware entrant whose prompt is frozen per window (load-bearing
+    # prompt.md); production can inject an LLM entrant with the same signature.
+    entrant_factory: EntrantFactory = prompt_steered_policy_factory
 
     def _register(self) -> None:
         elog = EventLog(self.events_path)
@@ -390,8 +391,15 @@ class EvolutionLoop:
             elog.append("register", {"name": self.anchor, "frozen": True})
 
     async def _window(
-        self, sidecar: Sidecar, *, team: str, gen: int, label: str
+        self, sidecar: Sidecar, *, team: str, system_prompt: str, gen: int, label: str
     ) -> list[BattleResult]:
+        # Both the FROZEN stores that drive this window are passed in: `team`
+        # (teams.json) and `system_prompt` (prompt.md). The control window must
+        # freeze BOTH at the gen-(N-1) tag — building the entrant from the live
+        # workspace would steer a prompt-only edit's control window with the NEW
+        # prompt, so live and control would play identically and the McNemar test
+        # could never measure the edit (the load-bearing surface this loop exists
+        # to measure). Mirrors `team` freezing via `_team_at_tag`.
         results = []
         for i in range(self.k_battles):
             seed_val = self.seed_base + gen * 1000 + i  # SAME seeds across teams (CRN)
@@ -402,7 +410,7 @@ class EvolutionLoop:
                     format_id=self.format_id,
                     p1_name=self.entrant,
                     p2_name=self.anchor,
-                    p1_policy=self.entrant_factory(self.workspace, sidecar, seed_val),
+                    p1_policy=self.entrant_factory(system_prompt, sidecar, seed_val),
                     p2_policy=self.opponent_factory(sidecar, seed_val + 500),
                     seed=[seed_val, 3, 1, 4],
                     p1_team=team,
@@ -495,7 +503,15 @@ class EvolutionLoop:
                 f"generation it targets. This is corrupt run state, not a recoverable skip."
             )
 
-        results = await self._window(sidecar, team=live_team, gen=gen, label="live")
+        # the live window plays the CURRENT stores; reading workspace.system_prompt
+        # here is the behavioral, trace-visible read of prompt.md (load-bearing).
+        results = await self._window(
+            sidecar,
+            team=live_team,
+            system_prompt=self.workspace.system_prompt,
+            gen=gen,
+            label="live",
+        )
         rating, rd, delta = self._rate(results, gen)
 
         verdict: GenerationVerdict = "NEUTRAL"
@@ -507,8 +523,15 @@ class EvolutionLoop:
             # raised above), so a present manifest always falsifies THIS gen.
             # CRN falsification: replay the SAME seeds with the FROZEN
             # (pre-manifest) team = the control replica.
-            frozen_team = self._team_at_tag(f"gen-{gen - 1}")
-            control = await self._window(sidecar, team=frozen_team, gen=gen, label="frozen")
+            # freeze BOTH stores at the pre-edit tag: team AND prompt. A prompt-only
+            # edit must steer the control window with the OLD prompt, else live and
+            # control play the same and the McNemar test measures nothing.
+            frozen_tag = f"gen-{gen - 1}"
+            frozen_team = self._team_at_tag(frozen_tag)
+            frozen_prompt = self._prompt_at_tag(frozen_tag)
+            control = await self._window(
+                sidecar, team=frozen_team, system_prompt=frozen_prompt, gen=gen, label="frozen"
+            )
             paired = [
                 (live.winner == self.entrant, ctrl.winner == self.entrant)
                 for live, ctrl in zip(results, control, strict=True)
@@ -604,6 +627,16 @@ class EvolutionLoop:
             return json.loads(raw)["active"]
         except (subprocess.CalledProcessError, KeyError, json.JSONDecodeError):
             return self.workspace.team
+
+    def _prompt_at_tag(self, tag: str) -> str:
+        """prompt.md as committed at ``tag`` — the FROZEN prompt for the control
+        window (mirrors :meth:`_team_at_tag`). Falls back to the live prompt if the
+        tag/file is absent (e.g. gen-0), reading via git rather than read_store so
+        the control replay does not count as a behavioral load-bearing read."""
+        try:
+            return _git(self.workspace.root, "show", f"{tag}:prompt.md")
+        except subprocess.CalledProcessError:
+            return self.workspace.system_prompt
 
     def evolution_card(
         self, report: GenerationReport, *, parent_lineage_root: str | None
