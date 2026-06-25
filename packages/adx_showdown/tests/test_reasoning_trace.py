@@ -103,3 +103,36 @@ def test_round_trips_through_json():
     tr = ReasoningTrace.from_capture(_CAPTURE)
     again = ReasoningTrace.model_validate_json(tr.model_dump_json())
     assert again == tr
+
+
+def test_ps_replay_projection_mirrors_showdown_shape():
+    cap = {
+        **_CAPTURE,
+        "log": [
+            "|player|p1|adxAgent|265|",
+            "|player|p2|MaxBasePower|265|",
+            "|tier|[Gen 9] Random Battle",
+            "|turn|1",
+            "|move|p1a: Tyranitar|Stone Edge|p2a: Iron Moth",
+        ],
+    }
+    rep = ReasoningTrace.from_capture(cap).to_ps_replay(uploadtime=1700000000)
+    # PS base fields a stock replay consumer reads unchanged:
+    assert rep["id"] == "battle-gen9randombattle-7"
+    assert rep["format"] == "[Gen 9] Random Battle"  # display, from |tier|
+    assert rep["formatid"] == "gen9randombattle"  # id
+    assert rep["players"] == ["adxAgent", "MaxBasePower"]
+    assert rep["uploadtime"] == 1700000000
+    assert isinstance(rep["log"], str)  # PS log is ONE newline-joined string, not a list
+    assert rep["log"].startswith("|player|p1|adxAgent|265|\n")
+    # agentdex extension (additive — PS readers ignore):
+    assert rep["schema"] == "reasoning_trace/1"
+    assert [d["move"] for d in rep["decisions"]] == ["stoneedge", "zamazenta"]
+    assert rep["decisions"][0]["considered"][0]["move"] == "crunch"
+
+
+def test_ps_replay_players_fallback_when_log_lacks_player_lines():
+    rep = ReasoningTrace.from_capture(_CAPTURE).to_ps_replay()
+    assert rep["players"] == ["p1", "p2"]  # _CAPTURE log has no |player| lines
+    assert rep["format"] == "gen9randombattle"  # no |tier| → falls back to formatid
+    assert rep["uploadtime"] is None

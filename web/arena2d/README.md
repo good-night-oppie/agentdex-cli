@@ -39,10 +39,15 @@ model: the `log` + ordered `decisions` are read together, no cross-battle joins)
 PRIMITIVE labels are **derived on read** by `dex.js` — never stored — so the UI can never
 claim the agent computed a score it didn't emit.
 
-The same document is meant to be served live by a `GET …/trace` endpoint; the static
-`data.js` is a strict subset of it, so the file fixture and the live endpoint share one
-schema (the viewer `fetch`es the endpoint and falls back to `data.js` for `file://`). A
-finished battle's trace is immutable → the endpoint is trivially edge-cacheable.
+The same document is meant to be served live by a REST endpoint shaped like **Pokémon
+Showdown's replay API** (`replay.pokemonshowdown.com/<id>.json`): `to_ps_replay()` emits a
+flat doc with `id` / `format` / `formatid` / `players` and the raw protocol as one
+newline-joined `log` **string**, so stock PS replay tooling reads the base fields
+unchanged. The agent's reasoning rides as additive, namespaced extension fields
+(`decisions` + `schema`). The static `data.js` is the `file://`-safe projection of the same
+document, so the file fixture and the live endpoint share one schema (the viewer `fetch`es
+the endpoint and falls back to `data.js`). A finished battle's trace is immutable → the
+endpoint is trivially edge-cacheable.
 
 Regenerate the fixture from a capture:
 

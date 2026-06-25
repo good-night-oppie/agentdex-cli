@@ -135,6 +135,51 @@ class ReasoningTrace(BaseModel):
             decisions=decisions,
         )
 
+    def _players_from_log(self) -> list[str]:
+        """Display names from the ``|player|pN|name|…`` protocol lines, p1 then p2 —
+        the Showdown replay ``players`` field. Missing slots fall back to ``p1``/``p2``."""
+        names: dict[str, str] = {}
+        for line in self.log:
+            parts = line.split("|")
+            if len(parts) >= 4 and parts[1] == "player" and parts[2] in ("p1", "p2"):
+                names[parts[2]] = parts[3] or parts[2]
+        return [names.get("p1", "p1"), names.get("p2", "p2")]
+
+    def _format_display(self) -> str:
+        """The human format from the ``|tier|`` line (e.g. ``[Gen 9] Random Battle``),
+        falling back to the format id — mirrors Showdown's ``format`` (display) vs
+        ``formatid`` (id) split."""
+        for line in self.log:
+            parts = line.split("|")
+            if len(parts) >= 3 and parts[1] == "tier":
+                return parts[2]
+        return self.battle_format
+
+    def to_ps_replay(self, *, uploadtime: int | None = None) -> dict[str, Any]:
+        """A Pokémon-Showdown-replay-shaped REST projection (the
+        ``replay.pokemonshowdown.com/<id>.json`` convention): a flat document whose
+        ``log`` is the raw protocol as ONE newline-joined STRING, plus ``id`` /
+        ``format`` / ``formatid`` / ``players`` / ``uploadtime``. Existing PS replay
+        tooling can read those base fields unchanged.
+
+        The agent's reasoning rides as ADDITIVE, namespaced extension fields —
+        ``decisions`` (per-decision rationale + the attested ``considered`` fan) and
+        ``schema`` — so a PS-shaped consumer ignores them and an agentdex consumer reads
+        them. This is the shape a ``GET …/<id>.json`` endpoint serves; a finished
+        battle is immutable, so it is trivially cacheable (ETag = id+schema)."""
+        return {
+            "id": self.battle_id,
+            "format": self._format_display(),
+            "formatid": self.battle_format,
+            "players": self._players_from_log(),
+            "uploadtime": uploadtime,
+            "log": "\n".join(self.log),
+            # agentdex extension (additive; PS-shaped readers ignore these):
+            "schema": self.schema_version,
+            "result": self.result.model_dump(),
+            "decisions": [d.model_dump() for d in self.decisions],
+        }
+
 
 __all__ = [
     "SCHEMA_VERSION",
