@@ -22,18 +22,41 @@ A static, `file://`-safe demo: it renders a **real** Pokémon Showdown battle in
 | **OPPONENT MODEL** | reconstructed forward-only from the log, **up to that decision** (fog of war — never future moves) | derived game facts |
 | **TYPE MATCHUP** | the real Gen-9 type chart vs the *revealed* types | derived, interactive |
 | **AGENT** | `RATIONALES[]` — the agent's own `codex_decide` words, streamed verbatim | the agent's real cognition |
+| **CONSIDERED** (the fan) | `RATIONALES[].considered[]` — the moves the agent **weighed and rejected**, with its `why_not`, captured by `codex_decide_explain` (PR #610) | the agent's real deliberation — **attested**, not a derived reconstruction |
 | **OUTCOME** (PRIMITIVE) | the real `-supereffective`/`-immune`/`faint` log lines | stamped **only after** the move resolves (no hindsight) |
 
 The type matchup *grounds* the agent's claims: when it says "resists Grass" or
 "immune to Close Combat", the derived chart confirms it (×0.5 / ×0) — and when the
 agent and the chart disagree, the UI shows both, honestly.
 
+## Data contract — `ReasoningTrace` (one schema, two transports)
+
+`data.js` is the `file://`-safe **projection** of a `ReasoningTrace`
+(`adx_showdown.reasoning_trace`) — one self-contained document per battle (DDIA document
+model: the `log` + ordered `decisions` are read together, no cross-battle joins). It holds
+**only source-of-truth, attested fields**: the protocol `log` and, per decision, the chosen
+`move` + verbatim `rationale` + the `considered` fan. Type-effectiveness ×scores and
+PRIMITIVE labels are **derived on read** by `dex.js` — never stored — so the UI can never
+claim the agent computed a score it didn't emit.
+
+The same document is meant to be served live by a `GET …/trace` endpoint; the static
+`data.js` is a strict subset of it, so the file fixture and the live endpoint share one
+schema (the viewer `fetch`es the endpoint and falls back to `data.js` for `file://`). A
+finished battle's trace is immutable → the endpoint is trivially edge-cacheable.
+
+Regenerate the fixture from a capture:
+
+```bash
+uv run --package adx-showdown python tools/build_arena2d_data.py \
+    /tmp/arena2d_explain_battle.json web/arena2d/data.js
+```
+
 ## Files
 
 | File | Role |
 |---|---|
 | `index.html` | layout + styles + 2D stage + decision timeline |
-| `data.js` | **generated** capture: `LOG` (Showdown protocol) + `RATIONALES` (do not hand-edit) |
+| `data.js` | **generated** `ReasoningTrace` projection: `LOG` (Showdown protocol) + `RATIONALES` (each with the attested `considered` fan; do not hand-edit) |
 | `battle.js` | log helpers (pure logic, no authored narration) |
 | `dex.js` | **derived** reference: type chart + this battle's species/move typings |
 | `mind.js` | the mind-readout panel (opponent model, interactive type lenses, streaming, outcome) |
