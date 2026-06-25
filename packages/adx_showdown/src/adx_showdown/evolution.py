@@ -195,6 +195,19 @@ class HarnessWorkspace:
         no keyword, so house behavior is unchanged until subagents.json is edited."""
         return self.read_store("subagents.json")
 
+    @property
+    def memory(self) -> str:
+        """The Refiner-evolved memory.json, read on the BEHAVIORAL path.
+
+        Parallel to :pyattr:`subagents`: a traced behavioral read whose raw text
+        joins the entrant's steering directive (:meth:`EvolutionLoop._live_directive`),
+        so a Refiner edit that writes a strategy keyword into memory.json now MOVES
+        play — turning the LAST of the four inert Refiner stores (after prompt.md,
+        skills.json, subagents.json) into a load-bearing one. With this wire the
+        full Refiner surface is measurable by the falsification rail. Default
+        ``"[]"`` carries no keyword, so house behavior is unchanged until edited."""
+        return self.read_store("memory.json")
+
     def store_shas(self) -> dict[str, str]:
         return {
             f: hashlib.blake2b((self.root / f).read_bytes(), digest_size=16).hexdigest()
@@ -687,16 +700,32 @@ class EvolutionLoop:
         except subprocess.CalledProcessError:
             return self.workspace.subagents
 
+    def _memory_at_tag(self, tag: str) -> str:
+        """memory.json as committed at ``tag`` — the FROZEN memory for the control
+        window (mirrors :meth:`_subagents_at_tag`). Falls back to the live memory
+        if the tag/file is absent (e.g. gen-0), reading via git rather than
+        read_store so the control replay is not a load-bearing read."""
+        try:
+            return _git(self.workspace.root, "show", f"{tag}:memory.json")
+        except subprocess.CalledProcessError:
+            return self.workspace.memory
+
     def _live_directive(self) -> str:
         """The entrant's steering directive read on the BEHAVIORAL path: prompt.md
-        joined with the other load-bearing text stores (skills.json, subagents.json),
-        each via :meth:`HarnessWorkspace.read_store` so the read registers in
-        ``trace_store_reads``. :func:`select_strategy` scans the whole blob, so a
-        strategy keyword in ANY wired store steers play — the load-bearing surface
-        the falsification rail measures. Mirrored by :meth:`_frozen_directive` for
-        the control window (every store read here MUST be frozen there)."""
+        joined with EVERY other load-bearing text store (skills.json,
+        subagents.json, memory.json), each via :meth:`HarnessWorkspace.read_store`
+        so the read registers in ``trace_store_reads``. :func:`select_strategy`
+        scans the whole blob, so a strategy keyword in ANY of the four Refiner
+        stores steers play — the full load-bearing surface the falsification rail
+        measures. Mirrored by :meth:`_frozen_directive` for the control window
+        (every store read here MUST be frozen there)."""
         return "\n".join(
-            (self.workspace.system_prompt, self.workspace.skills, self.workspace.subagents)
+            (
+                self.workspace.system_prompt,
+                self.workspace.skills,
+                self.workspace.subagents,
+                self.workspace.memory,
+            )
         )
 
     def _frozen_directive(self, tag: str) -> str:
@@ -706,7 +735,12 @@ class EvolutionLoop:
         identically and McNemar can never measure it. Reads via git, not
         read_store, so the control replay is not a behavioral load-bearing read."""
         return "\n".join(
-            (self._prompt_at_tag(tag), self._skills_at_tag(tag), self._subagents_at_tag(tag))
+            (
+                self._prompt_at_tag(tag),
+                self._skills_at_tag(tag),
+                self._subagents_at_tag(tag),
+                self._memory_at_tag(tag),
+            )
         )
 
     def evolution_card(
