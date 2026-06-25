@@ -214,16 +214,24 @@ def _defer_to_default(
     return exclude_switches and not filtered and bool(all_orders)
 
 
-def _resolve_codex_decide() -> Any:
-    """The live-codex ``DecideFn`` when ``ADX_CODEX_LIVE=1`` (codex picks each move via
-    the real CLI, driven by the harness prompt), else ``None`` → the adapter's
-    deterministic greedy default. Lazy import keeps the subprocess/codex module out of
-    the default + test + poke-env-free path."""
+def _resolve_agent() -> Any:
+    """The live-codex :class:`~adx_showdown.selfplay.agent.Agent` when
+    ``ADX_CODEX_LIVE=1`` (codex picks each move via the real CLI, driven by the
+    harness prompt), else ``None`` → the adapter's deterministic greedy default.
+
+    Returns a :class:`~adx_showdown.selfplay.agent.CodexAgent`, which is itself a
+    ``DecideFn`` (``__call__`` -> ``codex_decide``), so ``select_codex_move(decide=)``
+    is unchanged. Lazy import keeps the subprocess/codex module out of the default +
+    test + poke-env-free path. A different backend just swaps the Agent here."""
     if os.environ.get("ADX_CODEX_LIVE") != "1":
         return None
-    from adx_showdown.selfplay.codex_decide import codex_decide
+    from adx_showdown.selfplay.agent import CodexAgent
 
-    return codex_decide
+    return CodexAgent()
+
+
+# Back-compat alias: the seam used to be named after its only backend (codex).
+_resolve_codex_decide = _resolve_agent
 
 
 def _server_config(host: str | None = None, port: str | None = None) -> Any:
@@ -334,7 +342,7 @@ def make_harness_player(
             if self.strategy in CODEX_STRATEGIES:
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
-                decide = _resolve_codex_decide()
+                decide = _resolve_agent()
                 if decide is None:
                     # greedy default — pure + fast, no subprocess; stays on-loop.
                     chosen = select_codex_move(h, battle, on_illegal=self._note_illegal)
