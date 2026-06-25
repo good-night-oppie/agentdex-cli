@@ -33,33 +33,46 @@ window.Mind = (function () {
     const youT = DEX.speciesTypes(r.p1mon);
     const oppT = DEX.speciesTypes(r.p2mon);
     if (!youT || !oppT) return "";
-    // attack lenses = the agent mon's STAB types; default lens = chosen move's type.
-    const lensTypes = youT.slice();
-    const moveT = r.moveType && !lensTypes.includes(r.moveType) ? r.moveType : r.moveType;
-    const def = r.moveType || youT[0];
-    const lenses = Array.from(new Set([r.moveType, ...youT].filter(Boolean)));
+    // MOVE decision -> OFFENSIVE matchup: the chosen move's type into the foe.
+    // SWITCH decision -> DEFENSIVE matchup: how the incoming mon RESISTS the foe's
+    // STABs (its own types are defenders, the foe's types are the attack lenses) —
+    // showing the incoming mon's first attack type would misframe a defensive pivot.
+    const def = r.kind === "switch" ? "def" : "off";
+    const lenses = def === "off"
+      ? Array.from(new Set([r.moveType, ...youT].filter(Boolean)))
+      : oppT.slice();
+    const defLens = def === "off" ? (r.moveType || youT[0]) : oppT[0];
     const lensHtml = lenses
-      .map((t) => `<button class="lens ty ${t}${t === def ? " on" : ""}" data-lens="${t}">${t}</button>`)
+      .map((t) => `<button class="lens ty ${t}${t === defLens ? " on" : ""}" data-lens="${t}">${t}</button>`)
       .join("");
+    const label = def === "off" ? "attack&nbsp;lens" : "foe&nbsp;STAB";
+    const hint = def === "off"
+      ? (r.moveType ? `<span class="movehint">chosen: ${r.label} · ${r.moveType}</span>` : "")
+      : `<span class="movehint">how ${r.p1mon} takes it</span>`;
     return (
-      `<div class="matchup" data-opp='${JSON.stringify(oppT)}'>` +
-      `<div class="verdict" data-default="${def}"></div>` +
-      `<div class="lensrow"><span class="lenslab">attack&nbsp;lens</span>${lensHtml}` +
-      (r.moveType ? `<span class="movehint">chosen: ${r.label} · ${r.moveType}</span>` : "") +
-      `</div></div>`
+      `<div class="matchup" data-mode="${def}" data-default="${defLens}"` +
+      ` data-you='${JSON.stringify(youT)}' data-opp='${JSON.stringify(oppT)}'>` +
+      `<div class="verdict"></div>` +
+      `<div class="lensrow"><span class="lenslab">${label}</span>${lensHtml}${hint}</div></div>`
     );
   }
   function renderVerdict(card, lensType) {
     const mu = card.querySelector(".matchup");
     if (!mu) return;
+    const youT = JSON.parse(mu.dataset.you);
     const oppT = JSON.parse(mu.dataset.opp);
-    const m = DEX.effectiveness(lensType, oppT);
+    const off = mu.dataset.mode === "off";
+    // offensive: my move-type INTO the foe. defensive: the foe's type INTO me.
+    const defenders = off ? oppT : youT;
+    const m = DEX.effectiveness(lensType, defenders);
     const v = DEX.verdict(m);
-    const oppName = card.dataset.opp || "";
+    const youName = card.dataset.you || "", oppName = card.dataset.opp || "";
+    const sub = off
+      ? `<span class="ty ${lensType}">${lensType}</span> → ${oppName} ${typePills(oppT)}`
+      : `${oppName}'s <span class="ty ${lensType}">${lensType}</span> → ${youName} ${typePills(youT)}`;
     mu.querySelector(".verdict").className = "verdict " + v.k;
     mu.querySelector(".verdict").innerHTML =
-      `<span class="vx">${v.x}</span> <b>${v.t}</b> ` +
-      `<span class="vsub"><span class="ty ${lensType}">${lensType}</span> → ${oppName} ${typePills(oppT)}</span>`;
+      `<span class="vx">${v.x}</span> <b>${v.t}</b> <span class="vsub">${sub}</span>`;
     mu.querySelectorAll(".lens").forEach((b) =>
       b.classList.toggle("on", b.dataset.lens === lensType)
     );
@@ -108,10 +121,11 @@ window.Mind = (function () {
       const c = el("div", "dcard future");
       c.dataset.idx = idx;
       c.dataset.opp = r.p2mon || "";
+      c.dataset.you = r.p1mon || "";
       c.innerHTML = cardHtml(r, idx);
       root.appendChild(c);
-      const def = c.querySelector(".verdict");
-      if (def) renderVerdict(c, def.dataset.default);
+      const mu = c.querySelector(".matchup");
+      if (mu) renderVerdict(c, mu.dataset.default);
     });
     // interactivity: attack-lens toggle + click-to-inspect a past card.
     root.addEventListener("click", (e) => {

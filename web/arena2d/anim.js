@@ -4,7 +4,9 @@
  * the agent actually knew when it chose; we err toward LESS info, never future-leak).
  * It then drives the left replay + the right MIND READOUT (mind.js) in sync, plus an
  * interactive decision timeline you can scrub. The PRIMITIVE is an OUTCOME, stamped
- * only AFTER the move resolves (no hindsight). */
+ * only AFTER the move resolves (no hindsight); switch outcomes wait for the foe's
+ * response too. Only the agent's own words for THAT turn are shown — a rationale that
+ * names a different (past) opponent is treated as stale and withheld. */
 (function () {
   "use strict";
   const A = window.__ARENA2D;
@@ -19,6 +21,7 @@
 
   // running opponent (p2) model — revealed-only, mutated forward as the log is read.
   const p2 = { active: null, team: {} };
+  const p2seen = new Set(); // every p2 species the foe has revealed (for stale-rationale detection)
   function p2mon(name) {
     if (!p2.team[name]) p2.team[name] = { moves: [], hp: 100, item: null, ability: null, fainted: false };
     return p2.team[name];
@@ -48,9 +51,18 @@
   let started = false;
   let curRead = null;             // in-progress p1 MOVE read (refine outcome from effects)
   let pendingOutcome = null;      // read index awaiting its outcome-stamp step
+  let pendingFromSwitch = false;  // a switch's PIVOT waits for the foe's response, not the next line
 
-  function flushOutcome() {
-    if (pendingOutcome != null) { steps.push({ type: "outcome", readIdx: pendingOutcome }); pendingOutcome = null; }
+  // Flush the pending decision's outcome step. Move outcomes flush at the next
+  // boundary (after their own effects); SWITCH outcomes hold until a turn/upkeep
+  // boundary (force=true), so a "tactical switch" is never stamped successful
+  // before the opponent's response to it has played.
+  function flushOutcome(force) {
+    if (pendingOutcome != null && (force || !pendingFromSwitch)) {
+      steps.push({ type: "outcome", readIdx: pendingOutcome });
+      pendingOutcome = null;
+      pendingFromSwitch = false;
+    }
   }
   function newRead(kind, label, rationale, p1mon, p2name) {
     const r = {
@@ -59,7 +71,10 @@
       outcomeText: kind === "switch" ? "tactical switch" : "neutral hit",
       moveType: kind === "move" ? DEX.moveType(label) : null,
       decTurn: curTurn,
-      oppModel: kind === "switch" ? snapP2() : turnSnap, // switch: state up to now; move: turn-start
+      // the agent chose at the TURN BOUNDARY — use the turn-start opponent snapshot
+      // for both move and switch decisions, so a foe that voluntarily switches on
+      // the same turn (logged first) is never leaked into the readout (fog of war).
+      oppModel: turnSnap,
       stepIdx: -1,
     };
     reads.push(r);
@@ -70,24 +85,27 @@
   for (const ln of LOG) {
     const f = F(ln), t = f[1];
 
-    if (t === "turn") { flushOutcome(); started = true; curTurn = +f[2]; turnSnap = snapP2(); curRead = null; steps.push({ type: "turn", n: +f[2] }); continue; }
-    if (t === "upkeep") { flushOutcome(); continue; }
+    if (t === "turn") { flushOutcome(true); started = true; curTurn = +f[2]; turnSnap = snapP2(); curRead = null; steps.push({ type: "turn", n: +f[2] }); continue; }
+    if (t === "upkeep") { flushOutcome(true); continue; }
 
     if (t === "switch" || t === "drag") {
-      flushOutcome();
+      flushOutcome(false);
       const side = sideOf(f[2]);
       const name = (f[3] || "").split(",")[0].trim() || monOf(f[2]);
       const lv = f[3] && f[3].match(/L(\d+)/) ? +f[3].match(/L(\d+)/)[1] : null;
-      if (side === "p2") { p2.active = name; const m = p2mon(name); m.fainted = false; const h = pubHp(f[4]); if (h != null) m.hp = h; }
+      if (side === "p2") { p2.active = name; p2seen.add(name); const m = p2mon(name); m.fainted = false; const h = pubHp(f[4]); if (h != null) m.hp = h; }
       if (side === "p1") p1active = name;
       if (name !== active[side].name) {
         active[side] = { name, lv, hp: 100 };
         const step = { type: "switch", side, name, lv };
-        if (side === "p1" && started) {
-          const r = newRead("switch", name, matchRationale(name), name, p2.active);
+        // a |drag| is a FORCED move (phazing) — not an agent decision: update the
+        // board but never add a readout card or consume a rationale for it.
+        if (side === "p1" && started && t === "switch") {
+          const r = newRead("switch", name, matchRationale(name), name, turnSnap.active);
           step.readIdx = reads.length - 1;
           r.stepIdx = steps.length; // this step's index once pushed
           pendingOutcome = reads.length - 1;
+          pendingFromSwitch = true;
           curRead = null;
         }
         steps.push(step);
@@ -98,7 +116,7 @@
     }
 
     if (t === "move") {
-      flushOutcome();
+      flushOutcome(false);
       const side = sideOf(f[2]), mv = f[3];
       if (side === "p2" && p2.active) { const m = p2mon(p2.active); if (!m.moves.includes(mv)) m.moves.push(mv); }
       const step = { type: "banner", text: `${SIDE_LABEL[side]}'s ${active[side].name} used ${mv}!` };
@@ -107,6 +125,7 @@
         step.readIdx = reads.length - 1;
         curRead.stepIdx = steps.length;
         pendingOutcome = reads.length - 1;
+        pendingFromSwitch = false;
       }
       steps.push(step);
       continue;
@@ -136,7 +155,21 @@
       continue;
     }
   }
-  flushOutcome();
+  flushOutcome(true);
+
+  // POST-PASS honesty filter: a rationale is the agent's words for THAT turn only.
+  // The raw capture's stream has retries + un-executed deliberations, so greedy slug
+  // matching can pair a card with a rationale that names a DIFFERENT (earlier) foe
+  // (e.g. Turn 2's Stone Edge inheriting Turn 1's "into Iron Moth"). If a matched
+  // rationale names a revealed opponent species that is NOT this turn's opponent, we
+  // can't honestly claim it for this decision — withhold it rather than mislead.
+  const p2names = Array.from(p2seen);
+  for (const r of reads) {
+    if (!r.rationale) continue;
+    const low = r.rationale.toLowerCase();
+    const namesOther = p2names.some((sp) => sp !== r.p2mon && low.includes(sp.toLowerCase()));
+    if (namesOther) r.rationale = "";
+  }
 
   /* ---------------------------- DOM: battle replay ---------------------------- */
   const $ = (s, r = document) => r.querySelector(s);
@@ -173,6 +206,7 @@
   });
   const tnodes = Array.from(tl.querySelectorAll(".tnode"));
   function colorNode(idx) { const n = tnodes[idx]; if (n) { n.className = "tnode done " + reads[idx].primitive; } }
+  function clearNode(idx) { const n = tnodes[idx]; if (n) n.className = "tnode"; }
   function markCur(idx) { tnodes.forEach((n, i) => n.classList.toggle("cur", i === idx)); }
 
   /* ------------------------------ step application ------------------------------ */
@@ -207,16 +241,19 @@
   function start() { if (playing) return; if (i >= steps.length) reset(); playing = true; playBtn.textContent = "⏸ Pause"; loop(); }
   function stop() { playing = false; playBtn.textContent = "▶ Play"; clearTimeout(timer); }
 
-  // scrub to a decision: stop, rebuild battle visuals instantly up to its step, sync panel.
+  // scrub to a decision: stop, rebuild battle visuals instantly up to its step, sync
+  // panel. Clears ALL timeline node colors first, then recolors only the outcomes
+  // that have actually been reached (<= this decision) — no stale colors from a
+  // later point you had already played past.
   function scrubTo(idx) {
     stop();
     resetVisual();
+    tnodes.forEach((_, k) => clearNode(k));
     const target = reads[idx] ? reads[idx].stepIdx : steps.length;
     for (let k = 0; k <= target && k < steps.length; k++) { applyVisual(steps[k]); if (steps[k].type === "outcome" && k < target) colorNode(steps[k].readIdx); }
     i = target + 1;
     Mind.jumpTo(idx);
     markCur(idx);
-    for (let k = 0; k < idx; k++) colorNode(k);
   }
   function resetVisual() {
     banner.textContent = "Press ▶ to run the battle.";
@@ -230,7 +267,7 @@
     stop(); i = 0;
     resetVisual();
     Mind.reset();
-    tnodes.forEach((n, k) => { n.className = "tnode"; });
+    tnodes.forEach((_, k) => clearNode(k));
   }
 
   playBtn.onclick = () => (playing ? stop() : start());
