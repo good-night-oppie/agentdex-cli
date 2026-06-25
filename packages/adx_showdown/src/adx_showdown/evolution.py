@@ -169,6 +169,20 @@ class HarnessWorkspace:
         can finally measure (the gap flagged in the STORE_FILES note above)."""
         return self.read_store("prompt.md")
 
+    @property
+    def skills(self) -> str:
+        """The Refiner-evolved skills.json, read on the BEHAVIORAL path.
+
+        Parallel to :pyattr:`system_prompt`: a traced behavioral read of an
+        evolution store. Its raw text joins the entrant's steering directive
+        (:meth:`EvolutionLoop._live_directive`), so a Refiner edit that writes a
+        strategy keyword into skills.json now MOVES play — turning the second of
+        the four inert Refiner stores (after prompt.md) into a load-bearing one
+        the falsification rail can measure. Default ``"[]"`` carries no keyword,
+        so house behavior and the prompt.md surface are unchanged until
+        skills.json is deliberately edited."""
+        return self.read_store("skills.json")
+
     def store_shas(self) -> dict[str, str]:
         return {
             f: hashlib.blake2b((self.root / f).read_bytes(), digest_size=16).hexdigest()
@@ -503,12 +517,13 @@ class EvolutionLoop:
                 f"generation it targets. This is corrupt run state, not a recoverable skip."
             )
 
-        # the live window plays the CURRENT stores; reading workspace.system_prompt
-        # here is the behavioral, trace-visible read of prompt.md (load-bearing).
+        # the live window plays the CURRENT stores; the steering directive is read
+        # here on the behavioral path — prompt.md + skills.json, each via read_store
+        # (trace-visible load-bearing reads). See _live_directive.
         results = await self._window(
             sidecar,
             team=live_team,
-            system_prompt=self.workspace.system_prompt,
+            system_prompt=self._live_directive(),
             gen=gen,
             label="live",
         )
@@ -523,14 +538,16 @@ class EvolutionLoop:
             # raised above), so a present manifest always falsifies THIS gen.
             # CRN falsification: replay the SAME seeds with the FROZEN
             # (pre-manifest) team = the control replica.
-            # freeze BOTH stores at the pre-edit tag: team AND prompt. A prompt-only
-            # edit must steer the control window with the OLD prompt, else live and
-            # control play the same and the McNemar test measures nothing.
+            # freeze EVERY store the policy reads at the pre-edit tag: team AND the
+            # steering directive (prompt.md + skills.json). An edit to ANY of them
+            # must steer the control window with the OLD value, else live and control
+            # play the same and the McNemar test measures nothing (ADR-0014 CRN
+            # invariant — the surface this loop exists to falsify).
             frozen_tag = f"gen-{gen - 1}"
             frozen_team = self._team_at_tag(frozen_tag)
-            frozen_prompt = self._prompt_at_tag(frozen_tag)
+            frozen_directive = self._frozen_directive(frozen_tag)
             control = await self._window(
-                sidecar, team=frozen_team, system_prompt=frozen_prompt, gen=gen, label="frozen"
+                sidecar, team=frozen_team, system_prompt=frozen_directive, gen=gen, label="frozen"
             )
             paired = [
                 (live.winner == self.entrant, ctrl.winner == self.entrant)
@@ -637,6 +654,34 @@ class EvolutionLoop:
             return _git(self.workspace.root, "show", f"{tag}:prompt.md")
         except subprocess.CalledProcessError:
             return self.workspace.system_prompt
+
+    def _skills_at_tag(self, tag: str) -> str:
+        """skills.json as committed at ``tag`` — the FROZEN skills for the control
+        window (mirrors :meth:`_prompt_at_tag`). Falls back to the live skills if
+        the tag/file is absent (e.g. gen-0), reading via git rather than read_store
+        so the control replay does not count as a behavioral load-bearing read."""
+        try:
+            return _git(self.workspace.root, "show", f"{tag}:skills.json")
+        except subprocess.CalledProcessError:
+            return self.workspace.skills
+
+    def _live_directive(self) -> str:
+        """The entrant's steering directive read on the BEHAVIORAL path: prompt.md
+        joined with the other load-bearing text stores (skills.json), each via
+        :meth:`HarnessWorkspace.read_store` so the read registers in
+        ``trace_store_reads``. :func:`select_strategy` scans the whole blob, so a
+        strategy keyword in ANY wired store steers play — the load-bearing surface
+        the falsification rail measures. Mirrored by :meth:`_frozen_directive` for
+        the control window (every store read here MUST be frozen there)."""
+        return "\n".join((self.workspace.system_prompt, self.workspace.skills))
+
+    def _frozen_directive(self, tag: str) -> str:
+        """The steering directive FROZEN at ``tag`` for the CRN control window.
+        Every store :meth:`_live_directive` reads must be frozen here (ADR-0014 CRN
+        invariant), else an edit to that store steers the live and control windows
+        identically and McNemar can never measure it. Reads via git, not
+        read_store, so the control replay is not a behavioral load-bearing read."""
+        return "\n".join((self._prompt_at_tag(tag), self._skills_at_tag(tag)))
 
     def evolution_card(
         self, report: GenerationReport, *, parent_lineage_root: str | None
