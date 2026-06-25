@@ -34,9 +34,25 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Run pre-commit on the full tree
+      - name: Run pre-commit scoped to PR diff
+        # Why scoped (--from-ref/--to-ref) not --all-files: the previous
+        # full-tree mode blocked EVERY PR on pre-existing ruff-format drift
+        # in main (e.g. scripts/llm_proxy_measure.py + tests/* — files
+        # untouched by 99% of PRs). That made pre-commit a known-red gate
+        # that reviewers were instructed to ignore (memory
+        # reference_agentdex_precommit_vendor_redgate), which is the wrong
+        # equilibrium — a green gate everyone trusts beats a red gate
+        # everyone learns to ignore. Scoping to the PR's own diff restores
+        # signal: hooks fail only when YOUR diff breaks them, mirroring the
+        # `.pre-commit-config.yaml DEFER_TO_PR_GATE` philosophy and the
+        # agents/review/AGENTS.md "your change's own checks, not full-tree
+        # green" rule. Drift in main is recovered via a separate cleanup PR,
+        # not by blocking every contributor.
         run: |
-          uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+          uv run --no-sync pre-commit run \
+            --from-ref "${{ github.event.pull_request.base.sha }}" \
+            --to-ref   "${{ github.event.pull_request.head.sha }}" \
+            --show-diff-on-failure
 
   doc-lint:
     # DOC-LINT-031 closure: scripts/doc_lint.py (63 rules from
