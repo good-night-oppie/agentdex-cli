@@ -4,23 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentDex · Arena 2D — watch it think</title>
+<!-- Premium type pairing — Space Grotesk (display) / Inter (body) / JetBrains Mono (agent's verbatim words).
+     Online: Google Fonts. Offline / strict CSP (font-src https:): degrades to the system fallbacks below. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <!--
   arena2d — a real Pokemon Showdown battle (your arena's poke-env engine) rendered in 2D,
   with an INTERACTIVE "mind readout" beside it. Per decision it shows, on a hard epistemic
   boundary: (left/derived) the OPPONENT MODEL the agent knew + an interactive TYPE MATCHUP,
-  and (right/real) the agent's OWN streamed rationale (codex_decide). The PRIMITIVE is an
-  OUTCOME, stamped only after the move resolves. Static, file://-safe.
+  (right/real) the agent's OWN streamed rationale (codex_decide) + the ATTESTED candidate fan
+  it weighed (codex_decide_explain). The PRIMITIVE is an OUTCOME, stamped only after the move
+  resolves. Static, file://-safe; ?trace=<url> swaps in a live PS-replay-shaped endpoint.
   Sprites: play.pokemonshowdown.com CDN (same engine as the arena) — RESKIN before ship (IP).
 -->
 <style>
+  /* ===========================================================================
+     THEME TOKENS — every component color below resolves through these. Two blocks:
+       :root            = LIGHT "Galar Bright" (DEFAULT — a design studio's new flavor)
+       [data-theme=dark]= the original dark palette.
+     Type identity (.ty.*) is constant across both themes (set further down).
+     =========================================================================== */
   :root{
-    --bg:#0b0f1a; --panel:#141b2c; --panel2:#0f1626; --ink:#e8eefc; --dim:#8a96b3; --line:#26314a;
-    --hp-ok:#3ad17a; --hp-warn:#f4c042; --hp-low:#ff5d6c; --acc:#5b8cff;
-    --sys:#9fb0d0; --agent:#b98cff; --good:#3fd17a; --bad:#ff5d6c; --warn:#ffae45;
-    /* primitives */
-    --SETUP:#6aa9ff; --PUNISH:#3fd17a; --CHIP:#c0c8da; --PIVOT:#b98cff; --MISREAD:#ff5d6c; --REVENGE:#ffae45; --BAIT:#4fd1c5; --STALL:#9aa3b8;
+    --font-display:"Space Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+    --font-body:"Inter",ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+
+    /* — LIGHT Galar Bright (default) — */
+    --bg:#eaf0f7; --bg2:#dfe8f2; --panel:#ffffff; --panel2:#f4f8fc;
+    --ink:#19222f; --dim:#697a92; --line:#dde6f0; --acc:#10b6d6;
+    --hp-ok:#1faa6b; --hp-warn:#f0a93c; --hp-low:#ef4d5e;
+    --sys:#0a8fab; --agent:#7a59d6; --good:#1faa6b; --bad:#ef4d5e; --warn:#f08a2c;
+    --SETUP:#2f80d6; --PUNISH:#1faa6b; --CHIP:#8d9bb2; --PIVOT:#7a59d6;
+    --MISREAD:#ef4d5e; --REVENGE:#f08a2c; --BAIT:#13b3a6; --STALL:#94a0b4;
+    /* semantic surfaces (formerly hardcoded) */
+    --surface-3:#e7eef7;             /* hp bar track */
+    --hud-bg:rgba(255,255,255,.88); --hud-ink:#19222f; --hud-line:rgba(40,70,120,.16);
+    --banner-bg:rgba(255,255,255,.92); --banner-ink:#26344a;
+    --btn:#ffffff; --btn-hover:#eaf2fb;
+    --node:#eef4fb; --node-hover:#e0ecf8;
+    --field-bg:#f6fafe;              /* matchup / outcome / dhead bg */
+    --mvpill-bg:#eef4fb; --mvpill-ink:#3d4d66;
+    --ratio-ink:#1d2533;
+    --card-active:#10b6d6;           /* active decision border */
+    --agent-rule:rgba(122,89,214,.4);
+    --you-ink:#0a72b0; --opp-ink:#d8543f; --who-ink:#19222f;
+    --ink-strong:#0d141f;            /* contrast ink on bright chips */
+    --lens-ring:rgba(40,70,120,.28);
+    --verdict-res:#2f80d6; --verdict-neu:#56627a;
+    --soft-shadow:0 10px 26px rgba(40,70,120,.13);
   }
-  /* type palette */
+  html[data-theme="dark"]{
+    --bg:#0b0f1a; --panel:#141b2c; --panel2:#0f1626; --ink:#e8eefc; --dim:#8a96b3; --line:#26314a; --acc:#5b8cff;
+    --hp-ok:#3ad17a; --hp-warn:#f4c042; --hp-low:#ff5d6c;
+    --sys:#9fb0d0; --agent:#b98cff; --good:#3fd17a; --bad:#ff5d6c; --warn:#ffae45;
+    --SETUP:#6aa9ff; --PUNISH:#3fd17a; --CHIP:#c0c8da; --PIVOT:#b98cff;
+    --MISREAD:#ff5d6c; --REVENGE:#ffae45; --BAIT:#4fd1c5; --STALL:#9aa3b8;
+    --surface-3:#2a3450;
+    --hud-bg:rgba(12,16,28,.82); --hud-ink:#dfe7fb; --hud-line:var(--line);
+    --banner-bg:rgba(8,11,20,.9); --banner-ink:#dfe7fb;
+    --btn:#22304d; --btn-hover:#2c3c5e;
+    --node:#1a2236; --node-hover:#243150;
+    --field-bg:#0c1322;
+    --mvpill-bg:#1b2740; --mvpill-ink:#cdd8f3;
+    --ratio-ink:#e3e9f8;
+    --card-active:#3c5891;
+    --agent-rule:#2b2350;
+    --you-ink:#7fb0ff; --opp-ink:#ff9b8a; --who-ink:#e8eefc;
+    --ink-strong:#0b1020;
+    --lens-ring:rgba(255,255,255,.2);
+    --verdict-res:#6ab0ff; --verdict-neu:#cdd8f3;
+    --soft-shadow:0 12px 32px rgba(0,0,0,.5);
+  }
+  /* type palette — constant across themes (type identity) */
   .ty.Normal{--c:#9099a1}.ty.Fire{--c:#ff9d55}.ty.Water{--c:#4d90d5}.ty.Electric{--c:#f4d23c}
   .ty.Grass{--c:#63bc5a}.ty.Ice{--c:#73cec0}.ty.Fighting{--c:#ce4069}.ty.Poison{--c:#ab6ac8}
   .ty.Ground{--c:#d97746}.ty.Flying{--c:#8fa8dd}.ty.Psychic{--c:#f97176}.ty.Bug{--c:#90c12c}
@@ -28,14 +84,19 @@
   .ty.Steel{--c:#5a8ea1}.ty.Fairy{--c:#ec8fe6}
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
-    font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif}
+    font:14px/1.5 var(--font-body)}
   .wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,1fr);
     gap:16px;max-width:1180px;margin:0 auto;padding:18px}
-  h1{font-size:16px;margin:0 0 2px;letter-spacing:.3px}
+  .head{display:flex;align-items:flex-start;gap:10px}
+  h1{font-family:var(--font-display);font-size:18px;font-weight:700;margin:0 0 2px;letter-spacing:-.2px}
   .sub{color:var(--dim);font-size:12px;margin:0 0 12px}
-  .sub b{color:#cdd8f3}
+  .sub b{color:var(--ink)}
+  .themebtn{font-family:var(--font-display);margin-left:auto;flex:0 0 auto;font-size:12px;
+    padding:6px 11px;border-radius:999px;background:var(--btn);border:1px solid var(--line);color:var(--ink)}
+  .themebtn:hover{background:var(--btn-hover)}
   /* ---- battle stage ---- */
-  .stage{position:relative;aspect-ratio:16/10;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+  .stage{position:relative;aspect-ratio:16/10;border-radius:16px;overflow:hidden;border:1px solid var(--line);
+    box-shadow:var(--soft-shadow);
     background:linear-gradient(#bfe3ff 0%,#dff1ff 52%,#9fd17a 52%,#7cc05a 100%)}
   .ground{position:absolute;left:0;right:0;bottom:0;height:48%;background:radial-gradient(120% 80% at 30% 20%,#a7da7e,#6fb84f)}
   .slot{position:absolute;display:flex;flex-direction:column;align-items:center}
@@ -46,101 +107,119 @@
   .fainted img{opacity:0;transform:translateY(14px) scale(.85)}
   .hit{animation:hit .28s}
   @keyframes hit{0%,100%{transform:none}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-  .hud{background:rgba(12,16,28,.82);border:1px solid var(--line);border-radius:10px;padding:6px 9px;min-width:172px;backdrop-filter:blur(2px)}
+  .hud{background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:12px;padding:6px 9px;min-width:172px;backdrop-filter:blur(3px);color:var(--hud-ink)}
   .slot.opp .hud{position:absolute;left:7%;top:11%}.slot.you .hud{position:absolute;right:7%;bottom:11%}
   .hud .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
   .hud .nm{font-weight:650;font-size:13px}.hud .lv{color:var(--dim);font-size:11px}
-  .bar{height:8px;border-radius:6px;background:#2a3450;margin-top:4px;overflow:hidden}
+  .bar{height:8px;border-radius:6px;background:var(--surface-3);margin-top:4px;overflow:hidden}
   .bar>i{display:block;height:100%;width:100%;border-radius:6px;background:var(--hp-ok);transition:width .5s ease}
   .bar.warn>i{background:var(--hp-warn)}.bar.low>i{background:var(--hp-low)}
   .hp-num{font-size:10px;color:var(--dim);margin-top:1px;text-align:right}
-  .banner{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(8,11,20,.9);
-    border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;min-height:20px;color:#dfe7fb}
+  .banner{position:absolute;left:12px;right:12px;bottom:10px;background:var(--banner-bg);color:var(--banner-ink);
+    border:1px solid var(--hud-line);border-radius:12px;padding:9px 12px;font-size:13px;min-height:20px;backdrop-filter:blur(3px)}
   .controls{display:flex;gap:8px;align-items:center;margin-top:10px}
-  button{background:#22304d;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
-  button:hover{background:#2c3c5e}button:disabled{opacity:.45;cursor:default}
+  button{font-family:var(--font-display);background:var(--btn);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer}
+  button:hover{background:var(--btn-hover)}button:disabled{opacity:.45;cursor:default}
   .spd{margin-left:auto;color:var(--dim);font-size:12px;display:flex;gap:6px;align-items:center}
   /* ---- decision timeline ---- */
   .tlwrap{margin-top:12px}
-  .tllab{color:var(--dim);font-size:11px;letter-spacing:.4px;margin-bottom:5px}
+  .tllab{font-family:var(--font-display);color:var(--dim);font-size:11px;letter-spacing:.3px;margin-bottom:5px}
   .timeline{display:flex;flex-wrap:wrap;gap:5px}
-  .tnode{width:26px;height:26px;padding:0;border-radius:7px;font-size:11px;font-weight:700;
-    background:#1a2236;border:1px solid var(--line);color:var(--dim);line-height:1}
-  .tnode:hover{background:#243150;color:#cdd8f3}
-  .tnode.cur{outline:2px solid var(--acc);outline-offset:1px;color:#fff}
-  .tnode.done{color:#0b1020;border-color:transparent}
+  .tnode{font-family:var(--font-display);width:26px;height:26px;padding:0;border-radius:8px;font-size:11px;font-weight:700;
+    background:var(--node);border:1px solid var(--line);color:var(--dim);line-height:1}
+  .tnode:hover{background:var(--node-hover);color:var(--ink)}
+  .tnode.cur{outline:2px solid var(--acc);outline-offset:1px;color:var(--ink)}
+  .tnode.done{color:var(--ink-strong);border-color:transparent}
   .tnode.done.PUNISH{background:var(--PUNISH)}.tnode.done.CHIP{background:var(--CHIP)}
   .tnode.done.PIVOT{background:var(--PIVOT)}.tnode.done.MISREAD{background:var(--MISREAD);color:#fff}
   .tnode.done.SETUP{background:var(--SETUP)}.tnode.done.REVENGE{background:var(--REVENGE)}
   /* ---- MIND READOUT ---- */
-  .mind{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;display:flex;flex-direction:column;min-height:0}
-  .mind h2{font-size:13px;margin:0 0 2px;letter-spacing:.5px}
+  .mind{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;min-height:0;box-shadow:var(--soft-shadow)}
+  .mind h2{font-family:var(--font-display);font-size:13px;font-weight:700;margin:0 0 2px;letter-spacing:.2px}
   .mind .lead{color:var(--dim);font-size:11.5px;margin:0 0 8px}
   .legend{display:flex;gap:10px;font-size:10.5px;color:var(--dim);margin:0 0 10px;flex-wrap:wrap}
   .legend i{font-style:normal;display:inline-flex;align-items:center;gap:4px}
   .swatch{width:9px;height:9px;border-radius:3px;display:inline-block}
   .reads{overflow:auto;display:flex;flex-direction:column;gap:11px;padding-right:3px;max-height:74vh}
-  .dcard{flex:0 0 auto;border:1px solid var(--line);border-radius:11px;background:var(--panel2);overflow:hidden;
+  .dcard{flex:0 0 auto;border:1px solid var(--line);border-radius:13px;background:var(--panel2);overflow:hidden;
     transition:opacity .25s,border-color .2s,box-shadow .2s}
   .dcard.future{display:none}
   .dcard.past{opacity:.5;cursor:pointer}.dcard.past:hover{opacity:.8}
-  .dcard.active{opacity:1;border-color:#3c5891;box-shadow:0 0 0 1px #3c5891 inset}
+  .dcard.active{opacity:1;border-color:var(--card-active);box-shadow:0 0 0 1px var(--card-active) inset}
   .dcard.peek{opacity:1;border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
-  .dhead{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#0c1322;border-bottom:1px solid var(--line);font-size:11px}
-  .dnum{font-weight:800;letter-spacing:.6px;color:var(--acc)}
+  .dhead{font-family:var(--font-display);display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--field-bg);border-bottom:1px solid var(--line);font-size:11px}
+  .dnum{font-weight:800;letter-spacing:.4px;color:var(--acc)}
   .dturn{color:var(--dim)}
-  .daction{margin-left:auto;color:#aebbe0}.daction b{color:#fff;text-transform:capitalize}
+  .daction{margin-left:auto;color:var(--dim)}.daction b{color:var(--ink);text-transform:capitalize}
   .block{padding:9px 11px}
-  .block.sys{background:linear-gradient(180deg,rgba(159,176,208,.05),transparent)}
-  .block.agent{border-top:3px solid #2b2350;background:linear-gradient(180deg,rgba(185,140,255,.06),transparent)}
-  .emlabel{font-size:9.5px;font-weight:800;letter-spacing:.8px;color:var(--sys);margin-bottom:6px;text-transform:uppercase}
+  .block.sys{background:linear-gradient(180deg,color-mix(in srgb,var(--sys) 7%,transparent),transparent)}
+  .block.agent{border-top:3px solid var(--agent-rule);background:linear-gradient(180deg,color-mix(in srgb,var(--agent) 8%,transparent),transparent)}
+  .emlabel{font-family:var(--font-display);font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--sys);margin-bottom:6px;text-transform:uppercase}
   .emlabel i{font-weight:500;font-style:normal;color:var(--dim);letter-spacing:.2px}
   .emlabel.agentlabel{color:var(--agent)}
   .vs{display:flex;flex-direction:column;gap:4px;margin-bottom:7px}
   .who{display:flex;align-items:center;gap:6px;font-size:12px}
   .who .wl{font-size:9px;font-weight:800;color:var(--dim);width:26px}
-  .who.you .wl{color:#7fb0ff}.who.opp .wl{color:#ff9b8a}
-  .who b{color:#e8eefc}
+  .who.you .wl{color:var(--you-ink)}.who.opp .wl{color:var(--opp-ink)}
+  .who b{color:var(--who-ink)}
   .ohp{color:var(--dim);font-style:normal;font-size:11px;margin-left:auto}
-  .ty{font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:1.5px 6px;border-radius:999px;color:#0b1020;background:var(--c,#888);text-transform:uppercase}
+  .ty{font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:1.5px 6px;border-radius:999px;color:var(--ink-strong);background:var(--c,#888);text-transform:uppercase}
   .moves{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px}
   .moves .ml{font-size:9.5px;color:var(--dim);margin-right:2px;text-transform:uppercase;letter-spacing:.4px}
-  .mvpill{font-size:10px;padding:2px 7px;border-radius:6px;background:#1b2740;border:1px solid var(--line);color:#cdd8f3;text-transform:capitalize}
-  .mvpill.q{color:#55617e;border-style:dashed}
+  .mvpill{font-size:10px;padding:2px 7px;border-radius:6px;background:var(--mvpill-bg);border:1px solid var(--line);color:var(--mvpill-ink);text-transform:capitalize}
+  .mvpill.q{color:var(--dim);border-style:dashed;opacity:.7}
   .kv{font-size:10px;color:var(--dim);margin-left:4px}
   /* matchup widget */
-  .matchup{background:#0a1120;border:1px solid var(--line);border-radius:9px;padding:8px}
+  .matchup{background:var(--field-bg);border:1px solid var(--line);border-radius:10px;padding:8px}
   .verdict{display:flex;align-items:center;gap:7px;font-size:12px;flex-wrap:wrap}
   .verdict .vx{font-weight:850;font-size:15px;font-variant-numeric:tabular-nums}
   .verdict .vsub{color:var(--dim);font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:2px}
-  .verdict.sup{color:var(--good)}.verdict.res{color:#6ab0ff}.verdict.neu{color:#cdd8f3}.verdict.imm{color:var(--agent)}
+  .verdict.sup{color:var(--good)}.verdict.res{color:var(--verdict-res)}.verdict.neu{color:var(--verdict-neu)}.verdict.imm{color:var(--agent)}
   .lensrow{display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap}
   .lenslab{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
   .lens{cursor:pointer;border:1px solid transparent;opacity:.6;transition:opacity .15s,transform .1s}
-  .lens:hover{opacity:1}.lens.on{opacity:1;outline:2px solid #fff3;transform:translateY(-1px)}
+  .lens:hover{opacity:1}.lens.on{opacity:1;outline:2px solid var(--lens-ring);transform:translateY(-1px)}
   .movehint{font-size:9.5px;color:var(--dim);margin-left:auto;text-transform:capitalize}
   /* agent rationale */
-  .ratio{font:12.5px/1.6 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;color:#e3e9f8;min-height:1.6em;white-space:pre-wrap}
+  .ratio{font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--ratio-ink);min-height:1.6em;white-space:pre-wrap}
   .ratio.typing::after{content:"▋";color:var(--agent);margin-left:1px;animation:blink 1s step-end infinite}
   @keyframes blink{50%{opacity:0}}
+  /* ---- attested candidate fan (codex_decide_explain): what it weighed + rejected ---- */
+  .fan{margin-top:9px;border-top:1px dashed var(--line);padding-top:8px}
+  .fanlabel{color:var(--agent)}
+  .fanrow{display:flex;align-items:center;gap:6px;font-size:10.5px;padding:2.5px 0;color:var(--dim)}
+  .fanrow.chosen{color:var(--ink);font-weight:600;padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line)}
+  .firedot{width:7px;height:7px;border-radius:50%;background:var(--agent);flex:0 0 auto;
+    animation:fire 1.9s ease-out infinite}
+  @keyframes fire{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--agent) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .fanmv{text-transform:capitalize;color:inherit}
+  .fanrow:not(.chosen) .fanmv{color:var(--ink);opacity:.78}
+  .fanx{font-weight:850;font-variant-numeric:tabular-nums;font-size:11px;margin-left:1px}
+  .fanx.sup{color:var(--good)}.fanx.res{color:var(--verdict-res)}.fanx.neu{color:var(--dim)}.fanx.imm{color:var(--agent)}
+  .fanwhy{margin-left:auto;font-style:italic;color:var(--dim);text-align:right;max-width:58%}
   /* outcome */
-  .outcome{display:flex;align-items:center;gap:8px;padding:7px 11px;border-top:1px dashed var(--line);font-size:11px;background:#0c1322}
+  .outcome{display:flex;align-items:center;gap:8px;padding:7px 11px;border-top:1px dashed var(--line);font-size:11px;background:var(--field-bg)}
   .outcome.off{display:none}
-  .ochip{font-size:9.5px;font-weight:850;letter-spacing:.6px;padding:2px 8px;border-radius:999px;color:#0b1020}
+  .ochip{font-family:var(--font-display);font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 8px;border-radius:999px;color:var(--ink-strong)}
   .outcome.PUNISH .ochip{background:var(--PUNISH)}.outcome.CHIP .ochip{background:var(--CHIP)}
   .outcome.PIVOT .ochip{background:var(--PIVOT)}.outcome.MISREAD .ochip{background:var(--MISREAD);color:#fff}
   .outcome.SETUP .ochip{background:var(--SETUP)}.outcome.REVENGE .ochip{background:var(--REVENGE)}
   .otext{color:var(--dim)}
   .foot{color:var(--dim);font-size:10.5px;margin-top:11px;border-top:1px solid var(--line);padding-top:9px;line-height:1.55}
-  .tag{color:#7fa7ff}
+  .tag{color:var(--acc)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <section>
-    <h1>AgentDex · Arena 2D <span style="color:var(--dim);font-weight:400">— watch it think</span></h1>
-    <p class="sub">A <b>real</b> Showdown battle from your arena. Each decision splits into what the agent
-      <b>knew</b> (opponent model + type matchup, rebuilt from the log) and what it <b>thought</b> (its own words).</p>
+    <div class="head">
+      <div>
+        <h1>AgentDex · Arena 2D <span style="color:var(--dim);font-weight:400">— watch it think</span></h1>
+        <p class="sub">A <b>real</b> Showdown battle from your arena. Each decision splits into what the agent
+          <b>knew</b> (opponent model + type matchup, rebuilt from the log) and what it <b>thought</b> (its own words + the moves it weighed).</p>
+      </div>
+      <button id="theme" class="themebtn" title="Toggle light / dark">◐ Theme</button>
+    </div>
     <div class="stage" id="stage">
       <div class="ground"></div>
       <div class="slot opp" id="opp">
@@ -173,24 +252,39 @@
       type lenses; click a past decision to inspect it.</p>
     <div class="legend">
       <i><span class="swatch" style="background:var(--sys)"></span> OPPONENT MODEL — reconstructed from the log</i>
-      <i><span class="swatch" style="background:var(--agent)"></span> AGENT — its own words</i>
-      <i><span class="swatch" style="background:#0c1322;border:1px solid var(--line)"></span> OUTCOME — after the move</i>
+      <i><span class="swatch" style="background:var(--agent)"></span> AGENT — its own words + candidate fan</i>
+      <i><span class="swatch" style="background:var(--field-bg);border:1px solid var(--line)"></span> OUTCOME — after the move</i>
     </div>
     <div class="reads" id="reads"></div>
     <div class="foot">
-      The <span class="tag">rationale</span> is the agent's own output (codex_decide), streamed verbatim.
-      The <span class="tag">opponent model</span> + <span class="tag">type matchup</span> are <i>our</i> reconstruction
+      The <span class="tag">rationale</span> + the <span class="tag">candidate fan</span> (moves weighed + rejected) are the
+      agent's own output (codex_decide / codex_decide_explain), verbatim. The
+      <span class="tag">opponent model</span> + <span class="tag">type matchup</span> are <i>our</i> reconstruction
       from the real log, shown only up to each decision (fog of war — never future moves). The
       <span class="tag">PRIMITIVE</span> is our label, stamped only after the game resolves the move. The battle,
-      types, and the <span class="tag">WIN</span> are the real Pokémon Showdown game.
+      types, and the <span class="tag">result</span> are the real Pokémon Showdown game.
     </div>
   </aside>
 </div>
 
+<!-- theme toggle: light is the default; choice persists. Set BEFORE first paint to avoid a flash. -->
+<script>
+  (function(){
+    try{ var t=localStorage.getItem("arena2d-theme"); if(t==="dark") document.documentElement.setAttribute("data-theme","dark"); }catch(e){}
+    addEventListener("DOMContentLoaded",function(){
+      var b=document.getElementById("theme"); if(!b) return;
+      b.onclick=function(){
+        var dark=document.documentElement.getAttribute("data-theme")==="dark";
+        if(dark) document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme","dark");
+        try{ localStorage.setItem("arena2d-theme",dark?"light":"dark"); }catch(e){}
+      };
+    });
+  })();
+</script>
+
+<!-- data.js = baked file://-safe ReasoningTrace projection (fallback). trace-loader.js may
+     override it from a PS-replay-shaped ?trace=<url> endpoint, then boots the 4 engine scripts. -->
 <script src="data.js"></script>
-<script src="dex.js"></script>
-<script src="battle.js"></script>
-<script src="mind.js"></script>
-<script src="anim.js"></script>
+<script src="trace-loader.js"></script>
 </body>
 </html>

@@ -49,42 +49,59 @@ document, so the file fixture and the live endpoint share one schema (the viewer
 the endpoint and falls back to `data.js`). A finished battle's trace is immutable → the
 endpoint is trivially edge-cacheable.
 
-Regenerate the fixture from a capture:
+Regenerate both generated files from a capture (data + the PS-sourced derived layer):
 
 ```bash
+# the ReasoningTrace projection (LOG + RATIONALES + attested fan)
 uv run --package adx-showdown python tools/build_arena2d_data.py \
     /tmp/arena2d_explain_battle.json web/arena2d/data.js
+# the DERIVED type layer for whatever cast is now in data.js, sourced from
+# pokemon-showdown's own pokedex/moves (the same engine the arena runs)
+node tools/build_arena2d_dex.cjs web/arena2d/data.js web/arena2d/dex.js
 ```
+
+## Themes
+
+The page ships **light** ("Galar Bright", the default) and **dark** themes — a
+CSS-variable swap behind `html[data-theme]`, toggled by the header button and persisted to
+`localStorage`. Type-pill identity colors are constant across both. Typography is a premium
+pairing: **Space Grotesk** (display) / **Inter** (body) / **JetBrains Mono** (the agent's
+verbatim words), with system fallbacks under offline / strict CSP.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `index.html` | layout + styles + 2D stage + decision timeline |
+| `index.html` | layout + dual-theme styles + 2D stage + decision timeline + theme toggle |
 | `data.js` | **generated** `ReasoningTrace` projection: `LOG` (Showdown protocol) + `RATIONALES` (each with the attested `considered` fan; do not hand-edit) |
+| `trace-loader.js` | boots the engine; with `?trace=<url>` swaps in a live **PS-replay-shaped** endpoint, else uses the baked `data.js` (file://-safe) |
 | `battle.js` | log helpers (pure logic, no authored narration) |
-| `dex.js` | **derived** reference: type chart + this battle's species/move typings |
-| `mind.js` | the mind-readout panel (opponent model, interactive type lenses, streaming, outcome) |
+| `dex.js` | **derived** reference: the Gen-9 type chart + this battle's species/move typings, **generated from pokemon-showdown's own dex data** (`tools/build_arena2d_dex.cjs`) |
+| `mind.js` | the mind-readout panel (opponent model, type lenses, streaming rationale, **attested candidate fan**, outcome) |
 | `anim.js` | single forward-only pass → 2D replay + zero-leakage opponent snapshots; drives both panes + scrub |
 
 ## Interactions
 
 - **Play / Step / Restart / speed** — the 2D replay; the readout streams in sync.
+- **Theme toggle** — light ↔ dark, persisted.
 - **Decision timeline** — click any node to scrub the battle + readout to that decision; nodes color by outcome as it plays.
 - **Type lenses** — click an attack-type pill to recompute the matchup verdict live.
+- **Candidate fan** — each decision shows the chosen move ("fired") plus the moves the agent weighed and rejected, each grounded with the derived ×-effectiveness badge.
 - **Click a past decision** — inspect its full opponent model + matchup while paused.
 
 ## Serving
 
 Static assets only. The live page at `https://agentdex.builders/arena2d/` is served
 by **Caddy on the deploy box** (config is box-side, not in this repo). Preview locally:
-open `index.html` directly, or `python3 -m http.server` from this directory.
+open `index.html` directly, or `python3 -m http.server` from this directory. With
+`?trace=<url>` it fetches a live PS-replay-shaped trace (see `ReasoningTrace.to_ps_replay`)
+and falls back to the baked `data.js` on any error.
 
 ## Known caveats (pre-ship)
 
 - **Sprites** load from `play.pokemonshowdown.com` CDN — **reskin before any public ship** (IP).
 - Throwaway-grade prototype, **not** baked into the gateway image.
-- `dex.js` covers only **this battle's** cast — a fuller demo needs a real Pokédex.
+- `dex.js` carries only **this battle's** cast (regenerated per capture from the showdown dex); a permanent live surface would query the dex directly.
 - Local self-play capture needs the showdown loopback patch
   (`packages/adx_showdown/scripts/patch-showdown-loopback.cjs`, applied via `postinstall`).
 

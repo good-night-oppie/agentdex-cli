@@ -107,9 +107,46 @@ window.Mind = (function () {
       `<div class="block agent">` +
       `<div class="emlabel agentlabel">AGENT <i>· its own words · codex_decide</i></div>` +
       `<div class="ratio mono" data-text="${(r.rationale || "").replace(/"/g, "&quot;")}"></div>` +
+      fanHtml(r, oppT) +
       `</div>` +
 
       `<div class="outcome off"><span class="ochip"></span><span class="otext"></span></div>`
+    );
+  }
+
+  /* ---- the ATTESTED candidate fan: what the agent weighed + rejected ----
+   * `r.considered` is real (codex_decide_explain) — the move + the agent's own
+   * `why_not`. We ground each with OUR derived type read (dex.js) so a "resisted"
+   * claim is checkable; the chosen move "fires" at the top. The why_not is attested;
+   * the ×badge is derived (the same honesty split the rest of the panel keeps). */
+  function fanHtml(r, oppT) {
+    const cons = (r.considered || []).filter((c) => c && c.move);
+    const chosenType = r.moveType ? `<span class="ty ${r.moveType}">${r.moveType}</span>` : "";
+    const chosen =
+      `<div class="fanrow chosen"><span class="firedot"></span>` +
+      `<span class="fanmv">${r.label}</span>${chosenType}<span class="fanwhy">▶ chosen</span></div>`;
+    if (!cons.length) {
+      // no attested fan for this decision — show only the chosen "fired" node, no fakery.
+      return `<div class="fan"><div class="emlabel fanlabel">CANDIDATES <i>· codex_decide_explain</i></div>${chosen}</div>`;
+    }
+    const rows = cons
+      .map((c) => {
+        const mt = DEX.moveType(c.move);
+        let badge = "";
+        if (mt && oppT && oppT.length) {
+          const v = DEX.verdict(DEX.effectiveness(mt, oppT));
+          badge = `<span class="ty ${mt}">${mt}</span><span class="fanx ${v.k}">${v.x}</span>`;
+        }
+        const why = (c.why_not || "").replace(/</g, "&lt;");
+        return `<div class="fanrow"><span class="fanmv">${c.move}</span>${badge}<span class="fanwhy">${why}</span></div>`;
+      })
+      .join("");
+    return (
+      `<div class="fan">` +
+      `<div class="emlabel fanlabel">CANDIDATES <i>· weighed + rejected · codex_decide_explain</i></div>` +
+      chosen +
+      rows +
+      `</div>`
     );
   }
 
