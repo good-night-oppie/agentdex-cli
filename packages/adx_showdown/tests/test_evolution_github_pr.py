@@ -220,7 +220,10 @@ def _loop_with_fake_windows(tmp_path: Path, pr_publisher) -> EvolutionLoop:
         k_battles=2,
     )
 
-    async def fake_window(sidecar, *, team, gen, label):
+    # Signature MUST mirror EvolutionLoop._window (sidecar, *, team, system_prompt,
+    # gen, label) — system_prompt was added when prompt.md became load-bearing
+    # (#600); a keyword the real call passes that the mock omits raises TypeError.
+    async def fake_window(sidecar, *, team, system_prompt, gen, label):
         # live always wins; the verdict is forced via mcnemar_verdict below.
         return [
             BattleResult(battle_id=f"{label}-g{gen}-b{i}", winner="house-evolver", turns=4)
