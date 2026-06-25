@@ -10,10 +10,12 @@ import sys
 from adx_showdown.selfplay.codex_adapter import codex_context, select_codex_move
 from adx_showdown.selfplay.codex_decide import (
     _build_prompt,
+    _clean_considered,
     _codex_exec_args,
     _parse_last_json,
     _timeout_sec,
     codex_decide,
+    codex_decide_explain,
 )
 
 
@@ -195,3 +197,107 @@ def test_importing_module_survives_a_malformed_timeout_env():
     )
     assert proc.returncode == 0, proc.stderr  # pre-fix: ValueError at import time
     assert proc.stdout.strip() == "60.0"
+
+
+# ---- explain-capture (attested candidate fan; arena2d mind-readout) ----
+
+
+def test_explain_default_prompt_is_byte_identical_to_the_live_prompt():
+    """The live decision path must be UNCHANGED: _build_prompt(explain=False) is exactly
+    the prompt codex_decide sends, so evolution / battle calls pay no extra tokens and
+    carry no perturbation risk from the capture feature."""
+    ctx = _ctx([_Move("surf", 90), _Move("tackle", 40)])
+    assert _build_prompt(_Harness(), ctx, ["surf", "tackle"]) == _build_prompt(
+        _Harness(), ctx, ["surf", "tackle"], explain=False
+    )
+
+
+def test_explain_prompt_asks_for_the_considered_set():
+    ctx = _ctx([_Move("surf", 90), _Move("tackle", 40)])
+    prompt = _build_prompt(_Harness(), ctx, ["surf", "tackle"], explain=True)
+    assert "considered" in prompt and "why_not" in prompt
+    # still carries the live essentials (policy + legal ids)
+    assert "Prefer super-effective coverage" in prompt
+    assert "surf" in prompt and "tackle" in prompt
+
+
+def test_codex_decide_explain_returns_chosen_plus_considered():
+    ctx = _ctx([_Move("stoneedge", 100), _Move("crunch", 80), _Move("icepunch", 75)])
+    out = codex_decide_explain(
+        _Harness(),
+        ctx,
+        run=lambda p, s, t: {
+            "move_id": "stoneedge",
+            "rationale": "4x weak to Rock",
+            "considered": [
+                {"move_id": "crunch", "why_not": "only neutral"},
+                {"move_id": "icepunch", "why_not": "resisted"},
+            ],
+        },
+    )
+    assert out is not None
+    assert out["move_id"] == "stoneedge"
+    assert out["rationale"] == "4x weak to Rock"
+    assert [c["move_id"] for c in out["considered"]] == ["crunch", "icepunch"]
+
+
+def test_codex_decide_explain_defaults_considered_to_empty():
+    ctx = _ctx([_Move("thunderbolt", 90)])
+    out = codex_decide_explain(
+        _Harness(), ctx, run=lambda p, s, t: {"move_id": "thunderbolt", "rationale": "ok"}
+    )
+    assert out == {"move_id": "thunderbolt", "rationale": "ok", "considered": []}
+
+
+def test_codex_decide_explain_is_failsafe_on_error():
+    def boom(p, s, t):
+        raise RuntimeError("codex down")
+
+    out = codex_decide_explain(_Harness(), _ctx([_Move("thunderbolt", 90)]), run=boom)
+    assert out is None
+
+
+def test_codex_decide_explain_abstains_on_blank_pick():
+    out = codex_decide_explain(
+        _Harness(), _ctx([_Move("thunderbolt", 90)]), run=lambda p, s, t: {"move_id": "  "}
+    )
+    assert out is None
+
+
+def test_codex_decide_explain_no_legal_moves_returns_none():
+    assert codex_decide_explain(_Harness(), _ctx([]), run=lambda p, s, t: {"move_id": "x"}) is None
+
+
+def test_explain_uses_the_explain_schema_not_the_live_schema():
+    """The capture call must request the considered field via the schema, else strict
+    output would never emit it."""
+    seen: dict = {}
+
+    def fake_run(prompt, schema, timeout):
+        seen["schema"] = schema
+        return {"move_id": "thunderbolt", "rationale": "x", "considered": []}
+
+    codex_decide_explain(_Harness(), _ctx([_Move("thunderbolt", 90)]), run=fake_run)
+    props = seen["schema"]["properties"]
+    assert "considered" in props
+    assert props["considered"]["items"]["required"] == ["move_id", "why_not"]
+
+
+def test_clean_considered_drops_chosen_hallucinated_and_dupes():
+    legal = {"stoneedge", "crunch", "icepunch", "firepunch"}
+    raw = [
+        {"move_id": "stoneedge", "why_not": "but this IS the pick"},  # self-reference → drop
+        {"move_id": "earthquake", "why_not": "not legal"},  # hallucinated → drop
+        {"move_id": "crunch", "why_not": "neutral"},  # keep
+        {"move_id": "crunch", "why_not": "dup"},  # duplicate → drop
+        {"move_id": "icepunch", "why_not": "resisted"},  # keep
+        "not-a-dict",  # malformed → drop
+    ]
+    out = _clean_considered(raw, chosen="stoneedge", legal=legal)
+    assert [c["move_id"] for c in out] == ["crunch", "icepunch"]
+
+
+def test_clean_considered_caps_at_four():
+    legal = {f"m{i}" for i in range(10)}
+    raw = [{"move_id": f"m{i}", "why_not": "n"} for i in range(10)]
+    assert len(_clean_considered(raw, chosen="x", legal=legal)) == 4
