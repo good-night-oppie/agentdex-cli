@@ -80,6 +80,7 @@ def test_done_json_reports_selected_proxy_when_base_url_omitted(monkeypatch, cap
     _clear_proxy_env(monkeypatch)
     monkeypatch.setenv("AI_BUILDER_TOKEN", "builder-token")
     monkeypatch.setattr(sys, "argv", ["llm_proxy_measure.py", "--levels", "1", "--skip-usage"])
+
     def _fake_run_level(level, **kwargs):  # noqa: ARG001
         return {
             "concurrency": level,

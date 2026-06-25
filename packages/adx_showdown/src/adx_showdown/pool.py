@@ -221,7 +221,9 @@ class SidecarPool:
         successful respawn. Auto-respawn is :meth:`reclaim_dead`; this only
         *reports* liveness.
         """
-        return bool(self._pending_evictions) or any(s.returncode is not None for s in self._sidecars)
+        return bool(self._pending_evictions) or any(
+            s.returncode is not None for s in self._sidecars
+        )
 
     async def reclaim_dead(self) -> list[str]:
         """Touch-driven crash recovery: respawn any exited sidecar in place and
