@@ -3,91 +3,144 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentDex · Arena 2D (barebones)</title>
+<title>AgentDex · Arena 2D — watch it think</title>
 <!--
-  arena2d — the ugliest-possible 2D-Pokemon proof-of-loop (Fujibayashi's 2D prototype).
-  Renders a REAL Pokemon Showdown battle log (your arena's own engine, poke-env) in a 2D
-  battle view, and narrates the agent's play turn-by-turn in a FIXED legibility vocabulary
-  (the Dohta/Aonuma "mind readout"). No new engine, no fork of PokeRogue. Static, file://-safe.
+  arena2d — a real Pokemon Showdown battle (your arena's poke-env engine) rendered in 2D,
+  with an INTERACTIVE "mind readout" beside it. Per decision it shows, on a hard epistemic
+  boundary: (left/derived) the OPPONENT MODEL the agent knew + an interactive TYPE MATCHUP,
+  and (right/real) the agent's OWN streamed rationale (codex_decide). The PRIMITIVE is an
+  OUTCOME, stamped only after the move resolves. Static, file://-safe.
   Sprites: play.pokemonshowdown.com CDN (same engine as the arena) — RESKIN before ship (IP).
 -->
 <style>
   :root{
-    --bg:#0e1320; --panel:#161d2e; --ink:#e8eefc; --dim:#8a96b3; --line:#26314a;
-    --hp-ok:#3ad17a; --hp-warn:#f4c042; --hp-low:#ff5d6c;
-    --setup:#6aa9ff; --punish:#ff7a5c; --chip:#c0c8da; --pivot:#b98cff;
-    --misread:#ff5d6c; --revenge:#ffae45; --bait:#4fd1c5; --stall:#9aa3b8;
+    --bg:#0b0f1a; --panel:#141b2c; --panel2:#0f1626; --ink:#e8eefc; --dim:#8a96b3; --line:#26314a;
+    --hp-ok:#3ad17a; --hp-warn:#f4c042; --hp-low:#ff5d6c; --acc:#5b8cff;
+    --sys:#9fb0d0; --agent:#b98cff; --good:#3fd17a; --bad:#ff5d6c; --warn:#ffae45;
+    /* primitives */
+    --SETUP:#6aa9ff; --PUNISH:#3fd17a; --CHIP:#c0c8da; --PIVOT:#b98cff; --MISREAD:#ff5d6c; --REVENGE:#ffae45; --BAIT:#4fd1c5; --STALL:#9aa3b8;
   }
+  /* type palette */
+  .ty.Normal{--c:#9099a1}.ty.Fire{--c:#ff9d55}.ty.Water{--c:#4d90d5}.ty.Electric{--c:#f4d23c}
+  .ty.Grass{--c:#63bc5a}.ty.Ice{--c:#73cec0}.ty.Fighting{--c:#ce4069}.ty.Poison{--c:#ab6ac8}
+  .ty.Ground{--c:#d97746}.ty.Flying{--c:#8fa8dd}.ty.Psychic{--c:#f97176}.ty.Bug{--c:#90c12c}
+  .ty.Rock{--c:#c7b78b}.ty.Ghost{--c:#5269ad}.ty.Dragon{--c:#0b6dc3}.ty.Dark{--c:#5a5366}
+  .ty.Steel{--c:#5a8ea1}.ty.Fairy{--c:#ec8fe6}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
     font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif}
-  .wrap{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.95fr);
-    gap:14px;max-width:1100px;margin:0 auto;padding:16px}
-  h1{font-size:15px;margin:0 0 2px;letter-spacing:.3px}
+  .wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(330px,1fr);
+    gap:16px;max-width:1180px;margin:0 auto;padding:18px}
+  h1{font-size:16px;margin:0 0 2px;letter-spacing:.3px}
   .sub{color:var(--dim);font-size:12px;margin:0 0 12px}
-  .stage{position:relative;aspect-ratio:16/10;border-radius:14px;overflow:hidden;
-    border:1px solid var(--line);
+  .sub b{color:#cdd8f3}
+  /* ---- battle stage ---- */
+  .stage{position:relative;aspect-ratio:16/10;border-radius:14px;overflow:hidden;border:1px solid var(--line);
     background:linear-gradient(#bfe3ff 0%,#dff1ff 52%,#9fd17a 52%,#7cc05a 100%)}
-  .ground{position:absolute;left:0;right:0;bottom:0;height:48%;
-    background:radial-gradient(120% 80% at 30% 20%,#a7da7e,#6fb84f)}
+  .ground{position:absolute;left:0;right:0;bottom:0;height:48%;background:radial-gradient(120% 80% at 30% 20%,#a7da7e,#6fb84f)}
   .slot{position:absolute;display:flex;flex-direction:column;align-items:center}
-  .slot.opp{top:9%;right:8%}
-  .slot.you{bottom:6%;left:7%}
-  .slot img{image-rendering:pixelated;width:150px;height:150px;object-fit:contain;
+  .slot.opp{top:9%;right:8%}.slot.you{bottom:6%;left:7%}
+  .slot img{image-rendering:pixelated;width:148px;height:148px;object-fit:contain;
     filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));transition:transform .12s,opacity .3s}
-  .slot.you img{width:170px;height:170px}
+  .slot.you img{width:168px;height:168px}
   .fainted img{opacity:0;transform:translateY(14px) scale(.85)}
   .hit{animation:hit .28s}
   @keyframes hit{0%,100%{transform:none}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-  .hud{background:rgba(12,16,28,.82);border:1px solid var(--line);border-radius:10px;
-    padding:6px 9px;min-width:178px;color:var(--ink);backdrop-filter:blur(2px)}
-  .slot.opp .hud{position:absolute;left:7%;top:11%}
-  .slot.you .hud{position:absolute;right:7%;bottom:11%}
+  .hud{background:rgba(12,16,28,.82);border:1px solid var(--line);border-radius:10px;padding:6px 9px;min-width:172px;backdrop-filter:blur(2px)}
+  .slot.opp .hud{position:absolute;left:7%;top:11%}.slot.you .hud{position:absolute;right:7%;bottom:11%}
   .hud .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .hud .nm{font-weight:650;font-size:13px}
-  .hud .lv{color:var(--dim);font-size:11px}
+  .hud .nm{font-weight:650;font-size:13px}.hud .lv{color:var(--dim);font-size:11px}
   .bar{height:8px;border-radius:6px;background:#2a3450;margin-top:4px;overflow:hidden}
-  .bar > i{display:block;height:100%;width:100%;border-radius:6px;background:var(--hp-ok);
-    transition:width .5s ease}
-  .bar.warn > i{background:var(--hp-warn)} .bar.low > i{background:var(--hp-low)}
+  .bar>i{display:block;height:100%;width:100%;border-radius:6px;background:var(--hp-ok);transition:width .5s ease}
+  .bar.warn>i{background:var(--hp-warn)}.bar.low>i{background:var(--hp-low)}
   .hp-num{font-size:10px;color:var(--dim);margin-top:1px;text-align:right}
   .banner{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(8,11,20,.9);
-    border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;
-    min-height:20px;color:#dfe7fb}
-  .controls{grid-column:1/2;display:flex;gap:8px;align-items:center;margin-top:10px}
-  button{background:#22304d;color:var(--ink);border:1px solid var(--line);border-radius:8px;
-    padding:7px 12px;font-size:13px;cursor:pointer}
-  button:hover{background:#2c3c5e} button:disabled{opacity:.45;cursor:default}
+    border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;min-height:20px;color:#dfe7fb}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:10px}
+  button{background:#22304d;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  button:hover{background:#2c3c5e}button:disabled{opacity:.45;cursor:default}
   .spd{margin-left:auto;color:var(--dim);font-size:12px;display:flex;gap:6px;align-items:center}
-  .mind{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-    padding:12px;display:flex;flex-direction:column;min-height:0}
-  .mind h2{font-size:13px;margin:0 0 2px;letter-spacing:.4px}
-  .mind .lead{color:var(--dim);font-size:11.5px;margin:0 0 10px}
-  .reads{overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px}
-  .read{border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:#121829;
-    opacity:.4;transform:translateY(2px);transition:opacity .25s,transform .25s,border-color .2s}
-  .read.on{opacity:1;transform:none}
-  .read.cur{border-color:#46608f;box-shadow:0 0 0 1px #46608f inset}
-  .read .top{display:flex;align-items:center;gap:7px;margin-bottom:3px}
-  .read .t{color:var(--dim);font-size:10px}
-  .chip{font-size:10px;font-weight:750;letter-spacing:.5px;padding:2px 7px;border-radius:999px;
-    color:#0b1020;background:var(--chip)}
-  .chip.SETUP{background:var(--setup)} .chip.PUNISH{background:var(--punish)}
-  .chip.CHIP{background:var(--chip)} .chip.PIVOT{background:var(--pivot)}
-  .chip.MISREAD{background:var(--misread);color:#fff} .chip.REVENGE{background:var(--revenge)}
-  .chip.BAIT{background:var(--bait)} .chip.STALL{background:var(--stall)}
-  .read .mv{font-size:11px;color:#9fb4e0;font-weight:600;text-transform:capitalize}
-  .read .txt{font-size:12.5px;color:#dce4f7}
-  .read .txt.muted{color:var(--dim);font-style:italic}
-  .foot{color:var(--dim);font-size:11px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  /* ---- decision timeline ---- */
+  .tlwrap{margin-top:12px}
+  .tllab{color:var(--dim);font-size:11px;letter-spacing:.4px;margin-bottom:5px}
+  .timeline{display:flex;flex-wrap:wrap;gap:5px}
+  .tnode{width:26px;height:26px;padding:0;border-radius:7px;font-size:11px;font-weight:700;
+    background:#1a2236;border:1px solid var(--line);color:var(--dim);line-height:1}
+  .tnode:hover{background:#243150;color:#cdd8f3}
+  .tnode.cur{outline:2px solid var(--acc);outline-offset:1px;color:#fff}
+  .tnode.done{color:#0b1020;border-color:transparent}
+  .tnode.done.PUNISH{background:var(--PUNISH)}.tnode.done.CHIP{background:var(--CHIP)}
+  .tnode.done.PIVOT{background:var(--PIVOT)}.tnode.done.MISREAD{background:var(--MISREAD);color:#fff}
+  .tnode.done.SETUP{background:var(--SETUP)}.tnode.done.REVENGE{background:var(--REVENGE)}
+  /* ---- MIND READOUT ---- */
+  .mind{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;display:flex;flex-direction:column;min-height:0}
+  .mind h2{font-size:13px;margin:0 0 2px;letter-spacing:.5px}
+  .mind .lead{color:var(--dim);font-size:11.5px;margin:0 0 8px}
+  .legend{display:flex;gap:10px;font-size:10.5px;color:var(--dim);margin:0 0 10px;flex-wrap:wrap}
+  .legend i{font-style:normal;display:inline-flex;align-items:center;gap:4px}
+  .swatch{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .reads{overflow:auto;display:flex;flex-direction:column;gap:11px;padding-right:3px;max-height:74vh}
+  .dcard{flex:0 0 auto;border:1px solid var(--line);border-radius:11px;background:var(--panel2);overflow:hidden;
+    transition:opacity .25s,border-color .2s,box-shadow .2s}
+  .dcard.future{display:none}
+  .dcard.past{opacity:.5;cursor:pointer}.dcard.past:hover{opacity:.8}
+  .dcard.active{opacity:1;border-color:#3c5891;box-shadow:0 0 0 1px #3c5891 inset}
+  .dcard.peek{opacity:1;border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+  .dhead{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#0c1322;border-bottom:1px solid var(--line);font-size:11px}
+  .dnum{font-weight:800;letter-spacing:.6px;color:var(--acc)}
+  .dturn{color:var(--dim)}
+  .daction{margin-left:auto;color:#aebbe0}.daction b{color:#fff;text-transform:capitalize}
+  .block{padding:9px 11px}
+  .block.sys{background:linear-gradient(180deg,rgba(159,176,208,.05),transparent)}
+  .block.agent{border-top:3px solid #2b2350;background:linear-gradient(180deg,rgba(185,140,255,.06),transparent)}
+  .emlabel{font-size:9.5px;font-weight:800;letter-spacing:.8px;color:var(--sys);margin-bottom:6px;text-transform:uppercase}
+  .emlabel i{font-weight:500;font-style:normal;color:var(--dim);letter-spacing:.2px}
+  .emlabel.agentlabel{color:var(--agent)}
+  .vs{display:flex;flex-direction:column;gap:4px;margin-bottom:7px}
+  .who{display:flex;align-items:center;gap:6px;font-size:12px}
+  .who .wl{font-size:9px;font-weight:800;color:var(--dim);width:26px}
+  .who.you .wl{color:#7fb0ff}.who.opp .wl{color:#ff9b8a}
+  .who b{color:#e8eefc}
+  .ohp{color:var(--dim);font-style:normal;font-size:11px;margin-left:auto}
+  .ty{font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:1.5px 6px;border-radius:999px;color:#0b1020;background:var(--c,#888);text-transform:uppercase}
+  .moves{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .moves .ml{font-size:9.5px;color:var(--dim);margin-right:2px;text-transform:uppercase;letter-spacing:.4px}
+  .mvpill{font-size:10px;padding:2px 7px;border-radius:6px;background:#1b2740;border:1px solid var(--line);color:#cdd8f3;text-transform:capitalize}
+  .mvpill.q{color:#55617e;border-style:dashed}
+  .kv{font-size:10px;color:var(--dim);margin-left:4px}
+  /* matchup widget */
+  .matchup{background:#0a1120;border:1px solid var(--line);border-radius:9px;padding:8px}
+  .verdict{display:flex;align-items:center;gap:7px;font-size:12px;flex-wrap:wrap}
+  .verdict .vx{font-weight:850;font-size:15px;font-variant-numeric:tabular-nums}
+  .verdict .vsub{color:var(--dim);font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:2px}
+  .verdict.sup{color:var(--good)}.verdict.res{color:#6ab0ff}.verdict.neu{color:#cdd8f3}.verdict.imm{color:var(--agent)}
+  .lensrow{display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap}
+  .lenslab{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
+  .lens{cursor:pointer;border:1px solid transparent;opacity:.6;transition:opacity .15s,transform .1s}
+  .lens:hover{opacity:1}.lens.on{opacity:1;outline:2px solid #fff3;transform:translateY(-1px)}
+  .movehint{font-size:9.5px;color:var(--dim);margin-left:auto;text-transform:capitalize}
+  /* agent rationale */
+  .ratio{font:12.5px/1.6 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;color:#e3e9f8;min-height:1.6em;white-space:pre-wrap}
+  .ratio.typing::after{content:"▋";color:var(--agent);margin-left:1px;animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  /* outcome */
+  .outcome{display:flex;align-items:center;gap:8px;padding:7px 11px;border-top:1px dashed var(--line);font-size:11px;background:#0c1322}
+  .outcome.off{display:none}
+  .ochip{font-size:9.5px;font-weight:850;letter-spacing:.6px;padding:2px 8px;border-radius:999px;color:#0b1020}
+  .outcome.PUNISH .ochip{background:var(--PUNISH)}.outcome.CHIP .ochip{background:var(--CHIP)}
+  .outcome.PIVOT .ochip{background:var(--PIVOT)}.outcome.MISREAD .ochip{background:var(--MISREAD);color:#fff}
+  .outcome.SETUP .ochip{background:var(--SETUP)}.outcome.REVENGE .ochip{background:var(--REVENGE)}
+  .otext{color:var(--dim)}
+  .foot{color:var(--dim);font-size:10.5px;margin-top:11px;border-top:1px solid var(--line);padding-top:9px;line-height:1.55}
   .tag{color:#7fa7ff}
 </style>
 </head>
 <body>
 <div class="wrap">
   <section>
-    <h1>AgentDex · Arena 2D <span style="color:var(--dim);font-weight:400">— barebones proof</span></h1>
-    <p class="sub">A <b>real</b> Showdown battle from your arena (poke-env engine) — watch your agent <b>think</b>.</p>
+    <h1>AgentDex · Arena 2D <span style="color:var(--dim);font-weight:400">— watch it think</span></h1>
+    <p class="sub">A <b>real</b> Showdown battle from your arena. Each decision splits into what the agent
+      <b>knew</b> (opponent model + type matchup, rebuilt from the log) and what it <b>thought</b> (its own words).</p>
     <div class="stage" id="stage">
       <div class="ground"></div>
       <div class="slot opp" id="opp">
@@ -106,25 +159,38 @@
       <button id="play">▶ Play</button>
       <button id="step">Step ⏭</button>
       <button id="restart">↺ Restart</button>
-      <span class="spd">speed
-        <input id="spd" type="range" min="1" max="6" value="3" style="width:90px">
-      </span>
+      <span class="spd">speed <input id="spd" type="range" min="1" max="6" value="3" style="width:90px"></span>
+    </div>
+    <div class="tlwrap">
+      <div class="tllab">DECISION TIMELINE · click a node to jump · color = outcome (revealed as it plays)</div>
+      <div class="timeline" id="timeline"></div>
     </div>
   </section>
 
   <aside class="mind">
     <h2>🧠 MIND READOUT</h2>
-    <p class="lead">Your agent's play, narrated in one fixed vocabulary so a surprise reads as
-      <i>clever</i>, not noise.</p>
+    <p class="lead">Hard line between <b>derived</b> game facts and the agent's <b>real</b> words. Hover/click the
+      type lenses; click a past decision to inspect it.</p>
+    <div class="legend">
+      <i><span class="swatch" style="background:var(--sys)"></span> OPPONENT MODEL — reconstructed from the log</i>
+      <i><span class="swatch" style="background:var(--agent)"></span> AGENT — its own words</i>
+      <i><span class="swatch" style="background:#0c1322;border:1px solid var(--line)"></span> OUTCOME — after the move</i>
+    </div>
     <div class="reads" id="reads"></div>
-    <div class="foot">rationale = the agent's <span class="tag">own words</span> (codex_decide) ·
-      the <span class="tag">PRIMITIVE</span> tag is our label · the battle + outcome are the real
-      <span class="tag">Pokémon Showdown</span> game — your agent <span class="tag">WON</span>.</div>
+    <div class="foot">
+      The <span class="tag">rationale</span> is the agent's own output (codex_decide), streamed verbatim.
+      The <span class="tag">opponent model</span> + <span class="tag">type matchup</span> are <i>our</i> reconstruction
+      from the real log, shown only up to each decision (fog of war — never future moves). The
+      <span class="tag">PRIMITIVE</span> is our label, stamped only after the game resolves the move. The battle,
+      types, and the <span class="tag">WIN</span> are the real Pokémon Showdown game.
+    </div>
   </aside>
 </div>
 
 <script src="data.js"></script>
+<script src="dex.js"></script>
 <script src="battle.js"></script>
+<script src="mind.js"></script>
 <script src="anim.js"></script>
 </body>
 </html>

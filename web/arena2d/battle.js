@@ -8,17 +8,23 @@
 
   const F = (s) => s.split("|");
   const slug = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // spriteId: Showdown sprite filenames KEEP form hyphens (zamazenta-crowned.gif,
+  // mimikyu-busted.gif) — only spaces/punctuation are stripped. slug() collapses
+  // hyphens (good for rationale matching) but 404s every FORM sprite, so the CDN
+  // URL must keep them.
+  const spriteId = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9-]/g, "");
   // animated in-battle sprites cover ALL gens (incl. gen9 forms); 404s fall back faded.
   const sprite = (name, back) =>
-    "https://play.pokemonshowdown.com/sprites/" + (back ? "ani-back" : "ani") + "/" + slug(name) + ".gif";
-  // public %-HP only (denominator 100, or "fnt"); private absolute-HP lines are ignored.
+    "https://play.pokemonshowdown.com/sprites/" + (back ? "ani-back" : "ani") + "/" + spriteId(name) + ".gif";
+  // HP as a percentage. YOUR side (p1) logs exact totals (e.g. 225/288); the foe
+  // logs %-of-100. Convert any cur/max -> %, so the agent's own HP tracks the real
+  // battle instead of staying at 100% until it faints. "fnt" == 0.
   function pubHp(v) {
     if (!v) return null;
     if (/fnt/.test(v)) return 0;
     const m = String(v).match(/^(\d+)\/(\d+)/);
-    if (!m) return null;
-    if (m[2] !== "100") return null;
-    return +m[1];
+    if (!m || +m[2] === 0) return null;
+    return Math.max(0, Math.min(100, Math.round((+m[1] / +m[2]) * 100)));
   }
   const sideOf = (ref) => String(ref || "").slice(0, 2); // "p1a: Azumarill" -> "p1"
   const monOf = (ref) => (String(ref || "").split(": ")[1] || "").trim();
