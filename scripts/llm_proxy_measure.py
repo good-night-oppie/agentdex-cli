@@ -71,7 +71,8 @@ def _select_proxy_config(base_url: str | None, token_env: str | None) -> ProxyCo
         selected_token_envs = token_envs or [
             candidate_token
             for env_name, candidate_token, default_url in _provider_candidates()
-            if base_url == os.environ.get(env_name) or (default_url is not None and base_url == default_url)
+            if base_url == os.environ.get(env_name)
+            or (default_url is not None and base_url == default_url)
         ]
         if not selected_token_envs and base_url == DEFAULT_ARENA_PROXY_URL:
             selected_token_envs = ["AI_BUILDER_TOKEN"]
@@ -94,7 +95,7 @@ def _select_proxy_config(base_url: str | None, token_env: str | None) -> ProxyCo
             if not token:
                 raise SystemExit(
                     f"missing bearer token; set {provider_token_env} for proxy from {url_env}"
-            )
+                )
             return ProxyConfig(base_url=candidate_url, token=token, token_env=provider_token_env)
     if os.environ.get("AI_BUILDER_TOKEN"):
         return ProxyConfig(
@@ -313,7 +314,9 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=1)
     parser.add_argument("--prompt", default="Reply with exactly: ok")
     parser.add_argument("--skip-usage", action="store_true")
-    parser.add_argument("--dry-run", action="store_true", help="Validate config without network calls.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Validate config without network calls."
+    )
     args = parser.parse_args()
 
     proxy = _select_proxy_config(args.base_url, args.token_env)

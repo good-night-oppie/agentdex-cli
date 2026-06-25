@@ -448,9 +448,9 @@ def test_p2_queue_timeout_cancels_p1_startup_before_publish():
     pvp_queue = src.split("async def me_battle_queue", 1)[1].split(
         '@app.post("/battle/{battle_id}/pvp-choose")', 1
     )[0]
-    timeout_branch = pvp_queue.split(
-        "if published is None or published.last_state is None:", 1
-    )[1].split("raise HTTPException", 1)[0]
+    timeout_branch = pvp_queue.split("if published is None or published.last_state is None:", 1)[
+        1
+    ].split("raise HTTPException", 1)[0]
     assert "gateway._pvp_cancelled_startups.add(battle_id)" in timeout_branch
     assert "gateway.pvp_choice_router.cleanup(battle_id)" in timeout_branch
 
