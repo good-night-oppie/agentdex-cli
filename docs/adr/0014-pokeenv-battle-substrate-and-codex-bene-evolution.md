@@ -96,6 +96,19 @@ blocks activation without an ACCEPT verdict; `MetaHarnessSearch.Benchmark.evalua
 is hard-gated on the BENE verdict — **never** the coordinator model's
 self-assessment.
 
+**Load-bearing stores + the CRN control-window invariant.** A Refiner edit is
+only measurable if the behavioral path actually *reads* the edited store. Today
+the house loop reads two stores on the battle path: `teams.json` (the team) and
+`prompt.md` (the entrant's `system_prompt`, which steers the policy); the other
+three (`subagents.json`/`skills.json`/`memory.json`) stay inert until wired
+(`trace_store_reads` is the RED-on-regression guard for this surface). **Invariant:**
+the next-window falsification compares the live window against a frozen control
+replayed on the same seeds (CRN), and the control must freeze **every** store the
+policy reads — both `team` *and* `system_prompt` are read from the `gen-(N-1)` tag.
+Freezing only the team would let a prompt-only edit steer both windows identically,
+so McNemar could never measure it (the edit would read NEUTRAL/INCONCLUSIVE even
+when it changed play).
+
 ### D8 — agentdex-cli exposes the self-play + evolve surface to codex (CLI + MCP)
 Because codex is the *user* of agentdex-cli, the loop's operations are first-class
 agentdex-cli verbs, reachable both as CLI commands and as MCP tools (the existing
