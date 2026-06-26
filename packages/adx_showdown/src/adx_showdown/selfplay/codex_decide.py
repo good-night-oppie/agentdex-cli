@@ -61,12 +61,46 @@ _MOVE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
+# Capture-only schema for ``codex_decide_explain``: the chosen move PLUS the candidate
+# set the policy weighed and rejected (``considered``) — the attested fan the arena2d
+# mind-readout renders instead of a derived type-matchup reconstruction. Strict output
+# requires every property in ``required``, including the nested {move_id, why_not}.
+# This schema is NEVER used on the live decision path (``codex_decide`` keeps
+# ``_MOVE_SCHEMA``), so evolution / battle calls are unchanged.
+_EXPLAIN_MOVE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "move_id": {"type": "string"},
+        "rationale": {"type": "string"},
+        "considered": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "move_id": {"type": "string"},
+                    "why_not": {"type": "string"},
+                },
+                "required": ["move_id", "why_not"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["move_id", "rationale", "considered"],
+    "additionalProperties": False,
+}
 
-def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) -> str:
+
+def _build_prompt(
+    harness: Any, ctx: Mapping[str, Any], legal_ids: list[str], *, explain: bool = False
+) -> str:
     """The per-turn prompt. The harness's ``system_prompt`` is prepended verbatim — it
     IS codex's policy ``p`` (the thing bene evolves) — so a refined harness changes the
     choice. Only legal actions (moves + switch species) are offered, so codex cannot
-    pick an illegal one; on a forced switch only the switch targets are legal."""
+    pick an illegal one; on a forced switch only the switch targets are legal.
+
+    ``explain=True`` (capture-only) also asks for the ``considered`` candidate set. The
+    ``explain=False`` default is byte-for-byte the live prompt, so the live decision
+    path is unchanged (a test pins this)."""
     policy = str(getattr(harness, "system_prompt", "") or "").strip()
     moves = ctx.get("available_moves") or []
     switches = ctx.get("available_switches") or []
@@ -94,7 +128,7 @@ def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) ->
         opp_line = ""
     moves_line = f"Legal moves (id [type]: base power): {move_lines}.\n" if moves else ""
     switch_line = f"Legal switches (species, types): {switch_lines}.\n" if switches else ""
-    return (
+    base = (
         f"{header}You are choosing exactly ONE action in a Pokemon Showdown singles battle.\n"
         f"Active: {species} ({active_types}) at {hp:.0%} HP.\n"
         f"{opp_line}"
@@ -103,7 +137,18 @@ def _build_prompt(harness: Any, ctx: Mapping[str, Any], legal_ids: list[str]) ->
         f"super-effective offense, or switch to a Pokemon that resists the opponent.\n"
         f"Pick the single best action id (a move id or a switch species) from: "
         f"{', '.join(legal_ids)}.\n"
-        'Reply ONLY with JSON {"move_id": "<one of the legal ids>", "rationale": "<=12 words"}.'
+    )
+    if explain:
+        return (
+            base + 'Reply ONLY with JSON {"move_id": "<one of the legal ids>", '
+            '"rationale": "<=12 words", "considered": [{"move_id": "<another legal id>", '
+            '"why_not": "<=8 words"}]}. In considered, list up to 4 OTHER legal actions '
+            "you weighed and the reason you rejected each; never include your chosen "
+            "move_id there."
+        )
+    return (
+        base
+        + 'Reply ONLY with JSON {"move_id": "<one of the legal ids>", "rationale": "<=12 words"}.'
     )
 
 
@@ -193,4 +238,78 @@ def codex_decide(
     return move_id or None  # the proposed id (legality is the adapter's gate); blank → abstain
 
 
-__all__ = ["codex_decide", "CodexRunFn"]
+def _clean_considered(raw: Any, *, chosen: str, legal: set[str]) -> list[dict[str, str]]:
+    """Sanitize the model's ``considered`` array into well-formed ``{move_id, why_not}``
+    entries for LEGAL, non-chosen actions — de-duplicated, capped at 4. A hallucinated id
+    (outside ``legal``) or a self-referential entry (the chosen move) would misrepresent
+    the attested fan, so it is DROPPED rather than rendered. ``legal`` empty disables the
+    legality filter (the no-context unit-test injection path). A non-list ``raw`` (a
+    malformed scalar from a non-strict Codex build / bad stdout parse / injected runner)
+    yields ``[]`` rather than raising, so the never-raises capture contract holds even
+    though this runs OUTSIDE ``codex_decide_explain``'s try block."""
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    items = raw if isinstance(raw, list) else []
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        mid = str(item.get("move_id", "")).strip()
+        why = str(item.get("why_not", "")).strip()
+        if not mid or mid == chosen or mid in seen or (legal and mid not in legal):
+            continue
+        seen.add(mid)
+        out.append({"move_id": mid, "why_not": why})
+        if len(out) >= 4:
+            break
+    return out
+
+
+def codex_decide_explain(
+    harness: Any, ctx: Mapping[str, Any], *, run: CodexRunFn | None = None
+) -> dict[str, Any] | None:
+    """Capture-only sibling of :func:`codex_decide` that ALSO records the candidate set
+    the policy weighed and rejected. Returns ``{move_id, rationale, considered:
+    [{move_id, why_not}, ...]}`` or ``None`` on abstention / any failure.
+
+    This is the engine half of the arena2d "attested candidate fan": the mind-readout can
+    now render the moves codex actually considered (real) instead of a derived
+    type-matchup reconstruction. It is NOT on the live decision path — the runner's
+    ``DecideFn`` stays :func:`codex_decide` with ``_MOVE_SCHEMA`` and the byte-identical
+    live prompt, so evolution / battle decisions pay no extra tokens and carry no
+    perturbation risk. The richer prompt is opt-in, used by the demo-data capture harness.
+    Same fail-safe (never raises) + injectable ``run`` discipline as ``codex_decide``."""
+    moves = list(ctx.get("available_moves") or [])
+    switches = list(ctx.get("available_switches") or [])
+    legal_ids = [str(m.get("id") or "") for m in moves if m.get("id")]
+    legal_ids += [str(s.get("species") or "") for s in switches if s.get("species")]
+    if not legal_ids:
+        return None
+    runner = run or _run_codex_cli
+    try:
+        result = (
+            runner(
+                _build_prompt(harness, ctx, legal_ids, explain=True),
+                _EXPLAIN_MOVE_SCHEMA,
+                _timeout_sec(),
+            )
+            or {}
+        )
+        move_id = str(result.get("move_id", "")).strip()
+    except Exception:
+        return None  # codex missing / timeout / bad output — never crash a capture
+    # Reject an ILLEGAL chosen id. Unlike codex_decide — whose proposed id is gated +
+    # counted downstream by select_codex_move — this capture path has NO later legality
+    # gate, so an out-of-legal-set hallucination would otherwise be recorded as an
+    # attested decision (and rendered by arena2d). Fail safe instead; the considered
+    # entries are already legality-filtered by _clean_considered.
+    legal = set(legal_ids)
+    if not move_id or move_id not in legal:
+        return None
+    return {
+        "move_id": move_id,
+        "rationale": str(result.get("rationale", "")).strip(),
+        "considered": _clean_considered(result.get("considered"), chosen=move_id, legal=legal),
+    }
+
+
+__all__ = ["codex_decide", "codex_decide_explain", "CodexRunFn"]
