@@ -35,6 +35,13 @@ jobs:
           uv sync --group dev
 
       - name: Run pre-commit scoped to PR diff
+        # PR runs only: github.event.pull_request.{base,head}.sha exist here.
+        # On workflow_dispatch those context properties are absent and GitHub
+        # evaluates them to "" → `--from-ref "" --to-ref ""`, which pre-commit's
+        # diff mode rejects (it expects real revisions) and the step fails before
+        # any hook runs. So this step is gated to pull_request; the manual-dispatch
+        # path below runs the full tree instead.
+        #
         # Why scoped (--from-ref/--to-ref) not --all-files: the previous
         # full-tree mode blocked EVERY PR on pre-existing ruff-format drift
         # in main (e.g. scripts/llm_proxy_measure.py + tests/* — files
@@ -48,11 +55,21 @@ jobs:
         # agents/review/AGENTS.md "your change's own checks, not full-tree
         # green" rule. Drift in main is recovered via a separate cleanup PR,
         # not by blocking every contributor.
+        if: github.event_name == 'pull_request'
         run: |
           uv run --no-sync pre-commit run \
             --from-ref "${{ github.event.pull_request.base.sha }}" \
             --to-ref   "${{ github.event.pull_request.head.sha }}" \
             --show-diff-on-failure
+
+      - name: Run pre-commit on the full tree (manual dispatch)
+        # workflow_dispatch has no PR refs, so a manual run audits the whole
+        # tree — the old full-tree invocation, kept available on demand. Drift
+        # surfaced here is fixed via a dedicated cleanup PR (it never blocks a
+        # contributor's PR, which is gated by the PR-diff step above).
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          uv run --no-sync pre-commit run --all-files --show-diff-on-failure
 
   doc-lint:
     # DOC-LINT-031 closure: scripts/doc_lint.py (63 rules from
