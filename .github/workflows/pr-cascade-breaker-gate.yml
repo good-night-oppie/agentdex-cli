@@ -26,6 +26,14 @@ permissions:
   # + the fork-aware steps below). It never invents a secret it doesn't have.
   pull-requests: write
 
+# Serialize events for one PR so the gate-warning idempotency check (list issue
+# comments → POST-if-absent) is not raced by two near-simultaneous bot reviews
+# into duplicate banners. Do NOT cancel in-progress: every event must run to
+# completion (each minimises its own off-spec comment).
+concurrency:
+  group: pr-cascade-breaker-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   cascade-gate:
     # Keep this bot list in sync with BOT_LOGINS in
@@ -54,6 +62,10 @@ jobs:
         # quoting NEW/CHANGED lines fail as _grep_WITHDRAWN. We fetch the head sha
         # into ./_pr_head and point --repo-root at it. We never EXECUTE any code
         # from this checkout — it is inert text we only grep through.
+        # continue-on-error: a force-pushed/unreachable head.sha must NOT turn this
+        # always-exit-0 informational gate into a RED check; the validate steps then
+        # degrade to grep-WITHDRAWN against the absent tree (re-review on the new head).
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}

@@ -15,6 +15,8 @@
 #  (9) a `-`/`--`-leading evidence_quote that IS in the file grep-verifies (ok), not
 #      false-dropped as an option (the grep `--` end-of-options fix)
 # (10) a `file` that escapes the checkout tree is rejected (evidence_quote_file_escapes_tree)
+# (11) a 2nd off-spec reviewer_finding block fails — every block is validated (block1:...)
+# (12) a fabricated 2nd line of a block-scalar evidence_quote is WITHDRAWN (all lines grep'd)
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$REPO/scripts/pr_cascade_breaker_gate.py"
@@ -83,6 +85,18 @@ cases = [
     ("file_escapes_tree",
      "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: ../escape.txt\nevidence_quote: anything\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
      False, "evidence_quote_file_escapes_tree"),
+    # audit false-negative: EVERY reviewer_finding block must be validated, not just
+    # the first. A valid leading block followed by an off-spec (missing-keys) block
+    # must FAIL (pre-fix: only block 0 was checked and the comment rode through).
+    ("multi_block_second_bad",
+     "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: SHOULD_FIX_BEFORE_MERGE\nexploitability: LOW\nfile: scripts/sample.py\nevidence_quote: raise ValueError(\"harness_ref required\")\nfix_suggestion: keep\nwithdraw_condition: 'never'\n```\n\nand a second, fabricated one:\n\n```reviewer_finding\nkind: bug\npriority: P2\nfile: scripts/sample.py\n```",
+     False, "block1:missing_keys"),
+    # audit false-negative: a multi-line block-scalar evidence_quote is verified on
+    # EVERY non-blank line. A real first line + fabricated line 2 must be WITHDRAWN
+    # (pre-fix: only line 1 was grep'd so the fabricated tail rode through).
+    ("multiline_quote_fabricated",
+     "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: scripts/sample.py\nevidence_quote: |\n  raise ValueError(\"harness_ref required\")\n  THIS_LINE_IS_FABRICATED_zzz\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
+     False, "evidence_quote_grep_WITHDRAWN"),
 ]
 for label, body, want_ok, want_reason in cases:
     ok, reason = mod.validate_body(body, repo_root)
