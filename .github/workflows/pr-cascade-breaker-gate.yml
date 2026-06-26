@@ -1,0 +1,102 @@
+name: pr-cascade-breaker-gate
+
+# Post-hoc gate per ~/.claude/skills/pr-cascade-breaker/SKILL.md §"Non-LLM gate (D5)".
+# We cannot intercept chatgpt-codex-connector / cursor-agent / agy GitHub-App payloads
+# before they land, so when a bot review comment is created we validate it against the
+# reviewer_finding schema + grep-verify evidence_quote, and minimise the comment if it
+# fails. Human comments are exempt; the gate's own warning is exempt; comments with a
+# literal "[pr-cascade-breaker: skip <reason>]" marker are exempt.
+#
+# Default branch: main. Always exit 0 — this gate is informational+protective, not a
+# merge blocker (per Eddie standing directive: "don't spend PRs making CI green").
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  # NOTE: on fork / Dependabot PRs, review events can run with a READ-ONLY
+  # GITHUB_TOKEN regardless of this request, so the minimize/warning GraphQL +
+  # REST writes may 403. This repo has no privileged App/PAT secret to escalate
+  # to, so the gate detects the 403 and surfaces it as a visible ::warning::
+  # annotation instead of exiting 0 silently (see the validator's failure log
+  # + the fork-aware steps below). It never invents a secret it doesn't have.
+  pull-requests: write
+
+jobs:
+  cascade-gate:
+    # Keep this bot list in sync with BOT_LOGINS in
+    # scripts/pr_cascade_breaker_gate.py (includes codex[bot]/codex).
+    # Each contains() is scoped to its own event: the absent surface's
+    # *.user.login is the empty string, and contains(list, '') is ALWAYS true,
+    # so an unscoped guard would launch the job on every human review/comment.
+    if: >
+      (github.event_name == 'pull_request_review_comment'
+        && contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
+                    github.event.comment.user.login))
+      || (github.event_name == 'pull_request_review'
+        && contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
+                    github.event.review.user.login))
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Run the gate from the trusted base-branch code so a PR that edits the gate
+          # script cannot weaken it for itself (same pattern as review-comment-signoff-gate).
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: checkout PR head into a scratch dir for evidence verification
+        # The TRUSTED gate code runs from base (above). But evidence_quote must be
+        # grep-verified against the PR's ACTUAL contents (HEAD), else valid findings
+        # quoting NEW/CHANGED lines fail as _grep_WITHDRAWN. We fetch the head sha
+        # into ./_pr_head and point --repo-root at it. We never EXECUTE any code
+        # from this checkout — it is inert text we only grep through.
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: _pr_head
+
+      - name: install pyyaml
+        # PEP-668 externally-managed runners reject a bare `pip install`, which would
+        # crash this step (exit 1) BEFORE the validate steps' `set +e`/exit-0 ever runs,
+        # killing the gate on every bot review comment repo-wide. Import-check first
+        # (no-op on runners that already ship pyyaml), else install with
+        # --break-system-packages so the override works on a managed system Python.
+        run: |
+          python3 -c "import yaml" 2>/dev/null \
+            || pip install --quiet --disable-pip-version-check --break-system-packages pyyaml >/dev/null
+
+      - name: validate review comment against reviewer_finding schema
+        if: github.event_name == 'pull_request_review_comment'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set +e
+          python3 scripts/pr_cascade_breaker_gate.py \
+            --repo "$REPO" --pr "$PR_NUM" --comment-id "$COMMENT_ID" \
+            --repo-root _pr_head
+          exit 0
+
+      - name: validate review BODY against reviewer_finding schema
+        # A PR-level review with NO inline comments (body only) still carries
+        # findings; without this path a malformed review body bypasses the gate
+        # entirely. We validate event.review.body and minimise the review-comment
+        # surface it maps to (the review id).
+        if: github.event_name == 'pull_request_review'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id }}
+        run: |
+          set +e
+          python3 scripts/pr_cascade_breaker_gate.py \
+            --repo "$REPO" --pr "$PR_NUM" --review-id "$REVIEW_ID" \
+            --repo-root _pr_head
+          exit 0

@@ -3,11 +3,15 @@ title: AGENTS.md — agentdex-cli
 status: active
 owner: etang
 created: 2026-06-07
-updated: 2026-06-18
+updated: 2026-06-25
 type: reference
 scope: monorepo
 layer: cross-cutting
 cross_cutting: true
+enforced_by:
+  - .github/workflows/pr-cascade-breaker-gate.yml
+  - scripts/pr_cascade_breaker_gate.py
+  - scripts/enforce_review_bounds.sh
 ---
 
 # AGENTS.md
@@ -101,3 +105,7 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 ## Learned notes
 
 - [learned-notes.md](agents/learned-notes.md) — user preferences + workspace facts (promoted out of index per DOC-LINT-021)
+
+## PR Cascade Breaker — reviewer protocol
+
+All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finite state machine. The 11 hard rules live in [agents/review/AGENTS.md §"PR Cascade Breaker"](agents/review/AGENTS.md). Canonical skill: `~/.claude/skills/pr-cascade-breaker/SKILL.md` (synthesised 2026-06-25 from 6 historical cascade post-mortems). CI: `.github/workflows/pr-cascade-breaker-gate.yml`.
