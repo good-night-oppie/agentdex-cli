@@ -594,3 +594,57 @@ def test_pvp_advance_renders_p1_before_awaiting_p2_choice(gw: ArenaGateway):
         assert not gw.pvp_choice_router.is_waiting_for_p2("pvp-start")
 
     asyncio.run(_go())
+
+
+def test_global_concurrency_cap_503_sheds_with_retryable_503(gw: ArenaGateway):
+    """GA-ARENA-MODES Step-6 invariant: global_concurrency_cap_503.
+
+    When the shared sidecar pool signals it is at capacity, /battle/begin must shed
+    load with a RETRYABLE 503 — incrementing the operator-visible cap_503_total
+    counter and setting Retry-After, with an 'arena at capacity' detail. This is the
+    GLOBAL pool-full path and is DISTINCT from the per-owner concurrency cap, which
+    raises a 429 ('too many concurrent battles for this owner'). A fake sidecar
+    raises the capacity SidecarError so the gateway's shed wiring is exercised
+    hermetically (the real Sidecar needs pokemon-showdown, which this workflow does
+    not install). Regression guard: breaking the 503 / Retry-After / cap_503_total
+    wiring (an opaque 400, a dropped counter, or a missing Retry-After) fails this.
+    """
+    from adx_showdown.sidecar import SidecarError
+
+    class _PoolFullSidecar:
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+        async def request(self, op: str, **kwargs):
+            if op == "pack-team":
+                return {"packed": "packed-team"}
+            if op == "start":
+                raise SidecarError("sidecar pool at capacity")
+            if op == "stop":
+                return {"inputLog": []}
+            raise AssertionError(f"unexpected sidecar op: {op}")
+
+    app = create_app(gw, sidecar_factory=lambda: _PoolFullSidecar())
+    key = Ed25519PrivateKey.generate()
+    tok = _mint(gw, "alice@cap.test", "AgentA", key)
+    start = gw.battle_start(tok)
+    sig = key.sign(start["pop_challenge"].encode()).hex()
+    body = {
+        "token": tok,
+        "battle_nonce": start["battle_nonce"],
+        "pop_signature_hex": sig,
+        "lane": "sandbox",
+    }
+
+    assert gw.cap_503_total == 0
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.post("/battle/begin", json=body)
+
+    assert resp.status_code == 503, resp.text
+    assert "capacity" in resp.json()["detail"].lower()
+    assert "retry-after" in {k.lower() for k in resp.headers}
+    # The GLOBAL pool-shed counter incremented — NOT the per-owner 429 path.
+    assert gw.cap_503_total == 1
