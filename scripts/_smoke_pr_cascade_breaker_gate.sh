@@ -59,6 +59,14 @@ cases = [
     ("gate_own_warning",
      "<!-- pr-cascade-breaker:gate-warning -->\nfoo",
      True, "gate-own-warning"),
+    # PR #603 P2: a non-scalar `kind` must not TypeError on the ARCH_KINDS test.
+    ("kind_not_scalar",
+     "```reviewer_finding\nkind: [logic]\npriority: P0\nblocking_verdict: BLOCK_MERGE\nexploitability: LOW\nfile: scripts/sample.py\nevidence_quote: raise ValueError(\"harness_ref required\")\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
+     False, "kind_not_scalar"),
+    # PR #603 P2: an empty/whitespace evidence_quote must be rejected (no skip-grep pass).
+    ("empty_evidence_quote",
+     "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: scripts/sample.py\nevidence_quote: '   '\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
+     False, "evidence_quote_empty"),
 ]
 for label, body, want_ok, want_reason in cases:
     ok, reason = mod.validate_body(body, repo_root)

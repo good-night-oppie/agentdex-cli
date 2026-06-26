@@ -18,14 +18,22 @@ on:
 
 permissions:
   contents: read
+  # NOTE: on fork / Dependabot PRs, review events can run with a READ-ONLY
+  # GITHUB_TOKEN regardless of this request, so the minimize/warning GraphQL +
+  # REST writes may 403. This repo has no privileged App/PAT secret to escalate
+  # to, so the gate detects the 403 and surfaces it as a visible ::warning::
+  # annotation instead of exiting 0 silently (see the validator's failure log
+  # + the fork-aware steps below). It never invents a secret it doesn't have.
   pull-requests: write
 
 jobs:
   cascade-gate:
+    # Keep this bot list in sync with BOT_LOGINS in
+    # scripts/pr_cascade_breaker_gate.py (includes codex[bot]/codex).
     if: >
-      contains('chatgpt-codex-connector[bot] chatgpt-codex-connector cursor-agent[bot] cursor-agent agy[bot]',
+      contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
                github.event.comment.user.login)
-      || contains('chatgpt-codex-connector[bot] chatgpt-codex-connector cursor-agent[bot] cursor-agent agy[bot]',
+      || contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
                   github.event.review.user.login)
     runs-on: [self-hosted, linux, x64]
     steps:
@@ -34,6 +42,20 @@ jobs:
           # Run the gate from the trusted base-branch code so a PR that edits the gate
           # script cannot weaken it for itself (same pattern as review-comment-signoff-gate).
           ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: checkout PR head into a scratch dir for evidence verification
+        # The TRUSTED gate code runs from base (above). But evidence_quote must be
+        # grep-verified against the PR's ACTUAL contents (HEAD), else valid findings
+        # quoting NEW/CHANGED lines fail as _grep_WITHDRAWN. We fetch the head sha
+        # into ./_pr_head and point --repo-root at it. We never EXECUTE any code
+        # from this checkout — it is inert text we only grep through.
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: _pr_head
+
+      - name: install pyyaml
+        run: pip install --quiet --disable-pip-version-check pyyaml >/dev/null
 
       - name: validate review comment against reviewer_finding schema
         if: github.event_name == 'pull_request_review_comment'
@@ -44,7 +66,25 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set +e
-          pip install --quiet --disable-pip-version-check pyyaml >/dev/null
           python3 scripts/pr_cascade_breaker_gate.py \
-            --repo "$REPO" --pr "$PR_NUM" --comment-id "$COMMENT_ID" --repo-root .
+            --repo "$REPO" --pr "$PR_NUM" --comment-id "$COMMENT_ID" \
+            --repo-root _pr_head
+          exit 0
+
+      - name: validate review BODY against reviewer_finding schema
+        # A PR-level review with NO inline comments (body only) still carries
+        # findings; without this path a malformed review body bypasses the gate
+        # entirely. We validate event.review.body and minimise the review-comment
+        # surface it maps to (the review id).
+        if: github.event_name == 'pull_request_review'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id }}
+        run: |
+          set +e
+          python3 scripts/pr_cascade_breaker_gate.py \
+            --repo "$REPO" --pr "$PR_NUM" --review-id "$REVIEW_ID" \
+            --repo-root _pr_head
           exit 0

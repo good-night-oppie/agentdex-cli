@@ -76,6 +76,11 @@ fi
 
 # ---- S5+S6: format gate + route --------------------------------------------
 
+# Disable errexit around the embedded router: it returns meaningful nonzero FSM
+# routes (1 S_EMIT_INLINE / 4 S_EMIT_DIGEST / 5 S_HALT_REJECT). Under `set -e`
+# those would abort the shell at the here-doc, skipping RC capture + the
+# post-merge Resolves-Thread / Drains-Cascade cleanup below.
+set +e
 python3 - "$PAYLOAD" "$PR_NUM" "$OWNER_REPO" <<'PY'
 import sys, json, subprocess, pathlib, datetime, os
 
@@ -102,19 +107,31 @@ for f in findings_in:
         d   = yaml.safe_load(yml) or {}
     except Exception as e:
         dropped.append({"reason":f"yaml_parse:{e}"}); continue
+    if not isinstance(d, dict):
+        dropped.append({"reason":"reviewer_finding_not_a_mapping"}); continue
     missing = REQ - set(d.keys())
     if missing:
         dropped.append({"reason":f"missing_keys:{sorted(missing)}"}); continue
-    if d["kind"] in ARCH_KINDS and not d.get("citation"):
-        dropped.append({"reason":f"{d['kind']}_without_citation"}); continue
+    # Scalar guard: a non-scalar `kind` (e.g. `kind: [logic]`) must not reach the
+    # `in ARCH_KINDS` membership test (would raise TypeError under set -e).
+    kind = d.get("kind")
+    if not isinstance(kind, str):
+        dropped.append({"reason":"kind_not_scalar"}); continue
+    if kind in ARCH_KINDS and not d.get("citation"):
+        dropped.append({"reason":f"{kind}_without_citation"}); continue
     if d.get("exploitability") == "HIGH" and not d.get("exploit_demo"):
         dropped.append({"reason":"HIGH_exploitability_without_exploit_demo"}); continue
-    quote = (d.get("evidence_quote") or "").strip().split("\n",1)[0]
-    if quote:
-        try:
-            subprocess.check_output(["grep","-F",quote,d["file"]], stderr=subprocess.DEVNULL)
-        except Exception:
-            dropped.append({"reason":"evidence_quote_grep_WITHDRAWN","file":d["file"]}); continue
+    raw_quote = d.get("evidence_quote")
+    if not isinstance(raw_quote, str) or not raw_quote.strip():
+        dropped.append({"reason":"evidence_quote_empty"}); continue
+    quote = raw_quote.strip().split("\n",1)[0]
+    try:
+        subprocess.check_output(["grep","-F",quote,d["file"]], stderr=subprocess.DEVNULL)
+    except Exception:
+        dropped.append({"reason":"evidence_quote_grep_WITHDRAWN","file":d["file"]}); continue
+    # Carry the PARSED priority forward so blocker routing reads the YAML truth,
+    # not a (possibly absent) top-level `priority` on the original finding dict.
+    f = {**f, "priority": d.get("priority")}
     out.append(f)
 
 # Log dropped → D3 weekly-meta-loop input
@@ -161,6 +178,7 @@ print(f"::notice::S6.route=inline count={valid_n} blocker={has_blocker} → "
 sys.exit(5 if has_blocker else 1)
 PY
 RC=$?
+set -e
 
 # ---- post-merge sibling auto-resolve ----------------------------------------
 if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" \

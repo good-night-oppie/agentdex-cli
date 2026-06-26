@@ -14,6 +14,9 @@ the literal opt-out marker `[pr-cascade-breaker: skip <reason>]` on its own line
 CI surface: .github/workflows/pr-cascade-breaker-gate.yml fires on
 pull_request_review_comment.created and pull_request_review.submitted, and runs:
   python3 scripts/pr_cascade_breaker_gate.py --repo "$REPO" --pr "$PR" --comment-id "$CID"
+  python3 scripts/pr_cascade_breaker_gate.py --repo "$REPO" --pr "$PR" --review-id "$RID"
+The workflow grep-verifies evidence_quote against a HEAD checkout (--repo-root
+_pr_head), not the trusted base tree, so quotes of NEW/CHANGED lines verify.
 
 Exit 0 even when minimizing — the gate is informational+protective, not a blocker.
 """
@@ -89,20 +92,36 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
     try:
         import yaml
     except ImportError:
-        return True, "yaml-missing-fail-open"
+        # Fail CLOSED: without a YAML parser we cannot validate the schema, so
+        # the finding is unverified → minimise rather than accept it (a missing
+        # PyYAML on a runner must NOT silently disable every schema check).
+        return False, "yaml-missing-fail-closed"
     try:
         d = yaml.safe_load(m.group(1)) or {}
     except Exception as e:
         return False, f"yaml_parse:{e}"
+    if not isinstance(d, dict):
+        return False, "reviewer_finding_not_a_mapping"
     missing = REQUIRED_KEYS - set(d.keys())
     if missing:
         return False, f"missing_keys:{sorted(missing)}"
-    if d["kind"] in ARCH_KINDS and not d.get("citation"):
-        return False, f"{d['kind']}_without_citation"
+    # Scalar-type guard: a non-scalar value (e.g. `kind: [logic]`) must not reach
+    # the `in ARCH_KINDS` membership test, which would raise TypeError that the
+    # workflow masks via `set +e`/exit 0, leaving the comment unminimised.
+    kind = d.get("kind")
+    if not isinstance(kind, str):
+        return False, "kind_not_scalar"
+    if kind in ARCH_KINDS and not d.get("citation"):
+        return False, f"{kind}_without_citation"
     if d.get("exploitability") == "HIGH" and not d.get("exploit_demo"):
         return False, "HIGH_exploitability_without_exploit_demo"
-    quote = (d.get("evidence_quote") or "").strip().split("\n", 1)[0]
-    if quote and d.get("file"):
+    # A nonempty evidence_quote is mandatory: an empty/whitespace quote would skip
+    # grep-verification entirely and let the finding through with no evidence.
+    raw_quote = d.get("evidence_quote")
+    if not isinstance(raw_quote, str) or not raw_quote.strip():
+        return False, "evidence_quote_empty"
+    quote = raw_quote.strip().split("\n", 1)[0]
+    if d.get("file"):
         try:
             subprocess.check_output(
                 ["grep", "-F", quote, f"{repo_root}/{d['file']}"],
@@ -133,48 +152,65 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--repo", required=True, help="owner/repo")
     p.add_argument("--pr", required=True, type=int)
-    p.add_argument(
-        "--comment-id", required=True, help="REST comment id (review_comment)"
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--comment-id", help="REST comment id (review_comment)")
+    src.add_argument(
+        "--review-id",
+        help="REST review id — validates the review BODY (pull_request_review)",
     )
-    p.add_argument(
-        "--repo-root", default=".", help="path to a clean checkout for grep-verify"
-    )
+    p.add_argument("--repo-root", default=".", help="path to a clean checkout for grep-verify")
     p.add_argument("--dry-run", action="store_true")
     a = p.parse_args()
 
-    comment = gh_api(f"repos/{a.repo}/pulls/comments/{a.comment_id}")
-    user = comment.get("user", {}).get("login", "")
-    if user not in BOT_LOGINS:
-        print(f"::notice::skipping non-bot comment by {user}")
-        return 0
-    body = comment.get("body", "")
-    node = comment.get("node_id")
+    # Two surfaces: an inline review_comment, or a PR-level review body. Both
+    # resolve to (body, node_id, target_id) and then share the validate/minimise
+    # path. The review-body path closes the gap where a malformed review with no
+    # inline comments would otherwise bypass the gate entirely.
+    if a.review_id is not None:
+        review = gh_api(f"repos/{a.repo}/pulls/{a.pr}/reviews/{a.review_id}")
+        user = review.get("user", {}).get("login", "")
+        if user not in BOT_LOGINS:
+            print(f"::notice::skipping non-bot review by {user}")
+            return 0
+        body = review.get("body", "") or ""
+        node = review.get("node_id")
+        target_id = a.review_id
+        if not body.strip():
+            print(f"::notice::review {target_id} has empty body — nothing to validate")
+            return 0
+    else:
+        comment = gh_api(f"repos/{a.repo}/pulls/comments/{a.comment_id}")
+        user = comment.get("user", {}).get("login", "")
+        if user not in BOT_LOGINS:
+            print(f"::notice::skipping non-bot comment by {user}")
+            return 0
+        body = comment.get("body", "")
+        node = comment.get("node_id")
+        target_id = a.comment_id
+
     if not node:
-        print("::warning::comment lacks node_id — cannot minimise")
+        print("::warning::comment/review lacks node_id — cannot minimise")
         return 0
 
     ok, reason = validate_body(body, a.repo_root)
-    print(
-        f"::notice::pr-cascade-breaker: comment={a.comment_id} ok={ok} reason={reason}"
-    )
+    print(f"::notice::pr-cascade-breaker: target={target_id} ok={ok} reason={reason}")
     if ok:
         return 0
     if a.dry_run:
-        print(
-            f"::notice::DRY — would minimise comment {a.comment_id} (reason={reason})"
-        )
+        print(f"::notice::DRY — would minimise {target_id} (reason={reason})")
         return 0
 
     if minimise_comment(node, reason):
-        print(f"::notice::minimised comment {a.comment_id} via GraphQL")
-        # Post a one-line warning on the PR (idempotent: only if not already there)
+        print(f"::notice::minimised {target_id} via GraphQL")
+        # Post a one-line warning on the PR (idempotent: only if not already there).
+        # NOTE (fork/Dependabot): this REST POST can also 403 under a read-only
+        # token; we run it check=False and surface failure visibly below rather
+        # than masking it.
         existing = gh_api(f"repos/{a.repo}/issues/{a.pr}/comments")
-        already = any(
-            "pr-cascade-breaker:gate-warning" in c.get("body", "") for c in existing
-        )
+        already = any("pr-cascade-breaker:gate-warning" in c.get("body", "") for c in existing)
         if not already:
             warning = GATE_BANNER.format(reason=reason)
-            subprocess.run(
+            posted = subprocess.run(
                 [
                     "gh",
                     "api",
@@ -186,10 +222,24 @@ def main() -> int:
                 ],
                 check=False,
                 stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            if posted.returncode != 0:
+                # Read-only token (fork PR) — make the swallowed failure VISIBLE.
+                print(
+                    "::warning::minimised but FAILED to post gate-warning comment "
+                    f"for {target_id} — likely a read-only GITHUB_TOKEN on a fork/"
+                    "Dependabot PR. Off-spec finding is hidden but unannotated."
+                )
     else:
+        # On fork/Dependabot PRs review events can run with a read-only
+        # GITHUB_TOKEN: minimizeComment 403s and the off-spec comment stays
+        # VISIBLE. We have no privileged App/PAT secret to escalate to, so we
+        # surface this as a loud warning annotation instead of exiting silently.
         print(
-            f"::warning::failed to minimise comment {a.comment_id} (token missing graphql:write?)"
+            f"::warning::FAILED to minimise {target_id} — read-only GITHUB_TOKEN "
+            "(fork/Dependabot PR) or missing graphql:write. Off-spec finding "
+            "remains VISIBLE; no privileged token available to escalate."
         )
     return 0
 
