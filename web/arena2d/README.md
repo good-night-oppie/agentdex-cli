@@ -22,41 +22,86 @@ A static, `file://`-safe demo: it renders a **real** Pokémon Showdown battle in
 | **OPPONENT MODEL** | reconstructed forward-only from the log, **up to that decision** (fog of war — never future moves) | derived game facts |
 | **TYPE MATCHUP** | the real Gen-9 type chart vs the *revealed* types | derived, interactive |
 | **AGENT** | `RATIONALES[]` — the agent's own `codex_decide` words, streamed verbatim | the agent's real cognition |
+| **CONSIDERED** (the fan) | `RATIONALES[].considered[]` — the moves the agent **weighed and rejected**, with its `why_not`, captured by `codex_decide_explain` (PR #610) | the agent's real deliberation — **attested**, not a derived reconstruction |
 | **OUTCOME** (PRIMITIVE) | the real `-supereffective`/`-immune`/`faint` log lines | stamped **only after** the move resolves (no hindsight) |
 
 The type matchup *grounds* the agent's claims: when it says "resists Grass" or
 "immune to Close Combat", the derived chart confirms it (×0.5 / ×0) — and when the
 agent and the chart disagree, the UI shows both, honestly.
 
+## Data contract — `ReasoningTrace` (one schema, two transports)
+
+`data.js` is the `file://`-safe **projection** of a `ReasoningTrace`
+(`adx_showdown.reasoning_trace`) — one self-contained document per battle (DDIA document
+model: the `log` + ordered `decisions` are read together, no cross-battle joins). It holds
+**only source-of-truth, attested fields**: the protocol `log` and, per decision, the chosen
+`move` + verbatim `rationale` + the `considered` fan. Type-effectiveness ×scores and
+PRIMITIVE labels are **derived on read** by `dex.js` — never stored — so the UI can never
+claim the agent computed a score it didn't emit.
+
+The same document is meant to be served live by a REST endpoint shaped like **Pokémon
+Showdown's replay API** (`replay.pokemonshowdown.com/<id>.json`): `to_ps_replay()` emits a
+flat doc with `id` / `format` / `formatid` / `players` and the raw protocol as one
+newline-joined `log` **string**, so stock PS replay tooling reads the base fields
+unchanged. The agent's reasoning rides as additive, namespaced extension fields
+(`decisions` + `schema`). The static `data.js` is the `file://`-safe projection of the same
+document, so the file fixture and the live endpoint share one schema (the viewer `fetch`es
+the endpoint and falls back to `data.js`). A finished battle's trace is immutable → the
+endpoint is trivially edge-cacheable.
+
+Regenerate both generated files from a capture (data + the PS-sourced derived layer):
+
+```bash
+# the ReasoningTrace projection (LOG + RATIONALES + attested fan)
+uv run --package adx-showdown python tools/build_arena2d_data.py \
+    /tmp/arena2d_explain_battle.json web/arena2d/data.js
+# the DERIVED type layer for whatever cast is now in data.js, sourced from
+# pokemon-showdown's own pokedex/moves (the same engine the arena runs)
+node tools/build_arena2d_dex.cjs web/arena2d/data.js web/arena2d/dex.js
+```
+
+## Themes
+
+The page ships **light** ("Galar Bright", the default) and **dark** themes — a
+CSS-variable swap behind `html[data-theme]`, toggled by the header button and persisted to
+`localStorage`. Type-pill identity colors are constant across both. Typography is a premium
+pairing: **Space Grotesk** (display) / **Inter** (body) / **JetBrains Mono** (the agent's
+verbatim words), with system fallbacks under offline / strict CSP.
+
 ## Files
 
 | File | Role |
 |---|---|
-| `index.html` | layout + styles + 2D stage + decision timeline |
-| `data.js` | **generated** capture: `LOG` (Showdown protocol) + `RATIONALES` (do not hand-edit) |
+| `index.html` | layout + dual-theme styles + 2D stage + decision timeline + theme toggle |
+| `data.js` | **generated** `ReasoningTrace` projection: `LOG` (Showdown protocol) + `RATIONALES` (each with the attested `considered` fan; do not hand-edit) |
+| `trace-loader.js` | boots the engine; with `?trace=<url>` swaps in a live **PS-replay-shaped** endpoint, else uses the baked `data.js` (file://-safe) |
 | `battle.js` | log helpers (pure logic, no authored narration) |
-| `dex.js` | **derived** reference: type chart + this battle's species/move typings |
-| `mind.js` | the mind-readout panel (opponent model, interactive type lenses, streaming, outcome) |
+| `dex.js` | **derived** reference: the Gen-9 type chart + this battle's species/move typings, **generated from pokemon-showdown's own dex data** (`tools/build_arena2d_dex.cjs`) |
+| `mind.js` | the mind-readout panel (opponent model, type lenses, streaming rationale, **attested candidate fan**, outcome) |
 | `anim.js` | single forward-only pass → 2D replay + zero-leakage opponent snapshots; drives both panes + scrub |
 
 ## Interactions
 
 - **Play / Step / Restart / speed** — the 2D replay; the readout streams in sync.
+- **Theme toggle** — light ↔ dark, persisted.
 - **Decision timeline** — click any node to scrub the battle + readout to that decision; nodes color by outcome as it plays.
 - **Type lenses** — click an attack-type pill to recompute the matchup verdict live.
+- **Candidate fan** — each decision shows the chosen move ("fired") plus the moves the agent weighed and rejected, each grounded with the derived ×-effectiveness badge.
 - **Click a past decision** — inspect its full opponent model + matchup while paused.
 
 ## Serving
 
 Static assets only. The live page at `https://agentdex.builders/arena2d/` is served
 by **Caddy on the deploy box** (config is box-side, not in this repo). Preview locally:
-open `index.html` directly, or `python3 -m http.server` from this directory.
+open `index.html` directly, or `python3 -m http.server` from this directory. With
+`?trace=<url>` it fetches a live PS-replay-shaped trace (see `ReasoningTrace.to_ps_replay`)
+and falls back to the baked `data.js` on any error.
 
 ## Known caveats (pre-ship)
 
 - **Sprites** load from `play.pokemonshowdown.com` CDN — **reskin before any public ship** (IP).
 - Throwaway-grade prototype, **not** baked into the gateway image.
-- `dex.js` covers only **this battle's** cast — a fuller demo needs a real Pokédex.
+- `dex.js` carries only **this battle's** cast (regenerated per capture from the showdown dex); a permanent live surface would query the dex directly.
 - Local self-play capture needs the showdown loopback patch
   (`packages/adx_showdown/scripts/patch-showdown-loopback.cjs`, applied via `postinstall`).
 

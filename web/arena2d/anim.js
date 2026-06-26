@@ -43,9 +43,14 @@
   function matchRationale(moveOrSpecies) {
     const key = slug(moveOrSpecies);
     for (let i = rp; i < RATIONALES.length; i++) {
-      if (slug(RATIONALES[i].move) === key) { rp = i + 1; return RATIONALES[i].rationale || ""; }
+      if (slug(RATIONALES[i].move) === key) {
+        rp = i + 1;
+        // carry the ATTESTED considered fan (codex_decide_explain) alongside the chosen
+        // rationale, so the readout can show what the agent weighed + rejected.
+        return { rationale: RATIONALES[i].rationale || "", considered: RATIONALES[i].considered || [] };
+      }
     }
-    return "";
+    return { rationale: "", considered: [] };
   }
 
   let started = false;
@@ -64,9 +69,12 @@
       pendingFromSwitch = false;
     }
   }
-  function newRead(kind, label, rationale, p1mon, p2name) {
+  function newRead(kind, label, match, p1mon, p2name) {
     const r = {
-      kind, label, rationale, p1mon, p2mon: p2name,
+      kind, label,
+      rationale: (match && match.rationale) || "",
+      considered: (match && match.considered) || [],
+      p1mon, p2mon: p2name,
       primitive: kind === "switch" ? "PIVOT" : "CHIP",
       outcomeText: kind === "switch" ? "tactical switch" : "neutral hit",
       moveType: kind === "move" ? DEX.moveType(label) : null,
@@ -168,7 +176,9 @@
     if (!r.rationale) continue;
     const low = r.rationale.toLowerCase();
     const namesOther = p2names.some((sp) => sp !== r.p2mon && low.includes(sp.toLowerCase()));
-    if (namesOther) r.rationale = "";
+    // a stale rationale can't be honestly claimed for this decision — withhold its
+    // whole readout, the attested fan included (it was captured for that other turn).
+    if (namesOther) { r.rationale = ""; r.considered = []; }
   }
 
   /* ---------------------------- DOM: battle replay ---------------------------- */
@@ -228,8 +238,17 @@
   let i = 0, timer = null, playing = false;
   const playBtn = $("#play"), stepBtn = $("#step"), restartBtn = $("#restart"), spd = $("#spd");
   function scale() { return (7 - (+spd.value)) / 3; }
+  // derive the REAL result from the log — never hardcode the outcome (the battle may
+  // be a loss). `|win|<name>` vs p1's `|player|p1|<name>` decides won/lost.
+  const _p1name = ((LOG.find((l) => l.startsWith("|player|p1|")) || "").split("|")[3] || "");
+  const _winName = ((LOG.find((l) => l.startsWith("|win|")) || "").split("|")[2] || "");
+  const RESULT_TEXT = !_winName
+    ? "battle over."
+    : _winName === _p1name
+      ? "battle over — your agent WON."
+      : "battle over — your agent lost.";
   function one() {
-    if (i >= steps.length) { stop(); banner.textContent += "  ·  battle over — your agent WON."; return false; }
+    if (i >= steps.length) { stop(); banner.textContent += "  ·  " + RESULT_TEXT; return false; }
     apply(steps[i++]); return true;
   }
   function loop() {
