@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -35,6 +36,7 @@ BOT_LOGINS = {
     "chatgpt-codex-connector[bot]",
     "chatgpt-codex-connector",
     "codex[bot]",
+    "codex",
     "cursor-agent[bot]",
     "cursor-agent",
     "agy[bot]",
@@ -122,9 +124,20 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
         return False, "evidence_quote_empty"
     quote = raw_quote.strip().split("\n", 1)[0]
     if d.get("file"):
+        # Contain the attacker-influenced `file` field to the checkout tree: an
+        # absolute path or `../` escape would otherwise grep an arbitrary runner
+        # file and could force a false PASS. Reject escapes before touching disk.
+        target = os.path.realpath(os.path.join(repo_root, d["file"]))
+        root = os.path.realpath(repo_root)
+        if target != root and not target.startswith(root + os.sep):
+            return False, "evidence_quote_file_escapes_tree"
         try:
+            # `--` ends grep option parsing so an evidence_quote whose first line
+            # starts with `-`/`--` (YAML list items `- name:`, CLI flags like
+            # `--repo-root`) is treated as the search pattern, not an option.
+            # Without it grep exits rc=2 and a VALID finding is false-minimised.
             subprocess.check_output(
-                ["grep", "-F", quote, f"{repo_root}/{d['file']}"],
+                ["grep", "-F", "--", quote, target],
                 stderr=subprocess.DEVNULL,
             )
         except Exception:

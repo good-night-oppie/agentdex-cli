@@ -12,6 +12,9 @@
 #  (6) evidence_quote that doesn't grep against the file fails (_grep_WITHDRAWN)
 #  (7) the literal opt-out marker exempts the comment (skip-marker)
 #  (8) the gate's own warning is exempt (gate-own-warning)
+#  (9) a `-`/`--`-leading evidence_quote that IS in the file grep-verifies (ok), not
+#      false-dropped as an option (the grep `--` end-of-options fix)
+# (10) a `file` that escapes the checkout tree is rejected (evidence_quote_file_escapes_tree)
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$REPO/scripts/pr_cascade_breaker_gate.py"
@@ -24,6 +27,7 @@ cat > "$TARGET" <<'PY'
 def from_adx_dict(d):
     if "harness_ref" not in d:
         raise ValueError("harness_ref required")
+    # cli example: --dangerously-skip-permissions and -X POST live here
     return d
 PY
 
@@ -67,6 +71,18 @@ cases = [
     ("empty_evidence_quote",
      "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: scripts/sample.py\nevidence_quote: '   '\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
      False, "evidence_quote_empty"),
+    # PR #603 audit BLOCKER: an evidence_quote whose first line starts with `-`/`--`
+    # (CLI flags, YAML list items, unified-diff lines) must grep-verify, not be parsed
+    # as a grep option. The quote below IS present in sample.py → must PASS (pre-fix:
+    # grep treats it as an option, rc=2, false `evidence_quote_grep_WITHDRAWN`).
+    ("dash_leading_quote",
+     "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: scripts/sample.py\nevidence_quote: '--dangerously-skip-permissions'\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
+     True, "ok"),
+    # PR #603 audit hardening: an attacker-influenced `file` that escapes the checkout
+    # tree (absolute or `../`) must be rejected before any disk read.
+    ("file_escapes_tree",
+     "```reviewer_finding\nkind: bug\npriority: P2\nblocking_verdict: NIT\nexploitability: NONE\nfile: ../escape.txt\nevidence_quote: anything\nfix_suggestion: x\nwithdraw_condition: 'never'\n```",
+     False, "evidence_quote_file_escapes_tree"),
 ]
 for label, body, want_ok, want_reason in cases:
     ok, reason = mod.validate_body(body, repo_root)

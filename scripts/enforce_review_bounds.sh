@@ -66,7 +66,7 @@ OPEN_THREADS="$(gh api graphql -f query='query($o:String!,$n:String!,$p:Int!){
   repository(owner:$o,name:$n){ pullRequest(number:$p){
     reviewThreads(first:100){ nodes{ id isResolved } } } } }' \
   -F o="$OWNER" -F n="$REPO" -F p="$PR_NUM" \
-  | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false)] | length')"
+  | jq '[(.data.repository.pullRequest.reviewThreads.nodes // [])[] | select(.isResolved==false)] | length')"
 TRAILER_RE='(Resolves-Thread|Withdraws-Thread):'
 HEAD_TRAILERS="$(git log -1 --format='%B' 2>/dev/null | grep -E "$TRAILER_RE" || true)"
 if [[ "$OPEN_THREADS" -gt 0 && -z "$HEAD_TRAILERS" && "$K" -gt 1 ]]; then
@@ -126,7 +126,9 @@ for f in findings_in:
         dropped.append({"reason":"evidence_quote_empty"}); continue
     quote = raw_quote.strip().split("\n",1)[0]
     try:
-        subprocess.check_output(["grep","-F",quote,d["file"]], stderr=subprocess.DEVNULL)
+        # `--` ends option parsing so a quote starting with `-`/`--` (YAML list
+        # items, CLI flags) is the pattern, not a grep option (rc=2 → false drop).
+        subprocess.check_output(["grep","-F","--",quote,d["file"]], stderr=subprocess.DEVNULL)
     except Exception:
         dropped.append({"reason":"evidence_quote_grep_WITHDRAWN","file":d["file"]}); continue
     # Carry the PARSED priority forward so blocker routing reads the YAML truth,

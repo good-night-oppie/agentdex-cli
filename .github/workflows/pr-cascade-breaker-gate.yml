@@ -30,11 +30,16 @@ jobs:
   cascade-gate:
     # Keep this bot list in sync with BOT_LOGINS in
     # scripts/pr_cascade_breaker_gate.py (includes codex[bot]/codex).
+    # Each contains() is scoped to its own event: the absent surface's
+    # *.user.login is the empty string, and contains(list, '') is ALWAYS true,
+    # so an unscoped guard would launch the job on every human review/comment.
     if: >
-      contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
-               github.event.comment.user.login)
-      || contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
-                  github.event.review.user.login)
+      (github.event_name == 'pull_request_review_comment'
+        && contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
+                    github.event.comment.user.login))
+      || (github.event_name == 'pull_request_review'
+        && contains('chatgpt-codex-connector[bot] chatgpt-codex-connector codex[bot] codex cursor-agent[bot] cursor-agent agy[bot]',
+                    github.event.review.user.login))
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +60,14 @@ jobs:
           path: _pr_head
 
       - name: install pyyaml
-        run: pip install --quiet --disable-pip-version-check pyyaml >/dev/null
+        # PEP-668 externally-managed runners reject a bare `pip install`, which would
+        # crash this step (exit 1) BEFORE the validate steps' `set +e`/exit-0 ever runs,
+        # killing the gate on every bot review comment repo-wide. Import-check first
+        # (no-op on runners that already ship pyyaml), else install with
+        # --break-system-packages so the override works on a managed system Python.
+        run: |
+          python3 -c "import yaml" 2>/dev/null \
+            || pip install --quiet --disable-pip-version-check --break-system-packages pyyaml >/dev/null
 
       - name: validate review comment against reviewer_finding schema
         if: github.event_name == 'pull_request_review_comment'
