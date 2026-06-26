@@ -25,9 +25,18 @@ is additive behind ``schema_version`` (schema-on-read tolerance lives on the con
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+def _slug(s: Any) -> str:
+    """Alphanumeric-only lowercase id (matches arena2d's anim.js ``slug``), so a chosen
+    move ``stoneedge`` aligns to the log's ``Stone Edge`` and a switch ``zamazentacrowned``
+    to ``Zamazenta-Crowned``."""
+    return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
 
 SCHEMA_VERSION = "reasoning_trace/1"
 
@@ -92,36 +101,77 @@ class ReasoningTrace(BaseModel):
             rationales.append(entry)
         return {"LOG": list(self.log), "RATIONALES": rationales}
 
+    @staticmethod
+    def _executed_p1_actions(log: list[str]) -> list[tuple[str, int]]:
+        """The p1 actions the log actually EXECUTED, in order, as ``(slug, turn)``.
+
+        Mirrors arena2d's anim.js decision rule so the trace's decisions correspond 1:1
+        to what happened, not to every capture row: a ``|move|p1…`` is always a decision;
+        a ``|switch|p1…`` is a decision only AFTER the first ``|turn|`` (the pre-turn
+        switch is the lead) and only when it is a real ``switch`` — a ``|drag|`` is a
+        forced phaze, not an agent choice. ``turn`` is the enclosing ``|turn|N``."""
+        out: list[tuple[str, int]] = []
+        started = False
+        cur_turn = 0
+        for line in log:
+            p = line.split("|")
+            tag = p[1] if len(p) > 1 else ""
+            if tag == "turn":
+                started = True
+                try:
+                    cur_turn = int(p[2])
+                except (ValueError, IndexError):
+                    pass
+            elif tag == "move" and len(p) > 3 and p[2].startswith("p1"):
+                out.append((_slug(p[3]), cur_turn))
+            elif tag == "switch" and len(p) > 3 and p[2].startswith("p1") and started:
+                out.append((_slug(p[3].split(",")[0]), cur_turn))
+        return out
+
     @classmethod
     def from_capture(cls, cap: dict[str, Any]) -> ReasoningTrace:
         """Build a trace from an explain-capture dict (``arena2d_explain_battle/1`` —
-        the shape ``codex_decide_explain`` + the capture harness produce). Abstain/error
-        rows (no ``move``) are dropped — they are not decisions."""
+        the shape ``codex_decide_explain`` + the capture harness produce).
+
+        Decisions are ALIGNED to the executed p1 actions in the log, not promoted from
+        every capture row: the capture stream carries retries / un-executed deliberations
+        (e.g. a choice computed for a turn that never resolved), so a blind 1-row-per-rich
+        loop would put a phantom decision in the immutable trace (review #3473480421).
+        Each executed action greedily consumes the next capture row whose chosen move
+        slug-matches it; capture rows that never execute are dropped, and ``turn`` comes
+        from the log (the capture itself does not carry it). Abstain/error rows (no
+        ``move``) are skipped before matching."""
+        rows = [t for t in cap.get("turns", []) if str(t.get("move") or "").strip()]
+        executed = cls._executed_p1_actions(list(cap.get("log") or []))
         decisions: list[Decision] = []
-        seq = 0
-        for t in cap.get("turns", []):
-            move = str(t.get("move") or "").strip()
-            if not move:
-                continue
+        ri = 0  # capture-row pointer (greedy, in order)
+        for slug, turn in executed:
+            # find the next unconsumed capture row whose chosen move matches this action
+            match = None
+            for j in range(ri, len(rows)):
+                if _slug(rows[j].get("move")) == slug:
+                    match, ri = rows[j], j + 1
+                    break
+            if match is None:
+                continue  # executed action with no captured rationale — omit (no fabrication)
             decisions.append(
                 Decision(
-                    seq=seq,
-                    turn=int(t.get("turn") or 0),
+                    seq=len(decisions),
+                    turn=turn,
                     side="p1",
-                    active=str(t.get("active_species") or ""),
-                    opponent=str(t.get("opponent_species") or ""),
-                    move=move,
-                    rationale=str(t.get("rationale") or ""),
+                    active=str(match.get("active_species") or ""),
+                    opponent=str(match.get("opponent_species") or ""),
+                    move=str(match.get("move") or "").strip(),
+                    rationale=str(match.get("rationale") or ""),
                     considered=[
                         ConsideredMove(
                             move=str(c.get("move") or ""), why_not=str(c.get("why_not") or "")
                         )
-                        for c in (t.get("considered") or [])
+                        for c in (match.get("considered") or [])
                         if str(c.get("move") or "").strip()
                     ],
                 )
             )
-            seq += 1
         res = cap.get("result", {}) or {}
         winner = res.get("winner")
         return cls(
