@@ -243,10 +243,14 @@ def _clean_considered(raw: Any, *, chosen: str, legal: set[str]) -> list[dict[st
     entries for LEGAL, non-chosen actions — de-duplicated, capped at 4. A hallucinated id
     (outside ``legal``) or a self-referential entry (the chosen move) would misrepresent
     the attested fan, so it is DROPPED rather than rendered. ``legal`` empty disables the
-    legality filter (the no-context unit-test injection path)."""
+    legality filter (the no-context unit-test injection path). A non-list ``raw`` (a
+    malformed scalar from a non-strict Codex build / bad stdout parse / injected runner)
+    yields ``[]`` rather than raising, so the never-raises capture contract holds even
+    though this runs OUTSIDE ``codex_decide_explain``'s try block."""
     out: list[dict[str, str]] = []
     seen: set[str] = set()
-    for item in raw or []:
+    items = raw if isinstance(raw, list) else []
+    for item in items:
         if not isinstance(item, Mapping):
             continue
         mid = str(item.get("move_id", "")).strip()
@@ -293,14 +297,18 @@ def codex_decide_explain(
         move_id = str(result.get("move_id", "")).strip()
     except Exception:
         return None  # codex missing / timeout / bad output — never crash a capture
-    if not move_id:
+    # Reject an ILLEGAL chosen id. Unlike codex_decide — whose proposed id is gated +
+    # counted downstream by select_codex_move — this capture path has NO later legality
+    # gate, so an out-of-legal-set hallucination would otherwise be recorded as an
+    # attested decision (and rendered by arena2d). Fail safe instead; the considered
+    # entries are already legality-filtered by _clean_considered.
+    legal = set(legal_ids)
+    if not move_id or move_id not in legal:
         return None
     return {
         "move_id": move_id,
         "rationale": str(result.get("rationale", "")).strip(),
-        "considered": _clean_considered(
-            result.get("considered"), chosen=move_id, legal=set(legal_ids)
-        ),
+        "considered": _clean_considered(result.get("considered"), chosen=move_id, legal=legal),
     }
 
 

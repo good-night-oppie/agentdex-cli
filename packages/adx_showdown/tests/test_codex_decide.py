@@ -264,6 +264,30 @@ def test_codex_decide_explain_abstains_on_blank_pick():
     assert out is None
 
 
+def test_codex_decide_explain_rejects_an_illegal_chosen_id():
+    """Unlike codex_decide (gated downstream by select_codex_move), the capture path has
+    no later legality gate — so an out-of-legal-set chosen id must fail safe to None,
+    never be recorded as an attested decision (review #3472848952)."""
+    ctx = _ctx([_Move("thunderbolt", 90), _Move("tackle", 40)])
+    out = codex_decide_explain(
+        _Harness(), ctx, run=lambda p, s, t: {"move_id": "hyperbeam", "rationale": "x"}
+    )
+    assert out is None
+
+
+def test_codex_decide_explain_failsafe_on_non_list_considered():
+    """A malformed scalar ``considered`` (non-strict Codex / bad parse / injected runner)
+    must NOT raise — _clean_considered runs OUTSIDE the try, so it has to coerce to []
+    to keep the never-raises capture contract (review #3472848957)."""
+    ctx = _ctx([_Move("thunderbolt", 90)])
+    out = codex_decide_explain(
+        _Harness(),
+        ctx,
+        run=lambda p, s, t: {"move_id": "thunderbolt", "rationale": "ok", "considered": 7},
+    )
+    assert out == {"move_id": "thunderbolt", "rationale": "ok", "considered": []}
+
+
 def test_codex_decide_explain_no_legal_moves_returns_none():
     assert codex_decide_explain(_Harness(), _ctx([]), run=lambda p, s, t: {"move_id": "x"}) is None
 
