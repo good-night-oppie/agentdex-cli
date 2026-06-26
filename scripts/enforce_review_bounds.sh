@@ -125,10 +125,15 @@ for f in findings_in:
     if not isinstance(raw_quote, str) or not raw_quote.strip():
         dropped.append({"reason":"evidence_quote_empty"}); continue
     quote = raw_quote.strip().split("\n",1)[0]
+    # Contain the attacker-influenced `file` to the working tree: an absolute path
+    # or `../` escape would grep an arbitrary runner file (false PASS). Reject first.
+    target = os.path.realpath(d["file"]); root = os.path.realpath(".")
+    if target != root and not target.startswith(root + os.sep):
+        dropped.append({"reason":"evidence_quote_file_escapes_tree","file":d["file"]}); continue
     try:
         # `--` ends option parsing so a quote starting with `-`/`--` (YAML list
         # items, CLI flags) is the pattern, not a grep option (rc=2 → false drop).
-        subprocess.check_output(["grep","-F","--",quote,d["file"]], stderr=subprocess.DEVNULL)
+        subprocess.check_output(["grep","-F","--",quote,target], stderr=subprocess.DEVNULL)
     except Exception:
         dropped.append({"reason":"evidence_quote_grep_WITHDRAWN","file":d["file"]}); continue
     # Carry the PARSED priority forward so blocker routing reads the YAML truth,

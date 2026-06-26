@@ -88,9 +88,22 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
         return True, "skip-marker"
     if "<!-- pr-cascade-breaker:gate-warning -->" in body:
         return True, "gate-own-warning"
-    m = BLOCK_RE.search(body)
-    if not m:
+    blocks = BLOCK_RE.findall(body)
+    if not blocks:
         return False, "no_reviewer_finding_block"
+    # Validate EVERY reviewer_finding block, not just the first: a bot can pad a
+    # valid leading block with trailing fabricated ones that would otherwise ride
+    # through unminimised. Fail on the first off-spec block (index-prefixed when
+    # the body carries more than one block).
+    for idx, block in enumerate(blocks):
+        ok, reason = _validate_block(block, repo_root)
+        if not ok:
+            return False, reason if len(blocks) == 1 else f"block{idx}:{reason}"
+    return True, "ok"
+
+
+def _validate_block(block: str, repo_root: str) -> tuple[bool, str]:
+    """Validate one reviewer_finding YAML block. Return (ok, reason)."""
     try:
         import yaml
     except ImportError:
@@ -99,7 +112,7 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
         # PyYAML on a runner must NOT silently disable every schema check).
         return False, "yaml-missing-fail-closed"
     try:
-        d = yaml.safe_load(m.group(1)) or {}
+        d = yaml.safe_load(block) or {}
     except Exception as e:
         return False, f"yaml_parse:{e}"
     if not isinstance(d, dict):
@@ -122,7 +135,6 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
     raw_quote = d.get("evidence_quote")
     if not isinstance(raw_quote, str) or not raw_quote.strip():
         return False, "evidence_quote_empty"
-    quote = raw_quote.strip().split("\n", 1)[0]
     if d.get("file"):
         # Contain the attacker-influenced `file` field to the checkout tree: an
         # absolute path or `../` escape would otherwise grep an arbitrary runner
@@ -131,17 +143,23 @@ def validate_body(body: str, repo_root: str) -> tuple[bool, str]:
         root = os.path.realpath(repo_root)
         if target != root and not target.startswith(root + os.sep):
             return False, "evidence_quote_file_escapes_tree"
-        try:
-            # `--` ends grep option parsing so an evidence_quote whose first line
-            # starts with `-`/`--` (YAML list items `- name:`, CLI flags like
-            # `--repo-root`) is treated as the search pattern, not an option.
-            # Without it grep exits rc=2 and a VALID finding is false-minimised.
-            subprocess.check_output(
-                ["grep", "-F", "--", quote, target],
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            return False, "evidence_quote_grep_WITHDRAWN"
+        # Verify EVERY non-blank line of the quote, not just the first: a block
+        # scalar with a real first line and fabricated lines 2..N would otherwise
+        # pass on line 1 alone.
+        for line in raw_quote.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                # `--` ends grep option parsing so a quote line starting with
+                # `-`/`--` (YAML list items `- name:`, CLI flags `--repo-root`)
+                # is the search pattern, not an option (else grep rc=2 → false drop).
+                subprocess.check_output(
+                    ["grep", "-F", "--", line, target],
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                return False, "evidence_quote_grep_WITHDRAWN"
     return True, "ok"
 
 
