@@ -128,6 +128,10 @@ sweeps/*.lock
 # Python build artifacts (anchored — already covered above with /dist /build)
 *.whl
 
+# Build-time copy of the arena2d viewer: hatch_build.py stages the repo-root web/arena2d
+# (single source of truth) here at build time; never commit the generated copy.
+/packages/agentdex_cli/_arena2d/
+
 # Git worktrees
 .worktrees/
 worktrees/
