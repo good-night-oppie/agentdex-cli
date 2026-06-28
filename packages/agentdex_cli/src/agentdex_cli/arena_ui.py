@@ -54,10 +54,10 @@ def find_arena2d_dir() -> Path | None:
     Resolution order:
 
     1. ``ADX_ARENA2D_DIR`` wins when set (and points at a dir with an ``index.html``).
-    2. The copy bundled *inside* the installed package (``agentdex_cli/arena2d/``) — hatch
-       ``force-include``s ``web/arena2d`` there at wheel-build time, so ``adx arena play
-       --ui`` works out of the box from a ``pip install``ed wheel with no repo checkout
-       and no env override (PR #614 review).
+    2. The copy bundled *inside* the installed package (``agentdex_cli/arena2d/``) — the
+       build hook (``hatch_build.py``) vendors ``web/arena2d`` there at build time into both
+       the wheel and the sdist, so ``adx arena play --ui`` works out of the box from a
+       ``pip install``ed wheel with no repo checkout and no env override (PR #614/#616 review).
     3. A walk up from the CWD and from this module's location looking for
        ``web/arena2d/index.html`` — covers a source checkout / editable install, where the
        bundled copy does not exist on disk but the repo-root ``web/arena2d`` does.
