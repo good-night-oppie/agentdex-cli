@@ -279,6 +279,47 @@ def _effective_agent_name(args: argparse.Namespace) -> str:
     return args.agent
 
 
+def _start_ui(console: Any, arena_base: str, battle_id: str) -> Any:
+    """Start the local arena2d browser UI for this battle and print its URL.
+
+    Best-effort: returns the running ``ArenaUiServer``, or ``None`` if the arena2d
+    assets are missing or the server fails to start (the battle proceeds either way).
+    The browser talks ONLY to this local server; the spectator bridge needs no token."""
+    from agentdex_cli.arena_ui import ArenaUiServer, find_arena2d_dir
+
+    web_dir = find_arena2d_dir()
+    if web_dir is None:
+        console.print(
+            "[yellow]--ui: web/arena2d not found (run from the repo root or set "
+            "ADX_ARENA2D_DIR); continuing without the browser UI.[/yellow]"
+        )
+        return None
+    try:
+        server = ArenaUiServer(web_dir, arena_base, battle_id)
+        url = server.start()
+    except Exception as e:  # noqa: BLE001 — the UI is a bonus, never block the battle
+        console.print(f"[yellow]--ui: failed to start ({e}); continuing without it.[/yellow]")
+        return None
+    console.print(
+        f"[bold green]▶ arena2d UI:[/bold green] [underline]{url}[/underline]  "
+        "[dim](port-forward if this box is remote; reload the page to pull later turns)[/dim]"
+    )
+    return server
+
+
+def _hold_ui(console: Any, ui_server: Any) -> None:
+    """Keep the UI server up after the battle so the full animated replay stays viewable."""
+    url = getattr(ui_server, "url", "") or ""
+    console.print(
+        f"[dim]arena2d UI still live{(' at ' + url) if url else ''} — "
+        "reload it for the full replay, then press Enter to close.[/dim]"
+    )
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
 def cmd_arena_play(argv: list[str]) -> int:
     """`adx arena play` — drive a human-played battle in the terminal."""
     p = argparse.ArgumentParser(
@@ -305,6 +346,12 @@ def cmd_arena_play(argv: list[str]) -> int:
     p.add_argument("--lane", choices=["sandbox", "rated"], default="sandbox")
     p.add_argument("--gym", help="sandbox gym leader to challenge (optional)")
     p.add_argument("--team", help="path to a packed/exported team file (default: starter draft)")
+    p.add_argument(
+        "-u",
+        "--ui",
+        action="store_true",
+        help="serve the arena2d browser visualizer for this battle (prints a local URL)",
+    )
     args = p.parse_args(argv)
 
     console = _console()
@@ -317,6 +364,7 @@ def cmd_arena_play(argv: list[str]) -> int:
         )
 
     raw_team = open(args.team).read().strip() if args.team else None
+    ui_server = None  # arena2d browser UI handle (started after battle_begin, if --ui)
 
     try:
         with ArenaClient(base=resolve_base(args.url)) as client:
@@ -339,6 +387,8 @@ def cmd_arena_play(argv: list[str]) -> int:
             # echo it, so capture it once from begin (a multi-turn battle would
             # otherwise KeyError on state["battle_id"] after the first choice).
             battle_id = state["battle_id"]
+            if args.ui:
+                ui_server = _start_ui(console, client.base, battle_id)
             while state.get("status") != "ended":
                 _render_turn(console, state)
                 n = int(state.get("n_choices") or 0)
@@ -354,6 +404,8 @@ def cmd_arena_play(argv: list[str]) -> int:
                     return 0
                 state = client.battle_choose(token, battle_id, choice)
             _render_receipt(console, state, client.base)
+            if ui_server is not None:
+                _hold_ui(console, ui_server)
             return 0
     except KeyboardInterrupt:
         console.print(
@@ -374,3 +426,6 @@ def cmd_arena_play(argv: list[str]) -> int:
     except httpx.HTTPError as e:
         console.print(f"[red]error:[/red] could not reach arena: {e}")
         return 1
+    finally:
+        if ui_server is not None:
+            ui_server.stop()
