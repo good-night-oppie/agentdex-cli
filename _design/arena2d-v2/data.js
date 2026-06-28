@@ -1,0 +1,176 @@
+/* arena2d v2 — shared data for variants α and β.
+ * Real PAC battle: https://replays.pokeagentchallenge.com/replay/gen9oulongtimer-11097461
+ * adx-bot-1 (codex_decide / GPT-5 Codex CLI v0.142.2) vs LLM-gem31fl (Gemini, suspected)
+ * Result: LOSS (inactivity timer — process OOM-killed mid-turn 8). Honest disclosure.
+ * Rationales are real codex CLI stdout (8 turns captured).
+ * Candidates are MOCKED to illustrate the "considered-but-rejected" branches —
+ *   real codex_decide only emits the chosen move_id; this is a design proxy.
+ */
+window.A2D_V2_DATA = {
+  meta: {
+    agent: "adx-bot-1",
+    opponent: "LLM-gem31fl",
+    elo_you: 1000,
+    elo_opp: 1000,
+    format: "gen9oulongtimer",
+    replay_id: "gen9oulongtimer-11097461",
+    replay_url: "https://replays.pokeagentchallenge.com/replay/gen9oulongtimer-11097461",
+    fused_hash: "3f8a91c20e7b4d12",  // mock fused-replay BLAKE3 prefix
+    prompt_hash: "9d62e4c188a07f6f", // mock prompt template hash
+    llm: "codex CLI v0.142.2",
+    tokens: { cached: 89821, uncached: 36006, completion: 6608 },
+    cost_usd: 0.034,
+    result: "LOSS",
+    result_note: "inactivity timer (process killed at T8)",
+    acl: "spectator",
+  },
+  team_you: [
+    { species: "ironvaliant",   name: "Iron Valiant",    lv: 80, hp: 100 },
+    { species: "kingambit",     name: "Kingambit",       lv: 80, hp: 100 },
+    { species: "garchomp",      name: "Garchomp",        lv: 80, hp: 100 },
+    { species: "slowking-galar",name: "Slowking-Galar",  lv: 80, hp: 100 },
+    { species: "greattusk",     name: "Great Tusk",      lv: 80, hp: 100 },
+    { species: "dragapult",     name: "Dragapult",       lv: 80, hp: 100 },
+  ],
+  team_opp_revealed: [
+    { species: "tinkaton",    name: "Tinkaton" },
+    { species: "cinderace",   name: "Cinderace" },
+    { species: "corviknight", name: "Corviknight" },
+    { species: "dragonite",   name: "Dragonite" },
+  ],
+  turns: [
+    { n:1, time:"04:12:33Z", field:"no hazards · no weather",
+      you:{species:"ironvaliant", name:"Iron Valiant", hp:100, types:["Fairy","Fighting"]},
+      opp:{species:"tinkaton",    name:"Tinkaton",     hp:100, types:["Fairy","Steel"]},
+      chosen:{kind:"switch", id:"kingambit", label:"→ Kingambit", type:null,
+        rationale:"Resists likely Steel/Fairy attacks; Valiant risks Gigaton Hammer."},
+      candidates:[
+        {kind:"move",   id:"closecombat", label:"Close Combat", type:"Fighting",
+          rationale:"Risk: Gigaton Hammer outspeeds and OHKOs after Booster."},
+        {kind:"switch", id:"garchomp", label:"→ Garchomp", type:null,
+          rationale:"Slower; takes Steel hits poorly. Worse Fairy resist."},
+      ],
+      outcome:"PIVOT", outcomeText:"tactical switch — sets up resist matchup",
+      audit:"?"
+    },
+    { n:2, time:"04:14:18Z", field:"no hazards · no weather",
+      you:{species:"kingambit", name:"Kingambit", hp:100, types:["Dark","Steel"]},
+      opp:{species:"cinderace", name:"Cinderace", hp:100, types:["Fire"]},
+      chosen:{kind:"switch", id:"garchomp", label:"→ Garchomp", type:null,
+        rationale:"Resists Fire and threatens Cinderace with Ground STAB."},
+      candidates:[
+        {kind:"move", id:"suckerpunch", label:"Sucker Punch", type:"Dark",
+          rationale:"Won't OHKO; Cinderace likely U-turns. Loses momentum."},
+        {kind:"move", id:"ironhead", label:"Iron Head", type:"Steel",
+          rationale:"Resisted; risks Pyro Ball burn flinch chain."},
+      ],
+      outcome:"PIVOT", outcomeText:"defensive pivot to fire resist",
+      audit:"?"
+    },
+    { n:3, time:"04:16:02Z", field:"no hazards · no weather",
+      you:{species:"garchomp", name:"Garchomp", hp:100, types:["Dragon","Ground"]},
+      opp:{species:"cinderace", name:"Cinderace", hp:100, types:["Fire"]},
+      chosen:{kind:"move", id:"earthquake", label:"Earthquake", type:"Ground",
+        rationale:"STAB super-effective ground attack; Garchomp resists Pyro Ball."},
+      candidates:[
+        {kind:"move", id:"stoneedge", label:"Stone Edge", type:"Rock",
+          rationale:"4× SE if Cinderace stays, but lower accuracy; EQ safer."},
+        {kind:"move", id:"stealthrock", label:"Stealth Rock", type:"Rock",
+          rationale:"Sets hazard, but Cinderace likely U-turns — wasted tempo."},
+      ],
+      outcome:"PUNISH", outcomeText:"super-effective EQ — Cinderace KO",
+      audit:"?"
+    },
+    { n:4, time:"04:17:51Z", field:"Stealth Rock (opp side) · pressure",
+      you:{species:"garchomp", name:"Garchomp", hp:88, types:["Dragon","Ground"]},
+      opp:{species:"corviknight", name:"Corviknight", hp:100, types:["Flying","Steel"]},
+      chosen:{kind:"move", id:"stealthrock", label:"Stealth Rock", type:"Rock",
+        rationale:"Ground attacks fail; set hazards before Corviknight walls Garchomp."},
+      candidates:[
+        {kind:"switch", id:"slowking-galar", label:"→ Slowking-Galar", type:null,
+          rationale:"Future Sight pressure, but loses tempo on switch-in turn."},
+        {kind:"move", id:"earthquake", label:"Earthquake", type:"Ground",
+          rationale:"Immune. Zero damage."},
+      ],
+      outcome:"SETUP", outcomeText:"hazard up — pressure on opp switch-ins",
+      audit:"?"
+    },
+    { n:5, time:"04:19:44Z", field:"Stealth Rock (opp side) · pressure",
+      you:{species:"garchomp", name:"Garchomp", hp:62, types:["Dragon","Ground"]},
+      opp:{species:"dragonite", name:"Dragonite", hp:100, types:["Dragon","Flying"]},
+      chosen:{kind:"move", id:"stealthrock", label:"Stealth Rock", type:"Rock",
+        rationale:"Breaks Dragonite Multiscale; Ground attacks are immune."},
+      candidates:[
+        {kind:"move", id:"dragonclaw", label:"Dragon Claw", type:"Dragon",
+          rationale:"Multiscale halves it. Underwhelming chip."},
+        {kind:"switch", id:"kingambit", label:"→ Kingambit", type:null,
+          rationale:"Resists Dragon STAB but Earthquake KOs on switch-in."},
+      ],
+      outcome:"MISREAD", outcomeText:"SR already up — should have attacked",
+      audit:"?"
+    },
+    { n:6, time:"04:21:32Z", field:"Stealth Rock (opp side) · pressure",
+      you:{species:"garchomp", name:"Garchomp", hp:48, types:["Dragon","Ground"]},
+      opp:{species:"corviknight", name:"Corviknight", hp:100, types:["Flying","Steel"]},
+      chosen:{kind:"move", id:"stealthrock", label:"Stealth Rock", type:"Rock",
+        rationale:"Ground is immune; set hazards as Corviknight pivots."},
+      candidates:[
+        {kind:"switch", id:"slowking-galar", label:"→ Slowking-Galar", type:null,
+          rationale:"Future Sight + Chilly Reception pivot. Better long-term."},
+        {kind:"move", id:"dragontail", label:"Dragon Tail", type:"Dragon",
+          rationale:"Phazes to force a new mon onto SR — would have been correct."},
+      ],
+      outcome:"MISREAD", outcomeText:"third SR — codex stuck in pattern",
+      audit:"?"
+    },
+    { n:7, time:"04:23:21Z", field:"Stealth Rock (opp side) · pressure",
+      you:{species:"garchomp", name:"Garchomp", hp:34, types:["Dragon","Ground"]},
+      opp:{species:"dragonite", name:"Dragonite", hp:88, types:["Dragon","Flying"]},
+      chosen:{kind:"switch", id:"kingambit", label:"→ Kingambit", type:null,
+        rationale:"Resists Dragonite's likely Dragon and Flying STABs safely."},
+      candidates:[
+        {kind:"move", id:"earthquake", label:"Earthquake", type:"Ground",
+          rationale:"Immune (Multiscale-broken Dragonite is Flying). No damage."},
+        {kind:"move", id:"dragonclaw", label:"Dragon Claw", type:"Dragon",
+          rationale:"Speed-tied; Garchomp at 34% — dies to Extreme Speed."},
+      ],
+      outcome:"PIVOT", outcomeText:"resist swap into Dragonite STABs",
+      audit:"?"
+    },
+    { n:8, time:"04:25:09Z", field:"Stealth Rock (opp side) · pressure",
+      you:{species:"kingambit", name:"Kingambit", hp:100, types:["Dark","Steel"]},
+      opp:{species:"dragonite", name:"Dragonite", hp:88, types:["Dragon","Flying"]},
+      chosen:{kind:"move", id:"kowtowcleave", label:"Kowtow Cleave", type:"Dark",
+        rationale:"Strongest reliable STAB; no super-effective move or safer resist."},
+      candidates:[
+        {kind:"move", id:"ironhead", label:"Iron Head", type:"Steel",
+          rationale:"Resisted by Steel; lower expected damage."},
+        {kind:"move", id:"suckerpunch", label:"Sucker Punch", type:"Dark",
+          rationale:"Priority but Dragonite likely Dragon Dances — fails on setup."},
+      ],
+      outcome:"CHIP", outcomeText:"neutral STAB — codex CLI killed mid-decision",
+      audit:"?"
+    },
+  ],
+  // Type chart subset for the lens widget (matches dex.js).
+  type_chart: {
+    Normal:   {sup:[],                                   res:["Rock","Steel"],                          imm:["Ghost"]},
+    Fire:     {sup:["Grass","Ice","Bug","Steel"],         res:["Fire","Water","Rock","Dragon"],          imm:[]},
+    Water:    {sup:["Fire","Ground","Rock"],              res:["Water","Grass","Dragon"],                imm:[]},
+    Electric: {sup:["Water","Flying"],                    res:["Electric","Grass","Dragon"],             imm:["Ground"]},
+    Grass:    {sup:["Water","Ground","Rock"],             res:["Fire","Grass","Poison","Flying","Bug","Dragon","Steel"], imm:[]},
+    Ice:      {sup:["Grass","Ground","Flying","Dragon"],  res:["Fire","Water","Ice","Steel"],            imm:[]},
+    Fighting: {sup:["Normal","Ice","Rock","Dark","Steel"], res:["Poison","Flying","Psychic","Bug","Fairy"], imm:["Ghost"]},
+    Poison:   {sup:["Grass","Fairy"],                     res:["Poison","Ground","Rock","Ghost"],        imm:["Steel"]},
+    Ground:   {sup:["Fire","Electric","Poison","Rock","Steel"], res:["Grass","Bug"],                     imm:["Flying"]},
+    Flying:   {sup:["Grass","Fighting","Bug"],            res:["Electric","Rock","Steel"],               imm:[]},
+    Psychic:  {sup:["Fighting","Poison"],                 res:["Psychic","Steel"],                       imm:["Dark"]},
+    Bug:      {sup:["Grass","Psychic","Dark"],            res:["Fire","Fighting","Poison","Flying","Ghost","Steel","Fairy"], imm:[]},
+    Rock:     {sup:["Fire","Ice","Flying","Bug"],         res:["Fighting","Ground","Steel"],             imm:[]},
+    Ghost:    {sup:["Psychic","Ghost"],                   res:["Dark"],                                  imm:["Normal"]},
+    Dragon:   {sup:["Dragon"],                            res:["Steel"],                                 imm:["Fairy"]},
+    Dark:     {sup:["Psychic","Ghost"],                   res:["Fighting","Dark","Fairy"],               imm:[]},
+    Steel:    {sup:["Ice","Rock","Fairy"],                res:["Fire","Water","Electric","Steel"],       imm:[]},
+    Fairy:    {sup:["Fighting","Dragon","Dark"],          res:["Fire","Poison","Steel"],                 imm:[]},
+  },
+};

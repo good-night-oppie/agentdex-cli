@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arena2d v4 · focus plane + neuron-core mind readout</title>
+<link rel="stylesheet" href="v4.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1 class="sr-only">AgentDex Arena2D — codex decision replay (gen9oulongtimer-11097461)</h1>
+  <div class="brand">AGENTDEX · ARENA2D <span class="v">v4 · focus plane</span></div>
+  <span class="pill"><span>agent</span><b id="m-agent">adx-bot-1</b></span>
+  <span class="pill acc"><span>elo</span><b id="m-elo">1000</b></span>
+  <span class="pill"><span>turns</span><b id="m-turns">8</b></span>
+  <span class="pill"><span>tokens</span><b id="m-tokens">132.4K</b></span>
+  <span class="pill"><span>cost</span><b id="m-cost">$0.034</b></span>
+  <span class="gap"></span>
+  <span class="acl spectator" id="acl-badge">SPECTATOR · public projection</span>
+</header>
+
+<main class="v4">
+  <!-- ============ TOP ROW: viewer | vertical tree ============ -->
+  <div class="toprow">
+    <section class="left">
+      <div class="viewport" id="viewport">
+        <div class="turn-tag" id="vp-turn">DEC 1 · TURN 1</div>
+        <div class="vp-ctrl" id="vp-ctrl">
+          <span class="live-dot"></span>
+          <button id="vp-play" title="play / pause auto-cadence">⏸</button>
+          <button class="spd" id="vp-spd-btn" type="button" title="cycle cadence speed (1× / 2× / 0.5×)" aria-label="cycle playback cadence speed">cadence <b id="vp-spd">1×</b></button>
+        </div>
+        <div class="slot opp">
+          <div class="hud"><div class="row"><span class="nm" id="opp-nm">Tinkaton</span><span class="lv">Lv80</span></div>
+            <div class="bar" id="opp-bar"><i style="width:100%"></i></div><div class="hp-num" id="opp-hp">100%</div></div>
+          <img id="opp-img" alt="" src="https://play.pokemonshowdown.com/sprites/ani/tinkaton.gif">
+        </div>
+        <div class="slot you">
+          <div class="hud"><div class="row"><span class="nm" id="you-nm">Iron Valiant</span><span class="lv">Lv80</span></div>
+            <div class="bar" id="you-bar"><i style="width:100%"></i></div><div class="hp-num" id="you-hp">100%</div></div>
+          <img id="you-img" alt="" src="https://play.pokemonshowdown.com/sprites/ani-back/ironvaliant.gif">
+        </div>
+        <div class="banner" id="vp-banner">
+          <div class="cap-head" id="cap-head"></div>
+          <div class="cap-sub" id="cap-sub"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="tree-pane">
+      <div class="tree-head">
+        <div><h2 class="tree-h">Decision Tree</h2><div class="sub">focus slides to the window ▾ · its mind readout expands below</div></div>
+        <div class="tree-tools"><button id="exp-all">expand all</button><button id="col-all">collapse</button></div>
+      </div>
+      <div class="vtree" id="vtree"></div>
+      <div class="focus-rail" id="focus-rail">▼ <b id="fr-turn">TURN 1</b> · mind readout below</div>
+    </aside>
+  </div>
+
+  <!-- ============ FIXED HORIZONTAL PLANE: neuron-core mind readout (lens over current turn) ============ -->
+  <section class="focus-plane" id="focus-plane">
+    <div class="mr-head">
+      <span class="mr-dot"></span>
+      <h2>MIND READOUT</h2>
+      <span class="lens-tag" id="lens-tag">⊙ lens · turn <b id="lens-turn">1</b></span>
+      <span class="key d">derived · dex.js</span>
+      <span class="key r">real · codex_decide</span>
+      <span class="mr-flow">inputs → candidate fan → firing core → chosen</span>
+      <span class="mr-turn">TURN <b id="mr-turn">1</b> · decision <b id="mr-dec">1</b> of 8</span>
+      <span class="prov-badge live" id="mr-prov">[LIVE · codex CLI]</span>
+    </div>
+
+    <!-- mr-body: shrunk team rail (left) + neuron-core graph (right), combined horizontally -->
+    <div class="mr-body">
+    <aside class="team-rail" id="team-rail">
+      <div class="tr-head">Team · adx-bot-1</div>
+      <div class="tr-grid" id="team-grid"></div>
+      <div class="tr-opp">opp revealed<br><span id="opp-rev"></span></div>
+    </aside>
+    <div class="mr-main">
+
+    <div class="graph" id="graph">
+      <svg class="wires" id="wires" preserveAspectRatio="none">
+        <defs><linearGradient id="axong" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#b98cff"/>
+        </linearGradient></defs>
+      </svg>
+
+      <div class="col" id="colIn">
+        <div class="coltitle r">inputs · real</div>
+        <div class="node opp" id="nOpp">
+          <span class="realtag">log</span>
+          <div class="nl">opponent active</div>
+          <div class="nm" id="in-opp-nm">Tinkaton</div>
+          <div class="types" id="in-opp-ty"></div>
+          <div class="hpline"><div class="hpbar"><i id="in-opp-hp" style="width:100%"></i></div><span class="pct" id="in-opp-pct">100%</span></div>
+        </div>
+        <div class="node you" id="nYou">
+          <span class="realtag">log</span>
+          <div class="nl">our active</div>
+          <div class="nm" id="in-you-nm">Iron Valiant</div>
+          <div class="types" id="in-you-ty"></div>
+          <div class="hpline"><div class="hpbar"><i id="in-you-hp" style="width:100%"></i></div><span class="pct" id="in-you-pct">100%</span></div>
+        </div>
+        <div class="node field" id="nField">
+          <div class="nl">field</div>
+          <div class="fld" id="in-field">no hazards · no weather</div>
+        </div>
+      </div>
+
+      <div class="midcol" id="colFan">
+        <div class="coltitle d">candidate fan <span class="illus">illustrative · pending codex_decide capture</span></div>
+        <div class="fan" id="fan"></div>
+      </div>
+
+      <div class="reactor" id="colCore">
+        <div class="rxlabel">integrate → codex pick</div>
+        <div class="ringpulse"></div>
+        <div class="core" id="nCore"><div class="cw" id="core-w">3.0</div><div class="cl" id="core-l">fire ▸</div></div>
+        <div class="threatchip" id="core-threat">argmax over derived weights</div>
+        <div class="diverge" id="core-diverge"></div>
+      </div>
+
+      <div class="col" id="colOut">
+        <div class="coltitle r">chosen action · real</div>
+        <div class="out" id="nOut">
+          <div class="fire-h"><span class="arr">▶</span> <span id="out-act">Stone Edge</span> <span class="into" id="out-into">into Tinkaton</span></div>
+          <div class="ratio" id="out-ratio"></div>
+          <div class="outcome" id="out-outcome"></div>
+          <div class="out-audit"><span class="au-slot" id="out-audit">[?] audit · verifier slot reserved</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ticker" id="ticker"></div>
+    </div><!-- /mr-main -->
+    </div><!-- /mr-body -->
+
+    <div class="footnote">
+      <span class="r">Inputs</span> (opponent, our active, HP, types, field) are read from the battle log.
+      <span class="d">Derived</span> per-candidate weights (type× · STAB via <code>dex.js</code>) + the firing core's argmax are
+      <b>our</b> reconstruction — the graph shows the field codex decided in, not a claim it computed these scores.
+      The <span class="r">chosen action + rationale</span> is verbatim <code>codex_decide</code> output.
+      The <span class="il">candidate fan is illustrative · pending codex_decide top-k capture</span> — the live log only records the
+      move codex picked. When codex's pick is <b>not</b> the damage-max, that divergence is real signal: codex weighs hazards /
+      pivots / long-game that a type-score proxy can't see. Outcome chips are stamped only after the move resolved.
+    </div>
+  </section>
+
+  <!-- A3 lens connector: drawn from the focused turn's focus-rail down into the readout lens-tag -->
+  <svg class="lens-connector" id="lens-connector" aria-hidden="true"></svg>
+</main>
+
+<footer class="botbar">
+  <div class="tokens-row">
+    <span class="lab">Tokens</span><span class="total" id="tk-total">132,435</span>
+    <div class="tokens-bar"><div class="seg cached" id="tk-cached"></div><div class="seg uncached" id="tk-uncached"></div><div class="seg completion" id="tk-completion"></div></div>
+    <span class="cost" id="tk-cost">$0.034</span>
+  </div>
+  <div class="tokens-legend">
+    <span><span class="sw cached"></span>cached <b id="tk-cached-n">89,821</b></span>
+    <span><span class="sw uncached"></span>uncached <b id="tk-uncached-n">36,006</b></span>
+    <span><span class="sw completion"></span>completion <b id="tk-completion-n">6,608</b></span>
+  </div>
+  <div class="prov-row">
+    <span><span class="k">fused_replay_hash:</span> <span class="v mono" id="pv-fused"></span></span>
+    <span><span class="k">prompt_hash:</span> <span class="v mono" id="pv-prompt"></span></span>
+    <span><span class="k">signed by:</span> <span class="v" id="pv-signed">adx-bot-1</span></span>
+    <span><span class="k">result:</span> <span class="result" id="pv-result"></span></span>
+    <a class="replay-link" id="pv-replay" href="#" target="_blank">↗ open raw PAC replay</a>
+  </div>
+</footer>
+
+<script src="data.js"></script>
+<script src="v4.js"></script>
+<script src="v4-tree.js"></script>
+</body>
+</html>
