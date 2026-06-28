@@ -26,3 +26,11 @@ adx = "agentdex_cli.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentdex_cli"]
+
+# Bundle the arena2d browser viewer INTO the wheel so `adx arena play --ui` works out
+# of the box from a `pip install`ed wheel — the assets live at the repo-root `web/arena2d`
+# (single source of truth, also served by the dev site), and hatch copies them here at
+# build time as `agentdex_cli/arena2d/` (PR #614 review: packaged CLI must not require a
+# separate repo checkout + ADX_ARENA2D_DIR). `find_arena2d_dir` resolves this copy.
+[tool.hatch.build.targets.wheel.force-include]
+"../../web/arena2d" = "agentdex_cli/arena2d"
