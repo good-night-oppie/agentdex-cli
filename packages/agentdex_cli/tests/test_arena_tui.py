@@ -380,3 +380,56 @@ def test_default_arena_base_is_a_live_https_host(monkeypatch) -> None:
     monkeypatch.setenv("ADX_ARENA_URL", "https://adx-arena-url")
     assert resolve_base() == "https://adx-arena-url"  # ADX_ARENA_URL wins over ARENA_BASE
     assert resolve_base("https://explicit") == "https://explicit"  # explicit arg wins over all
+
+
+class _FakeUiServer:
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def test_play_ui_flag_starts_holds_and_stops_server(monkeypatch) -> None:
+    # Regression guard for the lifecycle: --ui must CAPTURE the started server so it
+    # is both held (post-battle replay) and stopped (finally). A discarded return
+    # value (the bug a formatter autofix can reintroduce) leaves ui_server=None, so
+    # neither _hold_ui nor stop() fires — and this test fails.
+    fake = _FakeClient()
+    ui = _FakeUiServer()
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: fake)
+    monkeypatch.setattr(
+        arena_tui, "_resolve_token", lambda client, args, console: ("tok", _FakeIdentity())
+    )
+    monkeypatch.setattr(arena_tui, "_prompt_choice", lambda console, n: 2)
+
+    def _fake_start_ui(console, base, battle_id):
+        calls["started"] = (base, battle_id)
+        return ui
+
+    monkeypatch.setattr(arena_tui, "_start_ui", _fake_start_ui)
+    monkeypatch.setattr(
+        arena_tui, "_hold_ui", lambda console, server: calls.__setitem__("held", server)
+    )
+
+    rc = arena_tui.cmd_arena_play(["--token", "tok", "--ui"])
+    assert rc == 0
+    assert calls["started"] == ("https://example.test", "sandbox-loop")
+    assert calls["held"] is ui
+    assert ui.stopped is True
+
+
+def test_play_without_ui_flag_never_starts_server(monkeypatch) -> None:
+    fake = _FakeClient()
+    started: list[object] = []
+    monkeypatch.setattr(arena_tui, "ArenaClient", lambda *a, **k: fake)
+    monkeypatch.setattr(
+        arena_tui, "_resolve_token", lambda client, args, console: ("tok", _FakeIdentity())
+    )
+    monkeypatch.setattr(arena_tui, "_prompt_choice", lambda console, n: 2)
+    monkeypatch.setattr(arena_tui, "_start_ui", lambda *a: started.append(a))
+
+    rc = arena_tui.cmd_arena_play(["--token", "tok"])
+    assert rc == 0
+    assert started == []  # no --ui -> the browser UI is never started
