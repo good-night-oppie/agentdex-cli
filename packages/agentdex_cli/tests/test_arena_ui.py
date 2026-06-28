@@ -17,8 +17,21 @@ from agentdex_cli.arena_ui import (
     ArenaUiServer,
     _LiveBuffer,
     find_arena2d_dir,
+    live_stream_request,
     parse_sse_events,
 )
+
+
+def test_live_stream_request_uses_owner_stream_with_bearer_when_token_present():
+    url, headers = live_stream_request("http://arena.test/", "b1", "tok-abc")
+    assert url == "http://arena.test/me/battle/b1/live"  # AUTHENTICATED owner stream
+    assert headers == {"Authorization": "Bearer tok-abc"}  # own-side fog-of-war preserved
+
+
+def test_live_stream_request_falls_back_to_public_spectator_without_token():
+    url, headers = live_stream_request("http://arena.test", "b1", None)
+    assert url == "http://arena.test/battle/b1/live"  # PUBLIC spectator stream
+    assert headers == {}  # unauthenticated by design
 
 
 def test_parse_sse_events_yields_data_and_end():

@@ -2,15 +2,20 @@
 
 Serves the static arena2d viewer (``web/arena2d/``, unmodified on disk) on a local
 port and exposes ``/live.json`` — a PS-replay-shaped snapshot of the in-progress
-battle's raw Showdown protocol LOG. A background thread tails the arena's PUBLIC
-*spectator* stream (``GET /battle/{id}/live``), whose per-frame ``lines`` are exactly
-the raw protocol arena2d animates, and appends them to a buffer.
+battle's raw Showdown protocol LOG. A background thread tails the arena's live SSE
+stream, whose per-frame ``lines`` are exactly the raw protocol arena2d animates, and
+appends them to a buffer.
 
 Design notes:
 - The BROWSER only ever talks to this local server (same-origin, no auth). The
   arena-side connection lives in the Python bridge thread, so no bearer token is
-  ever exposed to the page. We use the UNAUTHENTICATED spectator stream, so even
-  the bridge needs no token.
+  ever exposed to the page.
+- For the LOCAL player watching their OWN battle we tail the AUTHENTICATED owner
+  stream (``GET /me/battle/{id}/live``) with the bearer token attached *server-side*
+  in the bridge thread, so the viewer keeps the owner's own-side fog-of-war
+  (``|split|`` private lines) instead of the public spectator projection's HP-%
+  downgrade (PR #614 review). When no token is available we fall back to the PUBLIC
+  spectator stream (``GET /battle/{id}/live``), which is unauthenticated by design.
 - We do NOT edit any arena2d asset. ``web/arena2d/index.html`` already ships
   ``trace-loader.js``, which — given ``?trace=<url>`` — fetches a PS-replay-shaped
   doc (``{log, decisions}``), installs it as ``window.__ARENA2D_DATA``, then boots
@@ -108,6 +113,21 @@ def parse_sse_events(lines: Iterable[str]) -> Iterator[tuple[str, Any]]:
         yield event, _decode(data_parts)
 
 
+def live_stream_request(
+    arena_base: str, battle_id: str, token: str | None
+) -> tuple[str, dict[str, str]]:
+    """The (url, headers) the bridge tails for this battle. With a ``token`` it is the
+    AUTHENTICATED owner stream ``/me/battle/{id}/live`` + a server-side ``Authorization:
+    Bearer`` header (own-side fog-of-war preserved); without one it is the PUBLIC
+    spectator stream ``/battle/{id}/live`` (no auth). Pure, so the selection is unit-
+    testable without a live arena. The header never reaches the browser — the page only
+    talks to the local server."""
+    base = arena_base.rstrip("/")
+    if token:
+        return f"{base}/me/battle/{battle_id}/live", {"Authorization": f"Bearer {token}"}
+    return f"{base}/battle/{battle_id}/live", {}
+
+
 class _LiveBuffer:
     """Thread-safe accumulator of the raw protocol ``lines`` seen across SSE frames.
 
@@ -164,10 +184,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
 class ArenaUiServer:
     """Serves arena2d + ``/live.json`` and bridges the arena spectator SSE into it."""
 
-    def __init__(self, web_dir: Path, arena_base: str, battle_id: str) -> None:
+    def __init__(
+        self, web_dir: Path, arena_base: str, battle_id: str, token: str | None = None
+    ) -> None:
         self.web_dir = Path(web_dir)
         self.arena_base = arena_base.rstrip("/")
         self.battle_id = battle_id
+        self.token = token  # owner stream + Bearer when set; public spectator when None
         self.buf = _LiveBuffer(battle_id)
         self.url = ""
         self._httpd: http.server.ThreadingHTTPServer | None = None
@@ -201,17 +224,20 @@ class ArenaUiServer:
         return self.url
 
     def _bridge(self) -> None:
-        """Tail the PUBLIC spectator SSE and ingest each frame's protocol lines.
+        """Tail the live SSE (owner stream with the bearer token when set, else the
+        public spectator stream) and ingest each frame's protocol lines.
 
         Best-effort: any network/parse failure ends the bridge quietly (the buffer
-        keeps whatever it captured; the page still renders that prefix). No token is
-        sent — the spectator stream is unauthenticated by design."""
-        live_url = f"{self.arena_base}/battle/{self.battle_id}/live"
+        keeps whatever it captured; the page still renders that prefix). The bearer
+        header is sent ONLY on the arena-side connection — never to the browser."""
+        live_url, headers = live_stream_request(self.arena_base, self.battle_id, self.token)
         # read=None on purpose: a human battle is SILENT between turns (the gateway
         # sends no heartbeat), so a finite read timeout would drop the stream mid-match.
         # stop() instead closes self._resp to unblock a parked read promptly.
         try:
-            with httpx.stream("GET", live_url, timeout=httpx.Timeout(10.0, read=None)) as resp:
+            with httpx.stream(
+                "GET", live_url, headers=headers, timeout=httpx.Timeout(10.0, read=None)
+            ) as resp:
                 self._resp = resp
                 if resp.status_code != 200:
                     return

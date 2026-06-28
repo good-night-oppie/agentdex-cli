@@ -279,12 +279,14 @@ def _effective_agent_name(args: argparse.Namespace) -> str:
     return args.agent
 
 
-def _start_ui(console: Any, arena_base: str, battle_id: str) -> Any:
+def _start_ui(console: Any, arena_base: str, battle_id: str, token: str | None = None) -> Any:
     """Start the local arena2d browser UI for this battle and print its URL.
 
     Best-effort: returns the running ``ArenaUiServer``, or ``None`` if the arena2d
     assets are missing or the server fails to start (the battle proceeds either way).
-    The browser talks ONLY to this local server; the spectator bridge needs no token."""
+    The browser talks ONLY to this local server; the bearer ``token`` (when given) is
+    used server-side by the bridge to tail the OWNER stream so the viewer keeps the
+    player's own-side fog-of-war — it is never exposed to the page."""
     from agentdex_cli.arena_ui import ArenaUiServer, find_arena2d_dir
 
     web_dir = find_arena2d_dir()
@@ -295,7 +297,7 @@ def _start_ui(console: Any, arena_base: str, battle_id: str) -> Any:
         )
         return None
     try:
-        server = ArenaUiServer(web_dir, arena_base, battle_id)
+        server = ArenaUiServer(web_dir, arena_base, battle_id, token=token)
         url = server.start()
     except Exception as e:  # noqa: BLE001 — the UI is a bonus, never block the battle
         console.print(f"[yellow]--ui: failed to start ({e}); continuing without it.[/yellow]")
@@ -388,7 +390,7 @@ def cmd_arena_play(argv: list[str]) -> int:
             # otherwise KeyError on state["battle_id"] after the first choice).
             battle_id = state["battle_id"]
             if args.ui:
-                ui_server = _start_ui(console, client.base, battle_id)
+                ui_server = _start_ui(console, client.base, battle_id, token=token)
             while state.get("status") != "ended":
                 _render_turn(console, state)
                 n = int(state.get("n_choices") or 0)
