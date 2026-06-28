@@ -15,8 +15,8 @@ window.A2D_V2_DATA = {
     format: "gen9oulongtimer",
     replay_id: "gen9oulongtimer-11097461",
     replay_url: "https://replays.pokeagentchallenge.com/replay/gen9oulongtimer-11097461",
-    fused_hash: "3f8a91c20e7b4d12",  // mock fused-replay BLAKE3 prefix
-    prompt_hash: "9d62e4c188a07f6f", // mock prompt template hash
+    fused_hash: "3f8a91c20e7b4d12",  // pragma: allowlist secret (mock fused-replay BLAKE3 prefix)
+    prompt_hash: "9d62e4c188a07f6f", // pragma: allowlist secret (mock prompt template hash)
     llm: "codex CLI v0.142.2",
     tokens: { cached: 89821, uncached: 36006, completion: 6608 },
     cost_usd: 0.034,
