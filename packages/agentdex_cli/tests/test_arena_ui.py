@@ -9,7 +9,10 @@ it cannot connect, which is exactly what the serve test exercises.
 
 from __future__ import annotations
 
+import http.server
 import json
+import threading
+import time
 import urllib.request
 from urllib.parse import urlsplit
 
@@ -18,21 +21,25 @@ from agentdex_cli.arena_ui import (
     ArenaUiServer,
     _LiveBuffer,
     find_arena2d_dir,
-    live_stream_request,
+    live_stream_candidates,
     parse_sse_events,
 )
 
 
-def test_live_stream_request_uses_owner_stream_with_bearer_when_token_present():
-    url, headers = live_stream_request("http://arena.test/", "b1", "tok-abc")
-    assert url == "http://arena.test/me/battle/b1/live"  # AUTHENTICATED owner stream
-    assert headers == {"Authorization": "Bearer tok-abc"}  # own-side fog-of-war preserved
+def test_live_stream_candidates_tries_owner_then_public_with_token():
+    cands = live_stream_candidates("http://arena.test/", "b1", "tok-abc")
+    assert cands == [
+        # 1st: AUTHENTICATED owner stream (own-side fog-of-war) with the bearer header
+        ("http://arena.test/me/battle/b1/live", {"Authorization": "Bearer tok-abc"}),
+        # 2nd: PUBLIC spectator fallback — the CLI consent token 403s on the owner stream,
+        # so the viewer falls back to the public projection instead of staying empty.
+        ("http://arena.test/battle/b1/live", {}),
+    ]
 
 
-def test_live_stream_request_falls_back_to_public_spectator_without_token():
-    url, headers = live_stream_request("http://arena.test", "b1", None)
-    assert url == "http://arena.test/battle/b1/live"  # PUBLIC spectator stream
-    assert headers == {}  # unauthenticated by design
+def test_live_stream_candidates_is_public_only_without_token():
+    cands = live_stream_candidates("http://arena.test", "b1", None)
+    assert cands == [("http://arena.test/battle/b1/live", {})]  # PUBLIC, unauthenticated
 
 
 def test_parse_sse_events_yields_data_and_end():
@@ -124,3 +131,58 @@ def test_server_serves_static_and_live_json(tmp_path):
         assert doc == {"log": "|turn|1", "decisions": []}
     finally:
         server.stop()
+
+
+def test_bridge_falls_back_to_public_spectator_when_owner_stream_403s(tmp_path):
+    # PR #615 review: the CLI play path holds a *consent* token, but /me/battle/{id}/live is
+    # session-authed and 403s it. The bridge must fall back to the PUBLIC /battle/{id}/live
+    # spectator stream instead of leaving the viewer empty.
+    web = tmp_path / "web" / "arena2d"
+    web.mkdir(parents=True)
+    (web / "index.html").write_text("<title>arena2d</title>")
+
+    hits: list[str] = []
+
+    class _ArenaStub(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 — http.server API
+            hits.append(self.path)
+            if self.path == "/me/battle/b1/live":  # owner stream rejects the consent token
+                self.send_response(403)
+                self.end_headers()
+                return
+            if self.path == "/battle/b1/live":  # public spectator: a tiny SSE then end
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.end_headers()
+                self.wfile.write(
+                    b'data: {"lines": ["|turn|1", "|move|p1a: Pikachu|Thunderbolt"]}\n\n'
+                )
+                self.wfile.write(b"event: end\ndata: {}\n\n")
+                self.wfile.flush()
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, *args):  # silence stdlib request logging
+            pass
+
+    stub = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _ArenaStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    stub_base = f"http://127.0.0.1:{stub.server_address[1]}"
+    # A consent token is present, so the bridge tries the owner stream FIRST (403) then falls back.
+    server = ArenaUiServer(web, stub_base, "b1", token="consent-tok")
+    server.start()
+    try:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline and not server.buf.trace_doc()["log"]:
+            time.sleep(0.02)
+        assert server.buf.trace_doc() == {
+            "log": "|turn|1\n|move|p1a: Pikachu|Thunderbolt",
+            "decisions": [],
+        }
+        assert "/me/battle/b1/live" in hits  # owner stream was tried first
+        assert "/battle/b1/live" in hits  # then fell back to the public spectator stream
+    finally:
+        server.stop()
+        stub.shutdown()
+        stub.server_close()

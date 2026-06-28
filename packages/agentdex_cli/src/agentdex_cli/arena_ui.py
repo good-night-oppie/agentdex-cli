@@ -10,12 +10,15 @@ Design notes:
 - The BROWSER only ever talks to this local server (same-origin, no auth). The
   arena-side connection lives in the Python bridge thread, so no bearer token is
   ever exposed to the page.
-- For the LOCAL player watching their OWN battle we tail the AUTHENTICATED owner
+- For the LOCAL player watching their OWN battle we first try the AUTHENTICATED owner
   stream (``GET /me/battle/{id}/live``) with the bearer token attached *server-side*
   in the bridge thread, so the viewer keeps the owner's own-side fog-of-war
   (``|split|`` private lines) instead of the public spectator projection's HP-%
-  downgrade (PR #614 review). When no token is available we fall back to the PUBLIC
-  spectator stream (``GET /battle/{id}/live``), which is unauthenticated by design.
+  downgrade (PR #614 review). We fall back to the PUBLIC spectator stream
+  (``GET /battle/{id}/live``, unauthenticated) when there is no token OR when the owner
+  stream rejects it — the CLI play path holds a 7-day *consent* token, which the
+  session-authed owner stream 403s, so the fallback is what keeps ``--ui`` from showing
+  an empty viewer for normal players (PR #615 review).
 - We do NOT edit any arena2d asset. ``web/arena2d/index.html`` already ships
   ``trace-loader.js``, which — given ``?trace=<url>`` — fetches a PS-replay-shaped
   doc (``{log, decisions}``), installs it as ``window.__ARENA2D_DATA``, then boots
@@ -124,19 +127,27 @@ def parse_sse_events(lines: Iterable[str]) -> Iterator[tuple[str, Any]]:
         yield event, _decode(data_parts)
 
 
-def live_stream_request(
+def live_stream_candidates(
     arena_base: str, battle_id: str, token: str | None
-) -> tuple[str, dict[str, str]]:
-    """The (url, headers) the bridge tails for this battle. With a ``token`` it is the
-    AUTHENTICATED owner stream ``/me/battle/{id}/live`` + a server-side ``Authorization:
-    Bearer`` header (own-side fog-of-war preserved); without one it is the PUBLIC
-    spectator stream ``/battle/{id}/live`` (no auth). Pure, so the selection is unit-
-    testable without a live arena. The header never reaches the browser — the page only
-    talks to the local server."""
+) -> list[tuple[str, dict[str, str]]]:
+    """The ordered ``(url, headers)`` live streams the bridge tries for this battle.
+
+    With a ``token`` the FIRST candidate is the AUTHENTICATED owner stream
+    ``/me/battle/{id}/live`` + a server-side ``Authorization: Bearer`` header (own-side
+    fog-of-war: the owner's own ``|split|`` private lines), and the PUBLIC spectator stream
+    ``/battle/{id}/live`` (no auth, public HP-% projection) is the FALLBACK. The owner stream
+    is session-authed (``verify_session``), but the CLI play path holds a 7-day *consent*
+    token, which that endpoint rejects with 403 — so without the fallback ``--ui`` would show
+    an empty viewer for normal / ``--token`` users (PR #615 review). Without a token the only
+    candidate is the public spectator stream. Pure, so the ordering is unit-testable without a
+    live arena. The bearer header never reaches the browser — the page only talks to the local
+    server."""
     base = arena_base.rstrip("/")
+    public = (f"{base}/battle/{battle_id}/live", {})
     if token:
-        return f"{base}/me/battle/{battle_id}/live", {"Authorization": f"Bearer {token}"}
-    return f"{base}/battle/{battle_id}/live", {}
+        owner = (f"{base}/me/battle/{battle_id}/live", {"Authorization": f"Bearer {token}"})
+        return [owner, public]
+    return [public]
 
 
 class _LiveBuffer:
@@ -235,34 +246,43 @@ class ArenaUiServer:
         return self.url
 
     def _bridge(self) -> None:
-        """Tail the live SSE (owner stream with the bearer token when set, else the
-        public spectator stream) and ingest each frame's protocol lines.
+        """Tail the live SSE and ingest each frame's protocol lines.
 
-        Best-effort: any network/parse failure ends the bridge quietly (the buffer
-        keeps whatever it captured; the page still renders that prefix). The bearer
-        header is sent ONLY on the arena-side connection — never to the browser."""
-        live_url, headers = live_stream_request(self.arena_base, self.battle_id, self.token)
-        # read=None on purpose: a human battle is SILENT between turns (the gateway
-        # sends no heartbeat), so a finite read timeout would drop the stream mid-match.
-        # stop() instead closes self._resp to unblock a parked read promptly.
-        try:
-            with httpx.stream(
-                "GET", live_url, headers=headers, timeout=httpx.Timeout(10.0, read=None)
-            ) as resp:
-                self._resp = resp
-                if resp.status_code != 200:
-                    return
-                for event, data in parse_sse_events(resp.iter_lines()):
-                    if self._stop.is_set():
-                        return
-                    if event == "end":
-                        self.buf.ended = True
-                        return
-                    self.buf.ingest(data)
-        except Exception as e:  # noqa: BLE001 — best-effort; a closed stream lands here on stop()
-            _log.debug("arena2d spectator bridge ended: %s", e)
-        finally:
-            self._resp = None
+        Tries the owner stream first (own-side fog-of-war) and falls back to the public
+        spectator stream when the owner stream rejects the token — the CLI play path holds a
+        consent token, which the session-authed owner stream 403s — or is otherwise
+        unavailable (PR #615 review). Best-effort: any network/parse failure ends the bridge
+        quietly (the buffer keeps whatever it captured; the page still renders that prefix).
+        The bearer header is sent ONLY on the arena-side connection — never to the browser."""
+        # read=None on purpose: a human battle is SILENT between turns (the gateway sends no
+        # heartbeat), so a finite read timeout would drop the stream mid-match. stop() instead
+        # closes self._resp to unblock a parked read promptly.
+        candidates = live_stream_candidates(self.arena_base, self.battle_id, self.token)
+        for live_url, headers in candidates:
+            if self._stop.is_set():
+                return
+            try:
+                with httpx.stream(
+                    "GET", live_url, headers=headers, timeout=httpx.Timeout(10.0, read=None)
+                ) as resp:
+                    self._resp = resp
+                    if resp.status_code != 200:
+                        # e.g. owner stream 401/403/503 for a consent token: try the next
+                        # candidate (public spectator) instead of leaving the viewer empty.
+                        continue
+                    for event, data in parse_sse_events(resp.iter_lines()):
+                        if self._stop.is_set():
+                            return
+                        if event == "end":
+                            self.buf.ended = True
+                            return
+                        self.buf.ingest(data)
+                    return  # a 200 stream ended without an explicit end frame — do not retry
+            except Exception as e:  # noqa: BLE001 — best-effort; a closed stream lands here on stop()
+                _log.debug("arena2d live bridge ended: %s", e)
+                return  # connection error (same host for every candidate): do not thrash
+            finally:
+                self._resp = None
 
     def stop(self) -> None:
         """Stop the SSE bridge and shut the local server down (idempotent)."""
