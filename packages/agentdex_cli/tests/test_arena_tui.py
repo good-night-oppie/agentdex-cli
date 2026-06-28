@@ -404,8 +404,8 @@ def test_play_ui_flag_starts_holds_and_stops_server(monkeypatch) -> None:
     )
     monkeypatch.setattr(arena_tui, "_prompt_choice", lambda console, n: 2)
 
-    def _fake_start_ui(console, base, battle_id):
-        calls["started"] = (base, battle_id)
+    def _fake_start_ui(console, base, battle_id, token=None):
+        calls["started"] = (base, battle_id, token)
         return ui
 
     monkeypatch.setattr(arena_tui, "_start_ui", _fake_start_ui)
@@ -415,7 +415,9 @@ def test_play_ui_flag_starts_holds_and_stops_server(monkeypatch) -> None:
 
     rc = arena_tui.cmd_arena_play(["--token", "tok", "--ui"])
     assert rc == 0
-    assert calls["started"] == ("https://example.test", "sandbox-loop")
+    # The owner's bearer token is threaded into --ui so the viewer tails the OWNER
+    # stream (own-side fog-of-war), not the public spectator projection (PR #615).
+    assert calls["started"] == ("https://example.test", "sandbox-loop", "tok")
     assert calls["held"] is ui
     assert ui.stopped is True
 
