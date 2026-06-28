@@ -51,15 +51,26 @@ _log = logging.getLogger(__name__)
 def find_arena2d_dir() -> Path | None:
     """Locate the on-disk ``web/arena2d`` viewer directory, or ``None``.
 
-    ``ADX_ARENA2D_DIR`` wins when set (and points at a dir with an ``index.html``).
-    Otherwise walk up from the CWD and from this module's install location looking
-    for ``web/arena2d/index.html`` — so it resolves both when run from the repo root
-    and from inside the package tree. ``None`` when nothing matches (the caller then
-    degrades gracefully and runs the battle without the browser UI)."""
+    Resolution order:
+
+    1. ``ADX_ARENA2D_DIR`` wins when set (and points at a dir with an ``index.html``).
+    2. The copy bundled *inside* the installed package (``agentdex_cli/arena2d/``) — hatch
+       ``force-include``s ``web/arena2d`` there at wheel-build time, so ``adx arena play
+       --ui`` works out of the box from a ``pip install``ed wheel with no repo checkout
+       and no env override (PR #614 review).
+    3. A walk up from the CWD and from this module's location looking for
+       ``web/arena2d/index.html`` — covers a source checkout / editable install, where the
+       bundled copy does not exist on disk but the repo-root ``web/arena2d`` does.
+
+    ``None`` when nothing matches (the caller then degrades gracefully and runs the battle
+    without the browser UI)."""
     env = os.environ.get("ADX_ARENA2D_DIR")
     if env:
         p = Path(env).expanduser()
         return p if (p / "index.html").is_file() else None
+    packaged = Path(__file__).resolve().parent / "arena2d"
+    if (packaged / "index.html").is_file():
+        return packaged
     seen: set[Path] = set()
     for anchor in (Path.cwd(), Path(__file__).resolve().parent):
         cur = anchor

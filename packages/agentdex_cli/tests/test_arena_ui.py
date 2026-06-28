@@ -13,6 +13,7 @@ import json
 import urllib.request
 from urllib.parse import urlsplit
 
+from agentdex_cli import arena_ui
 from agentdex_cli.arena_ui import (
     ArenaUiServer,
     _LiveBuffer,
@@ -77,6 +78,24 @@ def test_find_arena2d_dir_honors_env_override(tmp_path, monkeypatch):
     # Pointing at a dir without an index.html resolves to None (no silent half-serve).
     monkeypatch.setenv("ADX_ARENA2D_DIR", str(tmp_path / "missing"))
     assert find_arena2d_dir() is None
+
+
+def test_find_arena2d_dir_resolves_packaged_copy(tmp_path, monkeypatch):
+    # Simulate an installed wheel: hatch force-include drops web/arena2d next to the module
+    # as agentdex_cli/arena2d/. With no env override and a CWD that has no web/arena2d, only
+    # the packaged-copy branch can match — so --ui works from a pip-installed wheel with no
+    # repo checkout (PR #614 review).
+    pkg = tmp_path / "agentdex_cli"
+    (pkg / "arena2d").mkdir(parents=True)
+    (pkg / "arena2d" / "index.html").write_text("<title>arena2d</title>")
+    monkeypatch.delenv("ADX_ARENA2D_DIR", raising=False)
+    monkeypatch.setattr(arena_ui, "__file__", str(pkg / "arena_ui.py"))
+    monkeypatch.chdir(tmp_path)  # no web/arena2d here → rules out the walk branch
+    found = find_arena2d_dir()
+    assert found is not None
+    assert found.name == "arena2d"
+    assert (found / "index.html").is_file()
+    assert found.resolve() == (pkg / "arena2d").resolve()
 
 
 def test_server_serves_static_and_live_json(tmp_path):
