@@ -13,10 +13,15 @@
  *     and this file is the SOLE injector of the engine scripts.
  *
  * MODES:
- *   - No ?trace=<url>  -> use the baked data.js data, just boot the engine.
- *   - ?trace=<url>     -> fetch a Pokemon-Showdown-replay-shaped JSON doc, convert it
- *                         into __ARENA2D_DATA, then boot. ANY failure is swallowed and
- *                         the baked data.js data is kept (graceful degradation).
+ *   - No ?trace=<url>  -> use the baked data.js demo data, just boot the engine.
+ *   - ?trace=<url>     -> fetch a Pokemon-Showdown-replay-shaped JSON doc and install it
+ *                         as __ARENA2D_DATA, then boot. A live ?trace= URL ALWAYS wins
+ *                         over the baked demo — even an EMPTY log — so opening the printed
+ *                         --ui URL before the first turn (or after a stream failure that
+ *                         leaves the buffer empty) NEVER silently renders the unrelated
+ *                         baked demo battle. An empty live log shows a "waiting" state and
+ *                         a fetch/parse failure shows an error; reloading re-fetches the
+ *                         /live.json snapshot (PR #614 review).
  *
  * file://-safe: the fetch() path runs ONLY when ?trace= is present, so opening the
  * page off the filesystem (no query) never triggers a network request.
@@ -62,6 +67,30 @@
     };
   }
 
+  // Decide how a live ?trace= doc should render. A non-empty log boots the engine to
+  // animate the real battle; an EMPTY log resolves to "waiting" (the live battle has no
+  // frames yet, or the stream failed leaving the buffer empty) — which the caller renders
+  // as a waiting state instead of falling back to the unrelated baked demo. Pure, so the
+  // empty-vs-demo decision is unit-testable without a DOM (PR #614 review).
+  function decideLiveRender(doc) {
+    var data = toArenaData(doc);
+    return { data: data, action: data.LOG.length ? "boot" : "waiting" };
+  }
+
+  // Node/test entry point: export the pure helpers and skip the browser boot below
+  // (which touches window/document/fetch). In the browser `module` is undefined, so this
+  // is a no-op and execution continues into the loader proper.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = { toArenaData: toArenaData, decideLiveRender: decideLiveRender };
+    return;
+  }
+
+  // Show a one-line status message in the arena banner (the live battle isn't animating).
+  function showMessage(text) {
+    var banner = document.getElementById("banner");
+    if (banner) banner.textContent = text;
+  }
+
   // Read ?trace=<url> from the page URL.
   var traceUrl = null;
   try {
@@ -76,23 +105,27 @@
     return;
   }
 
-  // Endpoint requested — try to override __ARENA2D_DATA, but NEVER let a failure
-  // block the viewer: on any error we fall through to the baked data and boot anyway.
+  // Endpoint requested — a live ?trace= doc ALWAYS replaces the baked demo so the viewer
+  // can never silently render an unrelated battle. A non-empty log boots the engine; an
+  // empty log or a fetch/parse failure shows an explicit status instead of the demo.
   fetch(traceUrl)
     .then(function (r) {
       if (!r.ok) throw new Error("trace fetch failed: " + r.status);
       return r.json();
     })
     .then(function (doc) {
-      var data = toArenaData(doc);
-      if (data.LOG.length) {
-        window.__ARENA2D_DATA = data; // override the baked fallback
+      var decided = decideLiveRender(doc);
+      window.__ARENA2D_DATA = decided.data; // live trace wins over the baked demo, always
+      if (decided.action === "waiting") {
+        // No frames yet (or the stream failed leaving the buffer empty): show a waiting
+        // state rather than booting on an empty/demo log. Reloading re-fetches /live.json.
+        showMessage("Waiting for the first turn… reload to refresh.");
+        return;
       }
+      bootEngine();
     })
     .catch(function () {
-      // Swallow: keep the baked data.js data exactly as-is.
-    })
-    .finally(function () {
-      bootEngine(); // FINALLY boot the engine, with whichever data won.
+      // Live endpoint unreachable or malformed: surface an error, never the demo battle.
+      showMessage("Live battle data unavailable — reload to retry.");
     });
 })();
