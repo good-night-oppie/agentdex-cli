@@ -1,5 +1,7 @@
 import os
 from typing import Optional
+import ast
+import operator
 
 import numpy as np
 import random
@@ -8,6 +10,30 @@ import gymnasium as gym
 from gymnasium import spaces
 from PIL import Image, ImageDraw, ImageFont
 
+def secure_eval(expr):
+    """
+    Safely evaluate a mathematical expression from a string.
+    """
+    operators = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    def eval_node(node):
+        if isinstance(node, ast.Constant):
+            return node.value
+        elif isinstance(node, ast.BinOp):
+            return operators[type(node.op)](eval_node(node.left), eval_node(node.right))
+        elif isinstance(node, ast.UnaryOp):
+            return operators[type(node.op)](eval_node(node.operand))
+        else:
+            raise TypeError(f"Unsupported AST node: {type(node)}")
+
+    return eval_node(ast.parse(expr, mode='eval').body)
 
 def get_image(card_name):
     path = f"img/{card_name}.png"
@@ -143,7 +169,7 @@ class EZPointEnv(gym.Env):
     def _evaluate_formula(self):
         try:
             formula_str = ''.join(map(str, self.formula))
-            reward = 10 if eval(formula_str) == self.target_points else 0
+            reward = 10 if secure_eval(formula_str) == self.target_points else 0
         except Exception:
             # The formula is invalid
             reward = 0
