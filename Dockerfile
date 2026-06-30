@@ -17,6 +17,14 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 COPY packages/ ./packages/
 
+# agentdex_cli's hatch build hook (packages/agentdex_cli/hatch_build.py) vendors
+# the arena2d viewer from the repo-root web/arena2d/ into the wheel so
+# `adx arena play --ui` works from an installed image. The hook runs during the
+# editable installs below and raises if web/arena2d/ is absent, so the assets
+# MUST be staged before `uv sync` / `uv pip install -e`. The full web/ landing
+# (incl. a cache-busted re-copy of arena2d) is still copied later for the gateway.
+COPY web/arena2d ./web/arena2d
+
 # Install python packages and sync workspace
 RUN uv sync --frozen --no-dev
 
