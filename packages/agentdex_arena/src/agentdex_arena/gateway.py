@@ -3162,6 +3162,10 @@ def create_app(
     )
     _auth_ip_limiter: TouchDrivenRateLimiter | None = None
     _auth_verify_limiter: TouchDrivenRateLimiter | None = None
+    # Per-owner cap on the session-authed /enroll/account agent-mint (keyed on the
+    # verified owner, not the socket peer — so it is enforced in-endpoint after session
+    # verify, not in the _auth_preparse_guards per-IP middleware).
+    _enroll_account_limiter: TouchDrivenRateLimiter | None = None
     # Trusted reverse-proxy hop count for X-Forwarded-For; 0 = ignore XFF, key on the
     # socket peer. Read only when rate-limiting is on (see _client_ip for the keying).
     _trust_proxies = 0
@@ -3225,6 +3229,23 @@ def create_app(
                 _env_float("ARENA_AUTH_VERIFY_LOCKOUT_SEC", 900.0, floor=1.0)
                 if _verify_lockout
                 else 0.0
+            ),
+            capacity=_rl_capacity,
+        )
+        # Per-OWNER agent-mint cap on the session-authed /enroll/account. A logged-in
+        # owner could otherwise POST unboundedly to mint unlimited agents (200 each),
+        # squatting the global agent-name space + appending unbounded account_enroll
+        # rows. Keyed on _normalize_owner(claims.owner) — NOT the session token — so the
+        # cap SURVIVES the 7-day session rotation (re-login is not a reset) and matches
+        # the membership/quota single-owner-key discipline (CLAUDE.md "Membership keyed
+        # by normalized owner"). A TOKEN BUCKET (rate cap), not a permanent population
+        # cap: a legitimate owner who enrolls a few agents over time refills, but a burst
+        # flood drains the bucket and 429s. Default 10 mints @ 1/hour refill; floored +
+        # finite-checked like every other knob so a mistyped value fails CLOSED.
+        _enroll_account_limiter = TouchDrivenRateLimiter(
+            max_tokens=_env_float("ARENA_ENROLL_ACCOUNT_MAX_TOKENS", 10.0, floor=1.0),
+            refill_per_sec=_env_float(
+                "ARENA_ENROLL_ACCOUNT_REFILL_PER_SEC", 1.0 / 3600.0, floor=1e-9
             ),
             capacity=_rl_capacity,
         )
@@ -3649,6 +3670,13 @@ def create_app(
         Dual-mode: CLI Bearer (CSRF-exempt) OR browser arena_session cookie
         (state-changing → double-submit CSRF)."""
         claims = _require_session_dual(request, state_changing=True)
+        # Per-owner agent-mint cap (opaque 429, anti-enumeration). Enforced AFTER the
+        # session verify because it keys on the VERIFIED owner — not the socket peer —
+        # so it survives session rotation. No-op when rate-limiting is disabled.
+        if _enroll_account_limiter is not None:
+            rate_limited, _ = _enroll_account_limiter.acquire(_normalize_owner(claims.owner))
+            if rate_limited:
+                raise _opaque_error(429, "too many requests")
         try:
             return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
         except HTTPException:
