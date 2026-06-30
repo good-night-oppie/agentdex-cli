@@ -1076,6 +1076,22 @@ class ArenaGateway:
             invite_code=req.invite_code,  # carried to confirm for invite-mode redemption
         )
         self.pending_enrollments[code] = clean
+        # Audit-log the request attempt (Step-5 enroll invariant): a durable record
+        # that an OOB enrollment was requested for this owner/agent_name, for
+        # operator reconciliation of the email-OOB funnel. The confirmation `code`
+        # is a bearer secret (it lets the holder confirm the enrollment) and is
+        # NEVER written here — exactly like invite codes are hashed-only in the log
+        # (test_invite_codes_are_hashed_in_event_log). `invited` is a bool, not the
+        # invite_code value. This is an internal operator log, NOT the HTTP response,
+        # so it does not weaken the uniform anti-enumeration response shape.
+        self.events.append(
+            "enroll_request",
+            {
+                "owner": clean.owner,
+                "agent_name": agent_name,
+                "invited": clean.invite_code is not None,
+            },
+        )
         # the code goes to the OWNER out-of-band — never into this response
         self.notify_owner(clean.owner, code)
         resp: dict[str, Any] = {
@@ -3284,6 +3300,15 @@ def create_app(
         "/oauth/github": _auth_volumetric_guard,
         "/auth/email/start": _auth_volumetric_guard,
         "/auth/email/verify": _auth_verify_acquire_guard,
+        # /enroll/request is the UNAUTHENTICATED email-OOB enrollment surface: each
+        # call mints a confirmation code and fans out an out-of-band notify_owner
+        # (an email send in production), so an unauthenticated flood would otherwise
+        # drive unbounded code-generation + outbound-email cost. Same per-IP
+        # volumetric bucket as the other unauthenticated flood surfaces. The
+        # session-authed /enroll/account and /enroll/redeem-invite are NOT listed:
+        # they already require a verified session, so an attacker must authenticate
+        # first (the volumetric anti-flood floor is for the open surface).
+        "/enroll/request": _auth_volumetric_guard,
     }
 
     @app.middleware("http")

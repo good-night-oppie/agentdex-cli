@@ -128,4 +128,5 @@ jobs:
             packages/agentdex_arena/tests/test_email_login.py \
             packages/agentdex_arena/tests/test_session_auth.py \
             packages/agentdex_arena/tests/test_quota_persists_across_restart.py \
-            packages/agentdex_arena/tests/test_arena_invite_required_gate.py
+            packages/agentdex_arena/tests/test_arena_invite_required_gate.py \
+            packages/agentdex_arena/tests/test_enroll_request_invariants.py
