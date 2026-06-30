@@ -762,6 +762,13 @@ class ArenaGateway:
         # trailing slash; the route builder will join with f"/badge/...".
         self.public_base_url = public_base_url.rstrip("/")
         self.events = EventLog(events_path, sync=event_sync)
+        # Whether an active rate-limit cap protects the unauthenticated surfaces. Default
+        # False (the limiter is OPTIONAL-AT-BOOT, inert unless ARENA_RATE_LIMIT_ENABLED);
+        # create_app sets it from the same flag it wires the limiters behind. enroll_request
+        # only writes its durable audit event when this is True, so the uncapped default-off
+        # path cannot be driven into unbounded event-log growth by an unauthenticated flood
+        # (PR #625 review 3496424979).
+        self.rate_limit_enabled = False
         self._registered: set[str] = set()
         # ADR-0013 D3/D6: the github_id<->owner link + account->agents join,
         # rebuilt below from account_link / account_enroll events (same
@@ -1084,14 +1091,22 @@ class ArenaGateway:
         # (test_invite_codes_are_hashed_in_event_log). `invited` is a bool, not the
         # invite_code value. This is an internal operator log, NOT the HTTP response,
         # so it does not weaken the uniform anti-enumeration response shape.
-        self.events.append(
-            "enroll_request",
-            {
-                "owner": clean.owner,
-                "agent_name": agent_name,
-                "invited": clean.invite_code is not None,
-            },
-        )
+        #
+        # GATED on an ACTIVE rate-limit cap: this is an unauthenticated surface, so a
+        # durable write per request is an event-log/disk amplification vector. We only
+        # emit the audit event when the per-IP volumetric cap is live (so the number of
+        # appends an unauthenticated flood can force is bounded); with the limiter off
+        # (the default-off posture) the path stays append-free, exactly as before #625
+        # added the audit (PR #625 review 3496424979).
+        if self.rate_limit_enabled:
+            self.events.append(
+                "enroll_request",
+                {
+                    "owner": clean.owner,
+                    "agent_name": agent_name,
+                    "invited": clean.invite_code is not None,
+                },
+            )
         # the code goes to the OWNER out-of-band — never into this response
         self.notify_owner(clean.owner, code)
         resp: dict[str, Any] = {
@@ -3160,6 +3175,10 @@ def create_app(
         "yes",
         "on",
     )
+    # Tell the engine whether an active cap protects the unauthenticated surfaces, so
+    # enroll_request only writes its durable audit event when a flood is bounded (PR #625
+    # review 3496424979). Single source of truth: the same flag the limiters are wired behind.
+    gateway.rate_limit_enabled = _rl_enabled
     _auth_ip_limiter: TouchDrivenRateLimiter | None = None
     _auth_verify_limiter: TouchDrivenRateLimiter | None = None
     # Per-owner cap on the session-authed /enroll/account agent-mint (keyed on the
