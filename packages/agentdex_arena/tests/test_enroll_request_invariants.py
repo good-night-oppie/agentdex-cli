@@ -12,10 +12,13 @@ asserted here behaviorally (the probe ``ga_enroll_ci_attest.sh`` reports
      outbound-email cost. Inert unless ``ARENA_RATE_LIMIT_ENABLED`` (mirrors the
      auth surface; see test_ga_auth_rate_limit.py).
 
-  2. AUDIT-LOG EMIT — every accepted request appends a durable ``enroll_request``
+  2. AUDIT-LOG EMIT — an accepted request appends a durable ``enroll_request``
      event (owner + agent_name + an ``invited`` bool) for operator reconciliation
-     of the OOB funnel. The confirmation ``code`` is a bearer secret and is NEVER
-     written to the log — exactly like invite codes are hashed-only
+     of the OOB funnel, but ONLY when the rate-limit cap is active: the durable
+     write is GATED behind ``ARENA_RATE_LIMIT_ENABLED`` so an uncapped flood cannot
+     drive unbounded event-log growth on this unauthenticated surface (PR #625
+     review). The confirmation ``code`` is a bearer secret and is NEVER written to
+     the log — exactly like invite codes are hashed-only
      (test_invite_codes_are_hashed_in_event_log).
 """
 
@@ -96,12 +99,18 @@ def test_enroll_request_not_rate_limited_when_disabled(tmp_path, monkeypatch):
         client.post("/enroll/request", json=_body(agent_name=f"a{i}")).status_code for i in range(8)
     }
     assert codes == {200}
+    # ...and the durable audit write is GATED off too: with no cap, a flood of accepted
+    # requests must NOT amplify into unbounded event-log growth (PR #625 review 3496424979).
+    assert [e for e in _events(tmp_path) if e["type"] == "enroll_request"] == []
 
 
 # ---- invariant 2: audit-log emit (without leaking the OOB secret) ----
 
 
-def test_enroll_request_emits_audit_event(tmp_path):
+def test_enroll_request_emits_audit_event(tmp_path, monkeypatch):
+    # The durable audit write is gated behind an active cap; enable it (a single request
+    # is well under the default 30-token bucket, so no 429).
+    monkeypatch.setenv("ARENA_RATE_LIMIT_ENABLED", "1")
     client = _client(_gw(tmp_path))
     r = client.post("/enroll/request", json=_body(owner="alice@x.com", agent_name="garchomp"))
     assert r.status_code == 200
@@ -116,9 +125,10 @@ def test_enroll_request_emits_audit_event(tmp_path):
     assert matched[0]["payload"]["invited"] is False
 
 
-def test_enroll_request_audit_records_invite_flag_not_the_code(tmp_path):
+def test_enroll_request_audit_records_invite_flag_not_the_code(tmp_path, monkeypatch):
     # An invite-mode request records invited=True — but the invite_code VALUE
-    # (a claimable beta seat) never lands in the durable log.
+    # (a claimable beta seat) never lands in the durable log. (Audit gated behind the cap.)
+    monkeypatch.setenv("ARENA_RATE_LIMIT_ENABLED", "1")
     client = _client(_gw(tmp_path))
     secret_invite = "beta-seat-9f3a2c"  # pragma: allowlist secret
     r = client.post(
@@ -135,6 +145,8 @@ def test_enroll_request_audit_records_invite_flag_not_the_code(tmp_path):
 def test_enroll_request_audit_never_logs_the_oob_confirmation_code(tmp_path, monkeypatch):
     # The OOB confirmation code is a bearer secret (holding it lets you confirm the
     # enrollment). Capture it via the playtest echo and prove it is NOT in the log.
+    # Enable the cap so the audit event is actually emitted (else there is no log to check).
+    monkeypatch.setenv("ARENA_RATE_LIMIT_ENABLED", "1")
     monkeypatch.setenv("ARENA_ENROLL_RETURN_CODE", "1")
     client = _client(_gw(tmp_path))
     r = client.post("/enroll/request", json=_body(owner="carol@x.com", agent_name="zapdos"))
