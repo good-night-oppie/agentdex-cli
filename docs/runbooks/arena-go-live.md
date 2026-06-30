@@ -40,6 +40,8 @@ boot postures, by failure mode:
 | `ADX_SIDECAR_MAX_OLD_SPACE_MB` | sidecar default | node heap cap per sidecar (see §3) |
 | `ARENA_RATE_LIMIT_ENABLED` | default off (inert) | **prerequisite** for ALL rate-limit/lockout controls — they are no-ops unless this is truthy (`1`/`true`/`yes`/`on`) |
 | `ARENA_TRUST_PROXIES` | default `0` (no trust) | **only read when `ARENA_RATE_LIMIT_ENABLED` is on**; set `>0` behind Caddy/Koyeb or per-IP lockout keys on the proxy peer = arena-wide login killswitch |
+| `ARENA_ENROLL_ACCOUNT_MAX_TOKENS` | default `10` | per-OWNER agent-mint cap on `/enroll/account` (token bucket, keyed on the normalized owner so it survives session rotation). Only read when `ARENA_RATE_LIMIT_ENABLED` is on; floored at `1` |
+| `ARENA_ENROLL_ACCOUNT_REFILL_PER_SEC` | default `1/3600` (1/hour) | refill rate for the per-owner mint bucket above; a legit owner enrolling a few agents over time refills, a burst flood drains + 429s |
 
 **Pre-flight checklist:** `ARENA_ADMIN_TOKEN_HASH` + `ARENA_SIGNING_KEY_HEX` +
 `ARENA_SESSION_SIGNING_KEY_HEX` set and **persistent** (keys on a durable volume,
