@@ -264,6 +264,47 @@ def test_replay_routes_to_unowned_sidecar():
     _run(go())
 
 
+def test_restore_reserves_owner_for_evicted_battle():
+    """ADR-0012 crash-recovery: a `restore` for a battle the pool has no owner
+    row for (evicted, or the process restarted) must be treated like `start` —
+    assign an owner and reserve capacity — instead of failing "not owned by any
+    sidecar" before the op can reach the sidecar's restore handler."""
+    p = SidecarPool(size=2)
+    _run(p.start())
+
+    async def go():
+        resp = await p.request("restore", battle="recovered", snapshot={"version": 1})
+        assert resp["ok"] is True
+        owner = p._owner["recovered"]  # ownership reserved (KeyError if left unowned)
+        assert p._load[id(owner)] == 1
+        # the restore op actually reached the owning sidecar
+        assert any(op == "restore" and kw.get("battle") == "recovered" for op, kw in owner.ops)
+
+    _run(go())
+
+
+def test_failed_restore_rolls_back_reservation():
+    """A `restore` rejected by the sidecar (no battle created) must roll back the
+    freshly-reserved slot, exactly like a failed `start`, so the id is not wedged
+    and capacity does not leak."""
+    p = SidecarPool(size=1)
+    _run(p.start())
+
+    async def go():
+        s = p._sidecars[0]
+
+        async def boom(op, **kw):
+            raise SidecarError("sidecar rejected restore")
+
+        s.request = boom  # type: ignore[method-assign]
+        with pytest.raises(SidecarError, match="rejected restore"):
+            await p.request("restore", battle="recovered", snapshot={"version": 1})
+        assert "recovered" not in p._owner
+        assert p._load.get(id(s), 0) == 0
+
+    _run(go())
+
+
 def test_concurrent_replays_spread_across_pool():
     """A burst of in-flight replays must reserve transient load so they spread
     across sidecars instead of queueing on one process. PR#203 #3431925699."""

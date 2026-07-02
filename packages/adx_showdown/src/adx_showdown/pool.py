@@ -123,9 +123,18 @@ class SidecarPool:
         newly_reserved = False  # this call freshly recorded ownership for `battle`
         transient_replay = False  # this call reserved a transient (ownerless) load slot
         async with self._lock:
-            if op == "start":
+            if op in ("start", "restore"):
+                # `restore` is a CREATOR op like `start`: an ADR-0012 crash-recovery
+                # restore targets a battle the pool has no `_owner` row for (it was
+                # evicted, or the process restarted), so the plain battle-bound path
+                # below would reject it as "not owned by any sidecar" before it could
+                # reach the sidecar's restore handler. Assign+reserve like `start`
+                # (an idempotent restart / `replace:true` restore that finds an
+                # existing owner reuses it and reserves nothing). The rollback in the
+                # `except` below then frees a freshly-reserved slot if the sidecar
+                # rejects the op, so a failed restore never wedges the battle id.
                 s = self._owner.get(battle)
-                if s is None:  # new battle — assign to the least-loaded sidecar
+                if s is None:  # new (or evicted) battle — assign to the least-loaded sidecar
                     s = self._least_loaded()
                     if s is None:
                         # "capacity" keyword → gateway maps this to a retryable 503
