@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from adx_showdown.protocol import parse_request
 from adx_showdown.sidecar import Sidecar, SidecarError, sidecar_available
 from adx_showdown.sim import (
     BattleResult,
@@ -78,6 +79,84 @@ def test_inputlog_resimulates_to_identical_outcome():
     original, replayed = asyncio.run(_run())
     assert replayed.winner == original.winner
     assert replayed.turns == original.turns
+
+
+async def _finish_with_first_legal(sc: Sidecar, battle_id: str, state: dict) -> BattleResult:
+    protocol_log = list(state.get("protocol_log") or [])
+    for step_n in range(1, 500):
+        if state.get("end"):
+            return BattleResult(
+                battle_id=battle_id,
+                winner=state["end"].get("winner") or "",
+                turns=int(state["end"].get("turns", 0)),
+                input_log=list(state["end"].get("inputLog") or []),
+                key_lines=list(state["end"].get("keyLines") or []),
+                protocol_log=protocol_log,
+                protocol_truncated=bool(state.get("protocol_truncated")),
+                steps=step_n - 1,
+            )
+        choices = {}
+        for side, raw in (state.get("pending") or {}).items():
+            if raw is not None:
+                choice = first_legal_policy(parse_request(raw))
+                if choice is not None:
+                    choices[side] = choice
+        assert choices, f"{battle_id}: no choices at turn {state.get('turns')}"
+        resp = await sc.request("step", battle=battle_id, choices=choices)
+        state = resp["state"]
+        protocol_log.extend(state.get("protocol_log") or [])
+    raise AssertionError(f"{battle_id}: did not finish")
+
+
+def test_snapshot_restore_recovers_in_flight_battle_after_restart():
+    async def _run() -> tuple[dict, BattleResult, BattleResult]:
+        async with Sidecar() as sc:
+            start = await sc.request(
+                "start",
+                battle="snap",
+                format="gen9randombattle",
+                seed=[21, 22, 23, 24],
+                p1={"name": "SnapA", "team": None, "seed": [22, 22, 23, 24]},
+                p2={"name": "SnapB", "team": None, "seed": [23, 22, 23, 24]},
+            )
+            snap = await sc.request("snapshot", battle="snap")
+            assert snap["snapshot"]["version"] == 1
+            assert snap["snapshot"]["inputLog"] == [
+                line for line in snap["snapshot"]["inputLog"] if line.startswith(">")
+            ]
+            original = await _finish_with_first_legal(sc, "snap", start["state"])
+            assert original.turns > 0
+
+        async with Sidecar() as sc2:
+            restored = await sc2.request("restore", battle="snap", snapshot=snap["snapshot"])
+            recovered = await _finish_with_first_legal(sc2, "snap", restored["state"])
+            replayed = await replay_input_log(
+                sc2, battle_id="snap-replay", input_log=recovered.input_log
+            )
+            return snap, recovered, replayed
+
+    snap, recovered, replayed = asyncio.run(_run())
+    assert snap["snapshot"]["battle_state"]["formatid"] == "gen9randombattle"
+    assert recovered.turns > snap["snapshot"]["turns"]
+    assert replayed.winner == recovered.winner
+    assert replayed.turns == recovered.turns
+
+
+def test_snapshot_restore_fail_safely_for_bad_requests():
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            with pytest.raises(SidecarError, match="snapshot requires battle"):
+                await sc.request("snapshot")
+            with pytest.raises(SidecarError, match="restore requires snapshot"):
+                await sc.request("restore", battle="bad")
+            with pytest.raises(SidecarError, match="unsupported snapshot version 999"):
+                await sc.request(
+                    "restore",
+                    battle="bad",
+                    snapshot={"version": 999, "engine": "pokemon-showdown", "battle_state": {}},
+                )
+
+    asyncio.run(_run())
 
 
 def test_three_concurrent_battles_one_process_under_200mb():

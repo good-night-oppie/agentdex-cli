@@ -32,8 +32,10 @@
 
 import { createInterface } from 'node:readline';
 import ps from 'pokemon-showdown';
+import statePkg from 'pokemon-showdown/dist/sim/state.js';
 
 const { BattleStream, Teams, TeamValidator, Dex } = ps;
+const { State } = statePkg;
 
 const MAX_BATTLES = Number(process.env.ADX_SIDECAR_MAX_BATTLES || 4);
 // Full-fidelity omniscient protocol-log cap (P1-b/c): every |TYPE| line from the
@@ -230,6 +232,83 @@ function writeBattle(entry, line) {
   return entry.stream.write(line);
 }
 
+function cloneJson(value, fallback = null) {
+  if (value === undefined) return fallback;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sidecarSnapshot(entry) {
+  return {
+    turns: entry.turns,
+    pending: cloneJson(entry.pending, { p1: null, p2: null }),
+    submitted: cloneJson(entry.submitted, { p1: false, p2: false }),
+    active: cloneJson(entry.active, { p1: null, p2: null }),
+    active_hp: cloneJson(entry.active_hp, { p1: 100, p2: 100 }),
+    keyLines: [...entry.keyLines],
+    protocolTotal: entry.protocolTotal,
+    protocolBytes: entry.protocolBytes,
+    protocolTruncated: entry.protocolTruncated,
+    winner: entry.winner,
+    streamError: entry.streamError || null,
+  };
+}
+
+function restoreSidecarMirrors(entry, snapshot) {
+  const sidecar = snapshot.sidecar || {};
+  entry.pending = cloneJson(sidecar.pending, { p1: null, p2: null });
+  entry.submitted = cloneJson(sidecar.submitted, { p1: false, p2: false });
+  entry.active = cloneJson(sidecar.active, { p1: null, p2: null });
+  entry.active_hp = cloneJson(sidecar.active_hp, { p1: 100, p2: 100 });
+  entry.keyLines = Array.isArray(sidecar.keyLines) ? [...sidecar.keyLines] : [];
+  entry.protocolTotal = Number.isFinite(sidecar.protocolTotal) ? sidecar.protocolTotal : 0;
+  entry.protocolBytes = Number.isFinite(sidecar.protocolBytes) ? sidecar.protocolBytes : 0;
+  entry.protocolTruncated = Boolean(sidecar.protocolTruncated);
+  entry.winner = sidecar.winner ?? null;
+  entry.streamError = sidecar.streamError || null;
+  entry.turns = Number.isFinite(snapshot.turns) ? snapshot.turns : 0;
+  entry.inputLog = Array.isArray(snapshot.inputLog) ? [...snapshot.inputLog] : [];
+}
+
+function restartStreamWithBattle(entry, restoredBattle) {
+  const send = (type, data) => {
+    if (Array.isArray(data)) data = data.join('\n');
+    entry.stream.pushMessage(type, data);
+    if (type === 'end' && !entry.stream.keepAlive) entry.stream.pushEnd();
+  };
+  restoredBattle.restart(send);
+  entry.stream.battle = restoredBattle;
+}
+
+async function buildSnapshotResponse(msg, entry) {
+  const state = msg.settle === false ? null : await settledState(entry);
+  if (!entry.stream.battle) {
+    return { id: msg.id, ok: false, error: `battle ${msg.battle} has no engine state` };
+  }
+  try {
+    const battleState = State.serializeBattle(entry.stream.battle);
+    const snapshot = {
+      version: 1,
+      engine: 'pokemon-showdown',
+      formatid: battleState.formatid || null,
+      turns: entry.turns,
+      battle_state: battleState,
+      inputLog: [...entry.inputLog],
+      sidecar: sidecarSnapshot(entry),
+    };
+    return { id: msg.id, ok: true, battle: msg.battle, active: battles.size, snapshot, state };
+  } catch (err) {
+    return { id: msg.id, ok: false, error: `snapshot failed: ${String(err && err.message ? err.message : err)}` };
+  }
+}
+
+function buildRestoredEntry(snapshot) {
+  const entry = newEntry();
+  const restoredBattle = State.deserializeBattle(snapshot.battle_state);
+  restartStreamWithBattle(entry, restoredBattle);
+  restoreSidecarMirrors(entry, snapshot);
+  return entry;
+}
+
 async function settledState(entry) {
   // two drain rounds: stream pushes resolve on microtasks; the for-await
   // reader consumes on macrotask boundaries.
@@ -323,6 +402,55 @@ async function handle(msg) {
       const state = await settledState(entry);
       battles.delete(msg.battle);
       return out({ id, ok: true, state });
+    }
+    if (op === 'snapshot') {
+      if (typeof msg.battle !== 'string' || !msg.battle) {
+        return out({ id, ok: false, error: 'snapshot requires battle' });
+      }
+      const entry = battles.get(msg.battle);
+      if (!entry) return out({ id, ok: false, error: `no battle ${msg.battle}` });
+      const resp = await buildSnapshotResponse(msg, entry);
+      return out(resp);
+    }
+    if (op === 'restore') {
+      if (typeof msg.battle !== 'string' || !msg.battle) {
+        return out({ id, ok: false, error: 'restore requires battle' });
+      }
+      const snapshot = msg.snapshot;
+      if (!snapshot || typeof snapshot !== 'object') {
+        return out({ id, ok: false, error: 'restore requires snapshot' });
+      }
+      if (snapshot.version !== 1) {
+        return out({ id, ok: false, error: `unsupported snapshot version ${snapshot.version}` });
+      }
+      if (!snapshot.battle_state || typeof snapshot.battle_state !== 'object') {
+        return out({ id, ok: false, error: 'restore snapshot missing battle_state' });
+      }
+      if (snapshot.engine !== 'pokemon-showdown') {
+        return out({ id, ok: false, error: `unsupported snapshot engine ${String(snapshot.engine)}` });
+      }
+      const exists = battles.has(msg.battle);
+      const replace = msg.replace === true;
+      if (exists && !replace) {
+        return out({ id, ok: false, error: `battle ${msg.battle} already active` });
+      }
+      if (!exists && battles.size >= MAX_BATTLES) {
+        return out({ id, ok: false, error: `capacity: ${battles.size}/${MAX_BATTLES} battles active` });
+      }
+      if ((snapshot.sidecar || {}).winner !== null && (snapshot.sidecar || {}).winner !== undefined) {
+        return out({ id, ok: false, error: 'restore snapshot is terminal' });
+      }
+      let entry;
+      try {
+        entry = buildRestoredEntry(snapshot);
+      } catch (err) {
+        return out({ id, ok: false, error: `restore failed: ${String(err && err.message ? err.message : err)}` });
+      }
+      attachReader(msg.battle, entry);
+      battles.set(msg.battle, entry);
+      const state = msg.settle === false ? null : await settledState(entry);
+      if (state && state.end) battles.delete(msg.battle);
+      return out({ id, ok: true, battle: msg.battle, active: battles.size, restored: true, replaced: exists, state });
     }
     if (op === 'validate-team') {
       const validator = TeamValidator.get(msg.format);
