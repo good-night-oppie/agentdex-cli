@@ -239,6 +239,7 @@ function cloneJson(value, fallback = null) {
 
 function sidecarSnapshot(entry) {
   return {
+    turns: entry.turns,
     pending: cloneJson(entry.pending, { p1: null, p2: null }),
     submitted: cloneJson(entry.submitted, { p1: false, p2: false }),
     active: cloneJson(entry.active, { p1: null, p2: null }),
@@ -419,11 +420,14 @@ async function handle(msg) {
       if (!snapshot || typeof snapshot !== 'object') {
         return out({ id, ok: false, error: 'restore requires snapshot' });
       }
-      if (snapshot.version !== 1 || snapshot.engine !== 'pokemon-showdown') {
+      if (snapshot.version !== 1) {
         return out({ id, ok: false, error: `unsupported snapshot version ${snapshot.version}` });
       }
       if (!snapshot.battle_state || typeof snapshot.battle_state !== 'object') {
         return out({ id, ok: false, error: 'restore snapshot missing battle_state' });
+      }
+      if (snapshot.engine !== 'pokemon-showdown') {
+        return out({ id, ok: false, error: `unsupported snapshot engine ${String(snapshot.engine)}` });
       }
       const exists = battles.has(msg.battle);
       const replace = msg.replace === true;

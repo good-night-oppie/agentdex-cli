@@ -130,7 +130,9 @@ def test_snapshot_restore_recovers_in_flight_battle_after_restart():
         async with Sidecar() as sc2:
             restored = await sc2.request("restore", battle="snap", snapshot=snap["snapshot"])
             recovered = await _finish_with_first_legal(sc2, "snap", restored["state"])
-            replayed = await replay_input_log(sc2, battle_id="snap-replay", input_log=recovered.input_log)
+            replayed = await replay_input_log(
+                sc2, battle_id="snap-replay", input_log=recovered.input_log
+            )
             return snap, recovered, replayed
 
     snap, recovered, replayed = asyncio.run(_run())
