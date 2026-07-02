@@ -446,9 +446,24 @@ async function handle(msg) {
       } catch (err) {
         return out({ id, ok: false, error: `restore failed: ${String(err && err.message ? err.message : err)}` });
       }
+      const prior = exists ? battles.get(msg.battle) : undefined;
       attachReader(msg.battle, entry);
       battles.set(msg.battle, entry);
-      const state = msg.settle === false ? null : await settledState(entry);
+      let state;
+      try {
+        state = msg.settle === false ? null : await settledState(entry);
+      } catch (err) {
+        // settledState() dereferences the restored sidecar mirrors (entry.submitted
+        // /pending/…) and throws on malformed snapshot data (e.g. sidecar.submitted:
+        // null) — AFTER we already published the entry above. Without this rollback
+        // the caller's catch returns ok:false while msg.battle stays active but
+        // wedged (unusable until process restart), and a replace:true call would
+        // have clobbered the prior entry. Roll back: restore the prior entry for
+        // replace, else free the id, then surface the failure.
+        if (prior !== undefined) battles.set(msg.battle, prior);
+        else battles.delete(msg.battle);
+        return out({ id, ok: false, error: `restore failed: ${String(err && err.message ? err.message : err)}` });
+      }
       if (state && state.end) battles.delete(msg.battle);
       return out({ id, ok: true, battle: msg.battle, active: battles.size, restored: true, replaced: exists, state });
     }
