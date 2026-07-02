@@ -258,3 +258,69 @@ def test_restore_with_malformed_mirror_preserves_replace_target() -> None:
             assert state["battle"] == "rep-target"
 
     asyncio.run(_run())
+
+
+def test_failed_restore_does_not_leak_reader_loops() -> None:
+    """Each settle-failure rollback must destroy the just-created stream: the
+    attachReader() for-await loop otherwise stays resident per attempt (the
+    battles map is rolled back, so ``active`` looks clean while memory grows
+    unboundedly — PR #631 review 3510512867). ``rss.readers`` counts the
+    outstanding reader loops; after N failed restores it must equal the live
+    battle count."""
+
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            snap_resp, _ = await _snapshot_after_one_turn(sc, battle="leak-src")
+            bad = copy.deepcopy(snap_resp["snapshot"])
+            bad["sidecar"]["submitted"] = None
+            for _ in range(5):
+                with pytest.raises(SidecarError, match="restore failed"):
+                    await sc.request("restore", battle="leak-dst", snapshot=bad)
+            diag = await sc.request("rss")
+            assert diag["active"] == 1  # only leak-src
+            assert diag["readers"] == 1  # no orphaned loop per failed attempt
+
+    asyncio.run(_run())
+
+
+def test_successful_replace_restore_does_not_leak_reader_loops() -> None:
+    """A SUCCESSFUL replace=True restore evicts the prior live entry from the
+    battles map — its stream never ended, so without teardown its reader loop
+    (and the prior battle) outlives the slot on every replace: the same orphan
+    shape as the failed restore, on the documented ADR-0012 crash-recovery
+    path."""
+
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            snap_resp, _ = await _snapshot_after_one_turn(sc, battle="replace-leak")
+            for _ in range(3):
+                ok = await sc.request(
+                    "restore",
+                    battle="replace-leak",
+                    snapshot=snap_resp["snapshot"],
+                    replace=True,
+                )
+                assert ok["replaced"] is True
+            diag = await sc.request("rss")
+            assert diag["active"] == 1  # the one live replace-leak battle
+            assert diag["readers"] == 1  # no orphaned loop per replaced prior
+
+    asyncio.run(_run())
+
+
+def test_partial_replay_does_not_leak_reader_loops() -> None:
+    """A replay of a non-terminal inputLog frees the battles entry while its
+    reader loop is still awaiting a winner — same orphan shape as the failed
+    restore. The sidecar must destroy the stream rather than orphan the loop."""
+
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            snap_resp, _ = await _snapshot_after_one_turn(sc, battle="partial-src")
+            partial = snap_resp["snapshot"]["inputLog"][:3]  # >start + both >player
+            resp = await sc.request("replay", battle="partial-replay", lines=partial)
+            assert resp["state"]["end"] is None
+            diag = await sc.request("rss")
+            assert diag["active"] == 1  # partial-replay slot was freed
+            assert diag["readers"] == 1  # its reader loop was torn down too
+
+    asyncio.run(_run())

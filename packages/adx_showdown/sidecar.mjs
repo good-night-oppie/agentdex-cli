@@ -117,8 +117,29 @@ function captureProtocol(entry, line) {
   entry.protocolBytes += bytes;
 }
 
+// Outstanding attachReader() loops. A loop exits when the battle reports a
+// winner or its stream EOFs — an entry freed from `battles` while its stream
+// never ended would keep its loop (and the engine state it pins) resident for
+// the life of the process. Surfaced via the `rss` op as a leak canary.
+let liveReaders = 0;
+
+// Tear down an entry whose `battles` slot is being freed while its stream never
+// ended: destroy() EOFs the stream so attachReader()'s for-await loop exits
+// instead of pinning the entry + battle forever, and frees the engine state via
+// BattleStream._destroy() -> battle.destroy(). Repeated malformed non-replace
+// restores would otherwise grow memory unboundedly (PR #631 review 3510512867).
+function destroyEntryStream(entry) {
+  try {
+    entry.stream.destroy();
+  } catch {
+    // best-effort teardown — the caller is already surfacing a failure (or
+    // discarding the battle); a destroy error must not mask it.
+  }
+}
+
 function attachReader(battleId, entry) {
   entry.readerDone = (async () => {
+    liveReaders++;
     try {
       for await (const chunk of entry.stream) {
         const nl = chunk.indexOf('\n');
@@ -223,6 +244,8 @@ function attachReader(battleId, entry) {
       entry.errors.push({ side: '', error: `stream-exception: ${String(err && err.message)}` });
       entry.winner = entry.winner ?? '';
       entry.streamError = String(err && err.message);
+    } finally {
+      liveReaders--;
     }
   })();
 }
@@ -400,6 +423,9 @@ async function handle(msg) {
       attachReader(msg.battle, entry);
       for (const line of msg.lines) await writeBattle(entry, line);
       const state = await settledState(entry);
+      // A partial (non-terminal) log leaves the reader loop awaiting a winner
+      // that never comes — same orphan shape as the failed-restore rollback.
+      if (!state.end) destroyEntryStream(entry);
       battles.delete(msg.battle);
       return out({ id, ok: true, state });
     }
@@ -458,12 +484,20 @@ async function handle(msg) {
         // null) — AFTER we already published the entry above. Without this rollback
         // the caller's catch returns ok:false while msg.battle stays active but
         // wedged (unusable until process restart), and a replace:true call would
-        // have clobbered the prior entry. Roll back: restore the prior entry for
-        // replace, else free the id, then surface the failure.
+        // have clobbered the prior entry. Roll back: destroy the failed entry's
+        // stream (its reader loop + restored battle must not outlive the slot),
+        // restore the prior entry for replace, else free the id, then surface
+        // the failure.
+        destroyEntryStream(entry);
         if (prior !== undefined) battles.set(msg.battle, prior);
         else battles.delete(msg.battle);
         return out({ id, ok: false, error: `restore failed: ${String(err && err.message ? err.message : err)}` });
       }
+      // replace=true success: the evicted prior entry left the map at
+      // battles.set() above with its stream never ended — same orphan shape
+      // as the failed-restore rollback (which is why prior must stay alive
+      // until AFTER the settle try/catch: the rollback re-publishes it).
+      if (prior !== undefined) destroyEntryStream(prior);
       if (state && state.end) battles.delete(msg.battle);
       return out({ id, ok: true, battle: msg.battle, active: battles.size, restored: true, replaced: exists, state });
     }
@@ -506,7 +540,7 @@ async function handle(msg) {
       if (global.gc) {
         global.gc();
       }
-      return out({ id, ok: true, rss: process.memoryUsage().rss, active: battles.size });
+      return out({ id, ok: true, rss: process.memoryUsage().rss, active: battles.size, readers: liveReaders });
     }
     if (op === 'stop') {
       const entry = battles.get(msg.battle);
