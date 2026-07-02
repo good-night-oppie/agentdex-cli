@@ -8,6 +8,7 @@ and the existing inputLog replay rail all staying aligned.
 from __future__ import annotations
 
 import asyncio
+import copy
 from typing import Any
 
 import pytest
@@ -211,5 +212,49 @@ def test_restore_without_replace_cannot_overwrite_active_battle() -> None:
             # The failed restore must leave the live target battle usable.
             state = await sc.request("snapshot", battle="permission-target")
             assert state["battle"] == "permission-target"
+
+    asyncio.run(_run())
+
+
+def test_restore_with_malformed_mirror_frees_the_battle_id() -> None:
+    """A snapshot with a valid battle_state but malformed sidecar mirror
+    (``submitted: null``) passes every pre-publish check, so buildRestoredEntry()
+    succeeds and the entry is published before settledState() dereferences the
+    mirror and throws. The failure must roll back the just-published entry so the
+    id is not left active-but-wedged (unusable until process restart)."""
+
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            snap_resp, _ = await _snapshot_after_one_turn(sc, battle="wedge-src")
+            good = snap_resp["snapshot"]
+            bad = copy.deepcopy(good)
+            bad["sidecar"]["submitted"] = None
+            with pytest.raises(SidecarError, match="restore failed"):
+                await sc.request("restore", battle="wedge-dst", snapshot=bad)
+            # Not wedged: a fresh restore of the good snapshot under the same id
+            # (replace=False) must succeed, proving the id was freed on rollback.
+            ok = await sc.request("restore", battle="wedge-dst", snapshot=good)
+            assert ok["restored"] is True
+            assert ok["replaced"] is False
+
+    asyncio.run(_run())
+
+
+def test_restore_with_malformed_mirror_preserves_replace_target() -> None:
+    """A failed replace-restore (malformed mirror throws post-publish) must
+    restore the prior live battle rather than clobber it."""
+
+    async def _run() -> None:
+        async with Sidecar() as sc:
+            snap_resp, _ = await _snapshot_after_one_turn(sc, battle="rep-src")
+            good = snap_resp["snapshot"]
+            await _start_battle(sc, battle="rep-target")
+            bad = copy.deepcopy(good)
+            bad["sidecar"]["submitted"] = None
+            with pytest.raises(SidecarError, match="restore failed"):
+                await sc.request("restore", battle="rep-target", snapshot=bad, replace=True)
+            # The prior live battle must survive the failed replace-restore.
+            state = await sc.request("snapshot", battle="rep-target")
+            assert state["battle"] == "rep-target"
 
     asyncio.run(_run())
