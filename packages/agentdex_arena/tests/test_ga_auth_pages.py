@@ -73,7 +73,8 @@ def _client(tmp_path: Path) -> TestClient:
 
 @_needs_ga
 @pytest.mark.parametrize(
-    "path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"]
+    "path",
+    ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new", "/billing", "/launch"],
 )
 def test_entry_route_serves_spa_shell(tmp_path, monkeypatch, path):
     monkeypatch.chdir(_REPO_ROOT)
@@ -88,7 +89,8 @@ def test_entry_route_serves_spa_shell(tmp_path, monkeypatch, path):
 
 @_needs_ga
 @pytest.mark.parametrize(
-    "path", ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"]
+    "path",
+    ["/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new", "/billing", "/launch"],
 )
 def test_served_shell_is_passwordless_and_csp_safe(tmp_path, monkeypatch, path):
     # The security floor a step scores 0 without: no password field, and a shell that
@@ -140,6 +142,23 @@ def test_arena_aliases_boot_to_modes_screen(tmp_path, monkeypatch):
     assert 'path === "/arena"' in boot
     assert 'path === "/battle/new"' in boot
     assert '"modes"' in boot
+
+
+@_needs_ga
+def test_billing_entry_routes_score_step7_functional_surface(tmp_path, monkeypatch):
+    """Step 7's V1 invite-entitlement screen must be a live funnel route.
+
+    Stripe itself is V2, but the GA self-serve funnel already ships the beta
+    billing screen that explains 100-invite redemption; /billing must not 404.
+    /upgrade stays as the old CTA alias and redirects root-relatively.
+    """
+    monkeypatch.chdir(_REPO_ROOT)
+    c = _client(tmp_path)
+    assert c.get("/billing").status_code == 200
+    assert c.get("/launch").status_code == 200
+    r = c.get("/upgrade", follow_redirects=False)
+    assert r.status_code == 308
+    assert r.headers["location"] == "/billing"
 
 
 @_needs_ga
