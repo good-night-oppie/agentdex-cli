@@ -104,7 +104,10 @@ def test_sidecar_env_is_minimal_and_cap_is_operator_tunable(monkeypatch):
 
     args = captured["args"]
     env = captured["kwargs"]["env"]
-    assert "--max-old-space-size=128" in args
+    # Position, not membership: the flag must precede the script path or node
+    # treats it as a script argument and the tuned cap never reaches V8 (#643
+    # review — same launch-shape rule the sandbox isolation test asserts).
+    assert args.index("--max-old-space-size=128") < args.index(str(sidecar_mod.SIDECAR_MJS))
     assert env["NODE_ENV"] == "production"
     assert set(env) == {"PATH", "NODE_ENV"}
     assert "blocked-value" not in repr(env)
