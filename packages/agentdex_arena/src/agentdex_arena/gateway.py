@@ -3361,6 +3361,11 @@ def create_app(
         # they already require a verified session, so an attacker must authenticate
         # first (the volumetric anti-flood floor is for the open surface).
         "/enroll/request": _auth_volumetric_guard,
+        # /me/battle/queue is Step-6's PvP mode entrypoint. Even though valid callers
+        # must carry a battle token + PoP body, FastAPI would parse/validate the JSON
+        # before the endpoint reaches that auth gate; cap it pre-parse so malformed or
+        # replay floods get an opaque per-IP 429 before consuming handler work.
+        "/me/battle/queue": _auth_volumetric_guard,
     }
 
     @app.middleware("http")
