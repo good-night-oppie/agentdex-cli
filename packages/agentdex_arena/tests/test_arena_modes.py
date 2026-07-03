@@ -29,6 +29,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+_PUBKEY = "428e0c24a1a650dd33fe5948adf6634ff78da809d11912a4d27023d65f81c5f6"  # pragma: allowlist secret  # ed25519 PUBLIC key
+
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 
@@ -596,6 +598,60 @@ def test_pvp_queue_capacity_error_returns_503_retry_after(gw: ArenaGateway, monk
     assert response.headers["Retry-After"] == "11"
     assert "arena at capacity" in response.text
     assert gw.cap_503_total == 1
+
+
+def test_cookie_auth_state_changing_post_requires_double_submit_csrf(tmp_path: Path):
+    """Behavioral GA-ARENA-MODES floor: cookie-auth POSTs need double-submit CSRF."""
+
+    gateway = ArenaGateway(
+        authority=ConsentAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+        session_authority=gateway_mod.SessionAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+    )
+    assert gateway.session_auth is not None
+    session = gateway.session_auth.mint_session("web@example.com", "email:web@example.com")
+    app = create_app(gateway, sidecar_factory=lambda: None)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        missing = client.post(
+            "/enroll/account",
+            cookies={"arena_session": session},
+            json={
+                "agent_name": "csrf-missing",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
+        )
+        mismatch = client.post(
+            "/enroll/account",
+            cookies={"arena_session": session, "arena_csrf": "cookie-token"},
+            headers={"X-CSRF-Token": "header-token"},
+            json={
+                "agent_name": "csrf-mismatch",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
+        )
+        allowed = client.post(
+            "/enroll/account",
+            cookies={"arena_session": session, "arena_csrf": "same-token"},
+            headers={"X-CSRF-Token": "same-token"},
+            json={
+                "agent_name": "csrf-ok",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
+        )
+
+    assert missing.status_code == 403
+    assert mismatch.status_code == 403
+    assert allowed.status_code == 200, allowed.text
 
 
 def test_pvp_advance_renders_p1_before_awaiting_p2_choice(gw: ArenaGateway):
