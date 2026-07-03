@@ -85,7 +85,11 @@ def test_gate_off_session_enroll_proceeds_without_invite(tmp_path, monkeypatch):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
     assert r.status_code == 200, r.text
@@ -124,7 +128,11 @@ def test_gate_on_session_enroll_403_when_owner_not_admitted(tmp_path, monkeypatc
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
     assert r.status_code == 403
@@ -152,7 +160,11 @@ def test_gate_on_session_enroll_succeeds_after_redeem(tmp_path, monkeypatch):
         )
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
     assert r.status_code == 200, r.text

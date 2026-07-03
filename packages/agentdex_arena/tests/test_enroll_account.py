@@ -64,7 +64,11 @@ def test_account_enroll_mints_working_consent_token(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert r.status_code == 200
@@ -83,7 +87,11 @@ def test_account_enroll_records_account_to_agents_join_durably(tmp_path):
     with _client(gw) as c:
         c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert gw.accounts.agents_for(_OWNER) == ["oppie"]
@@ -109,7 +117,11 @@ def test_account_enroll_register_and_join_append_atomically(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
 
@@ -131,7 +143,11 @@ def test_account_enroll_name_blocks_email_oob_enroll(tmp_path):
     with _client(gw) as c:
         first = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
         assert first.status_code == 200
@@ -160,7 +176,11 @@ def test_email_oob_name_blocks_account_enroll(tmp_path):
         # account-enroll for the SAME name is now a duplicate
         acct = c.post(
             "/enroll/account",
-            json={"agent_name": "scout", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "scout",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert acct.status_code == 409
@@ -172,12 +192,20 @@ def test_duplicate_account_enroll_same_name_409(tmp_path):
     with _client(gw) as c:
         c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
         again = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert again.status_code == 409
@@ -189,7 +217,14 @@ def test_duplicate_account_enroll_same_name_409(tmp_path):
 def test_missing_authorization_is_401(tmp_path):
     gw = _gateway(tmp_path)
     with _client(gw) as c:
-        r = c.post("/enroll/account", json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY})
+        r = c.post(
+            "/enroll/account",
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
+        )
     assert r.status_code == 401
 
 
@@ -198,7 +233,11 @@ def test_bad_session_token_is_403(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer("not.a.valid.token"),
         )
     assert r.status_code == 403
@@ -209,7 +248,11 @@ def test_503_when_session_auth_unconfigured(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer("whatever"),
         )
     assert r.status_code == 503
@@ -224,7 +267,11 @@ def test_bad_pubkey_is_422(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": "nothex"},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": "nothex",
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert r.status_code == 422
@@ -238,7 +285,11 @@ def test_reserved_name_is_400(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "visitor", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "visitor",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_bearer(tok),
         )
     assert r.status_code == 400
@@ -252,7 +303,12 @@ def test_owner_cannot_be_client_supplied(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "oppie", "agent_pubkey_hex": _PUBKEY, "owner": "evil@x.com"},
+            json={
+                "agent_name": "oppie",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+                "owner": "evil@x.com",
+            },
             headers=_bearer(tok),
         )
     assert r.status_code == 422

@@ -75,7 +75,11 @@ def test_mint_then_redeem_then_enroll(tmp_path, monkeypatch):
         # un-invited owner cannot enroll (beta gate)
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
         assert r.status_code == 403
@@ -87,7 +91,11 @@ def test_mint_then_redeem_then_enroll(tmp_path, monkeypatch):
         # now enroll works
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
         assert r.status_code == 200
@@ -148,7 +156,11 @@ def test_gate_off_by_default_existing_enroll_unaffected(tmp_path):
     with _client(gw) as c:
         r = c.post(
             "/enroll/account",
-            json={"agent_name": "garchomp", "agent_pubkey_hex": _PUBKEY},
+            json={
+                "agent_name": "garchomp",
+                "agent_pubkey_hex": _PUBKEY,
+                "agent_source": "openai/codex",
+            },
             headers=_sess(gw),
         )
         assert r.status_code == 200  # not gated when the flag is off

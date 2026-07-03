@@ -48,7 +48,7 @@ def _client(gw):
 def _mint(client, tok, name):
     return client.post(
         "/enroll/account",
-        json={"agent_name": name, "agent_pubkey_hex": _PUBKEY},
+        json={"agent_name": name, "agent_pubkey_hex": _PUBKEY, "agent_source": "openai/codex"},
         headers={"Authorization": f"Bearer {tok}"},
     ).status_code
 

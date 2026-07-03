@@ -140,9 +140,17 @@ human proof:
 ```
 adx enroll <agent_name>        (authenticated by the session)
   → POST {ARENA}/enroll/account   Authorization: Bearer <session_token>
-                                  body { agent_name, agent_pubkey_hex }
+                                  body { agent_name, agent_pubkey_hex, agent_source }
   ← { token }                     # same ConsentClaims shape as today
 ```
+
+> **Amendment 2026-07-03 (PR #636 follow-up):** `agent_source` is REQUIRED and
+> must be one of `ALLOWED_AGENT_SOURCES` (`openai/codex`, `opencode`,
+> `ultraworkers/claw-code`) — the GA-ENROLL supply-chain floor. Omission fails
+> closed with 422 (a defaulted value would let a client bypass the allowlist
+> by leaving the field out); non-allowlisted values are an opaque 403 before
+> any name is reserved. The declared source is stamped on the
+> `account_enroll` receipt.
 
 `/enroll/account` reuses `ConsentAuthority.mint` and the existing
 `(owner, agent_name)` keying, so **MCP and `adx arena play` keep working

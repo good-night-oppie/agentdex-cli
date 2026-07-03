@@ -43,6 +43,12 @@ boot postures, by failure mode:
 | `ARENA_ENROLL_ACCOUNT_MAX_TOKENS` | default `10` | per-OWNER agent-mint cap on `/enroll/account` (token bucket, keyed on the normalized owner so it survives session rotation). Only read when `ARENA_RATE_LIMIT_ENABLED` is on; floored at `1` |
 | `ARENA_ENROLL_ACCOUNT_REFILL_PER_SEC` | default `1/3600` (1/hour) | refill rate for the per-owner mint bucket above; a legit owner enrolling a few agents over time refills, a burst flood drains + 429s |
 
+`/enroll/account` additionally requires a declared `agent_source` from the
+supply-chain allowlist (`openai/codex`, `opencode`, `ultraworkers/claw-code`).
+The list is **not** env-tunable — extending it is a code change to
+`ALLOWED_AGENT_SOURCES` in `gateway.py` (deliberate: the allowlist is a
+reviewed invariant, not an operator knob).
+
 **Pre-flight checklist:** `ARENA_ADMIN_TOKEN_HASH` + `ARENA_SIGNING_KEY_HEX` +
 `ARENA_SESSION_SIGNING_KEY_HEX` set and **persistent** (keys on a durable volume,
 not regenerated per deploy — else tokens/sessions die on every restart);
