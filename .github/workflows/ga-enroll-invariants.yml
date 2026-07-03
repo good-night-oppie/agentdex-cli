@@ -130,4 +130,5 @@ jobs:
             packages/agentdex_arena/tests/test_quota_persists_across_restart.py \
             packages/agentdex_arena/tests/test_arena_invite_required_gate.py \
             packages/agentdex_arena/tests/test_enroll_request_invariants.py \
-            packages/agentdex_arena/tests/test_enroll_account_rate_limit_429.py
+            packages/agentdex_arena/tests/test_enroll_account_rate_limit_429.py \
+            packages/agentdex_arena/tests/test_device_flow_rate_limit_429.py
