@@ -182,6 +182,28 @@ def test_pvp_queue_bad_token_rejected_by_authority(gw: ArenaGateway):
         gw.authority.verify("notarealtoken", scope="battle")
 
 
+def test_pvp_queue_preparse_rate_limit_429s_malformed_flood(tmp_path: Path, monkeypatch):
+    """Behavioral GA-ARENA-MODES floor: PvP queue has a per-IP 429 guard."""
+
+    monkeypatch.setenv("ARENA_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ARENA_AUTH_IP_MAX_TOKENS", "2")
+    monkeypatch.setenv("ARENA_AUTH_IP_REFILL_PER_SEC", "1e-9")
+    gateway = ArenaGateway(
+        authority=ConsentAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+    )
+    app = create_app(gateway, sidecar_factory=lambda: None)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    codes = [client.post("/me/battle/queue", json={}).status_code for _ in range(3)]
+
+    assert codes == [422, 422, 429]
+
+
 def test_pvp_queue_pairs_two_owners_matchmaking(gw: ArenaGateway):
     """Two owners enter the PvP queue; the second is immediately paired."""
 
