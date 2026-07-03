@@ -118,6 +118,7 @@ GYM_BADGES = {
     "gym-trick-room": "Trick Room Badge",
 }
 RATED_POOL = ("anchor-max_damage", "anchor-heuristic")  # held-out matchmaking pool
+ALLOWED_AGENT_SOURCES = ("openai/codex", "opencode", "ultraworkers/claw-code")
 
 # 11c: 30-day badge_token TTL per design D3. Matches the monthly membership
 # cycle: a revoked member loses MINT immediately, but already-minted badges
@@ -623,6 +624,10 @@ class EnrollAccountRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=False)
     agent_name: str = Field(min_length=1, max_length=64)
     agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
+    # GA-ENROLL supply-chain floor: browser/CLI enrollment may only select one
+    # of the documented OSS coding-agent sources. Default preserves existing
+    # clients that predate the explicit selector.
+    agent_source: str = "openai/codex"
 
 
 class BeginRequest(BaseModel):
@@ -1235,7 +1240,7 @@ class ArenaGateway:
         }
 
     def enroll_account(
-        self, claims: SessionClaims, agent_name: str, agent_pubkey_hex: str
+        self, claims: SessionClaims, agent_name: str, agent_pubkey_hex: str, agent_source: str
     ) -> dict[str, Any]:
         """Account-authed enroll (ADR-0013 D3): a logged-in human mints a per-agent
         consent token WITHOUT the email-OOB code — the session IS the human proof.
@@ -1252,6 +1257,8 @@ class ArenaGateway:
         # unset → open enroll, existing behavior). Checked BEFORE reserving a name.
         if self._invite_required() and not self.invites.is_admitted(claims.owner):
             raise PermissionError("an invitation code is required for the beta")
+        if agent_source not in ALLOWED_AGENT_SOURCES:
+            raise PermissionError("agent source is not allowlisted")
         clean_name = self._guard_reserved_name(agent_name)
         if clean_name in self._registered:
             raise _opaque_error(409, "agent name already registered")
@@ -1269,6 +1276,7 @@ class ArenaGateway:
                     {
                         "owner": claims.owner,
                         "agent_name": clean_name,
+                        "agent_source": agent_source,
                         "quotas": dict(consent.quotas),
                     },
                 ),
@@ -3697,7 +3705,9 @@ def create_app(
             if rate_limited:
                 raise _opaque_error(429, "too many requests")
         try:
-            return gateway.enroll_account(claims, req.agent_name, req.agent_pubkey_hex)
+            return gateway.enroll_account(
+                claims, req.agent_name, req.agent_pubkey_hex, req.agent_source
+            )
         except HTTPException:
             raise
         except PermissionError as e:  # GA-CORE-1 beta gate: not invited

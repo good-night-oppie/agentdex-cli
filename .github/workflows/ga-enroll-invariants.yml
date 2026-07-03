@@ -132,4 +132,5 @@ jobs:
             packages/agentdex_arena/tests/test_enroll_request_invariants.py \
             packages/agentdex_arena/tests/test_enroll_account_rate_limit_429.py \
             packages/agentdex_arena/tests/test_device_flow_rate_limit_429.py \
+            packages/agentdex_arena/tests/test_supply_chain_registry_allowlist.py \
             packages/adx_showdown/tests/test_sidecar_resource_caps.py

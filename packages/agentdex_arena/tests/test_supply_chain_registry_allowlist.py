@@ -1,0 +1,102 @@
+"""GA-ENROLL Step-5 invariant: coding-agent source allowlist.
+
+The self-serve enrollment UI may only mint an Arena consent token for the
+three documented open-source coding-agent sources from SPEC §2:
+``openai/codex``, ``opencode``, and ``ultraworkers/claw-code``. Anything else
+must fail closed before a global agent name is reserved or an account_enroll
+receipt is written.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from adx_showdown.sidecar import Sidecar
+from agentdex_arena.consent import ConsentAuthority
+from agentdex_arena.gateway import ALLOWED_AGENT_SOURCES, ArenaGateway, create_app
+from agentdex_arena.session import SessionAuthority
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi.testclient import TestClient
+
+_OWNER = "eddie@oppie.xyz"
+_GH_ID = "12345678"
+_PUBKEY = "428e0c24a1a650dd33fe5948adf6634ff78da809d11912a4d27023d65f81c5f6"  # pragma: allowlist secret  # ed25519 PUBLIC key
+
+
+def _gateway(tmp_path: Path) -> ArenaGateway:
+    return ArenaGateway(
+        authority=ConsentAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        notify_owner=lambda owner, code: None,
+        session_authority=SessionAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+    )
+
+
+def _client(gw: ArenaGateway) -> TestClient:
+    return TestClient(create_app(gw, sidecar_factory=Sidecar), raise_server_exceptions=False)
+
+
+def _bearer(gw: ArenaGateway, owner: str = _OWNER) -> dict[str, str]:
+    assert gw.session_auth is not None
+    return {"Authorization": f"Bearer {gw.session_auth.mint_session(owner, _GH_ID)}"}
+
+
+def _body(agent_name: str, agent_source: str | None = None) -> dict[str, str]:
+    body = {"agent_name": agent_name, "agent_pubkey_hex": _PUBKEY}
+    if agent_source is not None:
+        body["agent_source"] = agent_source
+    return body
+
+
+def _account_enroll_events(gw: ArenaGateway) -> list[dict]:
+    return [e for e in gw.events.iter_events() if e.get("type") == "account_enroll"]
+
+
+def test_enroll_account_allows_exact_documented_agent_sources(tmp_path):
+    assert ALLOWED_AGENT_SOURCES == ("openai/codex", "opencode", "ultraworkers/claw-code")
+    gw = _gateway(tmp_path)
+
+    with _client(gw) as c:
+        for idx, source in enumerate(ALLOWED_AGENT_SOURCES):
+            r = c.post(
+                "/enroll/account",
+                json=_body(f"oppie-{idx}", source),
+                headers=_bearer(gw, owner=f"owner-{idx}@oppie.xyz"),
+            )
+            assert r.status_code == 200, r.text
+
+    events = _account_enroll_events(gw)
+    assert [e["payload"]["agent_source"] for e in events] == list(ALLOWED_AGENT_SOURCES)
+    assert gw.accounts.agents_for("owner-0@oppie.xyz") == ["oppie-0"]
+
+
+def test_enroll_account_defaults_to_codex_for_legacy_clients(tmp_path):
+    gw = _gateway(tmp_path)
+
+    with _client(gw) as c:
+        r = c.post("/enroll/account", json=_body("legacy"), headers=_bearer(gw))
+
+    assert r.status_code == 200, r.text
+    assert _account_enroll_events(gw)[0]["payload"]["agent_source"] == "openai/codex"
+
+
+def test_enroll_account_rejects_non_allowlisted_agent_source_before_publish(tmp_path):
+    gw = _gateway(tmp_path)
+
+    with _client(gw) as c:
+        r = c.post(
+            "/enroll/account",
+            json=_body("evil", "curl-piped-from-random-gist"),
+            headers=_bearer(gw),
+        )
+
+    assert r.status_code == 403
+    assert r.json().get("detail", "").startswith("arena error (ref:"), r.text
+    assert "evil" not in gw._registered
+    assert gw.accounts.agents_for(_OWNER) == []
+    assert _account_enroll_events(gw) == []
