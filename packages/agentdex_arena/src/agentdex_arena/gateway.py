@@ -4957,7 +4957,8 @@ def create_app(
         )
 
     # agentdex.builders SELF-SERVE funnel — GET /signup, /login, /enroll page routes
-    # plus the arena-mode entry aliases /modes, /arena, /battle/new. Serves the GA self-serve SPA that
+    # plus the arena-mode entry aliases /modes, /arena, /battle/new and the
+    # V1 invite-entitlement billing/launch screens. Serves the GA self-serve SPA that
     # tools/ga_spa/build.mjs compiles (CSP-safe: build-time JSX, vendored React, no
     # eval / no CDN / no inline JS) from design/ga-selfserve/ into web/ga/, which the
     # Dockerfile ships via `COPY web/` (design/ is NOT in the image, so the old
@@ -4970,6 +4971,8 @@ def create_app(
     _ga_site = Path("web/ga")
     _ga_index = _ga_site / "index.html"
     if _ga_index.is_file():
+        from fastapi.responses import RedirectResponse
+
         app.mount("/ga", StaticFiles(directory=str(_ga_site)), name="ga")
 
         async def _ga_page() -> FileResponse:
@@ -4977,8 +4980,21 @@ def create_app(
             # location.pathname to select the initial funnel screen.
             return FileResponse(str(_ga_index), media_type="text/html")
 
-        for _ga_entry in ("/signup", "/login", "/enroll", "/modes", "/arena", "/battle/new"):
+        for _ga_entry in (
+            "/signup",
+            "/login",
+            "/enroll",
+            "/modes",
+            "/arena",
+            "/battle/new",
+            "/billing",
+            "/launch",
+        ):
             app.add_api_route(_ga_entry, _ga_page, methods=["GET"], include_in_schema=False)
+
+        @app.get("/upgrade", include_in_schema=False)
+        async def _ga_upgrade_redirect() -> RedirectResponse:
+            return RedirectResponse(url="/billing", status_code=308)
 
     return app
 
