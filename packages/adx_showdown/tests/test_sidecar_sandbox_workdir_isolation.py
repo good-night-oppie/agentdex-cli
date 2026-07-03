@@ -94,10 +94,15 @@ def test_sidecar_launch_does_not_inherit_home_or_secret_env(tmp_path, monkeypatc
     # ADX_SIDECAR_MAX_OLD_SPACE_MB and its default is owned (and made hermetic)
     # by test_sidecar_resource_caps; pinning `=96` here fails in any shell
     # exporting the knob without testing anything sandbox-related (#638 review).
+    # Node argv is `node [V8 options] script [script args]`: the heap flag must
+    # sit BEFORE the script path or it degrades to a script argument and the
+    # sidecar runs uncapped (#643 review) — assert position, not membership.
     args = captured["args"]
     assert args[0] == "node"
-    assert any(a.startswith("--max-old-space-size=") for a in args)
-    assert str(sidecar_mod.SIDECAR_MJS) in args
+    script_idx = args.index(str(sidecar_mod.SIDECAR_MJS))
+    heap_idx = [i for i, a in enumerate(args) if a.startswith("--max-old-space-size=")]
+    assert heap_idx, f"no V8 heap cap in argv: {args!r}"
+    assert all(i < script_idx for i in heap_idx), f"heap cap after script path: {args!r}"
     assert cwd == sidecar_mod._PKG_ROOT.resolve()
     assert not cwd.is_relative_to(home.resolve())
     assert "HOME" not in env
