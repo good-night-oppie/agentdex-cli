@@ -46,7 +46,11 @@ def _bearer(gw: ArenaGateway, owner: str) -> dict[str, str]:
 def _enroll_account(c: TestClient, gw: ArenaGateway, *, owner: str, agent_name: str) -> str:
     r = c.post(
         "/enroll/account",
-        json={"agent_name": agent_name, "agent_pubkey_hex": _PUBKEY},
+        json={
+            "agent_name": agent_name,
+            "agent_pubkey_hex": _PUBKEY,
+            "agent_source": "openai/codex",
+        },
         headers=_bearer(gw, owner),
     )
     assert r.status_code == 200, r.text

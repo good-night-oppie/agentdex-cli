@@ -93,7 +93,7 @@ def test_enroll_cli_bearer_no_csrf_ok(tmp_path):
     r = _client(gw).post(
         "/enroll/account",
         headers={"Authorization": f"Bearer {tok}"},
-        json={"agent_name": "cli-bot", "agent_pubkey_hex": _PUBKEY},
+        json={"agent_name": "cli-bot", "agent_pubkey_hex": _PUBKEY, "agent_source": "openai/codex"},
     )
     assert r.status_code == 200, r.text  # CLI is CSRF-exempt
 
@@ -104,7 +104,7 @@ def test_enroll_cookie_without_csrf_is_403(tmp_path):
     r = _client(gw).post(
         "/enroll/account",
         cookies={"arena_session": tok},
-        json={"agent_name": "web-bot", "agent_pubkey_hex": _PUBKEY},
+        json={"agent_name": "web-bot", "agent_pubkey_hex": _PUBKEY, "agent_source": "openai/codex"},
     )
     assert r.status_code == 403  # cookie-authed state-change without CSRF → blocked
 
@@ -116,7 +116,11 @@ def test_enroll_cookie_with_matching_csrf_ok(tmp_path):
         "/enroll/account",
         cookies={"arena_session": tok, "arena_csrf": "csrf-abc"},
         headers={"X-CSRF-Token": "csrf-abc"},
-        json={"agent_name": "web-bot2", "agent_pubkey_hex": _PUBKEY},
+        json={
+            "agent_name": "web-bot2",
+            "agent_pubkey_hex": _PUBKEY,
+            "agent_source": "openai/codex",
+        },
     )
     assert r.status_code == 200, r.text  # double-submit match → allowed
 
@@ -128,13 +132,18 @@ def test_enroll_cookie_with_mismatched_csrf_is_403(tmp_path):
         "/enroll/account",
         cookies={"arena_session": tok, "arena_csrf": "cookie-val"},
         headers={"X-CSRF-Token": "different-val"},
-        json={"agent_name": "web-bot3", "agent_pubkey_hex": _PUBKEY},
+        json={
+            "agent_name": "web-bot3",
+            "agent_pubkey_hex": _PUBKEY,
+            "agent_source": "openai/codex",
+        },
     )
     assert r.status_code == 403  # cookie != header → CSRF fail
 
 
 def test_enroll_no_auth_is_401(tmp_path):
     r = _client(_gw(tmp_path)).post(
-        "/enroll/account", json={"agent_name": "x", "agent_pubkey_hex": _PUBKEY}
+        "/enroll/account",
+        json={"agent_name": "x", "agent_pubkey_hex": _PUBKEY, "agent_source": "openai/codex"},
     )
     assert r.status_code == 401

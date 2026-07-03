@@ -624,10 +624,12 @@ class EnrollAccountRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=False)
     agent_name: str = Field(min_length=1, max_length=64)
     agent_pubkey_hex: str = Field(pattern=r"^[0-9a-f]{64}$")
-    # GA-ENROLL supply-chain floor: browser/CLI enrollment may only select one
-    # of the documented OSS coding-agent sources. Default preserves existing
-    # clients that predate the explicit selector.
-    agent_source: str = "openai/codex"
+    # GA-ENROLL supply-chain floor: enrollment may only select one of the
+    # documented OSS coding-agent sources. REQUIRED — a defaulted value would
+    # let a client bypass the allowlist by omitting the field (and stamp the
+    # account_enroll receipt with a source it never declared), so absence
+    # fails closed with 422 before any name is reserved (#636 review).
+    agent_source: str = Field(min_length=1, max_length=64)
 
 
 class BeginRequest(BaseModel):

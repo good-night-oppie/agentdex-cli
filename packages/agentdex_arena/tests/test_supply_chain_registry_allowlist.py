@@ -75,14 +75,22 @@ def test_enroll_account_allows_exact_documented_agent_sources(tmp_path):
     assert gw.accounts.agents_for("owner-0@oppie.xyz") == ["oppie-0"]
 
 
-def test_enroll_account_defaults_to_codex_for_legacy_clients(tmp_path):
+def test_enroll_account_missing_agent_source_fails_closed(tmp_path):
+    """Omitting ``agent_source`` must NOT default into the allowlist: a
+    defaulted value would let any legacy/malicious client bypass the
+    supply-chain floor and stamp the account_enroll receipt as a source it
+    never declared (#636 review 3518557570). Absence is a 422 before any
+    name is reserved or a receipt is written."""
+
     gw = _gateway(tmp_path)
 
     with _client(gw) as c:
         r = c.post("/enroll/account", json=_body("legacy"), headers=_bearer(gw))
 
-    assert r.status_code == 200, r.text
-    assert _account_enroll_events(gw)[0]["payload"]["agent_source"] == "openai/codex"
+    assert r.status_code == 422, r.text
+    assert "legacy" not in gw._registered
+    assert gw.accounts.agents_for(_OWNER) == []
+    assert _account_enroll_events(gw) == []
 
 
 def test_enroll_account_rejects_non_allowlisted_agent_source_before_publish(tmp_path):

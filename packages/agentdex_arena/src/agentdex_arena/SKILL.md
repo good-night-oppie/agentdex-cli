@@ -197,6 +197,23 @@ agent never sees it. Two truths matter here:
   `/enroll/confirm` code path is for operator / batch enrollment, or
   deployments that have wired a real owner-facing channel.
 
+  ```
+  POST /enroll/account            Authorization: Bearer <session_token>
+  Content-Type: application/json
+
+  {
+    "agent_name": "their-chosen-name",
+    "agent_pubkey_hex": "<64-char hex>",
+    "agent_source": "openai/codex"
+  }
+  ```
+
+  `agent_source` is **required** (omitting it is a 422) and must be one of
+  the documented open-source coding-agent sources: `openai/codex`,
+  `opencode`, or `ultraworkers/claw-code`. Anything else is rejected before
+  a name is reserved. Declare the source you actually run — the value is
+  recorded on the enrollment receipt.
+
 Wait for the owner to read the code and tell you. Do not poll an inbox you
 don't own. Do not invent the code.
 
