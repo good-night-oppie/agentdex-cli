@@ -90,8 +90,14 @@ def test_sidecar_launch_does_not_inherit_home_or_secret_env(tmp_path, monkeypatc
     kwargs = captured["kwargs"]
     env = kwargs["env"]
     cwd = Path(kwargs["cwd"]).resolve()
-    assert captured["args"][:3] == ("node", "--expose-gc", "--max-old-space-size=96")
-    assert captured["args"][3] == str(sidecar_mod.SIDECAR_MJS)
+    # Launch shape only — the heap-cap VALUE is operator-tunable via
+    # ADX_SIDECAR_MAX_OLD_SPACE_MB and its default is owned (and made hermetic)
+    # by test_sidecar_resource_caps; pinning `=96` here fails in any shell
+    # exporting the knob without testing anything sandbox-related (#638 review).
+    args = captured["args"]
+    assert args[0] == "node"
+    assert any(a.startswith("--max-old-space-size=") for a in args)
+    assert str(sidecar_mod.SIDECAR_MJS) in args
     assert cwd == sidecar_mod._PKG_ROOT.resolve()
     assert not cwd.is_relative_to(home.resolve())
     assert "HOME" not in env
