@@ -5,6 +5,16 @@ three documented open-source coding-agent sources from SPEC §2:
 ``openai/codex``, ``opencode``, and ``ultraworkers/claw-code``. Anything else
 must fail closed before a global agent name is reserved or an account_enroll
 receipt is written.
+
+Threat-model scope: the allowlist gates the SELF-SERVE lane
+(``/enroll/account``, session-authed) only. The operator-mediated OOB lane
+(``/enroll/request`` → ``/enroll/confirm``) deliberately carries no
+``agent_source`` and no allowlist check: the operator who relays the OOB code
+(or wires the owner channel) is the trust gate there, and that lane is the
+curated batch-mint path for agents outside the self-serve list. The exemption
+is pinned by ``test_oob_enroll_lane_is_exempt_from_source_allowlist`` so the
+asymmetry stays intentional-and-tested; if SPEC §2 is later ratified to cover
+every consent-mint site, gate the OOB lane and update that pin.
 """
 
 from __future__ import annotations
@@ -107,4 +117,49 @@ def test_enroll_account_rejects_non_allowlisted_agent_source_before_publish(tmp_
     assert r.json().get("detail", "").startswith("arena error (ref:"), r.text
     assert "evil" not in gw._registered
     assert gw.accounts.agents_for(_OWNER) == []
+    assert _account_enroll_events(gw) == []
+
+
+def test_oob_enroll_lane_is_exempt_from_source_allowlist(tmp_path):
+    """PINS the deliberate exemption described in the module docstring: the
+    operator-mediated ``/enroll/request`` → ``/enroll/confirm`` lane mints
+    without any ``agent_source`` and without an allowlist check — the operator
+    relaying the OOB code is the trust gate on that lane. If this test starts
+    failing because the OOB lane grew a source gate, that is a deliberate
+    SPEC §2 ratification: update the module docstring and this pin together
+    (and migrate the in-repo OOB clients: CLI arena_client + starter kit)."""
+
+    sent: list[tuple[str, str]] = []
+    gw = ArenaGateway(
+        authority=ConsentAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+        events_path=tmp_path / "events.jsonl",
+        artifacts_dir=tmp_path / "arena",
+        # capture the OOB code so the test can confirm without a real channel
+        notify_owner=lambda owner, code: sent.append((owner, code)),
+        session_authority=SessionAuthority(
+            signing_key_hex=Ed25519PrivateKey.generate().private_bytes_raw().hex()
+        ),
+    )
+
+    with _client(gw) as c:
+        r = c.post(
+            "/enroll/request",
+            json={"owner": _OWNER, "agent_name": "oob-lane", "agent_pubkey_hex": _PUBKEY},
+        )
+        assert r.status_code == 200, r.text
+        assert sent, "OOB code was not delivered to the owner channel"
+        r = c.post(f"/enroll/confirm/{sent[-1][1]}")
+
+    # Minted with no declared source, no allowlist involvement.
+    assert r.status_code == 200, r.text
+    assert r.json()["token"]
+    assert "oob-lane" in gw._registered
+    # The OOB lane's receipt is the bare register event — no agent_source key
+    # (so an agent_source census over events under-counts OOB enrollments by
+    # design; they are operator-vouched, not self-declared).
+    register_events = [e for e in gw.events.iter_events() if e.get("type") == "register"]
+    assert register_events, "OOB enroll wrote no register receipt"
+    assert all("agent_source" not in e.get("payload", {}) for e in register_events)
     assert _account_enroll_events(gw) == []
