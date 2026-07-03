@@ -561,6 +561,43 @@ def test_pvp_start_capacity_uses_retry_after_503():
     assert 'headers={"Retry-After": os.environ.get("ARENA_RETRY_AFTER_SEC", "5")}' in pvp_queue
 
 
+def test_pvp_queue_capacity_error_returns_503_retry_after(gw: ArenaGateway, monkeypatch):
+    """Behavioral GA-ARENA-MODES cap gate: sidecar capacity sheds as retryable 503."""
+
+    class CapacitySidecar:
+        async def start(self):
+            raise gateway_mod.SidecarError("capacity exhausted")
+
+        async def stop(self):
+            return None
+
+    monkeypatch.setenv("ARENA_RETRY_AFTER_SEC", "11")
+    key = Ed25519PrivateKey.generate()
+    token = _mint(gw, "capacity@example.com", "CapAgent", key)
+    start = gw.battle_start(token)
+    signature = key.sign(start["pop_challenge"].encode()).hex()
+    app = create_app(gw, sidecar_factory=CapacitySidecar)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            "/me/battle/queue",
+            json={
+                "token": token,
+                "battle_nonce": start["battle_nonce"],
+                "pop_signature_hex": signature,
+                "mode": "pvp",
+                # Non-empty team forces pre-match sidecar validation, so capacity is
+                # exercised without parking a first queue caller waiting for a peer.
+                "team": "Pikachu||lightball||thunderbolt|||||||||||||||",
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "11"
+    assert "arena at capacity" in response.text
+    assert gw.cap_503_total == 1
+
+
 def test_pvp_advance_renders_p1_before_awaiting_p2_choice(gw: ArenaGateway):
     """Opening simultaneous-choice state must publish P1 before waiting on P2."""
 
