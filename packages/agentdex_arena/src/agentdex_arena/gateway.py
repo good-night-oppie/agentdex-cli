@@ -1274,6 +1274,7 @@ class ArenaGateway:
                 (
                     "account_enroll",
                     {
+                        "tenant_id": consent.token_id,
                         "owner": claims.owner,
                         "agent_name": clean_name,
                         "agent_source": agent_source,
