@@ -654,6 +654,74 @@ def test_cookie_auth_state_changing_post_requires_double_submit_csrf(tmp_path: P
     assert allowed.status_code == 200, allowed.text
 
 
+def test_pvp_queue_emits_queue_enter_and_match_audit_events(gw: ArenaGateway):
+    """Behavioral GA-ARENA-MODES floor: PvP queue + match emits durable audit rows."""
+
+    class _ReadySidecar:
+        returncode = None
+
+        async def start(self) -> None:
+            return None
+
+        async def stop(self) -> None:
+            return None
+
+        async def request(self, op: str, **kwargs):  # noqa: ARG002
+            if op == "pack-team":
+                return {"packed": "packed-team"}
+            if op == "start":
+                return {
+                    "state": {
+                        "turns": 1,
+                        "pending": {"p1": _move_request("p1")},
+                        "active": {"p1": "Bulbasaur", "p2": "Bulbasaur"},
+                    }
+                }
+            raise AssertionError(f"unexpected sidecar op: {op}")
+
+    app = create_app(gw, sidecar_factory=_ReadySidecar)
+    key_a = Ed25519PrivateKey.generate()
+    key_b = Ed25519PrivateKey.generate()
+    tok_a = _mint(gw, "audit-a@example.com", "AuditA", key_a)
+    tok_b = _mint(gw, "audit-b@example.com", "AuditB", key_b)
+    body_a = _pvp_queue_body(gw, tok_a, key_a)
+    body_b = _pvp_queue_body(gw, tok_b, key_b)
+    responses = {}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+
+        def post_queue(name: str, body: dict) -> None:
+            responses[name] = client.post("/me/battle/queue", json=body)
+
+        t1 = threading.Thread(target=post_queue, args=("p1", body_a))
+        t1.start()
+        deadline = time.monotonic() + 2.0
+        while gw.pvp_queue.queue_depth == 0 and t1.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert gw.pvp_queue.queue_depth == 1
+
+        t2 = threading.Thread(target=post_queue, args=("p2", body_b))
+        t2.start()
+        t1.join(timeout=2)
+        t2.join(timeout=2)
+
+    assert not t1.is_alive()
+    assert not t2.is_alive()
+    assert responses["p1"].status_code == 200, responses["p1"].text
+    assert responses["p2"].status_code == 200, responses["p2"].text
+
+    events = list(gw.events.iter_events())
+    queue_events = [event for event in events if event["type"] == PVP_QUEUE_ENTER]
+    match_events = [event for event in events if event["type"] == PVP_MATCH]
+    assert [event["payload"]["agent_name"] for event in queue_events] == ["AuditA", "AuditB"]
+    assert len(match_events) == 1
+    match_payload = match_events[0]["payload"]
+    assert match_payload["battle_id"] == responses["p1"].json()["battle_id"]
+    assert match_payload["battle_id"] == responses["p2"].json()["battle_id"]
+    assert match_payload["p1_agent_name"] == "AuditA"
+    assert match_payload["p2_agent_name"] == "AuditB"
+
+
 def test_pvp_advance_renders_p1_before_awaiting_p2_choice(gw: ArenaGateway):
     """Opening simultaneous-choice state must publish P1 before waiting on P2."""
 

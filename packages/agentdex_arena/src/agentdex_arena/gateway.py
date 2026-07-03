@@ -85,6 +85,7 @@ from agentdex_arena.consent import (
     _normalize_owner,
 )
 from agentdex_arena.device_flow import DeviceFlowError, GitHubDeviceFlow
+from agentdex_arena.eventsync import PVP_MATCH, PVP_QUEUE_ENTER
 from agentdex_arena.invite import (
     InviteError,
     InviteStore,
@@ -3923,12 +3924,32 @@ def create_app(
                 valid, errors = await validate_team(validation_sidecar, requested_team)
                 if not valid:
                     raise _opaque_error(422, f"invalid team rejected: {errors[:3]}")
+            await gateway._append_or_fail_closed(
+                PVP_QUEUE_ENTER,
+                {
+                    "tenant_id": claims.token_id,
+                    "owner": owner_norm,
+                    "agent_name": claims.agent_name,
+                },
+            )
             pairing = await gateway.pvp_queue.enqueue(
                 owner_norm,
                 agent_name=claims.agent_name,
                 token_id=claims.token_id,
                 team=requested_team,
             )
+            if pairing.role == "p2":
+                await gateway._append_or_fail_closed(
+                    PVP_MATCH,
+                    {
+                        "tenant_id": claims.token_id,
+                        "battle_id": pairing.battle_id,
+                        "p1_owner": pairing.opponent_owner,
+                        "p1_agent_name": pairing.opponent_agent_name,
+                        "p2_owner": owner_norm,
+                        "p2_agent_name": claims.agent_name,
+                    },
+                )
         except ValueError as e:
             _hand_off()
             raise _opaque_error(409, e) from None
