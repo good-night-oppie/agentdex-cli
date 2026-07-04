@@ -1,0 +1,17 @@
+scripts:
+  setup: |
+    export PATH="$HOME/.local/bin:$PATH"
+    for f in "$ORCA_ROOT_PATH"/.env "$ORCA_ROOT_PATH"/.env.* ; do
+      [ -f "$f" ] || continue
+      case "$f" in *.example) continue ;; esac
+      cp -n "$f" "$ORCA_WORKTREE_PATH/$(basename "$f")"
+    done
+    cd "$ORCA_WORKTREE_PATH"
+    uv sync
+  archive: |
+    export PATH="$HOME/.local/bin:$PATH"
+    cd "$ORCA_WORKTREE_PATH" 2>/dev/null || exit 0
+    pkill -f "$ORCA_WORKTREE_PATH" 2>/dev/null || true
+    rm -rf .venv .pytest_cache .ruff_cache .mypy_cache 2>/dev/null || true
+    find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+    exit 0
