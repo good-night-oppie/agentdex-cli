@@ -722,3 +722,120 @@ def test_backgrounded_finish_failure_is_logged(tmp_path: Path, caplog) -> None:
         )
 
     asyncio.run(run())
+
+
+def test_post_commit_rating_readback_failure_degrades_receipt_visibly(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """ADX-P0-001 residual: the rated `after` rating readback runs AFTER the
+    terminal group durably committed. If it raises, the finish must NOT 500
+    (falsely implying nothing happened, leaving session.ended None for a
+    stale-expiry forfeit to append a contradictory duplicate group). Instead the
+    receipt publishes with a VISIBLY degraded rating block, and the log carries
+    exactly one battle_end + one period row."""
+    gateway = _gateway(tmp_path)
+    visitor, opponent = "DegradeBot", "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+    session = BattleSession(
+        battle_id="rated-degrade",
+        claims_token_id="tenant-degrade",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[1, 2, 3, 4],
+        sidecar=None,  # type: ignore[arg-type]
+        opponent_policy=None,
+        p1_team="visitor-team",
+        p2_team="opponent-team",
+        visitor_choices=["move 1", "move 2"],
+    )
+
+    from agentdex_arena import gateway as gateway_mod
+
+    real_recompute = gateway_mod.recompute_ladder
+    calls = {"n": 0}
+
+    def flaky_recompute(path):
+        calls["n"] += 1
+        if calls["n"] == 2:  # 1 = the `before` snapshot; 2 = the post-commit readback
+            raise OSError("mock post-commit ladder read failure")
+        return real_recompute(path)
+
+    monkeypatch.setattr("agentdex_arena.gateway.recompute_ladder", flaky_recompute)
+
+    receipt = asyncio.run(
+        gateway._finish(
+            session, {"winner": visitor, "turns": 9, "inputLog": ["a", "b"], "keyLines": []}
+        )
+    )
+
+    # The receipt PUBLISHED (no 500) and degrades visibly, not silently.
+    assert session.ended is receipt
+    assert receipt["rating"]["published_delta"] == "UNAVAILABLE"
+    assert receipt["rating"]["rating"] is None
+    assert "durable commit" in receipt["rating"]["note"]
+    # Seed disclosure (the rated contract) survives the degradation.
+    assert receipt["rating"]["seed_disclosure"] == [1, 2, 3, 4]
+    # Exactly ONE terminal group in the log — no duplicate.
+    types = [e["type"] for e in gateway.events.iter_events()]
+    assert types.count("battle_end") == 1
+    assert types.count("period") == 1
+    # The battle is terminal: a later stale-expiry appends nothing.
+    session.last_touch = 0.0
+    asyncio.run(gateway._expire_if_stale(session))
+    types_after = [e["type"] for e in gateway.events.iter_events()]
+    assert types_after == types
+
+
+def test_finish_reentry_after_commit_recovers_receipt_without_duplicate_rows(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """ADX-P0-001 residual: if _finish raises AFTER the durable commit but BEFORE
+    publishing (session.committed=True, session.ended=None), a re-entered finish
+    (the stale-expiry forfeit path) must not append a second, contradictory
+    battle_end group. It recovers the receipt from the DURABLE row — the real
+    winner, not the retry's forfeit args — and marks it receipt_recovered."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)  # sandbox vs brock, visitor "Bot"
+
+    orig_cache_replay = gateway._cache_replay
+
+    def boom(battle_id: str, replay: dict) -> None:
+        raise RuntimeError("mock publish-phase failure")
+
+    monkeypatch.setattr(gateway, "_cache_replay", boom)
+    with pytest.raises(RuntimeError, match="mock publish-phase failure"):
+        asyncio.run(
+            gateway._finish(
+                session, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []}
+            )
+        )
+
+    # The commit landed; the publish did not.
+    assert session.committed is True
+    assert session.ended is None
+    types = [e["type"] for e in gateway.events.iter_events()]
+    assert types.count("battle_end") == 1
+
+    # Re-enter with CONTRADICTORY forfeit args (the stale-expiry shape).
+    monkeypatch.setattr(gateway, "_cache_replay", orig_cache_replay)
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+
+    # Recovered from the durable row: the REAL winner, visibly marked.
+    assert receipt["receipt_recovered"] is True
+    assert receipt["winner"] == "Bot"
+    assert receipt["you_won"] is True
+    assert session.ended is receipt
+    # Nothing was re-appended — still exactly one terminal group.
+    types_after = [e["type"] for e in gateway.events.iter_events()]
+    assert types_after.count("battle_end") == 1
+    assert types_after == types

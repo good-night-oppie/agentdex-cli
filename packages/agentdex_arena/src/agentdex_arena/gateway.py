@@ -503,6 +503,14 @@ class BattleSession:
     # synchronously before the first await; the guard skips when it is set (PR #377 review
     # 3443669247). Reset only if the forfeit fails to commit (ended still None).
     forfeiting: bool = False
+    # Durable-commit marker (ADX-P0-001): set the moment _finish's terminal event
+    # group lands in the EventLog, BEFORE the publish phase. If a post-commit step
+    # then raises (rating readback, replay cache), session.ended stays None while
+    # the log already holds battle_end/period — a re-entered _finish (e.g. the
+    # stale-expiry forfeit) must NOT append a second, contradictory group. The
+    # guard at the top of _finish recovers the receipt from the durable log
+    # instead of double-rating the battle.
+    committed: bool = False
     # Normalized owner — keys the per-owner concurrency cap (ADR-0012 §7). Defaulted
     # so existing constructions (tests, fork) need no change; battle_begin sets it.
     owner: str = ""
@@ -2214,6 +2222,47 @@ class ArenaGateway:
     async def _finish(
         self, session: BattleSession, end: dict[str, Any], *, defer_frame_evict: bool = True
     ) -> dict[str, Any]:
+        if session.committed and session.ended is None:
+            # A prior _finish durably committed this battle's terminal group but
+            # raised BEFORE the publish phase (post-commit readback / publish
+            # failure). This retry's `end` args are NOT the truth — on the
+            # stale-expiry path they are a forfeit that contradicts the committed
+            # result — and re-appending would double-rate the battle with a second
+            # battle_end/period group. Mirror the dispute path's idempotence
+            # posture (_already_logged): recover the receipt FROM the durable log
+            # and append nothing (ADX-P0-001 / t_e0014a23).
+            committed_row: dict[str, Any] = {}
+            for ev in self.events.iter_events():
+                if (
+                    ev.get("type") == "battle_end"
+                    and (ev.get("payload") or {}).get("battle_id") == session.battle_id
+                ):
+                    committed_row = ev.get("payload") or {}
+                    break
+            recovered_winner = sanitize_name(committed_row.get("winner") or "")
+            receipt: dict[str, Any] = {
+                "status": "ended",
+                "battle_id": session.battle_id,
+                "lane": session.lane,
+                "winner": recovered_winner,
+                "you_won": recovered_winner == session.visitor_name,
+                "turns": int(committed_row.get("turns", 0)),
+                "failure_signatures": [],
+                "replay": f"/replay/{session.battle_id}",
+                "input_log_blake2b16": committed_row.get("input_log_blake2b16"),
+                "recent_turns": list(session.recent),
+                # Visible compensation marker (the card's contract): this receipt
+                # was rebuilt from the durable record after a post-commit publish
+                # failure — the log, not the original response, is its backing.
+                "receipt_recovered": True,
+            }
+            log.error(
+                "finish re-entered after durable commit (battle=%s) — recovered the "
+                "receipt from the log; no rows appended",
+                session.battle_id,
+            )
+            session.ended = receipt
+            return receipt
         winner = sanitize_name(end.get("winner") or "")
         input_log = list(end.get("inputLog") or [])
         log_digest = hashlib.blake2b("\n".join(input_log).encode(), digest_size=16).hexdigest()
@@ -2349,18 +2398,46 @@ class ArenaGateway:
                 battle_id=session.battle_id,
                 session=session,
             )
+            # Durable commit point: from here the LOG — not this call's control
+            # flow — is the truth. Anything below that raises must not be able to
+            # re-append (see the committed guard at the top of _finish).
+            session.committed = True
             for name in new_registered:
                 self._registered.add(name)
             if before_rating is not None:
-                after = recompute_ladder(self.events.path).rating(session.visitor_name)
-                delta = Ladder.published_delta(before_rating, after)
-                rating_block = {
-                    "rating": round(after.rating, 1),
-                    "rd": round(after.rd, 1),
-                    "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
-                    "seed_disclosure": session.seed,  # revealed post-result (A3)
-                    "opponent_team_disclosure": session.p2_team,  # i.i.d. team post-result (#8)
-                }
+                try:
+                    after = recompute_ladder(self.events.path).rating(session.visitor_name)
+                    delta = Ladder.published_delta(before_rating, after)
+                    rating_block = {
+                        "rating": round(after.rating, 1),
+                        "rd": round(after.rd, 1),
+                        "published_delta": round(delta, 1) if delta is not None else "INCONCLUSIVE",
+                        "seed_disclosure": session.seed,  # revealed post-result (A3)
+                        "opponent_team_disclosure": session.p2_team,  # i.i.d. team post-result (#8)
+                    }
+                except Exception:  # noqa: BLE001
+                    # The period row above is DURABLY committed — the ladder has
+                    # this battle. Raising here would 500 the caller (falsely
+                    # implying nothing happened) and leave session.ended None for
+                    # stale-expiry to forfeit a contradictory duplicate group.
+                    # Compensate VISIBLY instead (ADX-P0-001): publish the receipt
+                    # with a degraded rating block; /ladder serves the real rating.
+                    log.exception(
+                        "post-commit rating readback failed (battle=%s) — receipt "
+                        "degrades visibly; the period row is durably committed",
+                        session.battle_id,
+                    )
+                    rating_block = {
+                        "rating": None,
+                        "rd": None,
+                        "published_delta": "UNAVAILABLE",
+                        "note": (
+                            "rating readback failed after the durable commit; the "
+                            "ladder includes this battle — see /ladder"
+                        ),
+                        "seed_disclosure": session.seed,
+                        "opponent_team_disclosure": session.p2_team,
+                    }
         finally:
             if rating_lock is not None:
                 rating_lock.release()
