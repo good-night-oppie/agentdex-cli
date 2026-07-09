@@ -1226,6 +1226,99 @@ def test_pinned_receipt_is_never_dropped_to_make_room_for_a_replayable_one(
     assert len(finished_replayable) == 1  # the replayable ones obey their own limit
 
 
+# ---- the receipt must not promise a replay the durable record cannot back ----
+
+
+def _break_artifact_write(gateway: ArenaGateway, monkeypatch) -> None:
+    """Make the best-effort replay/inputlog artifact write fail (e.g. ENOSPC)."""
+    real = Path.write_text
+
+    def boom(self, *a, **kw):  # noqa: ANN001
+        if self.name.endswith((".replay.json", ".inputlog.json")):
+            raise OSError(28, "No space left on device")
+        return real(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "write_text", boom)
+
+
+def test_receipt_does_not_promise_a_replay_the_artifact_write_could_not_persist(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The normal publish path used to set `replay: /replay/<id>` UNCONDITIONALLY,
+    even when the best-effort artifact write failed. `self.replays` is in-memory and
+    LRU-bounded, so once that entry is evicted `/replay` 404s for a receipt that
+    promised it — exactly the self-contradicting-receipt class #650 closed for the
+    recovery path. Advertise the replay only when the durable write succeeded."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    _break_artifact_write(gateway, monkeypatch)
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []})
+    )
+    assert receipt["replay"] is None  # not promised
+    assert "replay_unavailable" in receipt
+    assert "receipt_recovered" not in receipt  # this is the NORMAL path, not recovery
+    # And the durable artifact really is absent, so the promise would have 404'd.
+    assert not (tmp_path / "arena" / f"{session.battle_id}.replay.json").exists()
+
+
+def test_receipt_promises_the_replay_when_the_artifact_write_succeeds(tmp_path: Path) -> None:
+    """Control: the happy path still advertises the replay and writes the artifact."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []})
+    )
+    assert receipt["replay"] == f"/replay/{session.battle_id}"
+    assert "replay_unavailable" not in receipt
+    assert (tmp_path / "arena" / f"{session.battle_id}.replay.json").exists()
+
+
+def test_unreplayable_normal_receipt_is_pinned_not_evicted(tmp_path: Path, monkeypatch) -> None:
+    """A normal finish whose artifact write failed has no durable fallback either —
+    the in-memory session is the only copy. It must be pinned like the recovered
+    one, so /state can still serve it. The pin keys on the published fact
+    (`replay is None`), not on `receipt_recovered`."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    gateway._publish_session(session.battle_id, session)
+    _break_artifact_write(gateway, monkeypatch)
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []})
+    )
+    assert receipt["replay"] is None
+    assert session.battle_id in gateway.sessions  # pinned despite cache limit 0
+    gateway._evict_finished_sessions()
+    assert session.battle_id in gateway.sessions
+
+
+def test_ended_fatal_session_is_not_pinned(tmp_path: Path, monkeypatch) -> None:
+    """Key-presence is load-bearing. An ended-FATAL receipt carries NO `replay` key
+    (it never promised one, and nothing durable backs it), so `.get("replay") is
+    None` would wrongly pin it forever. It must stay evictable."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    gateway._publish_session(session.battle_id, session)
+
+    def boom(*a, **kw):  # noqa: ANN001
+        raise RuntimeError("event log write failed")
+
+    monkeypatch.setattr(gateway.events, "append_many", boom)
+    with pytest.raises(HTTPException):
+        asyncio.run(
+            gateway._finish(
+                session, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []}
+            )
+        )
+    assert session.ended is not None and "replay" not in session.ended  # fatal shape
+    gateway._evict_finished_sessions()
+    assert session.battle_id not in gateway.sessions  # evictable, not pinned
+
+
 def test_recovered_rated_quarantined_note_does_not_claim_ladder_inclusion(
     tmp_path: Path, monkeypatch
 ) -> None:

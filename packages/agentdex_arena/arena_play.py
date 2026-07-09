@@ -118,7 +118,16 @@ class Arena:
         return st
 
     def replay(self, st: dict) -> dict:
-        return self.c.get(st["replay"]).json()
+        # `replay` is NULLABLE: the arena only advertises a replay the durable record
+        # can back, so a receipt never promises a /replay that would 404. Honour that
+        # contract here rather than handing httpx a None url (TypeError).
+        url = st.get("replay")
+        if not url:
+            return {
+                "error": st.get("replay_unavailable", "replay unavailable"),
+                "battle_id": st.get("battle_id"),
+            }
+        return self.c.get(url).json()
 
     def ladder(self) -> dict:
         return self.c.get("/ladder").json()
