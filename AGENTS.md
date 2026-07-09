@@ -109,3 +109,9 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 ## PR Cascade Breaker — reviewer protocol
 
 All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finite state machine. The 11 hard rules live in [agents/review/AGENTS.md §"PR Cascade Breaker"](agents/review/AGENTS.md). Canonical skill: `~/.claude/skills/pr-cascade-breaker/SKILL.md` (synthesised 2026-06-25 from 6 historical cascade post-mortems). CI: `.github/workflows/pr-cascade-breaker-gate.yml`.
+
+## Reviews
+- [PR 621 Digest](docs/reviews/PR_621_DIGEST.md)
+- [PR 623 Digest](docs/reviews/PR_623_DIGEST.md)
+- [PR 624 Digest](docs/reviews/PR_624_DIGEST.md)
+- [PR 649 Digest](docs/reviews/PR_649_DIGEST.md)

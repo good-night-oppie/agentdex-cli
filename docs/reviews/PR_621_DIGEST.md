@@ -1,3 +1,14 @@
+---
+title: PR 621 Digest
+status: draft
+owner: etang
+created: 2026-07-09
+updated: 2026-07-09
+type: reference
+scope: monorepo
+layer: cross-cutting
+cross_cutting: true
+---
 ```reviewer_finding
 kind: architecture
 priority: P3
