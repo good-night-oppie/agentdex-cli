@@ -9,7 +9,11 @@ convenient proxies:
   mirror of prepare_release.py's exclusion).
 * Every internal first-party dependency is pinned ``name==target`` (the real
   anti-install-drift invariant; substring/length probes are not enough).
-* The agent-facing SKILL.md references the target version (not merely ">100 bytes").
+* The agent-facing SKILL.md files are present on every release; on STABLE
+  releases they must also reference the target version. Nightly versions are
+  date-derived at CI time (0.1.0.devYYYYMMDD) and are never committed into the
+  tree, so the version-reference assertion is stable-only — mirroring the
+  blog-presence check.
 * Stable releases have a release blog post referencing the version, and the
   landing/docs pages interlink.
 
@@ -108,7 +112,7 @@ def check_internal_pins(target_version: str) -> bool:
     return ok
 
 
-def check_skill_files(target_version: str) -> bool:
+def check_skill_files(target_version: str, is_stable: bool) -> bool:
     skill_paths = [
         ROOT / "packages" / "agentdex_arena" / "src" / "agentdex_arena" / "SKILL.md",
         ROOT / "site" / "SKILL.md",
@@ -119,15 +123,25 @@ def check_skill_files(target_version: str) -> bool:
             print(f"ERROR: skill file missing: {p.relative_to(ROOT)}")
             ok = False
             continue
-        content = p.read_text(encoding="utf-8")
-        if target_version not in content:
+        # The exact release version is only committed into SKILL.md for a STABLE
+        # release. Nightly versions are date-derived at CI time
+        # (0.1.0.devYYYYMMDD) and nothing stamps them into the tree, so the
+        # version-reference assertion is unsatisfiable-by-construction on a
+        # nightly — enforce it only on stable, mirroring check_blog_presence.
+        # (Existence is still asserted on every release.)
+        if is_stable and target_version not in p.read_text(encoding="utf-8"):
             print(
                 f"ERROR: skill file {p.relative_to(ROOT)} does not reference "
                 f"release version {target_version}."
             )
             ok = False
     if ok:
-        print("✓ Skill files reference the release version.")
+        if is_stable:
+            print("✓ Skill files present and reference the release version.")
+        else:
+            print(
+                "✓ Nightly release: skill files present; skipping stable version-reference check."
+            )
     return ok
 
 
@@ -183,7 +197,7 @@ def main():
     checks = [
         check_versions(args.version),
         check_internal_pins(args.version),
-        check_skill_files(args.version),
+        check_skill_files(args.version, args.stable),
         check_blog_presence(args.version, args.stable),
         check_link_lineage(),
     ]
