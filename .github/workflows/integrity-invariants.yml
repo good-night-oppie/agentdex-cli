@@ -1,0 +1,102 @@
+# integrity-invariants — CI-enforce the ADX-P0-001 receipt-atomicity and
+# Class-B quota (spend-after-success) invariants.
+#
+# WHY THIS EXISTS (kanban t_f457433b, from the t_8816057f integrity verdict,
+# 2026-07-08): the modules that PIN these invariants were not CI-enforced —
+# test_receipt_atomicity.py was in no workflow's module list, and
+# test_quota_spend_after_success.py is module-skipif-gated on
+# sidecar_available(), which no workflow satisfied (nothing installed
+# packages/adx_showdown/node_modules). A regression un-atomic-ing the battle
+# finish path would have merged green.
+#
+# CONTRACT (fail-closed, mirrors the verdict's acceptance):
+#   1. The sidecar substrate MUST be runnable before pytest starts — a
+#      dedicated precondition step asserts sidecar_available() is None, so the
+#      quota module can never silently skip back out of the gate.
+#   2. The pytest run emits junitxml and a follow-up step asserts
+#      skipped == 0 AND a collected-test floor, so a future per-test skipif or
+#      module shrink is a RED gate, not a quiet pass.
+name: integrity-invariants
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Same posture as ga-enroll-invariants: supersede in-flight PR runs on
+# push-spam; every push:main run keeps its own group.
+concurrency:
+  group: integrity-invariants-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  integrity-invariants:
+    runs-on: [self-hosted, linux, X64]
+    timeout-minutes: 15
+    steps:
+      # Fork-PR posture (mirrors ga-enroll-invariants.yml): FAIL-CLOSED, not
+      # skip — a skipped job reports Success, so refuse fork PRs with a red
+      # check before any untrusted checkout reaches the shared runner.
+      - name: Refuse fork PRs (fail-closed — never run untrusted code on self-hosted)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::integrity gate will not run a fork PR on the self-hosted runner. A maintainer must re-run it from a same-repo branch."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.19"
+
+      - name: Sync workspace
+        # --frozen (NOT --locked): same pre-existing lock-drift rationale as
+        # ga-enroll-invariants.yml / ga-auth-invariants.yml. --all-packages:
+        # pytest lives in the workspace-ROOT dev group.
+        run: uv sync --all-packages --frozen
+
+      - name: Install node (deterministic across runners)
+        # setup-node works on self-hosted runners via the tool cache, so the
+        # gate does not depend on which runner (primary or fallback) picks the
+        # job up. 18 matches the node the sidecar is validated against.
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: packages/adx_showdown/package-lock.json
+
+      - name: Install sidecar substrate (pokemon-showdown, from lockfile)
+        run: npm ci --prefix packages/adx_showdown
+
+      - name: Assert the sidecar can run (fail-closed — the quota module must EXECUTE, not skip)
+        run: |
+          uv run --no-sync python -c "from adx_showdown.sidecar import sidecar_available as f; r = f(); assert r is None, f'sidecar unavailable: {r}'; print('sidecar precondition OK')"
+
+      - name: Run integrity invariant gate
+        # test_receipt_atomicity.py — sidecar-free (stub sidecar) pins of the
+        # atomic finish group / fail-closed append / publish ordering.
+        # test_quota_spend_after_success.py — real-sidecar pins of Class-B
+        # spend-after-success (needs the substrate installed above).
+        run: |
+          uv run --no-sync pytest -q \
+            packages/agentdex_arena/tests/test_receipt_atomicity.py \
+            packages/agentdex_arena/tests/test_quota_spend_after_success.py \
+            --junit-xml=/tmp/integrity-invariants.xml
+
+      - name: Assert zero skipped + collected floor (silent re-skip = red gate)
+        run: |
+          uv run --no-sync python - <<'EOF'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('/tmp/integrity-invariants.xml').getroot()
+          suite = root if root.tag == 'testsuite' else root.find('testsuite')
+          skipped = int(suite.get('skipped', 0))
+          tests = int(suite.get('tests', 0))
+          assert skipped == 0, f"{skipped} integrity tests SKIPPED - the invariants must execute"
+          # Floor = the 19 tests these two modules carry today; shrinking the
+          # modules (or a collection error) must fail loudly, not pass quietly.
+          assert tests >= 19, f"only {tests} tests collected (floor 19) - modules shrank or failed to import"
+          print(f"integrity invariants: {tests} executed, 0 skipped")
+          EOF
