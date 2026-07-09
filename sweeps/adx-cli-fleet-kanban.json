@@ -2646,7 +2646,7 @@
       "updated_at": "2026-07-04T10:25:12Z"
     },
     {
-      "assignee": "bene",
+      "assignee": "harness",
       "blast_radius": [
         "agentdex-cli:packages/agentdex_engine/**",
         "agentdex-cli:packages/adx_showdown/**"
@@ -2716,7 +2716,7 @@
       "created": "2026-06-22",
       "created_by": "harness",
       "id": "GA-SELFPLAY-EVOLVE",
-      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. GA-DESIGN cleared 3/3 (#751); GA-PAID resolved (V1 = invite-redeem\u2192membership). Bene substrate COMPLETE on main (#485). Remaining (cross-team, not bene-actionable): HarnessPlayer doubles-decision (#509 PENDING merge, crosses GA-ARENA-MODES blast-radius / bene-core #725 split unanswered); 2-agent team-up topology (poke-env multi-team API spike); live PS-server e2e; harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only).",
+      "impact": "Headline paid feature: self-play via poke-env (https://poke-env.readthedocs.io/en/stable) feeding the evolution loop; team-up modes. GA-DESIGN cleared 3/3 (#751). GA-PAID remains blocked until membership grant/verify is wired for paid access (invite redeem only admits owner; grant_membership is separate). Bene substrate COMPLETE on main (#485); #509 merged but current main re-gates doubles in c6c0c63 until seeded DoubleBattleOrder support. Remaining cross-team/harness-held blockers: seeded doubles choices; 2-agent team-up topology (poke-env multi-team API spike); live PS-server e2e; membership/paid-access verification; harness probe-spec authorship (kanban_probe_gate.py:301 trusted-actor-only).",
       "lane": "ga-selfserve",
       "priority": "P1",
       "status": "blocked",
@@ -6632,6 +6632,100 @@
     },
     {
       "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T22:31:37Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-23T22:31:37Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "review"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "move",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T22:43:47Z",
+      "detail": {
+        "after": {
+          "assignee": "bene-core",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene-core",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "bene-core-8",
+      "card_id": "GA-ARENA-MODES",
+      "created_at": "2026-06-23T22:45:38Z",
+      "detail": {}
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "GA-BENE-1",
+      "created_at": "2026-06-24T01:22:31Z",
+      "detail": {
+        "after": {
+          "assignee": "bene",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "review"
+        }
+      }
+    },
+    {
+      "action": "comment",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {}
+    },
+    {
+      "action": "update",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {
+        "field": "impact"
+      }
+    },
+    {
+      "action": "move",
+      "actor": "codex",
+      "card_id": "GA-SELFPLAY-EVOLVE",
+      "created_at": "2026-06-24T01:28:51Z",
+      "detail": {
+        "after": {
+          "assignee": "harness",
+          "status": "blocked"
+        },
+        "before": {
+          "assignee": "bene",
+          "status": "blocked"
+        }
+      }
+    },
+    {
+      "action": "comment",
       "actor": "adx-core-4",
       "card_id": "AWS-PUBLIC-DNS-TLS",
       "created_at": "2026-07-02T22:00:21Z",
@@ -6889,100 +6983,6 @@
       "card_id": "GA-SELFPLAY-EVOLVE",
       "created_at": "2026-07-09T03:34:06Z",
       "detail": {}
-    },
-    {
-      "action": "comment",
-      "actor": "bene-core-8",
-      "card_id": "GA-BENE-1",
-      "created_at": "2026-06-23T22:31:37Z",
-      "detail": {}
-    },
-    {
-      "action": "move",
-      "actor": "bene-core-8",
-      "card_id": "GA-BENE-1",
-      "created_at": "2026-06-23T22:31:37Z",
-      "detail": {
-        "after": {
-          "assignee": "bene",
-          "status": "review"
-        },
-        "before": {
-          "assignee": "bene",
-          "status": "blocked"
-        }
-      }
-    },
-    {
-      "action": "move",
-      "actor": "bene-core-8",
-      "card_id": "GA-ARENA-MODES",
-      "created_at": "2026-06-23T22:43:47Z",
-      "detail": {
-        "after": {
-          "assignee": "bene-core",
-          "status": "blocked"
-        },
-        "before": {
-          "assignee": "bene-core",
-          "status": "review"
-        }
-      }
-    },
-    {
-      "action": "comment",
-      "actor": "bene-core-8",
-      "card_id": "GA-ARENA-MODES",
-      "created_at": "2026-06-23T22:45:38Z",
-      "detail": {}
-    },
-    {
-      "action": "move",
-      "actor": "codex",
-      "card_id": "GA-BENE-1",
-      "created_at": "2026-06-24T01:22:31Z",
-      "detail": {
-        "after": {
-          "assignee": "bene",
-          "status": "blocked"
-        },
-        "before": {
-          "assignee": "bene",
-          "status": "review"
-        }
-      }
-    },
-    {
-      "action": "comment",
-      "actor": "codex",
-      "card_id": "GA-SELFPLAY-EVOLVE",
-      "created_at": "2026-06-24T01:28:51Z",
-      "detail": {}
-    },
-    {
-      "action": "update",
-      "actor": "codex",
-      "card_id": "GA-SELFPLAY-EVOLVE",
-      "created_at": "2026-06-24T01:28:51Z",
-      "detail": {
-        "field": "impact"
-      }
-    },
-    {
-      "action": "move",
-      "actor": "codex",
-      "card_id": "GA-SELFPLAY-EVOLVE",
-      "created_at": "2026-06-24T01:28:51Z",
-      "detail": {
-        "after": {
-          "assignee": "harness",
-          "status": "blocked"
-        },
-        "before": {
-          "assignee": "bene",
-          "status": "blocked"
-        }
-      }
     }
   ],
   "schema_version": 1,
