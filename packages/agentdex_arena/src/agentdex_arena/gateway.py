@@ -444,6 +444,20 @@ def _sse_evict_grace_sec() -> float:
     return grace if grace >= 0 else 30.0
 
 
+def _period_has_battle(events: Any, battle_id: str) -> bool:
+    """Whether a durable ``period`` row already carries a RatingEvent for
+    ``battle_id`` — i.e. this battle is on the ladder. Used by the post-commit
+    recovery path in ``_finish`` to decide whether to attach a (degraded)
+    rating block to a recovered rated receipt without re-appending anything."""
+    for ev in events.iter_events():
+        if ev.get("type") != "period":
+            continue
+        for e in (ev.get("payload") or {}).get("events") or []:
+            if e.get("battle_id") == battle_id:
+                return True
+    return False
+
+
 @dataclass
 class BattleSession:
     battle_id: str
@@ -2000,7 +2014,14 @@ class ArenaGateway:
                     # never comes.
                     defer_frame_evict=False,
                 )
-                if session.ended is not None:
+                if session.ended is not None and not session.ended.get("receipt_recovered"):
+                    # Only a genuine forfeit gets the timeout label. If _finish
+                    # hit the post-commit recovery path, session.ended is the REAL
+                    # committed result (possibly a visitor WIN) rebuilt from the
+                    # durable log — stamping "turn budget exceeded" on it would
+                    # hand clients a receipt that says both you_won:true AND
+                    # forfeit:timeout (#650 review). The recovered receipt already
+                    # reflects the truth; leave it untouched.
                     session.ended["forfeit"] = "turn budget exceeded"
             finally:
                 # If the forfeit did NOT commit (e.g. _finish raised before publishing
@@ -2231,14 +2252,27 @@ class ArenaGateway:
             # battle_end/period group. Mirror the dispute path's idempotence
             # posture (_already_logged): recover the receipt FROM the durable log
             # and append nothing (ADX-P0-001 / t_e0014a23).
+            #
+            # The receipt must reflect the WHOLE committed group, not just
+            # battle_end: _finish commits sibling rows (badge, quarantine) in the
+            # SAME durable append, so reading only battle_end would publish an
+            # unbadged/unquarantined receipt for a result the log already carries
+            # the badge/quarantine for (#650 review). One pass collects every row
+            # for this battle_id.
             committed_row: dict[str, Any] = {}
+            badge_row: dict[str, Any] = {}
+            quarantine_row: dict[str, Any] = {}
             for ev in self.events.iter_events():
-                if (
-                    ev.get("type") == "battle_end"
-                    and (ev.get("payload") or {}).get("battle_id") == session.battle_id
-                ):
-                    committed_row = ev.get("payload") or {}
-                    break
+                p = ev.get("payload") or {}
+                if p.get("battle_id") != session.battle_id:
+                    continue
+                etype = ev.get("type")
+                if etype == "battle_end" and not committed_row:
+                    committed_row = p
+                elif etype == "badge" and not badge_row:
+                    badge_row = p
+                elif etype == "quarantine" and not quarantine_row:
+                    quarantine_row = p
             recovered_winner = sanitize_name(committed_row.get("winner") or "")
             receipt: dict[str, Any] = {
                 "status": "ended",
@@ -2248,7 +2282,6 @@ class ArenaGateway:
                 "you_won": recovered_winner == session.visitor_name,
                 "turns": int(committed_row.get("turns", 0)),
                 "failure_signatures": [],
-                "replay": f"/replay/{session.battle_id}",
                 "input_log_blake2b16": committed_row.get("input_log_blake2b16"),
                 "recent_turns": list(session.recent),
                 # Visible compensation marker (the card's contract): this receipt
@@ -2256,12 +2289,94 @@ class ArenaGateway:
                 # failure — the log, not the original response, is its backing.
                 "receipt_recovered": True,
             }
+            if session.parent is not None:
+                receipt["parent_battle_id"], receipt["fork_turn"] = session.parent
+            # Sibling rows the durable group already carries (#650 review): a
+            # sandbox badge win / a quarantined result must survive the recovery,
+            # or the public terminal receipt contradicts the committed log.
+            if badge_row.get("badge"):
+                receipt["badge_awarded"] = badge_row["badge"]
+            if quarantine_row:
+                receipt["quarantined"] = True
+                receipt["quarantine_reason"] = _QUARANTINE_PUBLIC_REASON
+            # Only advertise a replay the durable record can actually back (#650
+            # review). If the post-commit failure struck in _cache_replay / the
+            # artifact write, the input_log is gone (it lived in the lost frame, is
+            # NOT in the battle_end row, and the recovery re-entry never sees it),
+            # so load_replay() would 404 for a receipt that promised /replay. Probe
+            # the durable/cached record and advertise the URL ONLY when it resolves;
+            # otherwise mark the replay unavailable rather than promise a 404.
+            if self.load_replay(session.battle_id) is not None:
+                receipt["replay"] = f"/replay/{session.battle_id}"
+            else:
+                receipt["replay"] = None
+                receipt["replay_unavailable"] = (
+                    "the replay was not durably published before the post-commit "
+                    "failure and cannot be reconstructed; the battle result is on "
+                    "the log and (for rated) on /ladder"
+                )
+            # Rated: the committed period already moved the ladder. Surface the
+            # current rating so the recovered receipt is not blind to it, but the
+            # published_delta is genuinely UNRECOVERABLE — the pre-battle `before`
+            # snapshot lived in the lost frame — so report it honestly rather than
+            # invent one. Best-effort + degrade-visibly, matching the publish
+            # phase's own post-commit rating-readback fallback.
+            if session.lane == "rated" and _period_has_battle(self.events, session.battle_id):
+                # A quarantined battle is FILTERED OUT of every rating period by
+                # recompute_ladder (events.py), so "the ladder includes this battle"
+                # would contradict this same receipt's quarantined:True — the exact
+                # self-contradicting-receipt class this PR closes. Word the note to
+                # match the receipt's own quarantine flag.
+                ladder_status = (
+                    "this battle is quarantined and excluded from the ladder"
+                    if quarantine_row
+                    else "the ladder includes this battle"
+                )
+                try:
+                    after = recompute_ladder(self.events.path).rating(session.visitor_name)
+                    receipt["rating"] = {
+                        "rating": round(after.rating, 1),
+                        "rd": round(after.rd, 1),
+                        "published_delta": "UNAVAILABLE",
+                        "note": (
+                            "receipt recovered after a post-commit publish failure; "
+                            f"{ladder_status} but the pre-battle snapshot needed for "
+                            "published_delta was lost — see /ladder"
+                        ),
+                        "seed_disclosure": session.seed,
+                        "opponent_team_disclosure": session.p2_team,
+                    }
+                except Exception:  # noqa: BLE001
+                    log.exception(
+                        "recovered-receipt rating readback failed (battle=%s)",
+                        session.battle_id,
+                    )
+                    receipt["rating"] = {
+                        "rating": None,
+                        "rd": None,
+                        "published_delta": "UNAVAILABLE",
+                        "note": f"rating readback failed on recovery; {ladder_status}",
+                        "seed_disclosure": session.seed,
+                        "opponent_team_disclosure": session.p2_team,
+                    }
             log.error(
                 "finish re-entered after durable commit (battle=%s) — recovered the "
                 "receipt from the log; no rows appended",
                 session.battle_id,
             )
             session.ended = receipt
+            # Run the SAME publish-phase cleanup the normal path runs (#650
+            # review): otherwise a recovered finish leaks its live frame buffer
+            # (~hundreds of KB, up to 10 MiB) and never evicts the finished
+            # session. On the stale-expiry path defer_frame_evict=False, so this
+            # reclaims the abandoned battle's frames immediately.
+            if defer_frame_evict and session.live_viewers > 0:
+                session.frames_evict_after = self.now() + _sse_evict_grace_sec()
+            else:
+                session.frames = []
+            if session.battle_id in self.sessions:
+                self.sessions.move_to_end(session.battle_id)
+            self._evict_finished_sessions()
             return receipt
         winner = sanitize_name(end.get("winner") or "")
         input_log = list(end.get("inputLog") or [])
