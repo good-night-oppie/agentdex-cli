@@ -1014,14 +1014,20 @@ class ArenaGateway:
         rehydrated replay). Active SSE viewers hold their session until the stream
         exits so terminal frames are not dropped mid-drain.
 
-        EXCEPTION — an UNREPLAYABLE recovered receipt (``replay is None``, set only
-        by the post-commit recovery path when the replay was never durably
-        published) has NO durable fallback: the in-memory session is the only copy.
-        Evicting it would make the receipt unreachable on every surface (``/state``
-        and ``/choose`` see no session while ``/replay`` also 404s). Such sessions
-        are pinned in the cache rather than evicted (#654 review). They are rare
-        (a post-commit failure landing exactly in ``_cache_replay``); losing the
-        receipt entirely is the worse failure.
+        EXCEPTION — an UNREPLAYABLE receipt (one that published an explicit
+        ``replay: None``) has NO durable fallback: the in-memory session is the only
+        copy. Evicting it would make the receipt unreachable on every surface
+        (``/state`` and ``/choose`` see no session while ``/replay`` also 404s). Such
+        sessions are pinned in the cache rather than evicted (#654 review). They are
+        rare; losing the receipt entirely is the worse failure.
+
+        Two paths publish ``replay: None`` — the post-commit recovery path when the
+        replay was never durably published, and the normal publish path when the
+        best-effort artifact write failed. The pin keys on the PUBLISHED FACT
+        (``"replay" in ended and ended["replay"] is None``), not on *why*, so both
+        are covered. Key-presence is load-bearing: an ended-FATAL receipt
+        (``_append_*_or_fail_closed``) carries no ``replay`` key at all and stays
+        evictable — it never promised a replay, and nothing durable backs it.
 
         The pin carries its OWN ceiling (``ARENA_MAX_PINNED_RECEIPT_CACHE``) so it
         cannot quietly turn ``ARENA_MAX_FINISHED_SESSION_CACHE`` into a non-bound:
@@ -1041,7 +1047,7 @@ class ArenaGateway:
                 or getattr(session, "finish_task", None) is not None
             ):
                 continue
-            if session.ended.get("receipt_recovered") and session.ended.get("replay") is None:
+            if "replay" in session.ended and session.ended["replay"] is None:
                 pinned.append(battle_id)
             else:
                 evictable.append(battle_id)
@@ -2647,6 +2653,41 @@ class ArenaGateway:
         if badge_awarded:
             replay_record["badge_awarded"] = badge_awarded
         self._cache_replay(session.battle_id, replay_record)
+        # Durably persist the replay record (ADX-P0-001 residual). self.replays is
+        # in-memory only — reset to {} on boot, and LRU-bounded — so without this an
+        # honest receipt's /replay/<id> (and /fork, /dispute) 404s for EVERY battle
+        # from a prior process after a restart. Writing the full record alongside the
+        # input log lets load_replay() rehydrate it on demand. Best-effort like the
+        # input log: a write failure is logged, never fatal (the canonical EventLog
+        # already committed above).
+        #
+        # But best-effort MUST NOT mean silently-dishonest: the receipt is a durable
+        # promise, so it may only advertise a replay the durable record can actually
+        # back — the same rule the post-commit recovery path applies (#650 review).
+        # The write's outcome IS that signal (probing load_replay() here would always
+        # succeed: _cache_replay just seeded the in-memory copy). The input log is
+        # written first, so a failure there leaves replay_durable False even though
+        # the replay write never ran — pessimistic in the safe direction: we never
+        # claim durability we do not have.
+        replay_durable = False
+        try:
+            self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+            (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
+                json.dumps(input_log, indent=1) + "\n"
+            )
+            (self.artifacts_dir / f"{session.battle_id}.replay.json").write_text(
+                json.dumps(replay_record, indent=1) + "\n"
+            )
+            replay_durable = True
+        except Exception:
+            log.warning("failed to write replay artifact for %s", session.battle_id, exc_info=True)
+        if not replay_durable:
+            receipt["replay"] = None
+            receipt["replay_unavailable"] = (
+                "the replay could not be durably persisted after the battle committed; "
+                "it is not guaranteed to be retrievable — the battle result is on the "
+                "log and (for rated) on /ladder"
+            )
         if rating_block is not None:
             receipt["rating"] = rating_block
         session.ended = receipt
@@ -2673,23 +2714,6 @@ class ArenaGateway:
             session.frames_evict_after = self.now() + _sse_evict_grace_sec()
         else:
             session.frames = []
-        # Durably persist the replay record (ADX-P0-001 residual). self.replays is
-        # in-memory only — reset to {} on boot — so without this an honest
-        # receipt's /replay/<id> (and /fork, /dispute) 404s for EVERY battle from a
-        # prior process after a restart. Writing the full record alongside the
-        # input log lets load_replay() rehydrate it on demand. Best-effort like the
-        # input log: a write failure is logged, never fatal (the canonical EventLog
-        # already committed above).
-        try:
-            self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-            (self.artifacts_dir / f"{session.battle_id}.inputlog.json").write_text(
-                json.dumps(input_log, indent=1) + "\n"
-            )
-            (self.artifacts_dir / f"{session.battle_id}.replay.json").write_text(
-                json.dumps(replay_record, indent=1) + "\n"
-            )
-        except Exception:
-            log.warning("failed to write replay artifact for %s", session.battle_id, exc_info=True)
         if session.battle_id in self.sessions:
             self.sessions.move_to_end(session.battle_id)
         self._evict_finished_sessions()
