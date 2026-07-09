@@ -20,8 +20,17 @@ name: integrity-invariants
 
 on:
   pull_request:
-    branches: [main]
+    # dev AND main: day-to-day work lands through dev-targeted PRs, so the gate
+    # must run there too — otherwise a receipt/quota regression merges into dev
+    # (the normal path) without ever running test_receipt_atomicity.py /
+    # test_quota_spend_after_success.py, and the false-green gap this workflow
+    # exists to close stays open until a later main PR/push (#651 review).
+    # Mirrors ga-{auth,enroll,arena-modes}-invariants.yml.
+    branches: [dev, main]
   push:
+    # main only: the push-to-main run is the deployed-sha attestation surface
+    # (same rationale as the sibling invariant gates); dev pushes are covered by
+    # the dev-targeted pull_request trigger above.
     branches: [main]
   workflow_dispatch:
 
