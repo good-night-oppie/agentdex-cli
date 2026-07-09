@@ -1009,20 +1009,55 @@ class ArenaGateway:
     def _evict_finished_sessions(self) -> None:
         """Keep live battles reachable, but bound old finished receipt sessions.
 
-        Finished receipts are still durable through ``<battle_id>.replay.json``.
-        Active SSE viewers hold their session until the stream exits so terminal
-        frames are not dropped mid-drain.
+        A finished session is normally evictable because its receipt is still
+        durable through ``<battle_id>.replay.json`` (``/state`` falls back to the
+        rehydrated replay). Active SSE viewers hold their session until the stream
+        exits so terminal frames are not dropped mid-drain.
+
+        EXCEPTION — an UNREPLAYABLE recovered receipt (``replay is None``, set only
+        by the post-commit recovery path when the replay was never durably
+        published) has NO durable fallback: the in-memory session is the only copy.
+        Evicting it would make the receipt unreachable on every surface (``/state``
+        and ``/choose`` see no session while ``/replay`` also 404s). Such sessions
+        are pinned in the cache rather than evicted (#654 review). They are rare
+        (a post-commit failure landing exactly in ``_cache_replay``); losing the
+        receipt entirely is the worse failure.
+
+        The pin carries its OWN ceiling (``ARENA_MAX_PINNED_RECEIPT_CACHE``) so it
+        cannot quietly turn ``ARENA_MAX_FINISHED_SESSION_CACHE`` into a non-bound:
+        finished-session memory stays capped at the sum of the two, each operator-
+        tunable. Pins are only ever dropped once that dedicated ceiling is exceeded,
+        never to make room for a replayable session — and a dropped pin is the one
+        eviction that genuinely LOSES a receipt, so it is logged at error level.
         """
         limit = self._cache_limit("ARENA_MAX_FINISHED_SESSION_CACHE", 1000)
-        evictable = [
-            battle_id
-            for battle_id, session in self.sessions.items()
-            if session.ended is not None
-            and getattr(session, "live_viewers", 0) == 0
-            and getattr(session, "finish_task", None) is None
-        ]
+        pin_limit = self._cache_limit("ARENA_MAX_PINNED_RECEIPT_CACHE", 1000)
+        evictable: list[str] = []
+        pinned: list[str] = []
+        for battle_id, session in self.sessions.items():
+            if (
+                session.ended is None
+                or getattr(session, "live_viewers", 0) != 0
+                or getattr(session, "finish_task", None) is not None
+            ):
+                continue
+            if session.ended.get("receipt_recovered") and session.ended.get("replay") is None:
+                pinned.append(battle_id)
+            else:
+                evictable.append(battle_id)
         for battle_id in evictable[: max(0, len(evictable) - limit)]:
             self.sessions.pop(battle_id, None)
+        for battle_id in pinned[: max(0, len(pinned) - pin_limit)]:
+            self.sessions.pop(battle_id, None)
+            log.error(
+                "dropped an unreplayable recovered receipt (battle=%s): the pinned-receipt "
+                "cache exceeded ARENA_MAX_PINNED_RECEIPT_CACHE=%d. The battle result stays "
+                "on the durable event log (and, if rated, on /ladder), but the receipt is no "
+                "longer served by /state or /replay. A rising count here means the "
+                "post-commit publish phase is failing repeatedly — investigate.",
+                battle_id,
+                pin_limit,
+            )
 
     def _cache_replay(self, battle_id: str, replay: dict[str, Any]) -> None:
         self.replays[battle_id] = replay
@@ -2008,21 +2043,23 @@ class ArenaGateway:
                         "turns": session.turns,
                         "inputLog": input_log,
                         "keyLines": [],
+                        # The forfeit reason is passed THROUGH _finish so it lands
+                        # DURABLY in the battle_end row (not stamped onto
+                        # session.ended after the fact). That way the post-commit
+                        # recovery path can restore it from the log: a recovered
+                        # TIMEOUT keeps its forfeit reason, while a recovered
+                        # non-forfeit result (e.g. a committed visitor WIN this
+                        # stale-expiry was about to wrongly forfeit) does NOT get a
+                        # spurious timeout label — the marker's presence in the
+                        # durable row is the single source of truth (#654 review,
+                        # superseding the in-memory receipt_recovered guard).
+                        "forfeit": "turn budget exceeded",
                     },
                     # Abandoned battle — no active viewer to race, so reclaim the live
                     # frame buffer immediately instead of deferring it to a touch that
                     # never comes.
                     defer_frame_evict=False,
                 )
-                if session.ended is not None and not session.ended.get("receipt_recovered"):
-                    # Only a genuine forfeit gets the timeout label. If _finish
-                    # hit the post-commit recovery path, session.ended is the REAL
-                    # committed result (possibly a visitor WIN) rebuilt from the
-                    # durable log — stamping "turn budget exceeded" on it would
-                    # hand clients a receipt that says both you_won:true AND
-                    # forfeit:timeout (#650 review). The recovered receipt already
-                    # reflects the truth; leave it untouched.
-                    session.ended["forfeit"] = "turn budget exceeded"
             finally:
                 # If the forfeit did NOT commit (e.g. _finish raised before publishing
                 # the receipt), clear the marker so a later touch can RETRY — leaving it
@@ -2291,6 +2328,13 @@ class ArenaGateway:
             }
             if session.parent is not None:
                 receipt["parent_battle_id"], receipt["fork_turn"] = session.parent
+            # Restore the forfeit reason from the durable row (#654 review): a
+            # recovered TIMEOUT keeps its "turn budget exceeded" label so clients
+            # polling /state see WHY they lost, matching a normal timeout receipt.
+            # A recovered board result (no forfeit field in the row) stays
+            # unlabeled — the durable marker, not an in-memory guess, decides.
+            if committed_row.get("forfeit"):
+                receipt["forfeit"] = committed_row["forfeit"]
             # Sibling rows the durable group already carries (#650 review): a
             # sandbox badge win / a quarantined result must survive the recovery,
             # or the public terminal receipt contradicts the committed log.
@@ -2424,19 +2468,23 @@ class ArenaGateway:
         # with one valid hash chain, or none do. If the grouped append throws,
         # _append_many_or_fail_closed stops the sidecar, marks the session
         # ended-fatal, and 500s — nothing below is published.
-        event_items: list[tuple[str, dict[str, Any]]] = [
-            (
-                "battle_end",
-                {
-                    "tenant_id": session.claims_token_id,
-                    "battle_id": session.battle_id,
-                    "lane": session.lane,
-                    "winner": winner,
-                    "turns": turns,
-                    "input_log_blake2b16": log_digest,
-                },
-            )
-        ]
+        forfeit_reason = str(end.get("forfeit") or "").strip() or None
+        battle_end_payload: dict[str, Any] = {
+            "tenant_id": session.claims_token_id,
+            "battle_id": session.battle_id,
+            "lane": session.lane,
+            "winner": winner,
+            "turns": turns,
+            "input_log_blake2b16": log_digest,
+        }
+        if forfeit_reason:
+            # Persist the forfeit reason in the durable row so the post-commit
+            # recovery path can restore it (a recovered timeout keeps its label;
+            # a recovered board result stays unlabeled). Additive field — ladder
+            # recompute and every other reader use .get(), so it's ignored where
+            # unread (#654 review).
+            battle_end_payload["forfeit"] = forfeit_reason
+        event_items: list[tuple[str, dict[str, Any]]] = [("battle_end", battle_end_payload)]
         if badge_awarded:
             event_items.append(
                 (
@@ -2570,6 +2618,8 @@ class ArenaGateway:
             "input_log_blake2b16": log_digest,
             "recent_turns": list(session.recent),
         }
+        if forfeit_reason:
+            receipt["forfeit"] = forfeit_reason
         if collusion_reason:
             receipt["quarantined"] = True
             receipt["quarantine_reason"] = _QUARANTINE_PUBLIC_REASON
