@@ -85,13 +85,17 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 DOC_LINT="$REPO_ROOT/scripts/doc_lint.py"
 
-if [[ ! -x "$DOC_LINT" ]]; then
+# Neither `exec` nor an early `exit 0` here: other installers APPEND their own
+# gates below this block (kanban-blast-radius does exactly that). Replacing this
+# shell — or exiting it when doc_lint happens to be missing — silently disables
+# every gate appended after us, and a disabled gate looks identical to a passing
+# one. Run doc_lint as an ordinary command and let `set -e` do the blocking.
+if [[ -x "$DOC_LINT" ]]; then
+  # --staged is default but we pass it explicitly for clarity in `git config -l`-style audits.
+  "$DOC_LINT" --staged
+else
   echo "[pre-commit] WARNING: $DOC_LINT missing; skipping doc-lint" >&2
-  exit 0
 fi
-
-# --staged is default but we pass it explicitly for clarity in `git config -l`-style audits.
-exec "$DOC_LINT" --staged
 HOOK
 
 chmod +x "$HOOK_PATH"
