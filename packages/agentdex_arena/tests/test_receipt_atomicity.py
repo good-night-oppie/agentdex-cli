@@ -839,3 +839,397 @@ def test_finish_reentry_after_commit_recovers_receipt_without_duplicate_rows(
     types_after = [e["type"] for e in gateway.events.iter_events()]
     assert types_after.count("battle_end") == 1
     assert types_after == types
+
+
+# ---- post-commit recovery receipt must be FAITHFUL to the durable group (#650 review) ----
+
+
+def _commit_then_fail_publish(gateway, session, end, monkeypatch):
+    """Run the real _finish through its durable commit, then make the publish
+    phase (_cache_replay) raise — leaving session.committed=True, ended=None
+    with the full durable group on the log. Returns nothing; the caller then
+    re-enters _finish to exercise the recovery path."""
+    orig = gateway._cache_replay
+
+    def boom(battle_id: str, replay: dict) -> None:
+        raise RuntimeError("mock publish-phase failure")
+
+    monkeypatch.setattr(gateway, "_cache_replay", boom)
+    with pytest.raises(RuntimeError, match="mock publish-phase failure"):
+        asyncio.run(gateway._finish(session, end))
+    assert session.committed is True and session.ended is None
+    monkeypatch.setattr(gateway, "_cache_replay", orig)  # restore for the recovery call
+
+
+def test_recovered_receipt_keeps_the_sandbox_badge(tmp_path: Path, monkeypatch) -> None:
+    """#650 review: the durable group commits a `badge` row alongside battle_end
+    on a sandbox gym win. The recovery path must surface it — a receipt that
+    drops badge_awarded contradicts the committed log."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = BattleSession(
+        battle_id="sandbox-badge",
+        claims_token_id="tenant-badge",
+        visitor_name="Bot",
+        lane="sandbox",
+        opponent="gym-stall",  # a gym leader -> Stall Badge on a win
+        seed=[1, 7, 7, 7],
+        sidecar=sidecar,  # type: ignore[arg-type]
+        opponent_policy=None,
+    )
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    types = [e["type"] for e in gateway.events.iter_events()]
+    assert types.count("badge") == 1  # the committed group has the badge row
+
+    receipt = asyncio.run(
+        gateway._finish(
+            session, {"winner": "gym-stall", "turns": 3, "inputLog": [], "keyLines": []}
+        )
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["badge_awarded"] == "Stall Badge"  # recovered from the durable badge row
+    assert [e["type"] for e in gateway.events.iter_events()].count("badge") == 1  # no re-append
+
+
+def test_recovered_receipt_keeps_quarantine(tmp_path: Path, monkeypatch) -> None:
+    """#650 review: a quarantined result commits a `quarantine` row in the same
+    group. The recovery path must surface quarantined/quarantine_reason."""
+    from agentdex_arena.gateway import _QUARANTINE_PUBLIC_REASON
+
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)  # sandbox vs brock (no badge)
+    # Force the collusion check to fire so the durable group carries a quarantine row.
+    monkeypatch.setattr(gateway, "_check_collusion", lambda s, t: "mirror-match no-op detected")
+
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    assert [e["type"] for e in gateway.events.iter_events()].count("quarantine") == 1
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["quarantined"] is True
+    assert receipt["quarantine_reason"] == _QUARANTINE_PUBLIC_REASON  # opaque, not the detail
+    assert receipt["quarantine_reason"] != "mirror-match no-op detected"
+
+
+def test_recovered_receipt_does_not_advertise_an_unpublished_replay(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: if the post-commit failure struck in _cache_replay, the replay
+    was never cached or written, so load_replay() 404s. The recovered receipt must
+    NOT promise /replay for a battle whose replay is gone — /fork and /dispute would
+    all fail against that receipt."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    assert gateway.load_replay(session.battle_id) is None  # replay genuinely absent
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["replay"] is None  # not a 404-bound URL
+    assert "replay_unavailable" in receipt
+
+
+def test_recovered_receipt_advertises_a_replay_that_IS_backed(tmp_path: Path, monkeypatch) -> None:
+    """Companion to the above: when the replay DID get cached before the
+    post-commit failure — e.g. _cache_replay populated self.replays on its
+    first line, then raised in the limit/evict tail, leaving session.ended
+    None — the recovered receipt correctly still advertises /replay. (An
+    artifact-write failure cannot reach recovery: that write runs AFTER
+    session.ended is set and is swallowed by try/except, so it never leaves
+    the committed && ended-None state.)"""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    # Simulate the replay having been durably published (the failure was elsewhere/later).
+    gateway._cache_replay(
+        session.battle_id, {"input_log": ["x"], "winner": "Bot", "lane": "sandbox"}
+    )
+    assert gateway.load_replay(session.battle_id) is not None
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["replay"] == f"/replay/{session.battle_id}"
+    assert "replay_unavailable" not in receipt
+
+
+def test_recovered_receipt_runs_publish_cleanup_and_reclaims_frames(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: the recovery path must run the same publish cleanup as the
+    normal path — otherwise a recovered finish leaks its live frame buffer and
+    never evicts the finished session. On the no-viewer path frames clear now."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    session.frames = [{"seq": 1, "turn": 1, "raw_lines": ["|move|"]}]  # a resident buffer
+    session.live_viewers = 0
+
+    receipt = asyncio.run(
+        gateway._finish(
+            session,
+            {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []},
+            defer_frame_evict=False,
+        )
+    )
+    assert receipt["receipt_recovered"] is True
+    assert session.frames == []  # buffer reclaimed, not leaked
+
+
+def test_stale_expiry_does_not_mislabel_a_recovered_win_as_forfeit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: the FULL stale-expiry path. _finish recovers a real committed
+    WIN, then _expire_if_stale must NOT stamp forfeit:'turn budget exceeded' on it
+    — else the client sees you_won:true AND a timeout forfeit (contradiction)."""
+    gateway = _gateway(tmp_path)
+    sidecar = _StopRecordingSidecar()
+    session = _session(sidecar)  # sandbox, visitor "Bot"
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    # Drive the real stale-expiry: it calls _finish (which recovers) then labels.
+    session.last_touch = 0.0
+    asyncio.run(gateway._expire_if_stale(session))
+
+    assert session.ended is not None
+    assert session.ended["receipt_recovered"] is True
+    assert session.ended["you_won"] is True
+    assert "forfeit" not in session.ended  # NOT mislabeled a timeout forfeit
+    # And still no duplicate terminal group.
+    assert [e["type"] for e in gateway.events.iter_events()].count("battle_end") == 1
+
+
+def test_recovered_rated_receipt_carries_a_degraded_rating_block(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: a rated battle's committed group has a `period` row that
+    already moved the ladder. The recovered receipt surfaces the current rating
+    but reports published_delta as UNAVAILABLE (the pre-battle snapshot is lost),
+    rather than being blind to the ladder movement or inventing a delta."""
+    gateway = _gateway(tmp_path)
+    visitor, opponent = "RatedBot", "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+    sidecar = _StopRecordingSidecar()
+    session = BattleSession(
+        battle_id="rated-recover",
+        claims_token_id="tenant-r",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[1, 2, 3, 4],
+        sidecar=sidecar,  # type: ignore[arg-type]
+        opponent_policy=None,
+        p1_team="vt",
+        p2_team="ot",
+        visitor_choices=["move 1"],
+    )
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": visitor, "turns": 5, "inputLog": ["a", "b"], "keyLines": []},
+        monkeypatch,
+    )
+    assert [e["type"] for e in gateway.events.iter_events()].count("period") == 1
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": opponent, "turns": 5, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["winner"] == visitor  # the committed truth, not the retry's forfeit
+    assert receipt["rating"]["published_delta"] == "UNAVAILABLE"
+    assert receipt["rating"]["seed_disclosure"] == [1, 2, 3, 4]
+    assert "the ladder includes this battle" in receipt["rating"]["note"]  # not quarantined
+    assert [e["type"] for e in gateway.events.iter_events()].count("period") == 1  # no re-append
+
+
+def test_recovered_receipt_evicts_finished_session_and_keeps_live(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review (test-fidelity): the recovery path must run the SECOND half of
+    the publish cleanup too — move_to_end + _evict_finished_sessions. The frames
+    test only covers the buffer clear; this covers eviction. With the finished-
+    session cache at 0, the recovered (finished) session must be evicted while a
+    live sibling survives."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
+    gateway = _gateway(tmp_path)
+    live = _session(_StopRecordingSidecar())
+    live.battle_id = "sandbox-live"
+    gateway._publish_session(live.battle_id, live)  # a live (ended is None) sibling
+    session = _session(_StopRecordingSidecar())  # sandbox-deadbeef
+    gateway._publish_session(session.battle_id, session)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert session.battle_id not in gateway.sessions  # finished recovered session evicted
+    assert live.battle_id in gateway.sessions  # the live session survives
+
+
+def test_recovered_rated_quarantined_note_does_not_claim_ladder_inclusion(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: a rated battle can be BOTH on a period row AND quarantined
+    (collusion fired). Quarantined battles are excluded from the ladder, so the
+    recovered rating-block note must NOT say 'the ladder includes this battle' on
+    a receipt that also sets quarantined:true (self-contradiction)."""
+    gateway = _gateway(tmp_path)
+    visitor, opponent = "QRatedBot", "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+    session = BattleSession(
+        battle_id="rated-quar",
+        claims_token_id="tenant-q",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[1, 2, 3, 4],
+        sidecar=_StopRecordingSidecar(),  # type: ignore[arg-type]
+        opponent_policy=None,
+        p1_team="vt",
+        p2_team="ot",
+        visitor_choices=["move 1"],
+    )
+    monkeypatch.setattr(gateway, "_check_collusion", lambda s, t: "low-entropy identical choices")
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": visitor, "turns": 5, "inputLog": ["a", "b"], "keyLines": []},
+        monkeypatch,
+    )
+    # The committed group carries BOTH a period and a quarantine row.
+    types = [e["type"] for e in gateway.events.iter_events()]
+    assert types.count("period") == 1 and types.count("quarantine") == 1
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": opponent, "turns": 5, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["quarantined"] is True
+    # The note must be consistent with quarantined:true — NOT claim ladder inclusion.
+    assert "quarantined and excluded from the ladder" in receipt["rating"]["note"]
+    assert "the ladder includes this battle" not in receipt["rating"]["note"]
+
+
+def test_recovered_rated_receipt_degrades_when_recovery_readback_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#650 review: cover the recovery-path rating-readback EXCEPT branch —
+    recompute_ladder raising during recovery must degrade the rating block
+    visibly (rating None, published_delta UNAVAILABLE), not crash the recovery."""
+    gateway = _gateway(tmp_path)
+    visitor, opponent = "FailRatedBot", "anchor-max_damage"
+    gateway.events.append_many(
+        [
+            ("register", {"name": visitor, "frozen": False}),
+            ("register", {"name": opponent, "frozen": True}),
+        ]
+    )
+    gateway._registered.update({visitor, opponent})
+    session = BattleSession(
+        battle_id="rated-recover-fail",
+        claims_token_id="tenant-rf",
+        visitor_name=visitor,
+        lane="rated",
+        opponent=opponent,
+        seed=[1, 2, 3, 4],
+        sidecar=_StopRecordingSidecar(),  # type: ignore[arg-type]
+        opponent_policy=None,
+        p1_team="vt",
+        p2_team="ot",
+        visitor_choices=["move 1"],
+    )
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": visitor, "turns": 5, "inputLog": ["a", "b"], "keyLines": []},
+        monkeypatch,
+    )
+    # Now break recompute_ladder for the recovery readback only (period already committed).
+    monkeypatch.setattr(
+        "agentdex_arena.gateway.recompute_ladder",
+        lambda path: (_ for _ in ()).throw(OSError("mock recovery ladder read failure")),
+    )
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": opponent, "turns": 5, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["rating"]["rating"] is None
+    assert receipt["rating"]["published_delta"] == "UNAVAILABLE"
+    assert "readback failed" in receipt["rating"]["note"]
+
+
+def test_recovered_receipt_preserves_fork_lineage(tmp_path: Path, monkeypatch) -> None:
+    """#650 review: cover the recovery fork-lineage copy — a forked session's
+    parent_battle_id / fork_turn must survive recovery (the normal receipt carries
+    them too)."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    session.parent = ("parent-battle", 4)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["parent_battle_id"] == "parent-battle"
+    assert receipt["fork_turn"] == 4
