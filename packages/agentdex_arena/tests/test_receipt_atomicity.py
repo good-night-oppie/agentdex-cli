@@ -50,9 +50,9 @@ class _StopRecordingSidecar:
         return {}
 
 
-def _session(sidecar: _StopRecordingSidecar) -> BattleSession:
+def _session(sidecar: _StopRecordingSidecar, battle_id: str = "sandbox-deadbeef") -> BattleSession:
     s = BattleSession(
-        battle_id="sandbox-deadbeef",
+        battle_id=battle_id,
         claims_token_id="tenant-1",
         visitor_name="Bot",
         lane="sandbox",
@@ -1092,8 +1092,9 @@ def test_recovered_receipt_evicts_finished_session_and_keeps_live(
     """#650 review (test-fidelity): the recovery path must run the SECOND half of
     the publish cleanup too — move_to_end + _evict_finished_sessions. The frames
     test only covers the buffer clear; this covers eviction. With the finished-
-    session cache at 0, the recovered (finished) session must be evicted while a
-    live sibling survives."""
+    session cache at 0, a REPLAYABLE recovered session must be evicted (its
+    receipt survives via the durable replay) while a live sibling survives.
+    (An UNREPLAYABLE recovered session is pinned instead — see the next test.)"""
     monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
     gateway = _gateway(tmp_path)
     live = _session(_StopRecordingSidecar())
@@ -1107,13 +1108,122 @@ def test_recovered_receipt_evicts_finished_session_and_keeps_live(
         {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
         monkeypatch,
     )
+    # Make the replay backed so this recovered session is evictable (has a durable
+    # fallback) — the point here is that eviction (cleanup half-b) RUNS.
+    gateway._cache_replay(
+        session.battle_id, {"input_log": ["x"], "winner": "Bot", "lane": "sandbox"}
+    )
 
     receipt = asyncio.run(
         gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
     )
     assert receipt["receipt_recovered"] is True
+    assert receipt["replay"] is not None  # backed -> evictable
     assert session.battle_id not in gateway.sessions  # finished recovered session evicted
     assert live.battle_id in gateway.sessions  # the live session survives
+
+
+def test_unreplayable_recovered_receipt_is_pinned_not_evicted(tmp_path: Path, monkeypatch) -> None:
+    """#654 review: an unreplayable recovered receipt (replay is None — no durable
+    replay to rehydrate from) is the ONLY copy of the result. Evicting it would
+    make the receipt unreachable on every surface. It must be PINNED in the
+    session cache even under maximum cache pressure, so /state can still serve
+    it."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    gateway._publish_session(session.battle_id, session)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    assert gateway.load_replay(session.battle_id) is None  # replay genuinely gone
+
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["replay"] is None  # unreplayable
+    # Pinned despite cache limit 0 (the recovery-path _evict call + a later one).
+    assert session.battle_id in gateway.sessions
+    gateway._evict_finished_sessions()  # a later finish's cleanup must not evict it either
+    assert session.battle_id in gateway.sessions
+
+
+def _pin_one(gateway: ArenaGateway, battle_id: str, monkeypatch) -> BattleSession:
+    """Drive one session all the way to an UNREPLAYABLE recovered receipt (pinned)."""
+    session = _session(_StopRecordingSidecar(), battle_id=battle_id)
+    gateway._publish_session(battle_id, session)
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []},
+        monkeypatch,
+    )
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 3, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True and receipt["replay"] is None
+    return session
+
+
+def test_pinned_receipts_have_their_own_ceiling(tmp_path: Path, monkeypatch, caplog) -> None:
+    """The pin must not silently make finished-session memory unbounded. Pins are
+    exempt from ARENA_MAX_FINISHED_SESSION_CACHE but obey their OWN ceiling
+    (ARENA_MAX_PINNED_RECEIPT_CACHE), dropping oldest-first and logging at error
+    level — dropping a pin is the one eviction that truly loses a receipt."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "0")
+    monkeypatch.setenv("ARENA_MAX_PINNED_RECEIPT_CACHE", "2")
+    gateway = _gateway(tmp_path)
+
+    oldest = _pin_one(gateway, "sandbox-pin-1", monkeypatch)
+    middle = _pin_one(gateway, "sandbox-pin-2", monkeypatch)
+    # Two pins, ceiling 2 -> both retained even though the finished cache is 0.
+    assert {oldest.battle_id, middle.battle_id} <= set(gateway.sessions)
+
+    with caplog.at_level(logging.ERROR):
+        newest = _pin_one(gateway, "sandbox-pin-3", monkeypatch)
+
+    # Third pin pushes past the ceiling -> the OLDEST pin is dropped, not the newest.
+    assert oldest.battle_id not in gateway.sessions
+    assert middle.battle_id in gateway.sessions
+    assert newest.battle_id in gateway.sessions
+    # The drop is operator-visible (a receipt was genuinely lost).
+    assert any(
+        "dropped an unreplayable recovered receipt" in r.message and oldest.battle_id in r.message
+        for r in caplog.records
+    )
+
+
+def test_pinned_receipt_is_never_dropped_to_make_room_for_a_replayable_one(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Pins are evicted ONLY against their own ceiling. A crowd of replayable
+    finished sessions must never displace a pin — the replayable ones have a durable
+    replay to fall back on; the pin is the only copy of its receipt."""
+    monkeypatch.setenv("ARENA_MAX_FINISHED_SESSION_CACHE", "1")
+    monkeypatch.setenv("ARENA_MAX_PINNED_RECEIPT_CACHE", "1")
+    gateway = _gateway(tmp_path)
+
+    pinned = _pin_one(gateway, "sandbox-pin-only", monkeypatch)
+    for i in range(5):
+        replayable = _session(_StopRecordingSidecar(), battle_id=f"sandbox-replayable-{i}")
+        gateway._publish_session(replayable.battle_id, replayable)
+        asyncio.run(
+            gateway._finish(
+                replayable, {"winner": "Bot", "turns": 3, "inputLog": ["x"], "keyLines": []}
+            )
+        )
+
+    assert pinned.battle_id in gateway.sessions  # survived the crowd
+    finished_replayable = [
+        b
+        for b, s in gateway.sessions.items()
+        if s.ended is not None and s.ended.get("replay") is not None
+    ]
+    assert len(finished_replayable) == 1  # the replayable ones obey their own limit
 
 
 def test_recovered_rated_quarantined_note_does_not_claim_ladder_inclusion(
@@ -1233,3 +1343,84 @@ def test_recovered_receipt_preserves_fork_lineage(tmp_path: Path, monkeypatch) -
     assert receipt["receipt_recovered"] is True
     assert receipt["parent_battle_id"] == "parent-battle"
     assert receipt["fork_turn"] == 4
+
+
+# ---- durable forfeit marker: recovered timeouts keep their label (#654 review) ----
+
+
+def test_forfeit_reason_is_durable_in_the_battle_end_row_and_receipt(tmp_path: Path) -> None:
+    """A forfeit finish records its reason DURABLY in the battle_end row (not just
+    stamped on the in-memory receipt), and the normal receipt surfaces it. This is
+    what lets the recovery path restore it (next test)."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    receipt = asyncio.run(
+        gateway._finish(
+            session,
+            {
+                "winner": "brock",
+                "turns": 4,
+                "inputLog": [],
+                "keyLines": [],
+                "forfeit": "turn budget exceeded",
+            },
+        )
+    )
+    assert receipt["forfeit"] == "turn budget exceeded"
+    assert receipt["you_won"] is False
+    # Durable: the battle_end row carries the marker.
+    row = next(
+        e["payload"]
+        for e in gateway.events.iter_events()
+        if e["type"] == "battle_end" and e["payload"]["battle_id"] == session.battle_id
+    )
+    assert row["forfeit"] == "turn budget exceeded"
+
+
+def test_non_forfeit_finish_has_no_forfeit_field(tmp_path: Path) -> None:
+    """A normal (non-forfeit) finish writes NO forfeit field — durable row or
+    receipt — so recovery can trust the marker's absence."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "Bot", "turns": 4, "inputLog": ["x"], "keyLines": []})
+    )
+    assert "forfeit" not in receipt
+    row = next(
+        e["payload"]
+        for e in gateway.events.iter_events()
+        if e["type"] == "battle_end" and e["payload"]["battle_id"] == session.battle_id
+    )
+    assert "forfeit" not in row
+
+
+def test_recovered_timeout_keeps_its_forfeit_label(tmp_path: Path, monkeypatch) -> None:
+    """#654 review: when the stale-timeout finish ITSELF commits then fails to
+    publish, recovery restores the committed timeout receipt — and it must keep the
+    'turn budget exceeded' label (from the durable row), so a client polling /state
+    after a recovered timeout still sees WHY it lost, exactly like a normal timeout."""
+    gateway = _gateway(tmp_path)
+    session = _session(_StopRecordingSidecar())
+    # First finish = the forfeit itself; commit lands, publish (cache_replay) fails.
+    _commit_then_fail_publish(
+        gateway,
+        session,
+        {
+            "winner": "brock",
+            "turns": 4,
+            "inputLog": [],
+            "keyLines": [],
+            "forfeit": "turn budget exceeded",
+        },
+        monkeypatch,
+    )
+    # Recovery re-entry.
+    receipt = asyncio.run(
+        gateway._finish(session, {"winner": "brock", "turns": 4, "inputLog": [], "keyLines": []})
+    )
+    assert receipt["receipt_recovered"] is True
+    assert receipt["you_won"] is False
+    assert receipt["forfeit"] == "turn budget exceeded"  # label survived recovery
+    # (the recovered-WIN-has-no-spurious-forfeit case is covered by the existing
+    # test_stale_expiry_does_not_mislabel_a_recovered_win_as_forfeit, which now
+    # passes via the durable marker's ABSENCE rather than the removed in-memory guard.)
