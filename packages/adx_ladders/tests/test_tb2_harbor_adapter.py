@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from adx_frontier.candidate import FRONTIER_AXES, load_candidate
 from adx_ladders.adapters.tb2_harbor import (
     HarborTaskResult,
@@ -247,4 +246,81 @@ def test_cost_dollar_override_is_measured(tmp_path: Path) -> None:
     assert result.scores["cost_dollar"] == pytest.approx(0.77)
     assert result.cost_is_measured is True
     payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["cost_is_measured"] is True
+    assert payload["errored_count"] == 0
+    assert payload["n_tasks"] == 1
+
+
+def test_p2_9_mixed_errored_excluded_from_pass_rate(tmp_path: Path) -> None:
+    """WU-11 P2 #9: 1 pass / 1 genuine-0 / 1 errored → quality=1/2, degraded."""
+    root = _write_candidate(tmp_path, usd=5.0)
+    candidate = load_candidate(root)
+    harbor = _FakeHarbor(
+        tasks=["pass", "fail", "boom"],
+        outcomes={
+            "pass": HarborTaskResult(passed=True, log_path="/tmp/pass.log", cost_dollar=0.1),
+            "fail": HarborTaskResult(passed=False, log_path="/tmp/fail.log", cost_dollar=0.2),
+            "boom": HarborTaskResult(passed=False, log_path="/tmp/boom.log", errored=True),
+        },
+    )
+    adapter = Tb2HarborAdapter(harbor)
+
+    result = adapter.measure(candidate)
+
+    # Errored excluded: 1 pass / 2 eligible = 0.5
+    assert result.scores["quality"] == pytest.approx(0.5)
+    assert result.cost_is_measured is False
+    assert set(result.scores) == set(FRONTIER_AXES)
+
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["errored_count"] == 1
+    assert payload["n_tasks"] == 3
+    assert payload["cost_is_measured"] is False
+    by_id = {t["task_id"]: t for t in payload["tasks"]}
+    assert by_id["pass"]["errored"] is False
+    assert by_id["pass"]["passed"] is True
+    assert by_id["fail"]["errored"] is False
+    assert by_id["fail"]["passed"] is False
+    assert by_id["boom"]["errored"] is True
+    # Degraded run still emits self_reported receipt with artifacts.
+    assert result.receipt.tier == "self_reported"
+    assert Path(result.receipt.artifacts[0]).is_file()
+
+
+def test_p2_9_all_errored_quality_zero_fully_degraded(tmp_path: Path) -> None:
+    """WU-11: all tasks errored → quality=0.0, cost_is_measured=False."""
+    root = _write_candidate(tmp_path)
+    candidate = load_candidate(root)
+    harbor = _FakeHarbor(
+        tasks=["e1", "e2"],
+        outcomes={
+            "e1": HarborTaskResult(passed=False, log_path="/tmp/e1.log", errored=True),
+            "e2": HarborTaskResult(passed=False, log_path="/tmp/e2.log", errored=True),
+        },
+    )
+    result = Tb2HarborAdapter(harbor).measure(candidate)
+    assert result.scores["quality"] == pytest.approx(0.0)
+    assert result.cost_is_measured is False
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["errored_count"] == 2
+    assert payload["n_tasks"] == 2
+
+
+def test_happy_path_summary_includes_errored_count_zero(tmp_path: Path) -> None:
+    """Clean run surfaces errored_count=0 / n_tasks in summary (honesty regression)."""
+    root = _write_candidate(tmp_path)
+    candidate = load_candidate(root)
+    harbor = _FakeHarbor(
+        tasks=["a", "b"],
+        outcomes={
+            "a": HarborTaskResult(passed=True, log_path="/tmp/a.log", cost_dollar=0.3),
+            "b": HarborTaskResult(passed=True, log_path="/tmp/b.log", cost_dollar=0.7),
+        },
+    )
+    result = Tb2HarborAdapter(harbor).measure(candidate)
+    assert result.cost_is_measured is True
+    assert result.scores["quality"] == pytest.approx(1.0)
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["errored_count"] == 0
+    assert payload["n_tasks"] == 2
     assert payload["cost_is_measured"] is True

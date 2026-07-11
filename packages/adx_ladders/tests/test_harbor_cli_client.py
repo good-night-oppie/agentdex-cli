@@ -422,9 +422,7 @@ def test_f2_argv_includes_n_tasks_cap(tmp_path: Path, stub_path: Path) -> None:
     assert "-l" in argv and argv[argv.index("-l") + 1] == "1"
 
 
-def test_org_prefixed_task_id_exact_filter_slugged_paths(
-    tmp_path: Path, stub_path: Path
-) -> None:
+def test_org_prefixed_task_id_exact_filter_slugged_paths(tmp_path: Path, stub_path: Path) -> None:
     """WU-9F: org/task-x → -i exact; job/log paths slash-free; passed honored."""
     task_id = "org/task-x"
     _write_stub_harbor(
@@ -480,9 +478,7 @@ def _write_trial_result(
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def test_forged_artifact_result_json_ignored(
-    tmp_path: Path, stub_path: Path
-) -> None:
+def test_forged_artifact_result_json_ignored(tmp_path: Path, stub_path: Path) -> None:
     """WU-10 P1: agent-planted artifacts/.../result.json must not gate pass/cost.
 
     Genuine verifier file at depth-1 has reward=0 + org-prefixed task_name;
@@ -516,12 +512,11 @@ def test_forged_artifact_result_json_ignored(
     assert result.passed is False
     assert result.cost_dollar is None
     assert result.timed_out is False
+    assert result.errored is False  # genuine reward-0, not infra failure
     assert Path(result.log_path) == trial_dir
 
 
-def test_depth1_trial_result_honors_org_prefixed_task_name(
-    tmp_path: Path, stub_path: Path
-) -> None:
+def test_depth1_trial_result_honors_org_prefixed_task_name(tmp_path: Path, stub_path: Path) -> None:
     """WU-10: single depth-1 trial root is trusted even when task_name is org-prefixed."""
     _write_stub_harbor(stub_path)
     job_dir = tmp_path / "job"
@@ -544,10 +539,8 @@ def test_depth1_trial_result_honors_org_prefixed_task_name(
     assert Path(result.log_path) == trial_dir
 
 
-def test_empty_job_dir_honest_non_measurement(
-    tmp_path: Path, stub_path: Path
-) -> None:
-    """WU-10: no trial-root result.json → passed=False, cost None (honest)."""
+def test_empty_job_dir_honest_non_measurement(tmp_path: Path, stub_path: Path) -> None:
+    """WU-10/WU-11: no trial-root result.json → errored=True (not measured-0)."""
     _write_stub_harbor(stub_path)
     job_dir = tmp_path / "empty-job"
     job_dir.mkdir()
@@ -563,9 +556,144 @@ def test_empty_job_dir_honest_non_measurement(
     assert result.passed is False
     assert result.cost_dollar is None
     assert result.timed_out is False
+    assert result.errored is True
     assert result.log_path == str(job_dir)
 
     missing = tmp_path / "no-such-job"
     result_missing = client._parse_job_result(missing, task_id="regex-log")
     assert result_missing.passed is False
     assert result_missing.cost_dollar is None
+    assert result_missing.errored is True
+
+
+def test_p2_6_non_timeout_exception_reaps_process_group(
+    tmp_path: Path, stub_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WU-11 P2 #6: KeyboardInterrupt during wait → _kill runs, exception propagates."""
+    _write_stub_harbor(
+        stub_path,
+        sleep_sec=30.0,
+        spawn_grandchild=True,
+    )
+    jobs = tmp_path / "jobs"
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=jobs,
+        tasks=("t",),
+    )
+
+    kill_calls: list[object] = []
+    real_kill = HarborCliClient._kill
+
+    def _tracking_kill(proc: object) -> None:
+        kill_calls.append(proc)
+        real_kill(proc)  # type: ignore[arg-type]
+
+    # _kill is a staticmethod — wrap so instance call does not bind self.
+    monkeypatch.setattr(HarborCliClient, "_kill", staticmethod(_tracking_kill))
+
+    import subprocess
+
+    real_popen = subprocess.Popen
+
+    class _Popen(real_popen):  # type: ignore[valid-type,misc]
+        def wait(self, timeout: float | None = None) -> int:  # noqa: ARG002
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(subprocess, "Popen", _Popen)
+
+    with pytest.raises(KeyboardInterrupt):
+        client.run_task("t", "oracle", timeout_sec=10.0)
+
+    assert kill_calls, "_kill must run on non-timeout wait exception"
+
+
+def test_p2_9_infra_fail_nonzero_exit_no_trial_result(tmp_path: Path, stub_path: Path) -> None:
+    """WU-11 P2 #9: harbor exits nonzero with no trial result → errored, not quality=0."""
+    bin_dir = stub_path
+    script = bin_dir / "harbor"
+    script.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json, sys
+            from pathlib import Path
+
+            def _arg(flag_long, flag_short=None, default=None):
+                argv = sys.argv[1:]
+                for i, a in enumerate(argv):
+                    if a == flag_long or (flag_short and a == flag_short):
+                        return argv[i + 1] if i + 1 < len(argv) else default
+                return default
+
+            if sys.argv[1] != "run":
+                raise SystemExit(2)
+            jobs_dir = Path(_arg("--jobs-dir", "-o", "jobs"))
+            job_name = _arg("--job-name", default="j")
+            jobs_dir.mkdir(parents=True, exist_ok=True)
+            (jobs_dir / job_name).mkdir(parents=True, exist_ok=True)
+            (jobs_dir / f".argv-{{job_name}}.json").write_text(
+                json.dumps(sys.argv) + "\\n", encoding="utf-8"
+            )
+            # Infra failure: nonzero exit, no trial result.json written.
+            raise SystemExit(1)
+            """
+        ),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    jobs = tmp_path / "jobs"
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=jobs,
+        tasks=("broken",),
+    )
+    harbor_result = client.run_task("broken", "oracle", timeout_sec=5.0)
+    assert harbor_result.errored is True
+    assert harbor_result.passed is False
+    assert harbor_result.timed_out is False
+    assert harbor_result.cost_dollar is None
+
+    root = _write_candidate(tmp_path / "agent", wall_clock_min=1.0)
+    candidate = load_candidate(root)
+    adapter_client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs-adapter",
+        tasks=("broken",),
+    )
+    result = Tb2HarborAdapter(adapter_client).measure(candidate)
+    assert result.scores["quality"] == pytest.approx(0.0)
+    assert result.cost_is_measured is False
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["errored_count"] >= 1
+    assert payload["n_tasks"] == 1
+    assert payload["tasks"][0]["errored"] is True
+    assert payload["cost_is_measured"] is False
+
+
+def test_p2_9_clean_run_still_measured(tmp_path: Path, stub_path: Path) -> None:
+    """WU-11 regression: clean all-measured run keeps cost_is_measured + errored_count=0."""
+    _write_stub_harbor(
+        stub_path,
+        outcomes={
+            "a": {"passed": True, "cost_usd": 0.10},
+            "b": {"passed": True, "cost_usd": 0.20},
+        },
+    )
+    root = _write_candidate(tmp_path / "agent", wall_clock_min=2.0)
+    candidate = load_candidate(root)
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs",
+        tasks=("a", "b"),
+    )
+    result = Tb2HarborAdapter(client).measure(candidate)
+    assert result.cost_is_measured is True
+    assert result.scores["quality"] == pytest.approx(1.0)
+    assert result.scores["cost_dollar"] == pytest.approx(0.30)
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["errored_count"] == 0
+    assert payload["n_tasks"] == 2
+    assert payload["cost_is_measured"] is True
+    assert all(t["errored"] is False for t in payload["tasks"])

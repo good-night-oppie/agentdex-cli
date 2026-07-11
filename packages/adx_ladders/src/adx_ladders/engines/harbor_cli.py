@@ -26,6 +26,10 @@ Subprocess hardening mirrors ``arc_agi3._spawn`` / ``_kill`` (WU-6):
 ``stdin=DEVNULL``, ``start_new_session=True``, SIGTERM→grace→SIGKILL on
 the whole process group. Timed-out runs return
 ``HarborTaskResult(passed=False, timed_out=True, ...)`` — never raise.
+Any non-timeout exception during ``wait`` also reaps the process group
+before re-raising (WU-11 P2 #6). Infra failures (nonzero exit, or no
+verifier trial ``result.json``) return ``errored=True`` — never silently
+as a genuine measured reward-0 (WU-11 P2 #9).
 """
 
 from __future__ import annotations
@@ -154,19 +158,36 @@ class HarborCliClient:
             except subprocess.TimeoutExpired:
                 timed_out = True
                 self._kill(proc)
+            except BaseException:
+                # KeyboardInterrupt / anything → never leak the process group.
+                self._kill(proc)
+                raise
         finally:
             log_fh.close()
 
         job_dir = self._jobs_dir / job_name
         if timed_out:
+            # Distinct failure class from errored — already honest as timeout.
             return HarborTaskResult(
                 passed=False,
                 log_path=str(self._jobs_dir),
                 cost_dollar=None,
                 timed_out=True,
+                errored=False,
             )
 
-        return self._parse_job_result(job_dir, task_id=task_id)
+        parsed = self._parse_job_result(job_dir, task_id=task_id)
+        process_errored = proc.returncode != 0
+        if process_errored or parsed.errored:
+            # Infra failure ≠ genuine reward-0: never claim a measurement.
+            return HarborTaskResult(
+                passed=False,
+                log_path=parsed.log_path,
+                cost_dollar=None,
+                timed_out=False,
+                errored=True,
+            )
+        return parsed
 
     def _resolve_bin(self) -> str:
         candidate = Path(self._harbor_bin)
@@ -180,22 +201,26 @@ class HarborCliClient:
     def _parse_job_result(self, job_dir: Path, *, task_id: str) -> HarborTaskResult:
         trial_result_path = self._find_trial_result(job_dir, task_id=task_id)
         if trial_result_path is None:
+            # No verifier-written trial result → infra / incomplete, not reward-0.
             log = str(job_dir if job_dir.is_dir() else self._jobs_dir)
             return HarborTaskResult(
                 passed=False,
                 log_path=log,
                 cost_dollar=None,
                 timed_out=False,
+                errored=True,
             )
 
         try:
             data = json.loads(trial_result_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            # Unreadable verifier file → no usable measurement.
             return HarborTaskResult(
                 passed=False,
                 log_path=str(trial_result_path.parent),
                 cost_dollar=None,
                 timed_out=False,
+                errored=True,
             )
 
         passed = self._reward_passed(data)
@@ -205,6 +230,7 @@ class HarborCliClient:
             log_path=str(trial_result_path.parent),
             cost_dollar=cost,
             timed_out=False,
+            errored=False,
         )
 
     @staticmethod
