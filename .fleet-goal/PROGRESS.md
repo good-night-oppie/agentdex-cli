@@ -12,18 +12,20 @@ cross_cutting: true
 
 # PROGRESS — agentdex-redesign-evolution-market
 
-updated: 2026-07-11T03:58:28Z by <session/agent>
+## M1 — research + architecture design (audit PASS / review findings remediated)
 
-## What's done
-- <completed item + backing evidence path>
-- <latest committed/pushed milestone or explicit local-only state>
+### What's done
 
-## What's next (ranked)
-1. <next concrete step>
-2. <then>
+- 6-lane research sweep + gap critic (evidence/M1/research/, lane-label rotation fixed per audit P2).
+- User decisions recorded verbatim in GOALS.md: supersession, MVP order, two-class ladder taxonomy (+PokeAgent, diligence PASS incl. authenticated Playwright login — team AgentDex, bot adx-bot-1), 3-layer loop (weco drives, mh gates), v1 adapters ARC-AGI-3+TB2+PokeAgent, no-Fable-coding/mroute routing.
+- DESIGN.md + ADR-0015 draft + M2-M6 roadmap; PokeAgent gate class pinned (D4a, open-ELO w/ opponent-mix guard, A2A #2622/#2623 answered).
+- Fresh audit (5-question) PASS + evidence-grounding review: P1 (collaborative-path promotion qualifier) and all P2/P3 findings remediated in-place; weco-start-claude primary-source snapshot captured.
 
-## Any blockers
-- <blocker + what unblocks it | none>
+### What's next
 
-## Last evidence touched
-- <evidence/M<N>/...>
+- Present design to user → record confirmation verbatim (M1 evidence item 6) → close M1.
+- M2 kickoff (Pareto measurement engine) — ALL implementation via mroute execute (never Fable).
+
+### Any blockers
+
+- M1 closure gated only on user design confirmation.

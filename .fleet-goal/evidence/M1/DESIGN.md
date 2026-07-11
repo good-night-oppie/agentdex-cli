@@ -64,10 +64,21 @@ The redesign is a re-composition around a new central noun — the
 │   │                                                                  │
 │   └─→ mh_submit_candidate → bene mh frontier (multi-objective,       │
 │       persistent, partitioned by (ladder, base_model))               │
-│       → kill-gated promotion (autopromote.py: ACCEPT-only,           │
-│         class-differentiated gates) → agentdex ledger/leaderboard    │
+│       → EXPLICIT bridge in adx_frontier/mh_bridge.py                 │
+│         (genome_from_candidate → registered gate → promote() on      │
+│         ACCEPT) → agentdex ledger/leaderboard                        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+**Promotion-integrity qualifier (P1 review finding):** `autopromote.py`'s
+ACCEPT-only kill-gated promotion is verified wired on bene's **autonomous**
+search path only; the **collaborative MCP path used above never bridges or
+auto-promotes** (it writes archive files directly). The bridge in
+`mh_bridge.py` is therefore a REQUIRED component, not an optimization, and
+M3's evidence must show a candidate promoted through an ACCEPT gate via the
+collaborative path. GAP-10 (SKILL.md "not wired" vs working-tree code):
+single squashed import commit — working-tree `autopromote.py` is canonical,
+SKILL.md claim stale.
 
 Division of labor (GAP-2 resolution): **bene mh owns the frontier and
 promotion integrity** (only verified persistent multi-objective substrate;
@@ -91,6 +102,12 @@ base_model: claude-sonnet-5             # frontier partition key (STOP)
 budget: {usd: 5.00, wall_clock_min: 60} # declared budget (RE-Bench crossover)
 ladders: [tb2, arc-agi-3, pokeagent-gen1ou]
 ```
+
+Validation rule (weco hard limits, first-class in `adx_frontier/candidate.py`):
+the expanded `mutable` set passed to `weco run --sources` must be **≤10 files,
+≤200KB each, ≤500KB total** — broad globs like `src/**/*.py` fail validation
+with a "narrow your weco-mutable subset" error before any run starts; the mh
+genome may still cover the full set.
 
 Each adapter maps it to its native shape: TB2/Harbor `--agent-import-path`
 wrapper; ARC-AGI-3 arcengine SDK shim; PokeAgent poke-env player authing as
@@ -152,6 +169,9 @@ packages/
 ├── adx_showdown/       # KEEP (ADR-0014 poke-env path; shared w/ pokeagent adapter)
 ├── agentdex_cli/       # EXTEND — new verbs (below)
 ├── agentdex_observe/   # KEEP — Langfuse traces
+├── agentdex_plugin/    # RETIRE — Hermes entry-points integration superseded
+│                       #   by the weco→Claude Code driver; drops hermes-agent dep
+├── helios_client/      # RETIRE — never wired; keep the CheckpointStore Protocol
 └── kaos/               # KEEP as substrate; kaos.metaharness NOT selected
 ```
 
@@ -196,13 +216,20 @@ spine, not three sites.
 
 ## Open items carried to M2 (decided-by-default, spike-gated)
 
-1. Weco credit economics with BYO `--api-key` + retention policy (30-min
-   empirical spike) — gates the "free on your own subscriptions" copy.
-2. WebArena vs SWE-Bench Pro footprint spike → adapter slot 3.
-3. Benchmark-mirroring ToS browser session → mirror vs link-out per ladder.
+1. Weco spike: credit economics with BYO `--api-key` + retention policy +
+   empirical `weco start claude` verb check (`--help`, one bridged toy
+   session) — gates the "free on your own subscriptions" copy and the D2
+   driver mechanism (the verb post-dates the docs seed; snapshot captured in
+   `research/weco-start-claude-snapshot.md`).
+2. WebArena vs SWE-Bench Pro footprint spike → the FOURTH adapter slot
+   (v1 ships three: ARC-AGI-3, TB2, PokeAgent).
+3. ToS browser session: benchmark-leaderboard mirroring per ladder AND Weco's
+   own ToS on third-party display of exported run/lineage data + share-link
+   embedding (D6 self-reported tier ingests weco lineage JSON; M5 renders it
+   publicly).
 4. bene `Benchmark.score()` cost/latency axes spike (free-form floats say yes).
-5. arXiv ID verification pass for ADR citations (2603.28052, 2604.01658, Weng
-   reference set).
+5. arXiv ID verification pass for citations (2603.28052, 2604.01658,
+   2603.15563 PokeAgent, Weng reference set).
 
 ## Next Steps
 

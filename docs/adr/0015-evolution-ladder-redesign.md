@@ -8,6 +8,11 @@ type: reference
 scope: docs/adr
 layer: cross-cutting
 cross_cutting: true
+enforced_by:
+  - claim: "D2 — adx_frontier/mh_bridge.py MUST perform the promotion bridge explicitly (genome_from_candidate → registered gate → promote() on ACCEPT); the collaborative MCP path never auto-promotes"
+    test: "M3 evidence gate (.fleet-goal/GOALS.md M3): a candidate promoted through an ACCEPT gate via the collaborative path; implementation test lands with adx_frontier in M3"
+  - claim: "D1 — the expanded weco-mutable subset MUST satisfy weco --sources hard limits (≤10 files, ≤200KB each, ≤500KB total) at validation time"
+    test: "adx_frontier/candidate.py validation rule + its unit test (lands in M2 per DESIGN.md manifest spec)"
 ---
 
 # ADR-0015: Agent Evolution Ladder redesign
@@ -39,14 +44,27 @@ it (Harbor import-path wrapper, arcengine shim, poke-env player, weco
 research.
 
 ### D2 — 3-layer RSI loop: weco drives, mh gates (user-confirmed)
-`adx evolve` wraps **`weco start claude`** (verified: Weco wrapper starts
-Claude Code locally, BYO Claude auth default, dashboard = live steering).
+`adx evolve` wraps **`weco start claude`** (primary source: docs.weco.ai
+snapshot in `evidence/M1/research/weco-start-claude-snapshot.md` — Weco
+wrapper starts Claude Code locally, BYO Claude auth default, dashboard = live
+steering, `--headless`/`-p`/`--allow-tools` automation flags; the verb
+post-dates the docs seed and gets an empirical check in the M2 weco spike).
 Claude Code runs the outer session with an agentdex skill; **`weco run`** is
 the optional inner single-metric mutation engine; every candidate goes to the
-**bene mh frontier**; **kill-gated promotion** (`autopromote.py` — verified
-wired, ACCEPT-only, no back-door) decides leaderboard entry. Data-flow
-disclosure (weco uploads sources + eval output; session streams to dashboard)
-is mandatory at connect time.
+**bene mh frontier**; **kill-gated promotion decides leaderboard entry, with
+an explicit qualifier (P1 review finding):** `autopromote.py` is verified
+wired ACCEPT-only-no-back-door **on the autonomous search path only** — the
+collaborative MCP path this loop actually uses (`mh_submit_candidate` /
+`mh_next_iteration`) writes archive files directly and **never bridges or
+auto-promotes**. Therefore `adx_frontier/mh_bridge.py` MUST perform the
+bridge explicitly (`genome_from_candidate` → registered gate → `promote()`
+on ACCEPT), and M3's evidence requires a candidate promoted through an ACCEPT
+gate **via the collaborative path**. GAP-10 disposition: git history is a
+single squashed import (c444eca "BENE v0.2.1") so dates cannot arbitrate;
+working-tree `autopromote.py` (docstring: promotion "still demands the ACCEPT
+verdict... no back-door auto-flip") is canonical; SKILL.md's "NOT wired"
+claim is stale. Data-flow disclosure (weco uploads sources + eval output;
+session streams to dashboard) is mandatory at connect time.
 
 ### D3 — bene mh owns the frontier; weco is single-metric; kaos.metaharness rejected
 Frontier axes `{quality ↑, cost_dollar ↓, wall_clock_sec ↓}` at a **declared
@@ -59,7 +77,9 @@ dicts only.
 ### D4 — Two-class ladder taxonomy with class-differentiated kill gates (user directive, verbatim basis)
 Live-adversarial (Kaggle, ARC-AGI-3, PokeAgent Challenge): adversarial refresh
 is the built-in contamination guard. Static (SWE-Bench Pro, TerminalBench2,
-WebArena): held-out/decontamination checks — their datasets sit openly on HF.
+WebArena): held-out/decontamination checks — TB2 and SWE-Bench Pro datasets
+sit openly on HF; WebArena is GitHub + self-hosted Docker but shares the
+fixed-test-set exposure.
 HuggingFace is a **substrate**, not a lane. "We land at 6 ladders by merit —
 swapping a non-ladder (HF) for a genuine one (pokeagentchallenge) — not by
 manufacturing a lane to hit a count."
@@ -124,6 +144,9 @@ no fully-local mode in v1 (layering permits adding one later).
 
 Weco-only loop (rejected: loses hash-locked gates + multi-objective frontier);
 kaos.metaharness as frontier owner (rejected: vendored, unused, unverified
-adapters); hosted multi-tenant execution (deferred: credential custody +
-isolation costs); HuggingFace as a sixth ladder lane (rejected: not a ladder —
-Open LLM Leaderboard retired; recast as substrate).
+adapters); extending agentdex_engine's one-shot 3-objective verdict into an
+in-house persistent frontier (rejected: rebuilds lineage/persistence/
+collaborative-proposer machinery bene mh already has verified); hosted
+multi-tenant execution (deferred: credential custody + isolation costs);
+HuggingFace as a sixth ladder lane (rejected: not a ladder — Open LLM
+Leaderboard retired; recast as substrate).

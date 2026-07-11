@@ -78,14 +78,16 @@ Claude Code to recursively self-improve your agent against a task" hook.
 ## Constraints
 
 - **Model routing (user directive 2026-07-11, verbatim): "please do not use
-  fable to do coding."** Fable coordinates, designs, reviews, audits; ALL
-  implementation/coding work is delegated to non-Fable workers (coco /
-  `mroute execute` chain / Claude Code worker sessions on other models).
+  fable to do coding， use mroute for coding."** Fable coordinates, designs,
+  reviews, audits; ALL implementation/coding work is dispatched via
+  **`mroute execute`** (grok→gemini→spark chain) — request-capsule pattern per
+  the orch-proj mroute-broker addendum. Fable never writes product code.
 - BYO-creds local execution; agentdex never holds user Weco/Anthropic creds.
 - Reuse before rebuild: expedition/Pareto-verdict/Evolution-Card machinery and
   ADR-0014's eval-gated evolution loop are prior art to extend, not discard.
-- Existing uv-workspace layout (7 packages) + FastAPI arena app on Lightsail
-  remain the substrate unless the design argues otherwise explicitly.
+- Existing uv-workspace layout (9 packages — README's "7" is doc drift) +
+  FastAPI arena app on Lightsail remain the substrate unless the design
+  argues otherwise explicitly.
 - Vendor pre-commit red-gate quirk in this repo: merge on real gates only.
 
 ## Non-goals (v1)
@@ -147,7 +149,10 @@ Outcome: pokeagent adapter (poke-env substrate, adx-bot-1 auth, Gen 1 OU) +
 adx_frontier (mh_bridge, gates.py class-differentiated policies, two-tier
 trust ledger, frontier/promotion JSON export).
 Evidence: adx-bot-1 ladder battles recorded; a candidate promoted through an
-ACCEPT gate; exported frontier.json; audit + review.
+ACCEPT gate **via the collaborative MCP path** (the explicit
+genome_from_candidate bridge in mh_bridge.py — the collaborative path never
+auto-promotes on its own, per the P1 review finding); exported frontier.json;
+audit + review.
 
 ### M4 — `adx evolve` 3-layer RSI loop
 
