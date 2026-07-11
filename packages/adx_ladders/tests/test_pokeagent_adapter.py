@@ -1,5 +1,7 @@
 import pytest
-from adx_ladders.adapters.pokeagent import PokeAgentResult
+from adx_frontier.candidate import AgentCandidate, Budget
+from adx_ladders.adapters.pokeagent import PokeAgentAdapter, PokeAgentResult
+from adx_ladders.base import LadderClass
 
 
 def _valid(**overrides: object) -> PokeAgentResult:
@@ -18,3 +20,17 @@ def test_pokeagent_result_accepts_server_rated_window() -> None:
 def test_pokeagent_result_rejects_untrustworthy_window(overrides: dict) -> None:
     with pytest.raises(ValueError):
         _valid(**overrides)
+
+
+def test_pokeagent_adapter_emits_verified_static_degraded_measurement(tmp_path) -> None:
+    (tmp_path / "agent.py").write_text("pass\n")
+    candidate = AgentCandidate("agent", "python agent.py", ("agent.py",), "model", Budget(1, 2),
+                               ("pokeagent-gen1ou",), tmp_path)
+    calls = []
+    adapter = PokeAgentAdapter(lambda entry, timeout: calls.append((entry, timeout)) or _valid(),
+                               minimum_community_share=0.75)
+    result = adapter.measure(candidate)
+    assert result.scores == {"quality": 1512.0, "cost_dollar": 0.0, "wall_clock_sec": 12.0}
+    assert result.receipt.tier == "verified" and result.receipt.ref.startswith("ladder:")
+    assert result.effective_ladder_class is LadderClass.STATIC
+    assert calls == [("python agent.py", 120.0)]
