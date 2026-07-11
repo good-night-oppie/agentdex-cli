@@ -253,3 +253,12 @@ Evidence: live site probe; board re-scope record; audit + review.
   mandatory. Evidence: `evidence/M2/spike2-footprint.out.txt`. Served by
   mroute execute (grok-4.5). Spikes 2/3/4/5 now DONE; spike 1 (weco
   economics) awaits an operator account decision.
+- 2026-07-11 (s14 calibration note, from rpo gap-scan on the PTCG lane): the
+  s14 anti-precedent's empirical picture is VOLATILE — s14 later recovered
+  420→602.2 on the Kaggle public ladder and now leads the seed by +38.6,
+  inside a demonstrated ~182-pt volatility band, no private score yet. The
+  operator's recorded lesson STANDS and generalizes: neither a local proxy NOR
+  a single noisy ladder read is an oracle — which is precisely why the M2/M3
+  design requires declared budgets, two-tier receipts, and settled/refreshed
+  reads (live-class adversarial refresh; static-class held-out) before any
+  promotion. Do not cite s14 as "search tanked" without this note.
