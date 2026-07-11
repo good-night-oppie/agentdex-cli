@@ -109,6 +109,7 @@ def test_happy_path_tb2_engine_fake(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert "measured_at_utc" in payload
     # FakeHarbor reports per-task cost_dollar → measured honesty bit is True.
     assert payload["cost_is_measured"] is True
+    assert payload["effective_ladder_class"] is None
     assert out_path.is_file()
     assert json.loads(out_path.read_text(encoding="utf-8")) == payload
 
