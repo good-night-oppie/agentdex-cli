@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 from adx_frontier.candidate import FRONTIER_AXES
+from agentdex_cli import measure_cmd
 from agentdex_cli.cli import main
 
 _ECHO_AGENT = textwrap.dedent(
@@ -271,7 +272,7 @@ def test_happy_path_arc_local_engine(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert payload["receipt"]["tier"] == "self_reported"
     assert payload["receipt"]["kind"] != "fake_engine"
     quality = payload["scores"]["quality"]
-    assert isinstance(quality, (int, float))
+    assert isinstance(quality, int | float)
     assert 0.0 <= float(quality) <= 1.0
     assert payload["ladder_id"] == "arc-agi-3"
 
@@ -314,6 +315,57 @@ def test_harbor_cli_engine_rejects_non_tb2_ladder(
     assert rc == 3
     assert "harbor-cli" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_pokeagent_engine_requires_named_environment_without_leaking_values(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_candidate(tmp_path, ladders=["pokeagent-gen1ou"])
+    for key in measure_cmd._POKE_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "pokeagent-gen1ou",
+            "--engine",
+            "pokeagent",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert rc == 3 and "ADX_POKEAGENT_USERNAME" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_pokeagent_environment_builds_real_adapter_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    team = tmp_path / "team.txt"
+    team.write_text("Pikachu\n- Thunderbolt\n", encoding="utf-8")
+    values = {
+        "ADX_POKEAGENT_USERNAME": "adx-bot-1",
+        "ADX_POKEAGENT_WEBSOCKET_URL": "wss://ps.example/ws",
+        "ADX_POKEAGENT_AUTH_URL": "https://ps.example/auth",
+        "ADX_POKEAGENT_TEAM_FILE": str(team),
+        "ADX_POKEAGENT_RATING_REF": "https://ratings.example/{username}#{battle_tag}",
+        "ADX_POKEAGENT_BASELINES": "Baseline A,Baseline B",
+    }
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("ADX_POKEAGENT_PASSWORD", "test-only")  # pragma: allowlist secret
+    monkeypatch.setattr(measure_cmd.importlib.util, "find_spec", lambda _name: object())
+    seen = {}
+
+    class FakeRunner:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(measure_cmd, "PokeAgentLadderRunner", FakeRunner)
+    adapter = measure_cmd._build_pokeagent_adapter_from_env()
+    assert isinstance(adapter, measure_cmd.PokeAgentAdapter)
+    assert seen["team"].startswith("Pikachu") and seen["n_games"] == 1
 
 
 def test_harbor_cli_missing_binary_clean_error(
