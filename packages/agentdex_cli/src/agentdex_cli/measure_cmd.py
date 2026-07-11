@@ -25,7 +25,9 @@ only constructs the client.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import os
 import sys
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -34,10 +36,12 @@ from typing import Any
 
 from adx_frontier.candidate import CandidateValidationError, load_candidate
 from adx_ladders.adapters.arc_agi3 import ArcAgi3Adapter
+from adx_ladders.adapters.pokeagent import PokeAgentAdapter
 from adx_ladders.adapters.tb2_harbor import Tb2HarborAdapter
 from adx_ladders.base import MeasureResult, Receipt
 from adx_ladders.engines.harbor_cli import HarborCliClient
 from adx_ladders.engines.local_arc import LocalArcEngine
+from adx_ladders.engines.pokeagent_ladder import PokeAgentLadderRunner
 from adx_ladders.registry import LadderEntry, load_registry
 
 from agentdex_cli._fakes import FakeArcEngine, FakeHarbor
@@ -50,6 +54,17 @@ _EXIT_NO_ADAPTER = 3
 _ENGINE_FAKE = "fake"
 _ENGINE_LOCAL_ARC = "local-arc"
 _ENGINE_HARBOR_CLI = "harbor-cli"
+_ENGINE_POKEAGENT = "pokeagent"
+
+_POKE_ENV_KEYS = (
+    "ADX_POKEAGENT_USERNAME",
+    "ADX_POKEAGENT_PASSWORD",
+    "ADX_POKEAGENT_WEBSOCKET_URL",
+    "ADX_POKEAGENT_AUTH_URL",
+    "ADX_POKEAGENT_TEAM_FILE",
+    "ADX_POKEAGENT_RATING_REF",
+    "ADX_POKEAGENT_BASELINES",
+)
 
 
 def _serialize_measure_result(result: MeasureResult, *, measured_at_utc: str) -> dict[str, Any]:
@@ -58,7 +73,9 @@ def _serialize_measure_result(result: MeasureResult, *, measured_at_utc: str) ->
         "base_model": result.base_model,
         "scores": dict(result.scores),
         "cost_is_measured": result.cost_is_measured,
-        "effective_ladder_class": result.effective_ladder_class.value if result.effective_ladder_class else None,
+        "effective_ladder_class": result.effective_ladder_class.value
+        if result.effective_ladder_class
+        else None,
         "receipt": {
             "tier": result.receipt.tier,
             "kind": result.receipt.kind,
@@ -154,7 +171,8 @@ def _build_adapter(
             "--engine-fake / --engine fake for a deterministic local demo "
             "(NOT leaderboard-eligible), --engine local-arc for the "
             "genuine local ARC-style engine on arc-agi-3, or "
-            "--engine harbor-cli for the real Harbor CLI client on tb2"
+            "--engine harbor-cli for the real Harbor CLI client on tb2, or "
+            "--engine pokeagent for the rated Showdown runner"
         )
     if engine_mode == _ENGINE_FAKE:
         if ladder_id == "arc-agi-3":
@@ -189,7 +207,55 @@ def _build_adapter(
             HarborCliClient(tasks=harbor_tasks, jobs_dir=jobs_dir),
             suite="default",
         )
+    if engine_mode == _ENGINE_POKEAGENT:
+        if ladder_id != "pokeagent-gen1ou":
+            raise RuntimeError(
+                f"--engine pokeagent only supports ladder 'pokeagent-gen1ou' (got {ladder_id!r})"
+            )
+        return _build_pokeagent_adapter_from_env()
     raise RuntimeError(f"unknown engine mode: {engine_mode!r}")
+
+
+def _build_pokeagent_adapter_from_env() -> PokeAgentAdapter:
+    missing = [key for key in _POKE_ENV_KEYS if not os.environ.get(key, "").strip()]
+    if missing:
+        raise RuntimeError(
+            "--engine pokeagent requires environment variables: " + ", ".join(missing)
+        )
+    if importlib.util.find_spec("poke_env") is None:
+        raise RuntimeError("poke-env is not installed; install the adx-ladders[pokeagent] extra")
+    team_path = Path(os.environ["ADX_POKEAGENT_TEAM_FILE"])
+    team = team_path.read_text(encoding="utf-8")
+    if not team.strip():
+        raise RuntimeError("ADX_POKEAGENT_TEAM_FILE must point to a non-empty packed team")
+    baselines = [
+        name.strip() for name in os.environ["ADX_POKEAGENT_BASELINES"].split(",") if name.strip()
+    ]
+    if not baselines:
+        raise RuntimeError("ADX_POKEAGENT_BASELINES must name at least one baseline")
+    try:
+        games = int(os.environ.get("ADX_POKEAGENT_GAMES", "1"))
+        minimum_share = float(os.environ.get("ADX_POKEAGENT_MIN_COMMUNITY_SHARE", "0.25"))
+    except ValueError as exc:
+        raise RuntimeError("invalid numeric ADX_POKEAGENT configuration") from exc
+    if games <= 0 or not 0.0 <= minimum_share <= 1.0:
+        raise RuntimeError("ADX_POKEAGENT_GAMES must be > 0 and MIN_COMMUNITY_SHARE in [0,1]")
+    rating_ref = os.environ["ADX_POKEAGENT_RATING_REF"]
+    try:
+        rating_ref.format(battle_tag="battle", rating=0, username="agent")
+    except (KeyError, ValueError) as exc:
+        raise RuntimeError("ADX_POKEAGENT_RATING_REF has invalid placeholders") from exc
+    runner = PokeAgentLadderRunner(
+        username=os.environ["ADX_POKEAGENT_USERNAME"],
+        password=os.environ["ADX_POKEAGENT_PASSWORD"],
+        websocket_url=os.environ["ADX_POKEAGENT_WEBSOCKET_URL"],
+        authentication_url=os.environ["ADX_POKEAGENT_AUTH_URL"],
+        team=team,
+        rating_ref_template=rating_ref,
+        baseline_opponents=baselines,
+        n_games=games,
+    )
+    return PokeAgentAdapter(runner, minimum_community_share=minimum_share)
 
 
 def cmd_measure(args: argparse.Namespace) -> int:
@@ -384,12 +450,13 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
     )
     measure.add_argument(
         "--engine",
-        choices=[_ENGINE_FAKE, _ENGINE_LOCAL_ARC, _ENGINE_HARBOR_CLI],
+        choices=[_ENGINE_FAKE, _ENGINE_LOCAL_ARC, _ENGINE_HARBOR_CLI, _ENGINE_POKEAGENT],
         default=None,
         help=(
             "engine backend: 'fake' (NOT-FOR-LEADERBOARD stubs), "
             "'local-arc' (genuine local ARC-style grid, arc-agi-3 only), or "
-            "'harbor-cli' (real Harbor CLI client, tb2 only)"
+            "'harbor-cli' (real Harbor CLI client, tb2 only), or 'pokeagent' "
+            "(rated PokeAgent/Showdown runner; configuration via ADX_POKEAGENT_* env)"
         ),
     )
     measure.add_argument(
