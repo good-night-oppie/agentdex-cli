@@ -12,6 +12,7 @@ def _valid(**overrides: object) -> PokeAgentResult:
         total_opponents=5,
         wall_clock_sec=12.0,
         cost_dollar=0.0,
+        cost_is_measured=True,
     )
     values.update(overrides)
     return PokeAgentResult(**values)

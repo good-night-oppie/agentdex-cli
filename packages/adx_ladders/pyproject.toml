@@ -9,8 +9,12 @@ description = "adx_ladders: LadderAdapter ABC + curated market registry (ADR-001
 requires-python = ">=3.11"
 dependencies = [
   "adx-frontier",
+  "adx-showdown",
   "pyyaml>=6.0",
 ]
+
+[project.optional-dependencies]
+pokeagent = ["poke-env>=0.15"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/adx_ladders"]
