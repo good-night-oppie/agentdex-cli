@@ -10,9 +10,9 @@ from __future__ import annotations
 import abc
 import enum
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping
 
 from adx_frontier.candidate import FRONTIER_AXES, AgentCandidate
 
@@ -91,7 +91,20 @@ class MeasureResult:
                 raise ValueError(
                     f"score {key!r} must be a finite float; got {value!r}"
                 )
+            if key in ("cost_dollar", "wall_clock_sec") and fval < 0.0:
+                raise ValueError(f"score {key!r} must be non-negative; got {value!r}")
             validated[key] = fval
+        for key, value in (
+            ("budget_usd", self.budget_usd),
+            ("budget_wall_clock_min", self.budget_wall_clock_min),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or float(value) <= 0.0
+            ):
+                raise ValueError(f"{key} must be a finite float > 0; got {value!r}")
         object.__setattr__(self, "scores", MappingProxyType(validated))
 
 
