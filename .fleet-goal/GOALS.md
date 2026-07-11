@@ -217,3 +217,20 @@ Evidence: live site probe; board re-scope record; audit + review.
   (evidence/M1/user-confirmation.md); standing principle "gate scores the
   REAL objective, not a proxy" + pre-run validation gate elevated into M2;
   M2 activated, implementation dispatched via mroute execute.
+- 2026-07-11 (M2 spikes 3+5 done, wf_93d1700c-fd5): **arXiv pass: all 8 IDs
+  VERIFIED** (Meta-Harness 2603.28052, CORAL 2604.01658, PokeAgent 2603.15563,
+  Self-Harness 2606.09498, DGM 2505.22954, AIDE 2502.13138, ShinkaEvolve
+  2509.19349, GEPA 2507.19457; Weng post serves). **ToS verdicts (per-source
+  mirroring policy for the M5 market data model):** MIRROR-OK = Kaggle via
+  Meta Kaggle dataset (Apache-2.0 — Competitions/Submissions/EpisodeAgents
+  tables; never scrape kaggle.com), Terminal-Bench (Apache-2.0 incl. HF
+  tb-2-verified), user-consented Weco Output (user OWNS exported run/lineage
+  JSON per weco.ai/terms-of-use; agentdex must NEVER pull from Weco — BYO
+  user export only). LINK-ONLY = ARC-AGI-3 (written permission required;
+  user-shareable scorecard replays are the sanctioned surface) + Scale SEAL /
+  SWE-Bench Pro standings. GAP = PokeAgent has no ToS at all → ask organizers
+  (email/Discord) before mirroring; SWE-bench_Pro HF dataset has NO license
+  (GPL-sourced instances by design) → metadata-as-facts only. CAVEATS for
+  spike 1 + monetization: Weco terms self-scope to personal non-commercial;
+  no public share-link feature exists. Evidence:
+  `evidence/M2/{spike3-tos-brief,spike5-arxiv-brief}.json`.
