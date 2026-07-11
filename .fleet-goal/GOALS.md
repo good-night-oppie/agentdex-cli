@@ -10,7 +10,7 @@ layer: cross-cutting
 cross_cutting: true
 ---
 
-status: ACTIVE — M1 research + architecture design
+status: ACTIVE — M2 Pareto measurement engine (M1 closed 2026-07-11, user-confirmed)
 project: agentdex-redesign-evolution-market
 state_root_note: this .fleet-goal/ lives in the redesign worktree (branch redesign/evolution-market off origin/main); the harness-engineering .fleet-goal/ is a DIFFERENT project (EDITH continuation) — never cross-write.
 parent_decision: supersedes the invited-user GA supergoal (.supergoal/ in this repo) per user decision 2026-07-11; EDITH-M7 fork esc-1335b26251 ACKED on that basis.
@@ -109,7 +109,7 @@ Claude Code to recursively self-improve your agent against a task" hook.
 
 ## Milestones
 
-### M1 — Research + architecture design [ACTIVE]
+### M1 — Research + architecture design [DONE 2026-07-11 — audit PASS, review findings remediated, user confirmation verbatim in evidence/M1/user-confirmation.md]
 
 Outcome: an evidence-grounded architecture design the user confirms — design
 doc + draft ADR-0015 (redesign) + refreshed milestone roadmap (M2..MN) in this
@@ -131,7 +131,20 @@ Evidence required (evidence/M1/):
 5. Fresh-thread 5-question audit + review pass.
 6. User confirmation of the design (recorded verbatim).
 
-### M2 — Pareto measurement engine (MVP moat)
+### M2 — Pareto measurement engine (MVP moat) [ACTIVE]
+
+**Standing principle (user, M1 confirmation, verbatim): "the gate scores the
+REAL objective, not a proxy."** Anti-precedent: the s14 search agent
+(proxy-winner locally, tanked on the real ladder).
+
+**Hard evidence requirement (user directive): pre-run validation gate** —
+`candidate.py` REJECTS before any run starts when (a) the expanded
+weco-mutable set violates --sources limits (≤10 files, ≤200KB each, ≤500KB
+total), or (b) the run lacks a declared budget or a complete axes partition
+(quality/cost_dollar/wall_clock_sec at (ladder, base_model)). The frontier
+must be ungameable by proxy-winners.
+
+**Routing: ALL implementation via `mroute execute` (never Fable).**
 
 Outcome: `adx measure --agent <dir> --ladder <id>` works end-to-end for
 ARC-AGI-3 + TB2 with axes-at-budget score dicts and receipts.
@@ -200,3 +213,7 @@ Evidence: live site probe; board re-scope record; audit + review.
   "ARC-AGI-3 + TB2 + PokeAgent" — two live-adversarial + one static, covering
   both gate classes; WebArena vs SWE-Bench Pro slot decided by M2 footprint
   spike.
+- 2026-07-11 (M1 closed): user confirmation recorded verbatim
+  (evidence/M1/user-confirmation.md); standing principle "gate scores the
+  REAL objective, not a proxy" + pre-run validation gate elevated into M2;
+  M2 activated, implementation dispatched via mroute execute.

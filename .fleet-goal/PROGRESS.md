@@ -23,9 +23,19 @@ cross_cutting: true
 
 ### What's next
 
-- Present design to user → record confirmation verbatim (M1 evidence item 6) → close M1.
-- M2 kickoff (Pareto measurement engine) — ALL implementation via mroute execute (never Fable).
+- (done) M1 CLOSED 2026-07-11 — user confirmation verbatim in evidence/M1/user-confirmation.md.
+
+## M2 — Pareto measurement engine [ACTIVE]
+
+### What's done
+
+- Standing principle + pre-run validation gate recorded (GOALS M2, user directive: gate scores the REAL objective, not a proxy; s14 anti-precedent).
+- WU-1 capsule (AgentCandidate manifest + pre-run validation gate) dispatched via mroute execute — evidence/M2/capsules/wu1-candidate-manifest.md.
+
+### What's next
+
+- Review WU-1 worker output → coordinator commits → next capsules: LadderAdapter ABC + registry, arc_agi3 adapter, tb2_harbor adapter, M2 spikes (weco economics + verb check, footprint, ToS, score-axes, arXiv pass).
 
 ### Any blockers
 
-- M1 closure gated only on user design confirmation.
+- None. Worker in flight on the mroute execute chain.
