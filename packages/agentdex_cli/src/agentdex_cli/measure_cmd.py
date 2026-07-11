@@ -89,13 +89,36 @@ def _force_fake_receipt(result: MeasureResult) -> MeasureResult:
 
 
 def _resolve_engine_mode(args: argparse.Namespace) -> str | None:
-    """Resolve ``--engine-fake`` + ``--engine`` into a mode string or None."""
+    """Resolve ``--engine-fake`` + ``--engine`` into a mode string or None.
+
+    Conflict detection (``--engine-fake`` + explicit non-fake ``--engine``)
+    lives in ``cmd_measure`` so it can return ``_EXIT_GATE``; this helper
+    assumes the caller has already rejected that conflict. Same-intent
+    pairs (``--engine-fake`` alone, ``--engine fake``, or both) resolve to
+    ``fake``.
+    """
     if getattr(args, "engine_fake", False):
         return _ENGINE_FAKE
     engine = getattr(args, "engine", None)
     if engine:
         return str(engine)
     return None
+
+
+def _engine_fake_conflict(args: argparse.Namespace) -> str | None:
+    """Return a conflict message if ``--engine-fake`` fights a real ``--engine``.
+
+    ``--engine-fake --engine fake`` is same-intent and allowed (returns None).
+    """
+    if not getattr(args, "engine_fake", False):
+        return None
+    engine = getattr(args, "engine", None)
+    if engine is None or str(engine) == _ENGINE_FAKE:
+        return None
+    return (
+        f"--engine-fake conflicts with --engine {engine!r}; "
+        "pass one engine selection, or use --engine fake / --engine-fake alone"
+    )
 
 
 def _parse_harbor_tasks(raw: str | None) -> tuple[str, ...] | None:
@@ -122,6 +145,7 @@ def _build_adapter(
     *,
     engine_mode: str | None,
     harbor_tasks: tuple[str, ...] | None = None,
+    jobs_dir: str | Path | None = None,
 ):
     if engine_mode is None:
         raise RuntimeError(
@@ -159,8 +183,9 @@ def _build_adapter(
             )
         # FileNotFoundError (missing harbor binary) propagates to cmd_measure
         # for a clean stderr message — never a traceback.
+        # jobs_dir=None → HarborCliClient mkdtemp default (ephemeral CLI use).
         return Tb2HarborAdapter(
-            HarborCliClient(tasks=harbor_tasks),
+            HarborCliClient(tasks=harbor_tasks, jobs_dir=jobs_dir),
             suite="default",
         )
     raise RuntimeError(f"unknown engine mode: {engine_mode!r}")
@@ -169,14 +194,28 @@ def _build_adapter(
 def cmd_measure(args: argparse.Namespace) -> int:
     agent_dir = Path(args.agent)
     ladder_id = str(args.ladder)
+
+    # P3 #11: never silently override an explicit real --engine with --engine-fake.
+    conflict = _engine_fake_conflict(args)
+    if conflict is not None:
+        print(conflict, file=sys.stderr)
+        return _EXIT_GATE
+
     engine_mode = _resolve_engine_mode(args)
 
-    # --harbor-tasks is harbor-cli only; reject empty items and wrong engines.
+    # --harbor-tasks / --jobs-dir are harbor-cli only; reject empty items and
+    # wrong engines with the same exit-2 gate convention.
     harbor_tasks_raw = getattr(args, "harbor_tasks", None)
     if harbor_tasks_raw is not None and engine_mode != _ENGINE_HARBOR_CLI:
         print(
-            "--harbor-tasks requires --engine harbor-cli "
-            f"(got engine={engine_mode!r})",
+            f"--harbor-tasks requires --engine harbor-cli (got engine={engine_mode!r})",
+            file=sys.stderr,
+        )
+        return _EXIT_GATE
+    jobs_dir_raw = getattr(args, "jobs_dir", None)
+    if jobs_dir_raw is not None and engine_mode != _ENGINE_HARBOR_CLI:
+        print(
+            f"--jobs-dir requires --engine harbor-cli (got engine={engine_mode!r})",
             file=sys.stderr,
         )
         return _EXIT_GATE
@@ -185,6 +224,17 @@ def cmd_measure(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return _EXIT_GATE
+
+    # P2 #10: harbor-cli without --harbor-tasks is a user error (exit 2), not
+    # an internal list_tasks ValueError (exit 1). Catch below stays as backstop.
+    if engine_mode == _ENGINE_HARBOR_CLI and harbor_tasks is None:
+        print(
+            "--engine harbor-cli requires --harbor-tasks <task[,task...]>",
+            file=sys.stderr,
+        )
+        return _EXIT_GATE
+
+    jobs_dir: Path | None = Path(jobs_dir_raw) if jobs_dir_raw is not None else None
 
     try:
         candidate = load_candidate(agent_dir)
@@ -226,6 +276,7 @@ def cmd_measure(args: argparse.Namespace) -> int:
             ladder_id,
             engine_mode=engine_mode,
             harbor_tasks=harbor_tasks,
+            jobs_dir=jobs_dir,
         )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
@@ -248,10 +299,10 @@ def cmd_measure(args: argparse.Namespace) -> int:
     try:
         result = adapter.measure(candidate)
     except ValueError as exc:
-        # e.g. HarborCliClient.list_tasks with no injected tasks= — clean
-        # message, never a raw traceback (WU-8F F3).
+        # Backstop: HarborCliClient.list_tasks with no injected tasks= (P2 #10
+        # user-error family → exit 2, never a raw traceback).
         print(str(exc), file=sys.stderr)
-        return 1
+        return _EXIT_GATE
     if engine_mode == _ENGINE_FAKE:
         result = _force_fake_receipt(result)
 
@@ -342,6 +393,15 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
             "comma-separated Harbor task names injected into HarborCliClient "
             "(--engine harbor-cli only; required for real TB2 runs because "
             "harbor has no task-list CLI surface)"
+        ),
+    )
+    measure.add_argument(
+        "--jobs-dir",
+        default=None,
+        help=(
+            "durable directory for Harbor job artifacts (--engine harbor-cli "
+            "only). When omitted, HarborCliClient uses an ephemeral mkdtemp "
+            "under /tmp; pass this so self_reported receipt paths survive."
         ),
     )
     measure.set_defaults(func=cmd_measure)

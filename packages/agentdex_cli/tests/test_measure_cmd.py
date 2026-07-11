@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from adx_frontier.candidate import FRONTIER_AXES
 from agentdex_cli.cli import main
 
@@ -68,7 +67,9 @@ def _write_candidate(
     return tmp_path
 
 
-def test_gate_rejection_oversized_mutable(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_gate_rejection_oversized_mutable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     files = {f"src/f{i}.py": b"x\n" for i in range(11)}
     root = _write_candidate(tmp_path, files=files)
 
@@ -121,9 +122,7 @@ def test_happy_path_arc_agi3_engine_fake(
         echo_agent=True,
     )
 
-    rc = main(
-        ["measure", "--agent", str(root), "--ladder", "arc-agi-3", "--engine-fake"]
-    )
+    rc = main(["measure", "--agent", str(root), "--ladder", "arc-agi-3", "--engine-fake"])
 
     captured = capsys.readouterr()
     assert rc == 0, f"stderr={captured.err!r}"
@@ -140,9 +139,7 @@ def test_happy_path_arc_agi3_engine_fake(
 def test_unknown_ladder(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = _write_candidate(tmp_path)
 
-    rc = main(
-        ["measure", "--agent", str(root), "--ladder", "not-a-ladder", "--engine-fake"]
-    )
+    rc = main(["measure", "--agent", str(root), "--ladder", "not-a-ladder", "--engine-fake"])
 
     err = capsys.readouterr().err
     assert rc != 0
@@ -175,9 +172,7 @@ def test_nan_budget_exits_gate_without_nan_token(
         encoding="utf-8",
     )
 
-    rc = main(
-        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"]
-    )
+    rc = main(["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"])
     captured = capsys.readouterr()
     combined = captured.out + captured.err
     assert rc == 2
@@ -185,9 +180,7 @@ def test_nan_budget_exits_gate_without_nan_token(
     assert "finite" in captured.err or "budget" in captured.err
 
 
-def test_absolute_mutable_glob_exits_2(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_absolute_mutable_glob_exits_2(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """P2-b: absolute mutable glob → clean exit 2, not a traceback."""
     outside = tmp_path / "outside.py"
     outside.write_text("x\n", encoding="utf-8")
@@ -199,9 +192,7 @@ def test_absolute_mutable_glob_exits_2(
         encoding="utf-8",
     )
 
-    rc = main(
-        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"]
-    )
+    rc = main(["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"])
     captured = capsys.readouterr()
     assert rc == 2
     assert "Traceback" not in captured.err
@@ -240,9 +231,7 @@ _GREEDY_AGENT = textwrap.dedent(
 )
 
 
-def test_happy_path_arc_local_engine(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_happy_path_arc_local_engine(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """WU-7: --engine local-arc produces a genuine measured self_reported run."""
     root = tmp_path / "arc-scripted"
     root.mkdir()
@@ -292,9 +281,7 @@ def test_local_arc_engine_rejects_non_arc_ladder(
     """WU-7: --engine local-arc on tb2 exits _EXIT_NO_ADAPTER cleanly."""
     root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
 
-    rc = main(
-        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine", "local-arc"]
-    )
+    rc = main(["measure", "--agent", str(root), "--ladder", "tb2", "--engine", "local-arc"])
 
     captured = capsys.readouterr()
     assert rc == 3
@@ -317,6 +304,8 @@ def test_harbor_cli_engine_rejects_non_tb2_ladder(
             "arc-agi-3",
             "--engine",
             "harbor-cli",
+            "--harbor-tasks",
+            "hello-world",
         ]
     )
 
@@ -346,6 +335,8 @@ def test_harbor_cli_missing_binary_clean_error(
             "tb2",
             "--engine",
             "harbor-cli",
+            "--harbor-tasks",
+            "hello-world",
         ]
     )
 
@@ -355,12 +346,12 @@ def test_harbor_cli_missing_binary_clean_error(
     assert "Traceback" not in captured.err
 
 
-def test_f3_harbor_cli_measure_valueerror_clean_exit(
+def test_harbor_cli_missing_tasks_exits_gate(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """F3: harbor-cli present but no tasks= → exit 1, ValueError on stderr, no traceback."""
+    """P2 #10 / WU-12: --engine harbor-cli without --harbor-tasks → exit 2."""
     import os
 
     bin_dir = tmp_path / "bin"
@@ -394,10 +385,142 @@ def test_f3_harbor_cli_measure_valueerror_clean_exit(
     )
 
     captured = capsys.readouterr()
-    assert rc == 1
-    assert "tasks=" in captured.err or "task-list" in captured.err
+    assert rc == 2
+    assert "--harbor-tasks" in captured.err
+    assert "requires" in captured.err
     assert "Traceback" not in captured.err
     assert "Traceback" not in captured.out
+
+
+def test_engine_fake_conflicts_with_explicit_real_engine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P3 #11 / WU-12: --engine-fake + --engine harbor-cli → exit 2, no silent override."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine-fake",
+            "--engine",
+            "harbor-cli",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "conflict" in captured.err.lower() or "conflicts" in captured.err.lower()
+    assert "harbor-cli" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_engine_fake_with_engine_fake_allowed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P3 #11 / WU-12: --engine-fake --engine fake is same-intent and allowed."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine-fake",
+            "--engine",
+            "fake",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0, f"stderr={captured.err!r}"
+    payload = json.loads(captured.out)
+    assert payload["receipt"]["kind"] == "fake_engine"
+
+
+def test_jobs_dir_durable_artifacts_under_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P2 #3 / P3 #7 / WU-12: --jobs-dir lands harbor artifacts + receipt under it."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub_harbor_for_measure(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+    jobs_dir = tmp_path / "durable-jobs"
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "hello-world",
+            "--jobs-dir",
+            str(jobs_dir),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0, f"stderr={captured.err!r}"
+    payload = json.loads(captured.out)
+    assert jobs_dir.is_dir()
+    artifacts = payload["receipt"]["artifacts"]
+    assert artifacts, "expected at least one receipt artifact"
+    jobs_resolved = jobs_dir.resolve()
+    under_jobs = [
+        art
+        for art in artifacts
+        if jobs_resolved in Path(art).resolve().parents or Path(art).resolve() == jobs_resolved
+    ]
+    assert under_jobs, (
+        f"expected at least one receipt artifact under jobs-dir {jobs_dir!r}; "
+        f"got artifacts={artifacts!r}"
+    )
+    # Stub also writes .argv-*.json under jobs_dir — prove the durable land.
+    argv_files = list(jobs_dir.glob(".argv-*.json"))
+    assert argv_files, f"expected stub argv files under {jobs_dir}"
+
+
+def test_jobs_dir_rejects_non_harbor_engine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P2 #3 / WU-12: --jobs-dir with --engine local-arc → exit 2."""
+    root = _write_candidate(tmp_path, ladders=["arc-agi-3", "tb2"], echo_agent=True)
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "arc-agi-3",
+            "--engine",
+            "local-arc",
+            "--jobs-dir",
+            str(tmp_path / "jobs"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--jobs-dir" in captured.err
+    assert "harbor-cli" in captured.err
+    assert "Traceback" not in captured.err
 
 
 def _write_stub_harbor_for_measure(bin_dir: Path) -> Path:
