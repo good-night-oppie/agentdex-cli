@@ -48,7 +48,8 @@ ladders:
     run_adapter: false
     notes: >
       Static leaderboard. Dataset sits openly on HuggingFace — held-out /
-      decontamination checks required (ADR D4). Fourth-adapter slot TBD.
+      decontamination checks required (ADR D4). M2 spike-2: fourth-adapter
+      slot / future adapter target is SWE-Bench Pro @ N=10.
 
   - id: tb2
     title: Terminal-Bench 2
