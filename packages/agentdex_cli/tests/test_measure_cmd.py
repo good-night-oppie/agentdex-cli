@@ -156,3 +156,49 @@ def test_run_adapter_false_kaggle_exits_3(
     err = capsys.readouterr().err
     assert rc == 3
     assert "run_adapter=false" in err or "run_adapter" in err
+
+
+def test_nan_budget_exits_gate_without_nan_token(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P1-1: NaN budget → exit 2, no NaN token in stdout/stderr."""
+    root = _write_candidate(tmp_path)
+    # Overwrite budget with YAML .nan (float NaN after load).
+    manifest = yaml.safe_load((root / "candidate.yaml").read_text(encoding="utf-8"))
+    manifest["budget"] = {"usd": float("nan"), "wall_clock_min": float("nan")}
+    (root / "candidate.yaml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"]
+    )
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert rc == 2
+    assert "NaN" not in combined
+    assert "finite" in captured.err or "budget" in captured.err
+
+
+def test_absolute_mutable_glob_exits_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P2-b: absolute mutable glob → clean exit 2, not a traceback."""
+    outside = tmp_path / "outside.py"
+    outside.write_text("x\n", encoding="utf-8")
+    root = _write_candidate(tmp_path / "agent")
+    manifest = yaml.safe_load((root / "candidate.yaml").read_text(encoding="utf-8"))
+    manifest["mutable"] = [str(outside.resolve())]
+    (root / "candidate.yaml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine-fake"]
+    )
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Traceback" not in captured.err
+    assert "absolute" in captured.err or "mutable" in captured.err

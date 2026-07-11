@@ -183,3 +183,73 @@ def test_weco_limit_error_includes_counts(tmp_path: Path) -> None:
     msg = str(exc_info.value)
     assert "narrow your weco-mutable subset" in msg
     assert "file_count=12" in msg
+
+
+def test_reject_nan_budget(tmp_path: Path) -> None:
+    """P1-1: NaN budget must not bypass the pre-run gate."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(budget={"usd": float("nan"), "wall_clock_min": 60}),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="finite"):
+        candidate.validate()
+
+
+def test_reject_inf_budget(tmp_path: Path) -> None:
+    """P1-1: Inf budget must not bypass the pre-run gate."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(budget={"usd": 5.0, "wall_clock_min": float("inf")}),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="finite"):
+        candidate.validate()
+
+
+def test_reject_absolute_mutable_glob(tmp_path: Path) -> None:
+    """P2-b: absolute mutable globs → CandidateValidationError, not raw raise."""
+    outside = tmp_path / "outside.py"
+    outside.write_text("x\n", encoding="utf-8")
+    root = _write_candidate(
+        tmp_path / "agent",
+        _valid_manifest(mutable=[str(outside)]),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="absolute|relative"):
+        candidate.validate()
+
+
+def test_reject_parent_escape_mutable_glob(tmp_path: Path) -> None:
+    """P2-b: ``../`` mutable globs that leave root → CandidateValidationError."""
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    (sibling / "leak.py").write_text("x\n", encoding="utf-8")
+    agent = tmp_path / "agent"
+    root = _write_candidate(
+        agent,
+        _valid_manifest(mutable=["../sibling/*.py"]),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="escapes candidate root"):
+        candidate.validate()
+
+
+def test_reject_out_of_root_symlink_mutable(tmp_path: Path) -> None:
+    """P2-b: symlink under root pointing outside → CandidateValidationError."""
+    outside = tmp_path / "outside_secret.py"
+    outside.write_bytes(b"x" * 100)
+    agent = tmp_path / "agent"
+    root = _write_candidate(
+        agent,
+        _valid_manifest(mutable=["src/**/*.py"]),
+        files={"src/a.py": b"x\n"},
+    )
+    (root / "src" / "leak.py").symlink_to(outside)
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="escapes candidate root"):
+        candidate.validate()

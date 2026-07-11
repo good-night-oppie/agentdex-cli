@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import abc
 import enum
+import math
 from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
 
 from adx_frontier.candidate import FRONTIER_AXES, AgentCandidate
 
@@ -40,19 +43,22 @@ class Receipt:
             raise ValueError(
                 f"tier must be 'verified' or 'self_reported' (got {self.tier!r})"
             )
-        if self.tier == "verified" and not self.ref:
+        if self.tier == "verified" and not str(self.ref).strip():
             raise ValueError("tier 'verified' requires a non-empty ref")
-        if self.tier == "self_reported" and not self.artifacts:
-            raise ValueError(
-                "tier 'self_reported' requires a non-empty artifacts tuple"
-            )
+        if self.tier == "self_reported":
+            if not self.artifacts or not any(
+                str(a).strip() for a in self.artifacts
+            ):
+                raise ValueError(
+                    "tier 'self_reported' requires a non-empty artifacts tuple"
+                )
 
 
 @dataclass(frozen=True)
 class MeasureResult:
     """Score dict + receipt emitted by a ladder adapter at a declared budget."""
 
-    scores: dict[str, float]
+    scores: Mapping[str, float]
     receipt: Receipt
     ladder_id: str
     base_model: str
@@ -66,6 +72,20 @@ class MeasureResult:
             raise ValueError(
                 f"scores keys must be exactly {FRONTIER_AXES}; got {sorted(got)}"
             )
+        validated: dict[str, float] = {}
+        for key, value in self.scores.items():
+            # bool is a subclass of int — reject it explicitly.
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"score {key!r} must be a finite float; got {value!r}"
+                )
+            fval = float(value)
+            if not math.isfinite(fval):
+                raise ValueError(
+                    f"score {key!r} must be a finite float; got {value!r}"
+                )
+            validated[key] = fval
+        object.__setattr__(self, "scores", MappingProxyType(validated))
 
 
 class LadderAdapter(abc.ABC):

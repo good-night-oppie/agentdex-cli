@@ -133,6 +133,68 @@ def test_measure_result_valid_axes() -> None:
     assert set(result.scores) == set(FRONTIER_AXES)
 
 
+def test_measure_result_rejects_non_finite_score() -> None:
+    """P2-c: NaN/Inf score values must be rejected."""
+    receipt = Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1")
+    scores = {**_valid_scores(), "quality": float("nan")}
+    with pytest.raises(ValueError, match="finite float"):
+        MeasureResult(
+            scores=scores,
+            receipt=receipt,
+            ladder_id="arc-agi-3",
+            base_model="claude-sonnet-5",
+            budget_usd=5.0,
+            budget_wall_clock_min=60.0,
+        )
+
+
+def test_measure_result_rejects_non_float_score() -> None:
+    """P2-c: non-numeric score values must be rejected."""
+    receipt = Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1")
+    scores = {**_valid_scores(), "quality": "eleven"}  # type: ignore[dict-item]
+    with pytest.raises(ValueError, match="finite float"):
+        MeasureResult(
+            scores=scores,
+            receipt=receipt,
+            ladder_id="arc-agi-3",
+            base_model="claude-sonnet-5",
+            budget_usd=5.0,
+            budget_wall_clock_min=60.0,
+        )
+
+
+def test_measure_result_scores_immutable_post_construction() -> None:
+    """P2-c: scores mapping must not be mutable after construction."""
+    receipt = Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1")
+    result = MeasureResult(
+        scores=_valid_scores(),
+        receipt=receipt,
+        ladder_id="arc-agi-3",
+        base_model="claude-sonnet-5",
+        budget_usd=5.0,
+        budget_wall_clock_min=60.0,
+    )
+    with pytest.raises(TypeError):
+        result.scores["quality"] = 0.0  # type: ignore[index]
+
+
+def test_receipt_verified_whitespace_ref_rejected() -> None:
+    """P2-d: whitespace-only verified ref must be rejected."""
+    with pytest.raises(ValueError, match="verified.*non-empty ref"):
+        Receipt(tier="verified", kind="arc_scorecard_id", ref="   ")
+
+
+def test_receipt_self_reported_blank_artifacts_rejected() -> None:
+    """P2-d: blank-only artifact strings must be rejected."""
+    with pytest.raises(ValueError, match="self_reported.*artifacts"):
+        Receipt(
+            tier="self_reported",
+            kind="raw_artifacts",
+            ref="",
+            artifacts=("  ", ""),
+        )
+
+
 def test_pre_run_check_invalid_candidate_rejected(tmp_path: Path) -> None:
     root = _write_candidate(
         tmp_path,

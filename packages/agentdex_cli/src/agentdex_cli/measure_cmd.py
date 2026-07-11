@@ -147,7 +147,15 @@ def cmd_measure(args: argparse.Namespace) -> int:
 
     measured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     payload = _serialize_measure_result(result, measured_at_utc=measured_at)
-    text = json.dumps(payload, indent=2) + "\n"
+    # RFC-8259: never emit bare NaN/Infinity tokens (allow_nan=False).
+    try:
+        text = json.dumps(payload, indent=2, allow_nan=False) + "\n"
+    except (ValueError, TypeError) as exc:
+        print(
+            f"measure result is not JSON-serializable under RFC-8259: {exc}",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.out:
         out_path = Path(args.out)

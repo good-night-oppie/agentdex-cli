@@ -36,6 +36,7 @@ are the on-disk run-summary JSON (per-task pass/fail + timing under
 from __future__ import annotations
 
 import json
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
@@ -148,7 +149,7 @@ class Tb2HarborAdapter(LadderAdapter):
             # Protocol did not report per-task cost → declared budget.
             cost = float(candidate.budget.usd)
 
-        summary_path = self._write_run_summary(
+        summary_ref = self._write_run_summary(
             candidate=candidate,
             task_records=task_records,
             quality=quality,
@@ -162,7 +163,7 @@ class Tb2HarborAdapter(LadderAdapter):
             for rec in task_records
             if rec["log_path"]
         )
-        artifacts = (str(summary_path),) + log_paths
+        artifacts = (str(summary_ref),) + log_paths
 
         receipt = Receipt(
             tier="self_reported",
@@ -193,11 +194,9 @@ class Tb2HarborAdapter(LadderAdapter):
         cost_dollar: float,
         wall_clock_sec: float,
         per_task_timeout_sec: float,
-    ) -> Path:
-        runs_dir = candidate.root / ".adx" / "runs"
-        runs_dir.mkdir(parents=True, exist_ok=True)
+    ) -> str:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        path = runs_dir / f"tb2-{stamp}-{uuid.uuid4().hex[:8]}.json"
+        filename = f"tb2-{stamp}-{uuid.uuid4().hex[:8]}.json"
         payload = {
             "ladder_id": self.ladder_id,
             "ladder_class": self.ladder_class.value,
@@ -216,5 +215,23 @@ class Tb2HarborAdapter(LadderAdapter):
                 "division": "equal_split",
             },
         }
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        return path.resolve()
+        text = json.dumps(payload, indent=2) + "\n"
+
+        # Prefer candidate/.adx/runs; fall back to temp / in-memory so a
+        # read-only candidate root cannot crash measure() (honest, not dropped).
+        primary = candidate.root / ".adx" / "runs"
+        try:
+            primary.mkdir(parents=True, exist_ok=True)
+            path = primary / filename
+            path.write_text(text, encoding="utf-8")
+            return str(path.resolve())
+        except OSError:
+            pass
+        try:
+            tmp = Path(tempfile.mkdtemp(prefix="adx-tb2-runs-"))
+            path = tmp / filename
+            path.write_text(text, encoding="utf-8")
+            return str(path.resolve())
+        except OSError:
+            pass
+        return f"memory://{filename}"

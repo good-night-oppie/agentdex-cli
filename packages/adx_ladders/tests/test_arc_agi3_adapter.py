@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import textwrap
+import time
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,22 @@ _SLEEP_AGENT = textwrap.dedent(
     """\
     import time
     time.sleep(30)
+    """
+)
+
+_GRANDCHILD_AGENT = textwrap.dedent(
+    """\
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+    pid_path = Path("grandchild.pid")
+    gc = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+    )
+    pid_path.write_text(str(gc.pid), encoding="utf-8")
+    time.sleep(60)
     """
 )
 
@@ -194,3 +211,98 @@ def test_pre_run_check_rejects_candidate_without_arc_ladder(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="not in candidate.ladders"):
         adapter.measure(candidate)
+
+
+def test_stdin_write_deadlock_times_out(tmp_path: Path) -> None:
+    """P1-2: large frame + non-reading sleeper must not hang past budget."""
+
+    class _HugeFrameEngine(_FakeEngine):
+        def reset(self, game_id: str) -> dict[str, Any]:
+            self._game = game_id
+            self._step = 0
+            # Larger than typical OS pipe buffer (~64KiB) so write can block.
+            return {
+                "frame": {"blob": "x" * 200_000, "game": game_id},
+                "done": False,
+            }
+
+    root = _write_candidate(
+        tmp_path,
+        entrypoint_script=_SLEEP_AGENT,
+        wall_clock_min=0.15 / 60.0,  # ~0.15 s
+    )
+    candidate = load_candidate(root)
+    adapter = ArcAgi3Adapter(_HugeFrameEngine(quality=0.99), game_ids=["g0"])
+
+    t0 = time.monotonic()
+    result = adapter.measure(candidate)
+    elapsed = time.monotonic() - t0
+
+    assert result.scores["quality"] == 0.0
+    assert result.receipt.tier == "self_reported"
+    # Must finish well under the old hung-for-8s+ failure mode.
+    assert elapsed < 3.0
+
+
+def test_budget_kill_terminates_grandchild(tmp_path: Path) -> None:
+    """P1-3: process-group kill must reap candidate-spawned grandchildren."""
+    import os
+
+    root = _write_candidate(
+        tmp_path,
+        entrypoint_script=_GRANDCHILD_AGENT,
+        wall_clock_min=0.25 / 60.0,  # ~0.25 s — enough to fork+record pid
+    )
+    candidate = load_candidate(root)
+    adapter = ArcAgi3Adapter(_FakeEngine(quality=0.99), game_ids=["g0"])
+
+    result = adapter.measure(candidate)
+    assert result.scores["quality"] == 0.0
+
+    pid_path = root / "grandchild.pid"
+    # The sleeper may be killed before writing the pid; if written, it must die.
+    if pid_path.is_file():
+        gc_pid = int(pid_path.read_text(encoding="utf-8").strip())
+        # Give the kernel a moment after killpg.
+        deadline = time.monotonic() + 2.0
+        alive = True
+        while time.monotonic() < deadline:
+            try:
+                os.kill(gc_pid, 0)
+            except ProcessLookupError:
+                alive = False
+                break
+            except PermissionError:
+                # Pid reused by another uid — treat as gone for our purposes.
+                alive = False
+                break
+            time.sleep(0.05)
+        assert alive is False, f"grandchild pid {gc_pid} still alive after budget kill"
+    else:
+        # If pid file never appeared, the group kill still prevented a hang.
+        assert result.scores["wall_clock_sec"] < 5.0
+
+
+def test_readonly_candidate_dir_returns_measure_result(tmp_path: Path) -> None:
+    """P2-a: read-only candidate root must not crash measure()."""
+    import os
+    import stat
+
+    root = _write_candidate(tmp_path, entrypoint_script=_ECHO_AGENT)
+    candidate = load_candidate(root)
+
+    def _chmod_tree(path: Path, dir_mode: int, file_mode: int) -> None:
+        for dirpath, _dirnames, filenames in os.walk(path, topdown=False):
+            for name in filenames:
+                os.chmod(Path(dirpath) / name, file_mode)
+            os.chmod(dirpath, dir_mode)
+
+    _chmod_tree(root, stat.S_IRUSR | stat.S_IXUSR, stat.S_IRUSR)
+    try:
+        adapter = ArcAgi3Adapter(_FakeEngine(quality=0.5), game_ids=["g0"])
+        result = adapter.measure(candidate)
+        assert set(result.scores) == set(FRONTIER_AXES)
+        assert result.receipt.tier in ("verified", "self_reported")
+        assert result.scores["quality"] == pytest.approx(0.5)
+    finally:
+        _chmod_tree(root, stat.S_IRWXU, stat.S_IRUSR | stat.S_IWUSR)

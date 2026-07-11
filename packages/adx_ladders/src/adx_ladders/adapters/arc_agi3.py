@@ -29,10 +29,13 @@ in a later integration WU).
 from __future__ import annotations
 
 import json
+import os
 import select
 import shlex
 import signal
 import subprocess
+import tempfile
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -41,6 +44,8 @@ from typing import Any, Mapping, Protocol, Sequence
 
 from adx_frontier.candidate import AgentCandidate
 from adx_ladders.base import LadderAdapter, LadderClass, MeasureResult, Receipt
+
+_KILL_GRACE_SEC = 0.5
 
 
 class ArcEngineProtocol(Protocol):
@@ -126,7 +131,7 @@ class ArcAgi3Adapter(LadderAdapter):
             else float(candidate.budget.usd)
         )
 
-        artifact_path = self._write_run_log(
+        artifact_ref = self._write_run_log(
             candidate=candidate,
             episodes=episodes,
             actions_total=actions_total,
@@ -148,7 +153,7 @@ class ArcAgi3Adapter(LadderAdapter):
                 tier="self_reported",
                 kind="raw_artifacts",
                 ref="",
-                artifacts=(str(artifact_path),),
+                artifacts=(str(artifact_ref),),
             )
 
         return MeasureResult(
@@ -176,6 +181,7 @@ class ArcAgi3Adapter(LadderAdapter):
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            start_new_session=True,
         )
 
     def _run_episode(
@@ -191,13 +197,15 @@ class ArcAgi3Adapter(LadderAdapter):
         timed_out = False
         done = bool(reset_obs.get("done", False))
 
-        if not self._send_observation(proc, game_id, frame):
+        remaining = deadline - time.monotonic()
+        if not self._send_observation(proc, game_id, frame, remaining):
+            timed_out = time.monotonic() >= deadline
             return {
                 "game": game_id,
                 "actions": 0,
                 "done": False,
-                "timed_out": False,
-                "error": "send_failed",
+                "timed_out": timed_out,
+                "error": "send_timeout" if timed_out else "send_failed",
             }
 
         while not done and actions < self._max_steps:
@@ -222,7 +230,9 @@ class ArcAgi3Adapter(LadderAdapter):
                 break
 
             frame = step_obs.get("frame", step_obs)
-            if not self._send_observation(proc, game_id, frame):
+            remaining = deadline - time.monotonic()
+            if not self._send_observation(proc, game_id, frame, remaining):
+                timed_out = time.monotonic() >= deadline
                 break
 
             if time.monotonic() >= deadline:
@@ -241,19 +251,39 @@ class ArcAgi3Adapter(LadderAdapter):
         proc: subprocess.Popen[str],
         game_id: str,
         frame: Any,
+        timeout_sec: float,
     ) -> bool:
+        """Write one observation line; bound by ``timeout_sec`` (never hang).
+
+        A full OS pipe buffer + a non-reading child blocks ``write``/``flush``.
+        Bound the write with a daemon thread joined against the remaining
+        wall-clock budget so the parent can kill and return timed-out.
+        """
         if proc.stdin is None or proc.poll() is not None:
+            return False
+        if timeout_sec <= 0:
             return False
         line = json.dumps(
             {"type": "observation", "game": game_id, "frame": frame},
             separators=(",", ":"),
         )
-        try:
-            proc.stdin.write(line + "\n")
-            proc.stdin.flush()
-        except (BrokenPipeError, OSError):
+        payload = line + "\n"
+        errors: list[BaseException] = []
+
+        def _write() -> None:
+            try:
+                assert proc.stdin is not None
+                proc.stdin.write(payload)
+                proc.stdin.flush()
+            except BaseException as exc:  # noqa: BLE001 — surface to joiner
+                errors.append(exc)
+
+        writer = threading.Thread(target=_write, daemon=True)
+        writer.start()
+        writer.join(timeout=timeout_sec)
+        if writer.is_alive():
             return False
-        return True
+        return not errors
 
     def _read_action(
         self,
@@ -284,14 +314,33 @@ class ArcAgi3Adapter(LadderAdapter):
     def _kill(proc: subprocess.Popen[str]) -> None:
         if proc.poll() is not None:
             return
+        pgid: int | None
         try:
-            proc.send_signal(signal.SIGKILL)
+            pgid = os.getpgid(proc.pid)
         except OSError:
-            pass
+            pgid = None
+
+        def _signal_group(sig: signal.Signals) -> None:
+            if pgid is not None:
+                try:
+                    os.killpg(pgid, sig)
+                    return
+                except OSError:
+                    pass
+            try:
+                proc.send_signal(sig)
+            except OSError:
+                pass
+
+        _signal_group(signal.SIGTERM)
         try:
-            proc.wait(timeout=2.0)
+            proc.wait(timeout=_KILL_GRACE_SEC)
         except subprocess.TimeoutExpired:
-            pass
+            _signal_group(signal.SIGKILL)
+            try:
+                proc.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                pass
         # Drain pipes to avoid zombie fd pressure in long test suites.
         if proc.stdin is not None:
             try:
@@ -309,11 +358,9 @@ class ArcAgi3Adapter(LadderAdapter):
         cost_dollar: float,
         wall_clock_sec: float,
         timed_out: bool,
-    ) -> Path:
-        runs_dir = candidate.root / ".adx" / "runs"
-        runs_dir.mkdir(parents=True, exist_ok=True)
+    ) -> str:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        path = runs_dir / f"arc-agi-3-{stamp}-{uuid.uuid4().hex[:8]}.json"
+        filename = f"arc-agi-3-{stamp}-{uuid.uuid4().hex[:8]}.json"
         payload = {
             "ladder_id": self.ladder_id,
             "candidate": candidate.name,
@@ -330,5 +377,23 @@ class ArcAgi3Adapter(LadderAdapter):
                 "timed_out": timed_out,
             },
         }
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        return path.resolve()
+        text = json.dumps(payload, indent=2) + "\n"
+
+        # Prefer candidate/.adx/runs; fall back to a temp dir (read-only root)
+        # then to an in-memory marker so measure() never crashes.
+        primary = candidate.root / ".adx" / "runs"
+        try:
+            primary.mkdir(parents=True, exist_ok=True)
+            path = primary / filename
+            path.write_text(text, encoding="utf-8")
+            return str(path.resolve())
+        except OSError:
+            pass
+        try:
+            tmp = Path(tempfile.mkdtemp(prefix="adx-arc-runs-"))
+            path = tmp / filename
+            path.write_text(text, encoding="utf-8")
+            return str(path.resolve())
+        except OSError:
+            pass
+        return f"memory://{filename}"

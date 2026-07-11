@@ -6,6 +6,7 @@ when weco --sources limits, declared budget, or axes-partition keys fail.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,12 +54,47 @@ class AgentCandidate:
     root: Path
 
     def expand_mutable(self) -> list[Path]:
-        """Expand ``mutable`` globs against ``root`` to concrete files."""
+        """Expand ``mutable`` globs against ``root`` to concrete files.
+
+        Absolute patterns and paths that resolve outside ``root`` (symlink
+        escapes, ``../`` traversal) raise ``CandidateValidationError``.
+        """
         found: set[Path] = set()
+        root_resolved = self.root.resolve()
         for pattern in self.mutable:
-            for path in self.root.glob(pattern):
-                if path.is_file():
-                    found.add(path.resolve())
+            if not isinstance(pattern, str) or not pattern.strip():
+                raise CandidateValidationError(
+                    f"mutable glob must be a non-empty relative string (got {pattern!r})"
+                )
+            # Absolute patterns raise NotImplementedError from Path.glob on
+            # some Python versions; reject them explicitly for a clean gate.
+            if pattern.startswith(("/", "\\")) or Path(pattern).is_absolute():
+                raise CandidateValidationError(
+                    f"mutable glob must be relative to candidate root "
+                    f"(got absolute pattern {pattern!r})"
+                )
+            try:
+                matches = list(self.root.glob(pattern))
+            except (NotImplementedError, ValueError, OSError) as exc:
+                raise CandidateValidationError(
+                    f"invalid mutable glob {pattern!r}: {exc}"
+                ) from exc
+            for path in matches:
+                # Follow symlinks via resolve(); reject anything outside root.
+                if not path.is_file():
+                    continue
+                try:
+                    resolved = path.resolve()
+                except OSError as exc:
+                    raise CandidateValidationError(
+                        f"mutable path could not be resolved: {path}: {exc}"
+                    ) from exc
+                if not _is_under_root(resolved, root_resolved):
+                    raise CandidateValidationError(
+                        f"mutable path escapes candidate root: {resolved} "
+                        f"(pattern {pattern!r})"
+                    )
+                found.add(resolved)
         return sorted(found)
 
     def validate(self) -> None:
@@ -76,9 +112,14 @@ class AgentCandidate:
             raise CandidateValidationError(
                 f"unknown ladder(s): {unknown}; known={sorted(KNOWN_LADDERS)}"
             )
-        if self.budget.usd <= 0 or self.budget.wall_clock_min <= 0:
+        if (
+            not math.isfinite(self.budget.usd)
+            or not math.isfinite(self.budget.wall_clock_min)
+            or self.budget.usd <= 0
+            or self.budget.wall_clock_min <= 0
+        ):
             raise CandidateValidationError(
-                "budget.usd and budget.wall_clock_min must both be > 0 "
+                "budget.usd and budget.wall_clock_min must both be finite and > 0 "
                 f"(got usd={self.budget.usd}, wall_clock_min={self.budget.wall_clock_min})"
             )
         self._validate_weco_mutable_limits()
@@ -88,8 +129,9 @@ class AgentCandidate:
         n_files = len(files)
         sizes = [path.stat().st_size for path in files]
         total = sum(sizes)
+        root_resolved = self.root.resolve()
         oversized = [
-            (str(path.relative_to(self.root)), size)
+            (_safe_relpath(path, root_resolved), size)
             for path, size in zip(files, sizes, strict=True)
             if size > _MAX_BYTES_PER_FILE
         ]
@@ -111,6 +153,23 @@ class AgentCandidate:
                 + "; ".join(violations)
                 + f" (expanded {n_files} files, {total} bytes total)"
             )
+
+
+def _is_under_root(path: Path, root: Path) -> bool:
+    """Return True iff ``path`` is ``root`` or a descendant (after resolve)."""
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_relpath(path: Path, root: Path) -> str:
+    """Display path relative to root without raising on out-of-root paths."""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
 
 
 def load_candidate(dir_path: str | Path) -> AgentCandidate:
