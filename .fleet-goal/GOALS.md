@@ -125,9 +125,47 @@ Evidence required (evidence/M1/):
 5. Fresh-thread 5-question audit + review pass.
 6. User confirmation of the design (recorded verbatim).
 
-### M2..MN — defined by M1's confirmed design
+### M2 — Pareto measurement engine (MVP moat)
 
-(placeholder — do not activate anything here until M1 passes its audit)
+Outcome: `adx measure --agent <dir> --ladder <id>` works end-to-end for
+ARC-AGI-3 + TB2 with axes-at-budget score dicts and receipts.
+Scope: AgentCandidate manifest + validation; LadderAdapter ABC + registry;
+arc_agi3 + tb2_harbor adapters (out-of-process); receipt capture. Spikes:
+weco economics (BYO --api-key credit behavior + retention policy), WebArena
+vs SWE-Bench Pro footprint, bene Benchmark.score() cost/latency axes, ToS
+browser session (mirror vs link-out per ladder), arXiv citation pass.
+Evidence: measured runs on both adapters w/ score JSON + receipts; spike
+briefs; audit + review.
+
+### M3 — PokeAgent adapter + frontier ledger
+
+Outcome: pokeagent adapter (poke-env substrate, adx-bot-1 auth, Gen 1 OU) +
+adx_frontier (mh_bridge, gates.py class-differentiated policies, two-tier
+trust ledger, frontier/promotion JSON export).
+Evidence: adx-bot-1 ladder battles recorded; a candidate promoted through an
+ACCEPT gate; exported frontier.json; audit + review.
+
+### M4 — `adx evolve` 3-layer RSI loop
+
+Outcome: `adx evolve` wraps `weco start claude` with the agentdex skill;
+inner `weco run` optional; candidates flow to mh; kill-gated promotion;
+data-flow disclosure at connect time.
+Evidence: one full RSI session improving a candidate on a v1 ladder with
+frontier movement + steering demo; audit + review.
+
+### M5 — Website: knowledge × market × leaderboard
+
+Outcome: agentdex_arena repurposed — taxonomy absorption (CC BY attribution,
+claim-status labels), curated market (6 ladders + HF substrate, link-out),
+leaderboard rendering frontier exports, one navigation spine.
+Evidence: site builds + serves locally; taxonomy attribution verified; audit
++ review.
+
+### M6 — Deploy + GA-blocker re-scope
+
+Outcome: auth/DNS/deploy tasks from the old GA re-scoped to serve the new
+site; deployed on the Lightsail box; old-GA board cards dispositioned.
+Evidence: live site probe; board re-scope record; audit + review.
 
 ## Decisions log (append-only)
 
@@ -145,3 +183,11 @@ Evidence required (evidence/M1/):
 - 2026-07-11 (taxonomy): two-class ladder taxonomy adopted (requirement 5) —
   3 live-adversarial + 3 static + HF-as-substrate; class-differentiated
   kill-gate semantics; PokeAgent diligence PASS.
+- 2026-07-11 (loop + adapters, user answers verbatim): loop composition =
+  "3-layer: weco drives, mh gates" — `adx evolve` wraps `weco start claude`;
+  Claude Code runs the outer RSI session with an agentdex skill, calls
+  `weco run` for inner-loop code mutations, submits candidates to the bene mh
+  frontier; kill-gated promotion decides leaderboard entry. v1 run-adapters =
+  "ARC-AGI-3 + TB2 + PokeAgent" — two live-adversarial + one static, covering
+  both gate classes; WebArena vs SWE-Bench Pro slot decided by M2 footprint
+  spike.
