@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from adx_showdown.selfplay.ladder import run_ladder_window
+from adx_showdown.selfplay.ladder import _parse_skill_rating, run_ladder_window
 
 
 class _Player:
@@ -51,3 +51,18 @@ def test_ladder_window_rejects_missing_rating_and_closes_socket() -> None:
     with pytest.raises(RuntimeError, match="without a server rating"):
         asyncio.run(run_ladder_window(player, n_games=2, timeout_sec=1))
     assert player.stopped
+
+
+def test_parse_primary_fhbt_skill_rating_from_public_table() -> None:
+    document = """
+    <table><tr><th>#</th><th>Agent</th><th>Team</th><th>Skill Rating</th><th>ELO</th></tr>
+    <tr><td>1</td><td>Other</td><td>T</td><td>1809 ±7</td><td>2264</td></tr>
+    <tr><td>2</td><td>adx-bot-1</td><td>AgentDex</td><td>1512 ±20</td><td>1600</td></tr></table>
+    """
+    assert _parse_skill_rating(document, "ADX Bot 1") == 1512.0
+
+
+def test_parse_fhbt_rejects_agent_absent_from_leaderboard() -> None:
+    document = "<table><tr><th>Agent</th><th>Skill Rating</th></tr></table>"
+    with pytest.raises(RuntimeError, match="not present"):
+        _parse_skill_rating(document, "adx-bot-1")

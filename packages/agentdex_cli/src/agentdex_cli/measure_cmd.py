@@ -62,7 +62,6 @@ _POKE_ENV_KEYS = (
     "ADX_POKEAGENT_WEBSOCKET_URL",
     "ADX_POKEAGENT_AUTH_URL",
     "ADX_POKEAGENT_TEAM_FILE",
-    "ADX_POKEAGENT_RATING_REF",
     "ADX_POKEAGENT_BASELINES",
 )
 
@@ -240,18 +239,12 @@ def _build_pokeagent_adapter_from_env() -> PokeAgentAdapter:
         raise RuntimeError("invalid numeric ADX_POKEAGENT configuration") from exc
     if games <= 0 or not 0.0 <= minimum_share <= 1.0:
         raise RuntimeError("ADX_POKEAGENT_GAMES must be > 0 and MIN_COMMUNITY_SHARE in [0,1]")
-    rating_ref = os.environ["ADX_POKEAGENT_RATING_REF"]
-    try:
-        rating_ref.format(battle_tag="battle", rating=0, username="agent")
-    except (KeyError, ValueError) as exc:
-        raise RuntimeError("ADX_POKEAGENT_RATING_REF has invalid placeholders") from exc
     runner = PokeAgentLadderRunner(
         username=os.environ["ADX_POKEAGENT_USERNAME"],
         password=os.environ["ADX_POKEAGENT_PASSWORD"],
         websocket_url=os.environ["ADX_POKEAGENT_WEBSOCKET_URL"],
         authentication_url=os.environ["ADX_POKEAGENT_AUTH_URL"],
         team=team,
-        rating_ref_template=rating_ref,
         baseline_opponents=baselines,
         n_games=games,
     )
