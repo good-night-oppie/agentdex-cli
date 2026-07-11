@@ -415,3 +415,44 @@ def test_f2_argv_includes_n_tasks_cap(tmp_path: Path, stub_path: Path) -> None:
     # -n 1 = concurrency; -l 1 = hard task cap after filters.
     assert "-n" in argv and argv[argv.index("-n") + 1] == "1"
     assert "-l" in argv and argv[argv.index("-l") + 1] == "1"
+
+
+def test_org_prefixed_task_id_exact_filter_slugged_paths(
+    tmp_path: Path, stub_path: Path
+) -> None:
+    """WU-9F: org/task-x → -i exact; job/log paths slash-free; passed honored."""
+    task_id = "org/task-x"
+    _write_stub_harbor(
+        stub_path,
+        outcomes={task_id: {"passed": True, "cost_usd": 0.07}},
+    )
+    jobs = tmp_path / "jobs"
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=jobs,
+        tasks=(task_id,),
+    )
+    result = client.run_task(task_id, "oracle", timeout_sec=5.0)
+
+    assert result.passed is True
+    assert result.timed_out is False
+    assert result.cost_dollar == pytest.approx(0.07)
+    assert (Path(result.log_path) / "result.json").is_file()
+
+    argv_files = list(jobs.glob(".argv-*.json"))
+    assert argv_files, "stub should record argv"
+    argv = json.loads(argv_files[0].read_text(encoding="utf-8"))
+    assert "-i" in argv and argv[argv.index("-i") + 1] == "org/task-x"
+
+    job_dirs = [p for p in jobs.iterdir() if p.is_dir()]
+    assert job_dirs, "expected slugged job directory"
+    for jd in job_dirs:
+        assert "/" not in jd.name
+        assert "org_task-x" in jd.name
+
+    logs = list(jobs.glob("*.harbor.log"))
+    assert logs, "expected <job_name>.harbor.log"
+    for log in logs:
+        assert "/" not in log.name
+        assert "org_task-x" in log.name
+        assert log.is_file()

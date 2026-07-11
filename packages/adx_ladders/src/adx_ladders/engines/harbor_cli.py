@@ -46,6 +46,16 @@ _KILL_GRACE_SEC = 0.5
 _MISSING_BIN_HINT = "harbor binary not found; install with: uv tool install harbor"
 
 
+def _fs_slug(task_id: str) -> str:
+    """Filesystem-safe slug: chars outside ``[A-Za-z0-9._-]`` → ``_``.
+
+    Used only for on-disk ``job_name`` / ``.harbor.log`` paths. The exact
+    ``task_id`` (org-prefixed forms included) still goes to harbor ``-i``
+    and to ``_parse_job_result`` matching — never rewrite the filter.
+    """
+    return "".join(c if (c.isalnum() or c in "._-") else "_" for c in task_id)
+
+
 class HarborCliClient:
     """Thin subprocess wrapper around the real ``harbor`` CLI."""
 
@@ -93,8 +103,13 @@ class HarborCliClient:
         agent_cmd: str,
         timeout_sec: float,
     ) -> HarborTaskResult:
-        """Run one Harbor task; kill the process group on timeout."""
-        job_name = f"adx-{task_id}-{uuid.uuid4().hex[:8]}"
+        """Run one Harbor task; kill the process group on timeout.
+
+        ``-i`` receives ``task_id`` exactly (org-prefixed ids included).
+        On-disk ``job_name`` and ``.harbor.log`` use ``_fs_slug(task_id)``
+        so a ``/`` in the id cannot break ``open()``.
+        """
+        job_name = f"adx-{_fs_slug(task_id)}-{uuid.uuid4().hex[:8]}"
         agent = self._agent_import_path or agent_cmd
         argv = [
             self._resolved_bin,

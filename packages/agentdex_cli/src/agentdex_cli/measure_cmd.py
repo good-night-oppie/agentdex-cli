@@ -102,14 +102,9 @@ def _parse_harbor_tasks(raw: str | None) -> tuple[str, ...] | None:
     """Parse ``--harbor-tasks`` into a non-empty tuple, or ``None`` if unset.
 
     Empty / whitespace-only items raise ``ValueError`` (caller maps to exit 2).
-
-    Org-prefixed Harbor package ids (``org/name``) are rewritten to a
-    slash-free trailing-segment glob (``*name``) before they reach
-    ``HarborCliClient``: the client embeds ``task_id`` in on-disk job
-    names, and a literal ``/`` makes ``open(jobs_dir / f"{job_name}.log")``
-    fail with ``FileNotFoundError``. Harbor's ``-i`` accepts globs, and
-    ``_find_trial_result`` falls back to the sole trial when the filter
-    string differs from ``result.json``'s ``task_name``.
+    Task ids pass through verbatim (including org-prefixed ``org/name``
+    forms). Filesystem safety for job/log paths lives in
+    ``HarborCliClient`` (``_fs_slug``) — do not rewrite ids into globs here.
     """
     if raw is None:
         return None
@@ -119,14 +114,7 @@ def _parse_harbor_tasks(raw: str | None) -> tuple[str, ...] | None:
             "--harbor-tasks requires a non-empty comma-separated list of "
             "task names (empty/whitespace items are rejected)"
         )
-    return tuple(_slash_safe_harbor_task(p) for p in parts)
-
-
-def _slash_safe_harbor_task(task: str) -> str:
-    """Rewrite ``org/name`` → ``*name`` so HarborCliClient job paths stay flat."""
-    if "/" not in task:
-        return task
-    return f"*{task.rsplit('/', 1)[-1]}"
+    return tuple(parts)
 
 
 def _build_adapter(

@@ -590,12 +590,12 @@ def test_harbor_tasks_rejects_non_harbor_engine(
     assert "Traceback" not in captured.err
 
 
-def test_harbor_tasks_slash_safe_org_prefix(
+def test_harbor_tasks_org_prefix_passed_verbatim(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """WU-9: org/name task ids are rewritten to *name for HarborCliClient paths."""
+    """WU-9F: org/name task ids pass through verbatim (no glob rewrite)."""
     import os
 
     bin_dir = tmp_path / "bin"
@@ -634,5 +634,5 @@ def test_harbor_tasks_slash_safe_org_prefix(
                 tid = data.get("task_id")
                 if isinstance(tid, str) and tid:
                     argv_task_ids.add(tid)
-    # Slash rewritten to trailing-segment glob so job_name paths stay flat.
-    assert argv_task_ids == {"*regex-log"}, argv_task_ids
+    # Verbatim pass-through — HarborCliClient slugs only on-disk job/log names.
+    assert argv_task_ids == {"terminal-bench/regex-log"}, argv_task_ids
