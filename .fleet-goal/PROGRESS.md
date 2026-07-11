@@ -33,9 +33,13 @@ cross_cutting: true
 - WU-1 DONE + committed (c5929485): packages/adx_frontier — AgentCandidate manifest + pre-run validation gate (weco --sources limits, budget, axes partition); 13 tests, independently re-run by coordinator; served by grok-4.5 tier.
 - WU-2 DONE + committed:  packages/adx_ladders — LadderAdapter ABC (two-class taxonomy, Receipt tier rules, MeasureResult axes enforcement, pre_run_check) + curated market registry (6 ladders + HF substrate, link-out only). Capsule: evidence/M2/capsules/wu2-ladder-adapter-registry.md.
 
+- WU-3 DONE + committed (84a7c435): arc_agi3 out-of-process adapter — stdio JSON protocol, budget-kill honesty (quality=0, never dropped), D6 receipt branching; 34 tests total, coordinator re-verified.
+- WU-4 dispatched (mroute execute): tb2_harbor static-class adapter — HarborProtocol injected, equal-split per-task timeouts, always self_reported receipts w/ per-task summary JSON for M3's decontam gate. Capsule: evidence/M2/capsules/wu4-tb2-harbor-adapter.md.
+- Fleet coordination: rpo-addressed A2A handled as parent (rpo idle-done) — ai-scientist's s14 ladder-probe proposal answered DO-NOT-SUBMIT (operator's s14 anti-precedent statement on record); mroute adoption feedback sent (using=yes freq=often).
+
 ### What's next
 
-- WU-3 arc_agi3 adapter + WU-4 tb2_harbor adapter capsules (out-of-process execution, fakes in unit tests, real ladder I/O behind integration flags), then the five M2 spikes (weco economics + verb check, footprint, ToS incl. Weco's own, score-axes, arXiv pass).
+- Review WU-4 → commit → WU-5 pokeagent adapter is M3 scope; next in M2: the five spikes (weco economics + verb check, footprint, ToS incl. Weco's own, score-axes, arXiv pass) — spikes are research, may run via Workflow (not coding).
 
 ### Any blockers
 
