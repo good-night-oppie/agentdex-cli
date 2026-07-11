@@ -272,3 +272,8 @@ Evidence: live site probe; board re-scope record; audit + review.
   subscriptions" copy until measured.** Evidence:
   `evidence/M2/spike1-weco-economics.md`. ALL FIVE M2 SPIKES NOW CLOSED
   (1 with the one flagged residual).
+- 2026-07-11 (M2 paid-TB2 fork resolved): operator selected the no-spend path.
+  M2 closure uses the genuine ARC run plus real-Harbor oracle/no-op TB2
+  integration receipts. A paid leaderboard-comparable TB2 quality run is not an
+  M2 gate and is deferred as DEFERRED.md RD-3; no leaderboard-quality claim may
+  be published until that separately budgeted run exists.
