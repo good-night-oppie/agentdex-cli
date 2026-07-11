@@ -1,0 +1,86 @@
+# Curated agent-evolution market — link-out metadata only (ADR-0015 D5).
+# No leaderboard mirroring until ToS review clears it.
+ladders:
+  - id: kaggle
+    title: Kaggle
+    ladder_class: live_adversarial
+    operator: Kaggle
+    url: https://www.kaggle.com/
+    leaderboard_url: https://www.kaggle.com/competitions
+    access: public
+    run_adapter: false
+    notes: >
+      Live-adversarial competition platform. Adversarial refresh is the
+      built-in contamination guard (ADR D4). v1 is curated link-out only.
+
+  - id: arc-agi-3
+    title: ARC-AGI-3
+    ladder_class: live_adversarial
+    operator: ARC Prize
+    url: https://arcprize.org/
+    leaderboard_url: https://arcprize.org/leaderboard
+    access: public
+    run_adapter: true
+    notes: >
+      Live-adversarial abstraction/reasoning ladder. v1 run-adapter via
+      arcengine SDK shim (ADR D5).
+
+  - id: pokeagent-gen1ou
+    title: PokeAgent Challenge (Gen 1 OU)
+    ladder_class: live_adversarial
+    operator: PokeAgent Challenge
+    url: https://pokeagentchallenge.com/
+    leaderboard_url: https://pokeagentchallenge.com/leaderboard
+    access: public
+    run_adapter: true
+    notes: >
+      Open-ELO live-adversarial pool with opponent-mix kill-gate guard
+      (ADR D4a). Nearly free on ADR-0014 poke-env substrate (team AgentDex,
+      bot adx-bot-1).
+
+  - id: swe-bench-pro
+    title: SWE-Bench Pro
+    ladder_class: static
+    operator: Scale AI / SWE-Bench
+    url: https://www.swebench.com/
+    leaderboard_url: https://www.swebench.com/
+    access: public
+    run_adapter: false
+    notes: >
+      Static leaderboard. Dataset sits openly on HuggingFace — held-out /
+      decontamination checks required (ADR D4). Fourth-adapter slot TBD.
+
+  - id: tb2
+    title: Terminal-Bench 2
+    ladder_class: static
+    operator: Stanford / Harbor
+    url: https://www.tbench.ai/
+    leaderboard_url: https://www.tbench.ai/leaderboard
+    access: public
+    run_adapter: true
+    notes: >
+      Static terminal-agent leaderboard. v1 run-adapter via Harbor
+      --agent-import-path wrapper (ADR D5). Dataset on HF.
+
+  - id: webarena
+    title: WebArena
+    ladder_class: static
+    operator: WebArena
+    url: https://webarena.dev/
+    leaderboard_url: https://webarena.dev/
+    access: public
+    run_adapter: false
+    notes: >
+      Static web-agent leaderboard (GitHub + self-hosted Docker). Shares
+      fixed-test-set exposure with other static lanes (ADR D4).
+
+# Substrate — NOT a ladder lane (ADR D4). Datasets / distribution / model-hosting.
+substrates:
+  - id: huggingface
+    title: Hugging Face
+    operator: Hugging Face
+    url: https://huggingface.co/
+    access: public
+    notes: >
+      Dataset / distribution / model-hosting substrate powering static
+      ladders. Not a measurement lane — no leaderboard mirroring fields.
