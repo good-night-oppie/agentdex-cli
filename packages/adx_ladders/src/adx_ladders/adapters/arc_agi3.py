@@ -125,9 +125,10 @@ class ArcAgi3Adapter(LadderAdapter):
         else:
             quality = float(self._engine.score())
 
+        cost_is_measured = self._cost_dollar is not None
         cost = (
             float(self._cost_dollar)
-            if self._cost_dollar is not None
+            if cost_is_measured
             else float(candidate.budget.usd)
         )
 
@@ -137,6 +138,7 @@ class ArcAgi3Adapter(LadderAdapter):
             actions_total=actions_total,
             quality=quality,
             cost_dollar=cost,
+            cost_is_measured=cost_is_measured,
             wall_clock_sec=wall_clock_sec,
             timed_out=timed_out,
         )
@@ -167,6 +169,7 @@ class ArcAgi3Adapter(LadderAdapter):
             base_model=candidate.base_model,
             budget_usd=candidate.budget.usd,
             budget_wall_clock_min=candidate.budget.wall_clock_min,
+            cost_is_measured=cost_is_measured,
         )
 
     def _spawn(self, candidate: AgentCandidate) -> subprocess.Popen[str]:
@@ -356,6 +359,7 @@ class ArcAgi3Adapter(LadderAdapter):
         actions_total: int,
         quality: float,
         cost_dollar: float,
+        cost_is_measured: bool,
         wall_clock_sec: float,
         timed_out: bool,
     ) -> str:
@@ -371,6 +375,7 @@ class ArcAgi3Adapter(LadderAdapter):
                 "cost_dollar": cost_dollar,
                 "wall_clock_sec": wall_clock_sec,
             },
+            "cost_is_measured": cost_is_measured,
             "timing": {
                 "wall_clock_sec": wall_clock_sec,
                 "budget_wall_clock_min": candidate.budget.wall_clock_min,

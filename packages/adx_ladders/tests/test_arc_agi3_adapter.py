@@ -137,6 +137,44 @@ def test_measure_returns_measure_result_with_exact_axes(tmp_path: Path) -> None:
     assert adapter.ladder_class is LadderClass.LIVE_ADVERSARIAL
     assert result.base_model == candidate.base_model
     assert result.budget_usd == candidate.budget.usd
+    # No engine/client measured cost → declared budget is not honest spend.
+    assert result.cost_is_measured is False
+    assert result.scores["cost_dollar"] == pytest.approx(candidate.budget.usd)
+
+
+def test_budget_fallback_writes_cost_is_measured_false_in_artifact(
+    tmp_path: Path,
+) -> None:
+    root = _write_candidate(tmp_path, entrypoint_script=_ECHO_AGENT, usd=3.25)
+    candidate = load_candidate(root)
+    adapter = ArcAgi3Adapter(_FakeEngine(quality=0.5, scorecard=None), game_ids=["g0"])
+
+    result = adapter.measure(candidate)
+
+    assert result.cost_is_measured is False
+    artifact = Path(result.receipt.artifacts[0])
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["cost_is_measured"] is False
+    assert payload["scores"]["cost_dollar"] == pytest.approx(3.25)
+
+
+def test_cost_dollar_override_is_measured(tmp_path: Path) -> None:
+    root = _write_candidate(tmp_path, entrypoint_script=_ECHO_AGENT, usd=9.99)
+    candidate = load_candidate(root)
+    adapter = ArcAgi3Adapter(
+        _FakeEngine(quality=0.8),
+        game_ids=["g0"],
+        cost_dollar=1.23,
+    )
+
+    result = adapter.measure(candidate)
+
+    assert result.cost_is_measured is True
+    assert result.scores["cost_dollar"] == pytest.approx(1.23)
+    artifact = Path(result.receipt.artifacts[0])
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["cost_is_measured"] is True
+    assert payload["scores"]["cost_dollar"] == pytest.approx(1.23)
 
 
 def test_verified_receipt_when_scorecard_id_present(tmp_path: Path) -> None:

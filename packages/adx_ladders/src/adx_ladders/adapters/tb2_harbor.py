@@ -23,6 +23,8 @@ Scores
 - ``quality``: pass rate in ``[0, 1]`` (passed / n_tasks; ``0.0`` if empty).
 - ``cost_dollar``: sum of per-task ``HarborTaskResult.cost_dollar`` when every
   task reports a measured cost; otherwise the declared ``budget.usd``.
+  Budget fallback sets ``cost_is_measured=False``; summed task costs or a
+  constructor ``cost_dollar`` override set ``cost_is_measured=True``.
 - ``wall_clock_sec``: measured wall clock of the full ``measure`` call.
 
 Receipt (D6, static lane)
@@ -143,17 +145,21 @@ class Tb2HarborAdapter(LadderAdapter):
 
         if self._cost_dollar is not None:
             cost = float(self._cost_dollar)
+            cost_is_measured = True
         elif all_costs_measured:
             cost = float(sum(measured_costs))
+            cost_is_measured = True
         else:
             # Protocol did not report per-task cost → declared budget.
             cost = float(candidate.budget.usd)
+            cost_is_measured = False
 
         summary_ref = self._write_run_summary(
             candidate=candidate,
             task_records=task_records,
             quality=quality,
             cost_dollar=cost,
+            cost_is_measured=cost_is_measured,
             wall_clock_sec=wall_clock_sec,
             per_task_timeout_sec=per_task_timeout_sec,
         )
@@ -183,6 +189,7 @@ class Tb2HarborAdapter(LadderAdapter):
             base_model=candidate.base_model,
             budget_usd=candidate.budget.usd,
             budget_wall_clock_min=candidate.budget.wall_clock_min,
+            cost_is_measured=cost_is_measured,
         )
 
     def _write_run_summary(
@@ -192,6 +199,7 @@ class Tb2HarborAdapter(LadderAdapter):
         task_records: list[dict[str, object]],
         quality: float,
         cost_dollar: float,
+        cost_is_measured: bool,
         wall_clock_sec: float,
         per_task_timeout_sec: float,
     ) -> str:
@@ -208,6 +216,7 @@ class Tb2HarborAdapter(LadderAdapter):
                 "cost_dollar": cost_dollar,
                 "wall_clock_sec": wall_clock_sec,
             },
+            "cost_is_measured": cost_is_measured,
             "timing": {
                 "wall_clock_sec": wall_clock_sec,
                 "budget_wall_clock_min": candidate.budget.wall_clock_min,

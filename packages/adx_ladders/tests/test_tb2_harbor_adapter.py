@@ -103,6 +103,8 @@ def test_happy_path_pass_rate_and_summary(tmp_path: Path) -> None:
     assert result.ladder_id == "tb2"
     assert adapter.ladder_class is LadderClass.STATIC
     assert result.base_model == candidate.base_model
+    # Missing per-task costs → declared budget is not measured spend.
+    assert result.cost_is_measured is False
 
     # Equal split: 3.0 min * 60 / 3 tasks = 60 s each.
     assert len(harbor.calls) == 3
@@ -119,6 +121,7 @@ def test_happy_path_pass_rate_and_summary(tmp_path: Path) -> None:
     assert by_id["b"]["passed"] is True
     assert by_id["c"]["passed"] is False
     assert payload["timing"]["division"] == "equal_split"
+    assert payload["cost_is_measured"] is False
 
 
 def test_budget_kill_counted_failed_still_returns(tmp_path: Path) -> None:
@@ -205,3 +208,43 @@ def test_measured_cost_when_protocol_reports_it(tmp_path: Path) -> None:
     result = adapter.measure(candidate)
 
     assert result.scores["cost_dollar"] == pytest.approx(1.0)
+    assert result.cost_is_measured is True
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["cost_is_measured"] is True
+    assert payload["scores"]["cost_dollar"] == pytest.approx(1.0)
+
+
+def test_partial_task_costs_fall_back_unmeasured(tmp_path: Path) -> None:
+    """Any missing HarborTaskResult.cost_dollar → budget fallback, not measured."""
+    root = _write_candidate(tmp_path, usd=4.5)
+    candidate = load_candidate(root)
+    harbor = _FakeHarbor(
+        tasks=["a", "b"],
+        outcomes={
+            "a": HarborTaskResult(passed=True, log_path="/tmp/a.log", cost_dollar=0.4),
+            "b": HarborTaskResult(passed=True, log_path="/tmp/b.log"),  # missing
+        },
+    )
+    adapter = Tb2HarborAdapter(harbor)
+
+    result = adapter.measure(candidate)
+
+    assert result.scores["cost_dollar"] == pytest.approx(candidate.budget.usd)
+    assert result.cost_is_measured is False
+
+
+def test_cost_dollar_override_is_measured(tmp_path: Path) -> None:
+    root = _write_candidate(tmp_path, usd=9.99)
+    candidate = load_candidate(root)
+    harbor = _FakeHarbor(
+        tasks=["a"],
+        outcomes={"a": HarborTaskResult(passed=True, log_path="/tmp/a.log")},
+    )
+    adapter = Tb2HarborAdapter(harbor, cost_dollar=0.77)
+
+    result = adapter.measure(candidate)
+
+    assert result.scores["cost_dollar"] == pytest.approx(0.77)
+    assert result.cost_is_measured is True
+    payload = json.loads(Path(result.receipt.artifacts[0]).read_text(encoding="utf-8"))
+    assert payload["cost_is_measured"] is True

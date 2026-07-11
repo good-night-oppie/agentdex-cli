@@ -106,6 +106,8 @@ def test_happy_path_tb2_engine_fake(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert payload["base_model"] == "claude-sonnet-5"
     assert "usd" in payload["budget"] and "wall_clock_min" in payload["budget"]
     assert "measured_at_utc" in payload
+    # FakeHarbor reports per-task cost_dollar → measured honesty bit is True.
+    assert payload["cost_is_measured"] is True
     assert out_path.is_file()
     assert json.loads(out_path.read_text(encoding="utf-8")) == payload
 
@@ -131,6 +133,8 @@ def test_happy_path_arc_agi3_engine_fake(
     assert payload["receipt"]["tier"] == "self_reported"
     assert payload["ladder_id"] == "arc-agi-3"
     assert payload["scores"]["quality"] == pytest.approx(0.42)
+    # FakeArcEngine has no measured cost → budget fallback is not measured.
+    assert payload["cost_is_measured"] is False
 
 
 def test_unknown_ladder(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

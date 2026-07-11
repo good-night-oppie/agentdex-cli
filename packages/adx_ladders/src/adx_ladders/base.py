@@ -56,7 +56,13 @@ class Receipt:
 
 @dataclass(frozen=True)
 class MeasureResult:
-    """Score dict + receipt emitted by a ladder adapter at a declared budget."""
+    """Score dict + receipt emitted by a ladder adapter at a declared budget.
+
+    ``cost_is_measured`` is honesty metadata (not a frontier axis): True only
+    when ``scores["cost_dollar"]`` came from a real/injected measurement.
+    Defaults to False so a missing flag cannot accidentally claim honesty
+    when adapters fall back to ``budget.usd``.
+    """
 
     scores: Mapping[str, float]
     receipt: Receipt
@@ -64,6 +70,7 @@ class MeasureResult:
     base_model: str
     budget_usd: float
     budget_wall_clock_min: float
+    cost_is_measured: bool = False
 
     def __post_init__(self) -> None:
         expected = set(FRONTIER_AXES)

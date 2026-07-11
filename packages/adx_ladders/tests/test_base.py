@@ -131,6 +131,22 @@ def test_measure_result_valid_axes() -> None:
         budget_wall_clock_min=60.0,
     )
     assert set(result.scores) == set(FRONTIER_AXES)
+    # Default avoids accidental honesty when callers omit the flag.
+    assert result.cost_is_measured is False
+
+
+def test_measure_result_cost_is_measured_explicit() -> None:
+    receipt = Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1")
+    result = MeasureResult(
+        scores=_valid_scores(),
+        receipt=receipt,
+        ladder_id="arc-agi-3",
+        base_model="claude-sonnet-5",
+        budget_usd=5.0,
+        budget_wall_clock_min=60.0,
+        cost_is_measured=True,
+    )
+    assert result.cost_is_measured is True
 
 
 def test_measure_result_rejects_non_finite_score() -> None:
