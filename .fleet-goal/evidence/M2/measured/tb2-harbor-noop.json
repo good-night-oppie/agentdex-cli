@@ -12,8 +12,7 @@
     "kind": "raw_artifacts",
     "ref": "",
     "artifacts": [
-      "/home/admin/gh/agentdex-cli-redesign/.fleet-goal/evidence/M2/candidates/tb2-noop/.adx/runs/tb2-20260711T191859Z-f295dab4.json",
-      "/tmp/adx-harbor-jobs-v61lzbaw/adx-*regex-log-e97af5ae/regex-log__zW7EEPT"
+      ".fleet-goal/evidence/M2/measured/wu9-noop-jobs/adx-*regex-log-e97af5ae/regex-log__zW7EEPT"
     ]
   },
   "budget": {
