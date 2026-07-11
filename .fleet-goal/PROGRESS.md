@@ -59,3 +59,17 @@ cross_cutting: true
 ### Any blockers
 
 - None.
+
+### harness-41 session (2026-07-11) — review queue + real-engine wiring
+
+- Reaped predecessor (harness-40 tmux session killed, operator-authorized). Fleet-enrolled harness-41 (A2A base `harness`; enroll intent shared_log#2655; watch-coverage renew #2657; base already ON_BUS + WATCHED).
+- Cleared the 4 remaining review-queue findings, each a tiny mroute-dispatched commit (grok-4.5 exec tier), coordinator-reviewed + tested + pushed:
+  - [P2] measured-cost honesty — `MeasureResult.cost_is_measured` bool; ARC/TB2 declared-budget fallback → False, measured/override → True; serialized in `adx measure` JSON + adapter run-logs. (commit c69d0c4a)
+  - [P3] registry↔KNOWN_LADDERS now asserts set equality both ways. (commit a71b16f7)
+  - [P3] candidate glob/name hardening — empty/missing mutable, zero-match glob, and invisible-Unicode (Cf) names now fail closed. (commit 378a1ef2)
+  - [P3] SWE-Bench Pro registry note refreshed (stale "Fourth-adapter slot TBD" → spike-2 "SWE-Bench Pro @ N=10"). (commit c4404234)
+- [WU-7] Real-engine wiring (free leg): genuine local ARC-style engine (`adx_ladders/engines/local_arc.py`, action-dependent dynamics, scorecard_id→None), scripted-heuristic no-LLM candidate, `adx measure --engine local-arc`. First GENUINE MEASURED run recorded: `.fleet-goal/evidence/M2/measured/arc-local-scripted.json` (quality=1.0, cost_dollar=0.0, cost_is_measured=true, receipt self_reported/raw_artifacts — NOT fake_engine, honestly non-leaderboard). 78 tests green. (commit 3f1c0581)
+
+### Blocker / fork (operator decision required)
+
+- The "measured runs on both adapters" evidence leg now has ARC satisfied (free, genuine). TB2's genuine measured run requires a PAID coding-agent LLM via a real Harbor client → CREDENTIALS/COST fork. Per operator directive, STOPPING before any paid TB2 real run. Awaiting operator: (a) authorize a paid TB2 real run (creds + budget), or (b) accept ARC-only genuine measured evidence for M2 closure with the TB2 real-run deferred (DEFERRED.md row).
