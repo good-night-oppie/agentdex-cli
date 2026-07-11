@@ -43,6 +43,23 @@ Claude Code to recursively self-improve your agent against a task" hook.
 4. **Execution locus:** "User's machine, BYO creds" — CLI runs locally with the
    user's own Weco + Claude Code subscriptions; agentdex is coordinator +
    ledger + leaderboard. No hosted-compute cost, no credential custody.
+5. **Ladder taxonomy (user directive, 2026-07-11, verbatim):** "Recast
+   HuggingFace to substrate, not a ladder — but don't settle at 5. Add
+   pokeagentchallenge.com as a live-adversarial ladder. Final set:
+   Live-adversarial ladders (agents ranked vs real opponents, adversarial
+   refresh): Kaggle, ARC-AGI-3, pokeagentchallenge.com. Static benchmark
+   leaderboards (fixed test set + ranking): SWE-Bench Pro, TerminalBench2,
+   WebArena. Substrate (not a lane): HuggingFace — datasets / distribution /
+   model-hosting that powers several of the above." Rationale (verbatim): "we
+   land at 6 ladders by merit — swapping a non-ladder (HF) for a genuine one
+   (pokeagentchallenge) — not by manufacturing a lane to hit a count. The
+   number was never the requirement; 'high-quality live ladders + substrate
+   services' is." **Gate semantics (verbatim):** "the mh kill-gate must treat
+   the two classes differently: held-out / decontamination checks for the
+   static three; adversarial-refresh is the built-in guard for the live
+   three." Diligence gate on PokeAgent PASSED (active / persistent queryable
+   ranking / programmatic Showdown-API path) — see
+   `evidence/M1/research/pokeagent-diligence.md`.
 
 ## Design inputs (canonical set)
 
@@ -117,3 +134,14 @@ Evidence required (evidence/M1/):
 - 2026-07-11: project bootstrapped; supersession decision recorded (see
   parent_decision header); MVP order = engine → loop → site; ladder depth =
   curate 6 / run 2-3; execution locus = user-local BYO creds.
+- 2026-07-11 (post-research): 6-lane research sweep + gap critic landed
+  (`evidence/M1/research/`). User supplied
+  docs.weco.ai/using-weco/claude-in-dashboard: **`weco start claude` verifies
+  the hook** — Weco wrapper starts Claude Code locally (default local Claude
+  auth; optional `--billing weco` proxy), conversation streams to the dashboard
+  for live steering. The research lane's "inversion" finding was stale w.r.t.
+  this feature; both integration directions exist (`weco setup claude-code`
+  skill AND `weco start claude` wrapper).
+- 2026-07-11 (taxonomy): two-class ladder taxonomy adopted (requirement 5) —
+  3 live-adversarial + 3 static + HF-as-substrate; class-differentiated
+  kill-gate semantics; PokeAgent diligence PASS.

@@ -1,0 +1,113 @@
+{
+  "label": "weco",
+  "result": {
+    "learned": "agent-evolution.com is the GitHub-Pages deployment of Shiyao-Huang/awesome-agent-evolution (self-branded \"Self Evolve\", author \"aha team\") — not an awesome-list but an open SURVEY + evidence pipeline for self-evolving agents, with an Astro static site, a typed data layer, and an editorial ranking framework. Created 2026-05-22, last push 2026-07-04, 173 stars, MIT (code) + CC BY 4.0 (content/taxonomies).\n\nTAXONOMY (multi-layer, all in-tree): (a) A strict 6-gate DEFINITION of self-evolution — mutable object / feedback signal / candidate generation / independent verification / retention / audit+rollback — compressed to the reader loop Observe→Interpret→Modify→Verify→Retain (README, analysis/self-evolution-definition-criteria.md). (b) FIVE EVOLUTION LOOPS as the mechanism taxonomy: Specification-to-Execution, Search, Evaluator, Reflection, Population — each row carries mutable object, feedback signal, verifier, retention, failure mode (analysis/five-evolution-loops-topic.md; site/src/data/survey.ts). (c) A 5-DIMENSIONAL essential taxonomy unifying 6 prior systems: D1 Update Target (Prompt/Memory/Code/Weights/Environment), D2 Feedback Source (Oracle/Judge/Self/Reward/Human), D3 Temporal Persistence (Ephemeral→Session→Persistent→Fleet→Generational), D4 Search Mechanism (Gradient/Random/Evolutionary/RL/Self-referential), D5 System Scope (Component/Agent/Multi-agent/System/Open-ended) (analysis/essential-taxonomy-framework.md). (d) 7 METHOD FAMILIES over 196 papers: Prompt/Search Opt 68 (34.7%), Reward/RL/Self-Play 51 (26.0%), Code/Self-Modification 28 (14.3%), Multi-Agent Debate 16, Memory/Knowledge 16, Web/Tool/Env 13, Eval/Safety/Governance 4 (2.0%). (e) SEMM maturity model L0–L5 (static → external feedback → prompt refinement → memory/skill accumulation → code/arch self-modification → autonomous co-evolution) plus a 9-dimension scoring system D1–D5 technical (Improvement Magnitude, Evidence Strength, Transferability, Safety, Cost Efficiency) + U1–U4 user-facing (Usability, Future-proof, Academic Rigor, Practical Value), weighted composite × confidence factor → tiers S/A/B/C/D, with claim gates (minimum: feedback loop + autonomous update + held-out improvement + reproducible; strong: + transfer + process evidence + demonstrated safety-gate rejection) and a 10-item pitfall checklist (research/ranking-framework/README.md). (f) An Evolve-AGI Index — a FIELD-maturity index, 7 signals: loop strength 20%, benchmark 18%, evidence chain 18%, transfer 14%, runnability 12%, momentum 10%, governance 8% — explicitly labeled editorial/proposed weights. (g) 10 SEO topic clusters (definition, five loops, code/algorithm discovery, memory/skills, agent-swarm/harness evolution, evaluation/governance, GitHub growth, Value-LSH triage, production pain points, resource coverage) in site/src/data/topicMap.ts. (h) A code-evolution BENCHMARK MATRIX with 5 modes (self-modifying coding agent / algorithm discovery / architecture search / prompt-program optimizer / reflection-repair loop) and a 5-level Evidence Ladder (generates code → repairs realistic tasks → discovers under executable constraints → retains across generations → generalizes).\n\nSITE STRUCTURE: Astro 5 static site in site/, deployed by .github/workflows/pages.yml to GitHub Pages with CNAME agent-evolution.com. ~40 routes: home, /topics/ (+3 evergreen topic pages), /projects/ (+per-slug model cards), /research/, /survey/ (+mechanisms, case-studies), /paper/, /graph/ (knowledge graph), /benchmark/, /rankings/ + /rank/, /evolve-agi-index/, /star-growth/, /value-lsh/ (3D LSH evidence-triage graph), /resource-library/, /reports/ (self-audit pages), /blog/, /search/, partial /en/ mirror. DATA MODEL: TypeScript modules under site/src/data/ (projects.ts 351KB typed Project records {name,repo,stars,license,category,pattern,tags,status:placeholder|candidate|verified,report,...}; rankings.ts radar profiles; survey.ts; evolveAgiIndex.ts; analysis.json 2.66MB) + MDX content collections with zod schemas carrying claimStatus (known/inferred/unverified), primarySources[], claimBoundary + ~490 public project-report markdown model cards in site/public/reports/projects/ + JSON viz data. docs/data-schema.md defines Project/Paper/Concept records with content_timestamp/collected_at/updated_at and a 4-rank evidence-strength scale (primary/derived/community/unverified). Behind the site sits a medallion-like pipeline: raw-github(615)/raw-papers(190)/raw-blogs(1308)/raw-social(1318) → analysis/ + research/ + projects/(868) → survey/ + paper-drafts/ (8-chapter LaTeX paper + PDF) → site; plus a Python data-engine (GitHub/HN/Reddit/Semantic-Scholar collectors, hype scorer, anomaly detector).\n\nCANONICAL PAPERS per cluster: Spec-to-Exec: AutoML-GPT, AutoML-Agent. Search: OPRO, EvoPrompting, ADAS, OpenEvolve. Evaluator: FunSearch, Self-Debug, CodeEvolve. Reflection: Reflexion, Self-Refine, STaR, ExPeL. Population: AlphaEvolve/MAP-Elites, LLaMEA, AgentEvolver. Six flagship case studies with before/after evidence: DGM (SWE-bench Verified 20→50%), ADAS, AlphaEvolve (4×4 matmul 49→48 mults), Voyager, Reflexion (HumanEval 80→91%), Self-Rewarding LM. 171 paper-review files; ~20 systems scored in rankings.ts (top tier A: AlphaEvolve 7.06, DGM 6.78, FunSearch 6.56, ADAS 6.50).\n\nLEADERBOARD FEATURES: all EDITORIAL and static — 9-dim radar rankings (~20 systems), a hardcoded 4-domain benchmark table (17+ benchmarks with topSystem/baseline), Evolve-AGI trend line (67.4→72.9), star-growth ledger with coverage gating, Value-LSH triage. NO user accounts, NO submissions, NO executed runs — every repo row carries '[KNOWN] Authenticated GitHub API；未做本地运行/benchmark 复核' (no local run/benchmark re-verification). Their own stated stance: 'the core is NOT another leaderboard, but a benchmark matrix for judging evidence strength.'\n\nTLS: verified empirically — agent-evolution.com serves the *.github.io wildcard cert (SAN has no agent-evolution.com), so strict HTTPS fails, but content is live (HTTP 200 with cert check skipped); the repo's own reports/live-publication-readiness.md acknowledges this exact gap.",
+    "changed": "none — read-only research",
+    "evidence": [
+      {
+        "cite": "https://api.github.com/repos/Shiyao-Huang/awesome-agent-evolution",
+        "note": "License MIT (license.key=mit refers to LICENSE-CODE), default_branch=main, homepage=https://agent-evolution.com/, has_pages=true, 173 stars, 11 forks, created 2026-05-22, pushed 2026-07-04; topics include agent-evolution, self-evolving-agents, harness-engineering, benchmark"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/README.md",
+        "note": "Survey framing; 6-part strict definition; Observe→Interpret→Modify→Verify→Retain; Evolve-AGI Index 7 signals w/ weights (loop 20%, benchmark 18%, evidence 18%, transfer 14%, runnable 12%, momentum 10%, governance 8%); corpus counts 684 classified repos / 99 strict / 205 broad / 490 public report files; per-repo evidence status '未做本地运行/benchmark 复核'"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/analysis/essential-taxonomy-framework.md",
+        "note": "5D essential taxonomy (Update Target / Feedback Source / Temporal Persistence / Search Mechanism / System Scope) unifying 6 prior classification systems; 7 'missing agents' incl. Cost-Aware Evolution Engine, Production Evolution Monitor, Evolution Rollback System"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/analysis/five-evolution-loops-topic.md",
+        "note": "Five loops matrix: per-loop mutable object, feedback signal, verifier, retention, failure mode; repo marks the matrix cells [INFERRED] editorial synthesis, loop names/counts [KNOWN] from survey.ts"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/site/src/data/survey.ts",
+        "note": "surveyStats {papers:196, repos:348, painPoints:97, evolutionLoops:5, methodFamilies:7, caseStudies:6}; 7 method families with paper counts/shares; 6 case studies with before/after benchmark evidence (DGM SWE-bench Verified 20→50%, Reflexion HumanEval 80→91%)"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/research/ranking-framework/README.md",
+        "note": "SEMM maturity L0-L5; 9-dim D1-D5/U1-U4 scoring with anchored rubrics; CompositeScore=Σ(w_i·D_i)/Σw_i × ConfidenceFactor; tiers S/A/B/C/D; minimum + strong self-evolution claim gates; 10-pitfall checklist; radar JSON schema; full model-card template"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/analysis/code-evolution-benchmark-matrix.md",
+        "note": "5-mode benchmark matrix (self-modifying coding agent / algorithm discovery / architecture search / prompt-program optimizer / reflection-repair) + 5-level Evidence Ladder; explicit stance: '公开资产的核心不是再做一个排行榜' (core is not another leaderboard)"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/docs/data-schema.md",
+        "note": "Record types Project/Paper/Concept; timestamps content_timestamp/collected_at/updated_at; evidence-strength ranks primary/derived/community/unverified"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/site/src/content.config.ts",
+        "note": "Astro content collections (blog/research/projectReports/...) with zod frontmatter: claimStatus enum known|inferred|unverified, primarySources[], claimBoundary default text"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/site/src/data/topicMap.ts",
+        "note": "10 topic clusters with readerQuestion/surveyRole/readerIntent/evidenceLinks — the site's information architecture"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/LICENSE-CONTENT + /NOTICE",
+        "note": "CC BY 4.0 on original analysis/taxonomies/normalized metadata/summaries; commercial use allowed with credit to 'Self Evolve / Awesome Self-Evolving AI Agents, aha team' + repo link; third-party materials keep original licenses; NOTICE publication boundary forbids republishing raw scraped full text"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/.github/workflows/pages.yml + site/public/CNAME + site/astro.config.mjs",
+        "note": "Astro static build (npm run build, output:'static', sitemap) deployed to GitHub Pages on push to main; CNAME=agent-evolution.com; PUBLIC_SITE_URL env"
+      },
+      {
+        "cite": "openssl s_client -connect agent-evolution.com:443 (run 2026-07-11)",
+        "note": "Cert CN=*.github.io, SAN covers only github.io/github.com/githubusercontent.com — custom-domain cert not provisioned; curl -k returns HTTP 200 so content is live behind broken strict-TLS"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/site/src/pages/benchmark/index.astro",
+        "note": "Benchmark page = hardcoded frontmatter arrays: 4 domains (Code Gen, Math, Agent Tasks, Open-Ended Discovery), 17+ benchmarks with topSystem/baseline; 6 eval dimensions — no dynamic backend"
+      },
+      {
+        "cite": "https://raw.githubusercontent.com/Shiyao-Huang/awesome-agent-evolution/main/site/src/data/rankings.ts",
+        "note": "~20 systems with 9-dim radar scores, maturity_level, tier, composite_score, confidence_factor; top: AlphaEvolve 7.06/A, DGM 6.78/A, FunSearch 6.56/A, ADAS 6.50/A"
+      },
+      {
+        "cite": "GitHub git/trees API recursive listing (7190 blobs, truncated:false)",
+        "note": "Full repo layout: site/ 706 files, projects/ 868, raw-blogs 1308, raw-social 1318, raw-github 615, paper-reviews 171, data-engine 495 (Python collectors), analysis/ 45, paper-drafts (8-chapter LaTeX + main.pdf)"
+      }
+    ],
+    "key_facts": [
+      "Repo Shiyao-Huang/awesome-agent-evolution: default branch main, MIT code license + CC BY 4.0 content license (dual, via LICENSE-CODE/LICENSE-CONTENT/NOTICE), 173 stars, created 2026-05-22, last push 2026-07-04, homepage agent-evolution.com, GitHub Pages enabled",
+      "agent-evolution.com is a static Astro 5 site (site/ dir, output:'static'), auto-deployed by GitHub Actions on push to main; TLS is broken for strict clients because the served cert is CN=*.github.io with no agent-evolution.com SAN, but the site returns HTTP 200 when cert verification is skipped",
+      "Strict self-evolution definition = 6 gates: mutable object, feedback signal, candidate generation, independent verification, retention, audit+rollback; reader loop Observe→Interpret→Modify→Verify→Retain",
+      "Mechanism taxonomy = Five Evolution Loops (Specification-to-Execution, Search, Evaluator, Reflection, Population), each with mutable-object/feedback/verifier/retention/failure-mode columns; the matrix cells are marked [INFERRED] editorial synthesis by the repo itself",
+      "Method taxonomy = 7 families over 196 papers: Prompt/Search 68 (34.7%), Reward/RL/Self-Play 51 (26.0%), Code/Self-Mod 28 (14.3%), Multi-Agent Debate 16, Memory/Knowledge 16, Web/Tool/Env 13, Eval/Safety/Governance 4 (2.0%)",
+      "Evaluation framework = SEMM maturity L0-L5 + 9 dimensions (D1 Improvement Magnitude, D2 Evidence Strength, D3 Transferability, D4 Safety, D5 Cost Efficiency, U1 Usability, U2 Future-proof, U3 Academic Rigor, U4 Practical Value), weighted composite × confidence factor → tiers S/A/B/C/D, plus minimum/strong self-evolution claim gates and a 10-pitfall checklist (research/ranking-framework/README.md)",
+      "Evolve-AGI Index = field-maturity index with 7 editorial-weighted signals (loop strength 20%, benchmark 18%, evidence chain 18%, transfer 14%, runnability 12%, momentum 10%, governance 8%); trend 67.4 (2026-05-26) → 72.9 (2026-06-02); repo explicitly says weights are proposed, not validated",
+      "Site data model: typed TS records (projects.ts Project{category,pattern,tags,status:placeholder|candidate|verified,...}), zod-schema'd MDX collections with claimStatus known|inferred|unverified + primarySources, ~490 markdown model cards, docs/data-schema.md Project/Paper/Concept records with evidence ranks primary/derived/community/unverified",
+      "All comparison features are editorial and static: 9-dim radar rankings (~20 systems), hardcoded benchmark tables, star-growth ledger, Value-LSH triage — no user accounts, no submissions, no executed runs; every tracked repo carries '未做本地运行/benchmark 复核' (no local run verification)",
+      "Code-evolution benchmark matrix defines 5 system modes (self-modifying coding agent, algorithm/program discovery, agent architecture search, prompt/program optimizer, reflection/repair loop) and a 5-level Evidence Ladder (generate → repair realistic → discover under executable evaluator → retain across generations → generalize)",
+      "CC BY 4.0 explicitly permits commercial adaptation of the taxonomies/analysis with attribution: 'Self Evolve / Awesome Self-Evolving AI Agents, aha team' + repo link; NOTICE forbids republishing their raw scraped source material without source-specific review"
+    ],
+    "design_implications": [
+      "Absorb the knowledge half legally and cheaply: the Five Loops, 6-gate definition, SEMM L0-L5, 9-dim radar, claim gates, pitfall checklist, and 10 topic clusters are CC BY 4.0 — agentdex can vendor them (data files are plain TS/JSON in-tree) with one visible attribution line; do NOT mirror their raw-* scraped corpora (NOTICE publication boundary)",
+      "Taxonomy→task-type mapping: their loops are MECHANISM types, not task types — the bridge is their benchmark matrix's 5 modes + 4 benchmark domains. Concrete mapping for the Pareto engine: SWE-Bench Pro / TerminalBench2 → 'self-modifying coding agent' mode; WebArena → web/env adaptation; ARC-AGI-3 → architecture-search/reasoning; Kaggle/HuggingFace → spec-to-execution + search modes. Each agentdex task type should inherit the matrix's reader-question, evidence-ladder level, and main-risk columns as page copy",
+      "agentdex's moat is exactly their declared gap: every repo row on agent-evolution.com says 'no local run/benchmark re-verification' — their entire leaderboard layer is editorial triage of third-party claims. agentdex's run-verified Pareto measurements are the missing primary evidence tier; position the market page as 'run-verified' vs their 'evidence-triaged'",
+      "Reuse the 9-dim radar as the Agent Card shell: agentdex Pareto runs natively populate D1 (improvement magnitude), D2 (evidence strength — first-party held-out runs), D5 (cost efficiency = the cost axis of the Pareto frontier); their confidence-factor formula (scored-dimensions/9 × evidence quality) is a ready-made anti-vacuous-score guard consonant with fleet doctrine",
+      "Adopt their claim gates as leaderboard badge tiers: minimum gate (feedback loop + autonomous update + held-out improvement + reproducible) and strong gate (+transfer +process evidence +demonstrated safety-gate rejection) map 1:1 onto what the meta-harness+Weco loop and BENE Evolution Card already record (lineage, rejected candidates, eval-gated promotion) — ADR-0014 machinery can emit these badges with almost no new bookkeeping",
+      "The improvement loop agentdex ships IS several of their '7 missing agents' (Cost-Aware Evolution Engine, Production Evolution Monitor, Evolution Rollback System) — use that list verbatim in positioning/marketing copy for the redesign",
+      "Respect their anti-leaderboard doctrine for the knowledge half: they argue single-number ladders mislead (Goodhart, contamination, pitfall checklist). The organic combination should render Pareto FRONTIERS + evidence ladders + per-run provenance and cost, not one score column — this differentiates the market page from Kaggle-style ladders and stays consistent with the Three Cards / Pareto-verdict prior art",
+      "Website architecture proof point: a static-render knowledge site (Astro, typed TS data modules + zod'd MDX + markdown model cards, ~40 routes) is sufficient and SEO-viable; agentdex can keep the FastAPI arena app for dynamic leaderboard/run data and statically render the taxonomy/knowledge pages from versioned data files — their claimStatus known|inferred|unverified frontmatter pattern is worth copying wholesale for evidence hygiene",
+      "Operational warning from their deployment: GitHub Pages custom-domain HTTPS was never provisioned (github.io wildcard cert served) — for agentdex's own DNS/deploy re-scope, provision the cert before announcing the domain, or strict clients and crawlers see a dead site"
+    ],
+    "open_questions": [
+      "Deployed-site parity: I verified HTTP 200 behind the broken cert but did not render the live HTML; whether the deployed build matches repo HEAD (last push 2026-07-04) is unverified — a headless browse (ignoring cert) would confirm if the website lane needs pixel-level reference",
+      "evolveAgiIndex.ts computation internals (e.g., the 0.64/0.36 benchmark split constants) are documented in analysis/evolve-agi-index.md but I did not read the TS implementation to confirm the code matches the doc",
+      "README-EN.md (44.7KB) not read; repo claims EN mirrors cover the core path but 'no full translation parity' — exact EN coverage unverified",
+      "Who operates the repo: authored as 'aha team' by user Shiyao-Huang; the in-tree AGENTS.md/CLAUDE.md/CURRENT_GOAL.md suggest it is itself agent-fleet-operated. Irrelevant to the CC BY license but relevant if a partnership/backlink is wanted; ownership intent unverified",
+      "Their five-loops matrix and 9-dim scores are self-labeled [INFERRED]/editorial — if agentdex displays them, it should carry their claim-status labels through rather than presenting them as measured; whether to re-derive scores from agentdex runs vs display theirs is a design decision",
+      "Benchmark-mirroring ToS (Kaggle/HF/ARC-AGI-3/SWE-Bench Pro/TerminalBench2/WebArena leaderboard snapshots) is NOT answered by this lane — their CC BY covers only their own analysis; a separate lane must check each ladder's terms",
+      "Whether agent-evolution.com traffic/SEO standing justifies absorbing their taxonomy verbatim vs merely citing it (repo is young: 2026-05-22, 173 stars); no traffic data available"
+    ],
+    "next": [
+      "Feed this brief to the M1 design-synthesis lane: map the six GOALS.md ladders onto the benchmark matrix's 5 modes to pick the 2-3 run-adapters (SWE-Bench Pro and TerminalBench2 both land in 'self-modifying coding agent' mode — consider diversifying with WebArena for a second mode)",
+      "Design decision for DESIGN.md/ADR-0015: adopt Five Loops + SEMM + 9-dim card + claim gates as the agentdex site's knowledge information architecture, with a CC BY attribution line ('Self Evolve / Awesome Self-Evolving AI Agents, aha team' + repo URL) and their claimStatus labels preserved",
+      "Specify the Pareto measurement contract to emit fields that populate D1/D2/D5 and the claim-gate badges (held-out flag, seeds, cost-per-gain, rejected-candidate count, lineage id) so the website half renders evidence-ladder levels natively",
+      "If the website lane needs the live site's look: headless-browse https://agent-evolution.com/ with cert verification disabled, or npm-build site/ locally from the repo (MIT-licensed)",
+      "Separate lane: benchmark ToS/licensing check for mirroring the six ladders' leaderboards into the market page (explicitly out of this lane's scope)"
+    ]
+  }
+}
