@@ -31,12 +31,12 @@ cross_cutting: true
 
 - Standing principle + pre-run validation gate recorded (GOALS M2, user directive: gate scores the REAL objective, not a proxy; s14 anti-precedent).
 - WU-1 DONE + committed (c5929485): packages/adx_frontier — AgentCandidate manifest + pre-run validation gate (weco --sources limits, budget, axes partition); 13 tests, independently re-run by coordinator; served by grok-4.5 tier.
-- WU-2 dispatched (mroute execute): packages/adx_ladders — LadderAdapter ABC (two-class taxonomy, Receipt tier rules, MeasureResult axes enforcement, pre_run_check) + curated market registry (6 ladders + HF substrate, link-out only). Capsule: evidence/M2/capsules/wu2-ladder-adapter-registry.md.
+- WU-2 DONE + committed:  packages/adx_ladders — LadderAdapter ABC (two-class taxonomy, Receipt tier rules, MeasureResult axes enforcement, pre_run_check) + curated market registry (6 ladders + HF substrate, link-out only). Capsule: evidence/M2/capsules/wu2-ladder-adapter-registry.md.
 
 ### What's next
 
-- Review WU-2 → commit → WU-3 arc_agi3 adapter, WU-4 tb2_harbor adapter, then the five M2 spikes (weco economics + verb check, footprint, ToS incl. Weco's own, score-axes, arXiv pass).
+- WU-3 arc_agi3 adapter + WU-4 tb2_harbor adapter capsules (out-of-process execution, fakes in unit tests, real ladder I/O behind integration flags), then the five M2 spikes (weco economics + verb check, footprint, ToS incl. Weco's own, score-axes, arXiv pass).
 
 ### Any blockers
 
-- None. WU-2 worker in flight on the mroute execute chain.
+- None.
