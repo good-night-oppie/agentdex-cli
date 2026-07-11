@@ -349,7 +349,6 @@ def test_pokeagent_environment_builds_real_adapter_boundary(
         "ADX_POKEAGENT_WEBSOCKET_URL": "wss://ps.example/ws",
         "ADX_POKEAGENT_AUTH_URL": "https://ps.example/auth",
         "ADX_POKEAGENT_TEAM_FILE": str(team),
-        "ADX_POKEAGENT_RATING_REF": "https://ratings.example/{username}#{battle_tag}",
         "ADX_POKEAGENT_BASELINES": "Baseline A,Baseline B",
     }
     for key, value in values.items():
