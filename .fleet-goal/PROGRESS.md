@@ -54,11 +54,7 @@ cross_cutting: true
 
 ### Any blockers
 
-- M2 blocked from closure until real measured runs exist (real-engine WUs). WU-6 P1 fixes LANDED — all 3 P1s independently re-reproduced-then-confirmed-closed by coordinator; 59 tests, 15 new regressions.
-
-### Any blockers
-
-- None.
+- M2 blocked from closure until real measured runs exist on both adapters. ARC leg SATISFIED (WU-7 genuine local run). TB2 leg forked on operator decision (see below). WU-6 P1 fixes LANDED — all 3 P1s independently re-reproduced-then-confirmed-closed by coordinator; 59 tests, 15 new regressions.
 
 ### harness-41 session (2026-07-11) — review queue + real-engine wiring
 
@@ -69,7 +65,9 @@ cross_cutting: true
   - [P3] candidate glob/name hardening — empty/missing mutable, zero-match glob, and invisible-Unicode (Cf) names now fail closed. (commit 378a1ef2)
   - [P3] SWE-Bench Pro registry note refreshed (stale "Fourth-adapter slot TBD" → spike-2 "SWE-Bench Pro @ N=10"). (commit c4404234)
 - [WU-7] Real-engine wiring (free leg): genuine local ARC-style engine (`adx_ladders/engines/local_arc.py`, action-dependent dynamics, scorecard_id→None), scripted-heuristic no-LLM candidate, `adx measure --engine local-arc`. First GENUINE MEASURED run recorded: `.fleet-goal/evidence/M2/measured/arc-local-scripted.json` (quality=1.0, cost_dollar=0.0, cost_is_measured=true, receipt self_reported/raw_artifacts — NOT fake_engine, honestly non-leaderboard). 78 tests green. (commit 3f1c0581)
+- [WU-8+8F] Real Harbor CLI client (free leg, mroute execute grok-4.5 tier): `adx_ladders/engines/harbor_cli.py` grounded in INSTALLED harbor 0.18.0 (verbatim surface capture at evidence/M2/harbor-cli-surface.md — real docs drift found: `-i/--include-task-name`, `--agent-import-path` deprecated → `-a module:Class`, no per-dataset task-list subcommand → injected `tasks=` fallback); WU-6 kill idioms (DEVNULL stdin, start_new_session, group SIGTERM→SIGKILL, fork-based SIGTERM-ignoring grandchild reap tests); `adx measure --engine harbor-cli` wired. Coordinator review found 3 defects, fixed via WU-8F capsule: F1 P1 pipe-full deadlock (undrained PIPEs + bare wait misreport chatty PASSING runs as timed_out — read-side twin of WU-6 stdin P1; fixed with on-disk harbor.log redirect + >128KB regression), F2 `-l 1` hard task cap (`-i` accepts globs; `-n` is concurrency), F3 measure-time ValueError traceback (now clean stderr + exit 1). 184 tests green (was 173; the 1 expedition-smoke failure verified PRE-EXISTING on origin/main — out of diff scope per standing policy). NO paid run executed. Follow-up: CLI `tasks=` injection path (WU-9 with the $0 real run).
 
 ### Blocker / fork (operator decision required)
 
-- The "measured runs on both adapters" evidence leg now has ARC satisfied (free, genuine). TB2's genuine measured run requires a PAID coding-agent LLM via a real Harbor client → CREDENTIALS/COST fork. Per operator directive, STOPPING before any paid TB2 real run. Awaiting operator: (a) authorize a paid TB2 real run (creds + budget), or (b) accept ARC-only genuine measured evidence for M2 closure with the TB2 real-run deferred (DEFERRED.md row).
+- The "measured runs on both adapters" evidence leg now has ARC satisfied (free, genuine). TB2's LEADERBOARD-COMPARABLE measured run requires a PAID coding-agent LLM via a real Harbor client → CREDENTIALS/COST fork. Per operator directive, STOPPING before any paid TB2 real run. Awaiting operator: (a) authorize a paid TB2 real run (creds + budget), or (b) accept ARC-only + $0 TB2 evidence (below) for M2 closure with the paid TB2 run deferred (DEFERRED.md row).
+- Fork NARROWED by free legs (2026-07-11, harness-41 cont.): TB2 evidence is being maximized at $0 before the fork bites — [WU-8] real `HarborCliClient` (grounded in installed harbor CLI surface, hermetic stub-binary tests, measured-cost honesty per P2) dispatched via mroute execute (capsule: evidence/M2/capsules/wu8-harbor-cli-client.md); after WU-8 lands, [WU-9] $0 genuine real-Harbor run (oracle agent = engine-integration evidence; no-op `--agent-import-path` candidate = candidate-pipe evidence, honest quality=0, cost_is_measured=true) filed under evidence/M2/measured/. Docker 29.6.1 live, 329G free — verified feasible. Only the PAID leaderboard-comparable quality>0 run remains behind the fork.
