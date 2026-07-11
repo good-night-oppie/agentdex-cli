@@ -58,6 +58,7 @@ def _serialize_measure_result(result: MeasureResult, *, measured_at_utc: str) ->
         "base_model": result.base_model,
         "scores": dict(result.scores),
         "cost_is_measured": result.cost_is_measured,
+        "effective_ladder_class": result.effective_ladder_class.value if result.effective_ladder_class else None,
         "receipt": {
             "tier": result.receipt.tier,
             "kind": result.receipt.kind,
