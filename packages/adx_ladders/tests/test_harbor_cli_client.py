@@ -539,6 +539,31 @@ def test_depth1_trial_result_honors_org_prefixed_task_name(tmp_path: Path, stub_
     assert Path(result.log_path) == trial_dir
 
 
+@pytest.mark.parametrize("requested_task", ["different-task", "*"])
+def test_single_trial_result_rejects_wrong_task_identity(
+    tmp_path: Path, stub_path: Path, requested_task: str
+) -> None:
+    """WU-13: a sole result cannot bypass requested-task identity matching."""
+    _write_stub_harbor(stub_path)
+    job_dir = tmp_path / "job"
+    _write_trial_result(
+        job_dir / "easier-task__abc" / "result.json",
+        task_name="terminal-bench/easier-task",
+        reward=1.0,
+        cost_usd=0.0,
+    )
+
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs-unused",
+        tasks=(requested_task,),
+    )
+    result = client._parse_job_result(job_dir, task_id=requested_task)
+    assert result.errored is True
+    assert result.passed is False
+    assert result.cost_dollar is None
+
+
 def test_empty_job_dir_honest_non_measurement(tmp_path: Path, stub_path: Path) -> None:
     """WU-10/WU-11: no trial-root result.json → errored=True (not measured-0)."""
     _write_stub_harbor(stub_path)
