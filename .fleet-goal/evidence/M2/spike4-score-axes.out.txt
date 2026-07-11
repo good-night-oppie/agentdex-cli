@@ -1,0 +1,116 @@
+## Direct actionable pivot
+
+**Yes — cleanly.** Declare `objectives = ["+quality", "-cost_dollar", "-wall_clock_sec"]`, return raw positive floats from `score()`, and the frontier already minimizes cost/wall while maximizing quality. No score negation required.
+
+**SAP micro-action:** open `/tmp/m2_spike4_pareto_mixed_dirs.py` (already green) — that is the proof artifact for this spike.
+
+---
+
+### learned
+
+1. **`Benchmark.score()` is free-form `dict[str, float]`.** Keys are bare names (no `+/-`). Any axis set including `{quality, cost_dollar, wall_clock_sec}` is expressible; the contract only requires keys to match stripped objective names.
+
+2. **Direction lives on `objectives`, not in score values.** `SearchConfig.objective_directions()` maps `+name` → maximize, `-name` → minimize. `pareto.dominates()` branches per key. Mixed-direction multi-objective works natively.
+
+3. **arc_agi3’s `-actions` is the template, not a negation hack.** Scores store raw `actions`; `-actions` tells Pareto to minimize. (The aggregate docstring’s “[0,1] normalize” comment is stale — code still returns raw mean actions.)
+
+4. **Negation is optional, not required.** Storing `-cost` + maximize also works, but maximize-on-raw-cost wrongly prefers expensive candidates — the trap the `/tmp` test catches.
+
+---
+
+### changed
+
+`none — /tmp only`
+
+---
+
+### evidence
+
+**score() free-form floats** (`base.py`):
+
+```49:54:/home/admin/gh/bene-main/bene/metaharness/benchmarks/base.py
+    def score(self, problem: Problem, output: dict[str, Any]) -> dict[str, float]:
+        """Score a harness's output on a single problem.
+
+        Returns a dict matching the objective names, e.g.:
+            {"accuracy": 1.0, "context_cost": 1234}
+        """
+```
+
+**Direction config** (`+/-` on objectives → maximize|minimize):
+
+```166:177:/home/admin/gh/bene-main/bene/metaharness/harness.py
+    def objective_directions(self) -> dict[str, str]:
+        """Parse objectives into {name: 'maximize'|'minimize'}."""
+        objectives = self.objectives or ["+accuracy", "-context_cost"]
+        directions = {}
+        for obj in objectives:
+            if obj.startswith("-"):
+                directions[obj[1:]] = "minimize"
+            elif obj.startswith("+"):
+                directions[obj[1:]] = "maximize"
+            else:
+                directions[obj] = "maximize"
+        return directions
+```
+
+**Frontier uses per-key direction** (no uniform maximize):
+
+```78:95:/home/admin/gh/bene-main/bene/metaharness/pareto.py
+    for obj_name, direction in objectives.items():
+        a_val = a.get(obj_name, 0)
+        b_val = b.get(obj_name, 0)
+
+        if direction == "maximize":
+            if a_val < b_val:
+                at_least_as_good = False
+                break
+            if a_val > b_val:
+                strictly_better = True
+        else:  # minimize
+            if a_val > b_val:
+                at_least_as_good = False
+                break
+            if a_val < b_val:
+                strictly_better = True
+```
+
+**Shipped precedent** — raw minimize axis, not negated scores:
+
+```246:297:/home/admin/gh/bene-main/bene/metaharness/benchmarks/arc_agi3.py
+    def objectives(self) -> list[str]:
+        return ["+rhae", "+levels", "-actions"]
+    ...
+    def score(self, problem: Problem, output: dict[str, Any]) -> dict[str, float]:
+        return {
+            "rhae": output.get("rhae", 0.0),
+            "levels": float(output.get("levels", 0)),
+            "actions": float(output.get("actions", self.max_actions)),
+        }
+```
+
+**`/tmp` test output** (real `dominates` + `compute_pareto`):
+
+```
+PASS parse: +quality/-cost_dollar/-wall_clock_sec -> {'quality': 'maximize', 'cost_dollar': 'minimize', 'wall_clock_sec': 'minimize'}
+PASS A dominates B (better on all three mixed dirs)
+PASS C vs D: trade-off, neither dominates
+PASS negation trap: minimize on raw costs is correct; maximize-all inverts
+PASS frontier: only cheap_fast survives; expensive_slow dominated
+frontier.points = [('cheap_fast', {'quality': 0.9, 'cost_dollar': 0.05, 'wall_clock_sec': 10.0})]
+PASS arc_agi3 pattern: raw actions + '-actions' minimize works (no score negation)
+ALL PASS — mixed-direction multi-objective works without score negation.
+```
+
+---
+
+### next
+
+Wire a thin benchmark (or adapter) with:
+
+```python
+objectives = ["+quality", "-cost_dollar", "-wall_clock_sec"]
+# score() returns those three keys as raw floats
+```
+
+**10-min micro-sprint if continuing:** stub `score()` + `objectives` only — do not touch `pareto.py`. Open question: should `cost_dollar` / `wall_clock_sec` aggregate as **mean** (default `aggregate_scores`) or **sum** (total expedition cost/time)? That is the only semantic choice left; direction plumbing is already correct.

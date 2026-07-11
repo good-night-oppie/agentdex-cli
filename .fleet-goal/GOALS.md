@@ -234,3 +234,12 @@ Evidence: live site probe; board re-scope record; audit + review.
   spike 1 + monetization: Weco terms self-scope to personal non-commercial;
   no public share-link feature exists. Evidence:
   `evidence/M2/{spike3-tos-brief,spike5-arxiv-brief}.json`.
+- 2026-07-11 (M2 spike 4 done): bene mh frontier supports mixed-direction
+  multi-objective NATIVELY via objective strings — `["+quality",
+  "-cost_dollar", "-wall_clock_sec"]` yields correct dominance/frontier with
+  raw floats, no negation convention (real-code /tmp test, ALL PASS; evidence
+  `evidence/M2/spike4-score-axes.out.txt`). Residual semantic choice decided
+  by default pending M3 implementation review: **quality aggregates as MEAN
+  across problems; cost_dollar and wall_clock_sec aggregate as SUM** (the
+  declared budget is a per-run total, so totals are what the budget bounds —
+  mean would understate real spend). Served by mroute execute (grok-4.5).
