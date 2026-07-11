@@ -262,3 +262,13 @@ Evidence: live site probe; board re-scope record; audit + review.
   design requires declared budgets, two-tier receipts, and settled/refreshed
   reads (live-class adversarial refresh; static-class held-out) before any
   promotion. Do not cite s14 as "search tanked" without this note.
+- 2026-07-11 (M2 spike 1 done — empirical, operator-authenticated account):
+  free grant 20.00 credits (dollar-denominated); 3-step toy run = $0.17 on
+  default gemini-3-flash-preview with per-step transparent billing
+  (`credits cost` matches balance delta exactly); `weco start claude` + 
+  `weco share <run_id>` verified on the CLI; BYO `--api-key` limited to
+  gemini/openai/anthropic (operator's ~/.sakana fish_ token unsupported) —
+  **BYO-vs-credits differential UNMEASURED; do not publish "free on your own
+  subscriptions" copy until measured.** Evidence:
+  `evidence/M2/spike1-weco-economics.md`. ALL FIVE M2 SPIKES NOW CLOSED
+  (1 with the one flagged residual).

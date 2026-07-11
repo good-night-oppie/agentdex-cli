@@ -43,10 +43,12 @@ cross_cutting: true
 
 - Spikes 2/3/4/5 DONE (evidence/M2/): ToS per-source verdicts; 8/8 arXiv VERIFIED; mixed-direction frontier native (+mean/sum aggregation pinned); fourth adapter = SWE-Bench Pro @ N=10.
 
+- Spike 1 DONE (operator authenticated a fresh account): grant 20 credits, $0.17/3-step toy, per-step transparent billing; `weco start claude` + `weco share` verified; BYO differential unmeasured (supported providers gemini/openai/anthropic only). All five M2 spikes closed.
+
 ### What's next
 
-- Spike 1 (weco economics): BLOCKED-ON-OPERATOR — needs a Weco account/credit decision before the empirical run.
-- Real-engine integration WUs (arc-agi pip client, Harbor client behind the existing protocols; network installs) → then fresh M2 audit + review.
+- Real-engine integration WUs (arc-agi pip client, Harbor client behind the existing protocols; network installs) → then fresh M2 audit + review → M3 (PokeAgent adapter + frontier ledger).
+- Residual: BYO --api-key differential (needs a gemini/openai/anthropic key).
 
 ### Any blockers
 
