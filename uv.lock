@@ -5,6 +5,7 @@ requires-python = ">=3.11, <3.14"
 [manifest]
 members = [
     "adx-bridges",
+    "adx-frontier",
     "adx-showdown",
     "agentdex-arena",
     "agentdex-cli",
@@ -43,6 +44,17 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
 ]
 provides-extras = ["manus"]
+
+[[package]]
+name = "adx-frontier"
+version = "0.1.0"
+source = { editable = "packages/adx_frontier" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=6.0" }]
 
 [[package]]
 name = "adx-showdown"

@@ -1,0 +1,168 @@
+"""AgentCandidate manifest load + pre-run validation gate (ADR-0015 D1).
+
+The frontier must be ungameable by proxy-winners: reject before any run starts
+when weco --sources limits, declared budget, or axes-partition keys fail.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+KNOWN_LADDERS: frozenset[str] = frozenset(
+    {
+        "tb2",
+        "arc-agi-3",
+        "pokeagent-gen1ou",
+        "kaggle",
+        "swe-bench-pro",
+        "webarena",
+    }
+)
+
+FRONTIER_AXES: tuple[str, ...] = ("quality", "cost_dollar", "wall_clock_sec")
+
+_MAX_MUTABLE_FILES = 10
+_MAX_BYTES_PER_FILE = 200 * 1024  # 200 KiB
+_MAX_BYTES_TOTAL = 500 * 1024  # 500 KiB
+
+
+class CandidateValidationError(ValueError):
+    """Raised when an AgentCandidate fails the pre-run validation gate."""
+
+
+@dataclass(frozen=True)
+class Budget:
+    usd: float
+    wall_clock_min: float
+
+
+@dataclass(frozen=True)
+class AgentCandidate:
+    """Directory-backed agent manifest (DESIGN.md AgentCandidate schema)."""
+
+    name: str
+    entrypoint: str
+    mutable: tuple[str, ...]
+    base_model: str
+    budget: Budget
+    ladders: tuple[str, ...]
+    root: Path
+
+    def expand_mutable(self) -> list[Path]:
+        """Expand ``mutable`` globs against ``root`` to concrete files."""
+        found: set[Path] = set()
+        for pattern in self.mutable:
+            for path in self.root.glob(pattern):
+                if path.is_file():
+                    found.add(path.resolve())
+        return sorted(found)
+
+    def validate(self) -> None:
+        """Pre-run gate. Raises ``CandidateValidationError`` on any violation."""
+        if not self.name or not str(self.name).strip():
+            raise CandidateValidationError("name must be a non-empty string")
+        if not self.entrypoint or not str(self.entrypoint).strip():
+            raise CandidateValidationError("entrypoint must be a non-empty string")
+        if not self.base_model or not str(self.base_model).strip():
+            raise CandidateValidationError("base_model must be a non-empty string")
+        if not self.ladders:
+            raise CandidateValidationError("ladders must be a non-empty list")
+        unknown = [ladder for ladder in self.ladders if ladder not in KNOWN_LADDERS]
+        if unknown:
+            raise CandidateValidationError(
+                f"unknown ladder(s): {unknown}; known={sorted(KNOWN_LADDERS)}"
+            )
+        if self.budget.usd <= 0 or self.budget.wall_clock_min <= 0:
+            raise CandidateValidationError(
+                "budget.usd and budget.wall_clock_min must both be > 0 "
+                f"(got usd={self.budget.usd}, wall_clock_min={self.budget.wall_clock_min})"
+            )
+        self._validate_weco_mutable_limits()
+
+    def _validate_weco_mutable_limits(self) -> None:
+        files = self.expand_mutable()
+        n_files = len(files)
+        sizes = [path.stat().st_size for path in files]
+        total = sum(sizes)
+        oversized = [
+            (str(path.relative_to(self.root)), size)
+            for path, size in zip(files, sizes, strict=True)
+            if size > _MAX_BYTES_PER_FILE
+        ]
+
+        violations: list[str] = []
+        if n_files > _MAX_MUTABLE_FILES:
+            violations.append(f"file_count={n_files} (max {_MAX_MUTABLE_FILES})")
+        if oversized:
+            detail = ", ".join(f"{name}={size}B" for name, size in oversized)
+            violations.append(
+                f"per-file size > {_MAX_BYTES_PER_FILE}B: {detail}"
+            )
+        if total > _MAX_BYTES_TOTAL:
+            violations.append(f"total_bytes={total} (max {_MAX_BYTES_TOTAL})")
+
+        if violations:
+            raise CandidateValidationError(
+                "narrow your weco-mutable subset: "
+                + "; ".join(violations)
+                + f" (expanded {n_files} files, {total} bytes total)"
+            )
+
+
+def load_candidate(dir_path: str | Path) -> AgentCandidate:
+    """Parse ``candidate.yaml`` under ``dir_path`` into an ``AgentCandidate``."""
+    root = Path(dir_path).resolve()
+    manifest_path = root / "candidate.yaml"
+    if not manifest_path.is_file():
+        raise CandidateValidationError(f"missing candidate.yaml in {root}")
+
+    raw = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise CandidateValidationError("candidate.yaml must be a mapping")
+
+    return _from_mapping(raw, root)
+
+
+def _from_mapping(raw: dict[str, Any], root: Path) -> AgentCandidate:
+    name = raw.get("name", "")
+    entrypoint = raw.get("entrypoint", "")
+    base_model = raw.get("base_model", "")
+    mutable_raw = raw.get("mutable") or []
+    ladders_raw = raw.get("ladders") or []
+
+    if not isinstance(mutable_raw, list):
+        raise CandidateValidationError("mutable must be a list of glob strings")
+    if not isinstance(ladders_raw, list):
+        raise CandidateValidationError("ladders must be a list of ladder ids")
+
+    budget_raw = raw.get("budget")
+    if budget_raw is None:
+        raise CandidateValidationError("budget is required (usd, wall_clock_min)")
+    if not isinstance(budget_raw, dict):
+        raise CandidateValidationError("budget must be a mapping with usd and wall_clock_min")
+    if "usd" not in budget_raw or "wall_clock_min" not in budget_raw:
+        raise CandidateValidationError(
+            "budget must include both usd and wall_clock_min"
+        )
+
+    try:
+        usd = float(budget_raw["usd"])
+        wall_clock_min = float(budget_raw["wall_clock_min"])
+    except (TypeError, ValueError) as exc:
+        raise CandidateValidationError(
+            f"budget.usd and budget.wall_clock_min must be numbers: {exc}"
+        ) from exc
+
+    return AgentCandidate(
+        name=str(name) if name is not None else "",
+        entrypoint=str(entrypoint) if entrypoint is not None else "",
+        mutable=tuple(str(p) for p in mutable_raw),
+        base_model=str(base_model) if base_model is not None else "",
+        budget=Budget(usd=usd, wall_clock_min=wall_clock_min),
+        ladders=tuple(str(ladder) for ladder in ladders_raw),
+        root=root,
+    )
