@@ -12,7 +12,7 @@
     "kind": "raw_artifacts",
     "ref": "",
     "artifacts": [
-      "/home/admin/gh/agentdex-cli-redesign/.fleet-goal/evidence/M2/candidates/arc-scripted/.adx/runs/arc-agi-3-20260711T170831Z-5a51e4b6.json"
+      ".fleet-goal/evidence/M2/measured/arc-local-scripted-run.json"
     ]
   },
   "budget": {
