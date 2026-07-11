@@ -367,6 +367,35 @@ def test_pokeagent_environment_builds_real_adapter_boundary(
     assert seen["team"].startswith("Pikachu") and seen["n_games"] == 1
 
 
+def test_external_ladder_failure_is_clean_nonzero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _write_candidate(tmp_path, ladders=["pokeagent-gen1ou"])
+
+    class BrokenAdapter:
+        def pre_run_check(self, _candidate):
+            return None
+
+        def measure(self, _candidate):
+            raise RuntimeError("agent is not present on the leaderboard")
+
+    monkeypatch.setattr(measure_cmd, "_build_adapter", lambda *args, **kwargs: BrokenAdapter())
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "pokeagent-gen1ou",
+            "--engine",
+            "pokeagent",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert rc == 1 and "ladder run failed" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_harbor_cli_missing_binary_clean_error(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -376,6 +376,9 @@ def cmd_measure(args: argparse.Namespace) -> int:
         # user-error family → exit 2, never a raw traceback).
         print(str(exc), file=sys.stderr)
         return _EXIT_GATE
+    except (RuntimeError, OSError) as exc:
+        print(f"ladder run failed: {exc}", file=sys.stderr)
+        return 1
     if engine_mode == _ENGINE_FAKE:
         result = _force_fake_receipt(result)
 
