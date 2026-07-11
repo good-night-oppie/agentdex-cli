@@ -140,6 +140,22 @@ def test_runner_dispatch_tracks_codex_strategy_constant(monkeypatch):
     assert seen == {"strategy": "sentinel_codex"}
 
 
+def test_runner_honors_explicit_out_of_process_decider(monkeypatch):
+    from adx_showdown.selfplay import runner
+
+    _install_fake_poke_env(monkeypatch)
+    monkeypatch.setattr(
+        runner, "_resolve_agent", lambda: pytest.fail("explicit decider was ignored")
+    )
+    player = runner.make_harness_player(
+        BattleHarness(harness_id="candidate", move_selection_strategy="llm_freeform"),
+        server=object(),
+        decide=lambda _harness, _ctx: "tackle",
+    )
+    chosen = asyncio.run(player.choose_move(_Battle([_Move("tackle", 40), _Move("eruption", 150)])))
+    assert chosen == ("order", "tackle")
+
+
 def test_fallback_orders_prefers_the_policy_allowed_set():
     """A policy-allowed action survived → the seeded fallback samples over the filtered set."""
     filtered = [_Order("/choose move ember")]
