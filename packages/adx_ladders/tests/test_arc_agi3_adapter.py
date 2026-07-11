@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 import yaml
-
 from adx_frontier.candidate import FRONTIER_AXES, load_candidate
 from adx_ladders.adapters.arc_agi3 import ArcAgi3Adapter
 from adx_ladders.base import LadderClass
