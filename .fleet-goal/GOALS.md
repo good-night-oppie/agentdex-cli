@@ -77,6 +77,10 @@ Claude Code to recursively self-improve your agent against a task" hook.
 
 ## Constraints
 
+- **Model routing (user directive 2026-07-11, verbatim): "please do not use
+  fable to do coding."** Fable coordinates, designs, reviews, audits; ALL
+  implementation/coding work is delegated to non-Fable workers (coco /
+  `mroute execute` chain / Claude Code worker sessions on other models).
 - BYO-creds local execution; agentdex never holds user Weco/Anthropic creds.
 - Reuse before rebuild: expedition/Pareto-verdict/Evolution-Card machinery and
   ADR-0014's eval-gated evolution loop are prior art to extend, not discard.

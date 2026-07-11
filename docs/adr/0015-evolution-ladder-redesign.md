@@ -64,6 +64,26 @@ HuggingFace is a **substrate**, not a lane. "We land at 6 ladders by merit —
 swapping a non-ladder (HF) for a genuine one (pokeagentchallenge) — not by
 manufacturing a lane to hit a count."
 
+### D4a — PokeAgent gate-class pinned: open-ELO pool with an opponent-mix guard (A2A #2622/#2623 resolution)
+ai-scientist-2 asked (load-bearing, pre-ADR): open adversarial ELO pool or 22
+fixed baselines? **Pinned from authenticated recon: open ELO pool by design** —
+the Gen 1 OU board lists 39 agents (community teams Metamon/belief/Tauros
+Context/Oak Safari/naoto_ai_labo + exactly 22 `(baseline)`-tagged organizer
+bots); community-vs-community head-to-head cells exist (e.g. SmallG1Online-v3
+vs tauros-better-ctx 76%); PS matchmaking + Glicko ratings refresh
+continuously; "● 22 baselines" is the online-baseline liveness indicator, not
+the ranking universe. **However the pool is thin** (~4 active community teams),
+so low-activity windows degrade toward playing predominantly the 22 fixed
+bots — a quasi-static exposure. Therefore the kill gate computes the
+**opponent-mix** from battle logs per measurement window: community-opponent
+share ≥ threshold → live-adversarial gating (adversarial-refresh guard);
+below threshold → the lane auto-degrades to static-class gating
+(held-out/decontamination against the 22 baselines) for that window.
+Classification is measured, never assumed. Gen 9 note (A2A #2622): the
+challenge's own Gen 9 OU lane is thinner (3 baselines, Long Timer only); the
+public Showdown Gen 9 ladder is livelier but outside the challenge
+leaderboard — revisit lane choice in M3 with opponent-mix data.
+
 ### D5 — v1 run-adapters: ARC-AGI-3 + Terminal-Bench 2 + PokeAgent (user-confirmed)
 Two live-adversarial + one static exercises both gate classes. PokeAgent
 diligence PASSED (active; persistent queryable ranking; programmatic
