@@ -140,3 +140,6 @@ worktrees/
 # Machine-local and self-declared "DO NOT EDIT" — it is never a repo artifact.
 # Ignored fleet-wide (arc-kb, eddie-agi-kb, edith, fabricator, harness-engineering).
 LATEST_HIGHLIGHTS.md
+
+# Adapter scratch run-logs (transient; measured evidence lives in .fleet-goal/evidence/M2/measured/)
+**/.adx/runs/

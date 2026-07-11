@@ -4,10 +4,16 @@ Two-class ladder taxonomy (ADR-0015 D4):
   - live_adversarial — e.g. arc-agi-3, pokeagent-gen1ou, kaggle
   - static           — e.g. tb2, swe-bench-pro, webarena
 
-``--engine-fake`` wires deterministic in-repo stubs so the path is
-demonstrable before real ARC / Harbor clients exist. Fake-engine results
-are NEVER leaderboard-eligible: receipts are forced to
+Engine selection
+----------------
+``--engine-fake`` / ``--engine fake`` wires deterministic in-repo stubs so the
+path is demonstrable before real ARC / Harbor clients exist. Fake-engine
+results are NEVER leaderboard-eligible: receipts are forced to
 ``tier=self_reported`` / ``kind=fake_engine``.
+
+``--engine local-arc`` wires the genuine local ARC-style grid engine for
+``arc-agi-3`` only (measured $0 cost, honest self_reported / no-scorecard
+receipt — still NOT leaderboard-eligible, but not a hardcoded-score stub).
 """
 
 from __future__ import annotations
@@ -24,6 +30,7 @@ from adx_frontier.candidate import CandidateValidationError, load_candidate
 from adx_ladders.adapters.arc_agi3 import ArcAgi3Adapter
 from adx_ladders.adapters.tb2_harbor import Tb2HarborAdapter
 from adx_ladders.base import MeasureResult, Receipt
+from adx_ladders.engines.local_arc import LocalArcEngine
 from adx_ladders.registry import LadderEntry, load_registry
 
 from agentdex_cli._fakes import FakeArcEngine, FakeHarbor
@@ -32,6 +39,9 @@ from agentdex_cli._fakes import FakeArcEngine, FakeHarbor
 _EXIT_OK = 0
 _EXIT_GATE = 2
 _EXIT_NO_ADAPTER = 3
+
+_ENGINE_FAKE = "fake"
+_ENGINE_LOCAL_ARC = "local-arc"
 
 
 def _serialize_measure_result(result: MeasureResult, *, measured_at_utc: str) -> dict[str, Any]:
@@ -70,25 +80,53 @@ def _force_fake_receipt(result: MeasureResult) -> MeasureResult:
     )
 
 
-def _build_adapter(ladder_id: str, *, engine_fake: bool):
-    if not engine_fake:
+def _resolve_engine_mode(args: argparse.Namespace) -> str | None:
+    """Resolve ``--engine-fake`` + ``--engine`` into a mode string or None."""
+    if getattr(args, "engine_fake", False):
+        return _ENGINE_FAKE
+    engine = getattr(args, "engine", None)
+    if engine:
+        return str(engine)
+    return None
+
+
+def _build_adapter(ladder_id: str, *, engine_mode: str | None):
+    if engine_mode is None:
         raise RuntimeError(
-            "real ladder engines are not wired yet; pass --engine-fake for a "
-            "deterministic local demo (NOT leaderboard-eligible)"
+            "real hosted ladder engines are not wired yet; pass "
+            "--engine-fake / --engine fake for a deterministic local demo "
+            "(NOT leaderboard-eligible), or --engine local-arc for the "
+            "genuine local ARC-style engine on arc-agi-3"
         )
-    if ladder_id == "arc-agi-3":
-        return ArcAgi3Adapter(FakeArcEngine(), game_ids=["game-0"])
-    if ladder_id == "tb2":
-        return Tb2HarborAdapter(FakeHarbor(), suite="default")
-    raise RuntimeError(
-        f"no run-adapter implementation for ladder {ladder_id!r} "
-        f"(v1 CLI wires arc-agi-3 and tb2 only)"
-    )
+    if engine_mode == _ENGINE_FAKE:
+        if ladder_id == "arc-agi-3":
+            return ArcAgi3Adapter(FakeArcEngine(), game_ids=["game-0"])
+        if ladder_id == "tb2":
+            return Tb2HarborAdapter(FakeHarbor(), suite="default")
+        raise RuntimeError(
+            f"no run-adapter implementation for ladder {ladder_id!r} "
+            f"(v1 CLI wires arc-agi-3 and tb2 only)"
+        )
+    if engine_mode == _ENGINE_LOCAL_ARC:
+        if ladder_id != "arc-agi-3":
+            raise RuntimeError(
+                f"--engine local-arc only supports ladder 'arc-agi-3' "
+                f"(got {ladder_id!r})"
+            )
+        # cost_dollar=0.0 → measured $0 (no LLM); scorecard_id is None →
+        # honest self_reported receipt (never leaderboard-eligible).
+        return ArcAgi3Adapter(
+            LocalArcEngine(),
+            game_ids=["game-0"],
+            cost_dollar=0.0,
+        )
+    raise RuntimeError(f"unknown engine mode: {engine_mode!r}")
 
 
 def cmd_measure(args: argparse.Namespace) -> int:
     agent_dir = Path(args.agent)
     ladder_id = str(args.ladder)
+    engine_mode = _resolve_engine_mode(args)
 
     try:
         candidate = load_candidate(agent_dir)
@@ -127,7 +165,7 @@ def cmd_measure(args: argparse.Namespace) -> int:
         return _EXIT_NO_ADAPTER
 
     try:
-        adapter = _build_adapter(ladder_id, engine_fake=bool(args.engine_fake))
+        adapter = _build_adapter(ladder_id, engine_mode=engine_mode)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return _EXIT_NO_ADAPTER
@@ -143,7 +181,7 @@ def cmd_measure(args: argparse.Namespace) -> int:
         return 1
 
     result = adapter.measure(candidate)
-    if args.engine_fake:
+    if engine_mode == _ENGINE_FAKE:
         result = _force_fake_receipt(result)
 
     measured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -182,10 +220,12 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
             "Ladder taxonomy (ADR-0015):\n"
             "  live_adversarial — adversarial refresh is the contamination guard\n"
             "  static           — fixed test sets; held-out / decontam required\n\n"
-            "``--engine-fake`` wires deterministic in-repo stubs so the path "
-            "works before real ARC / Harbor clients land. Fake-engine receipts "
-            "are forced to tier=self_reported / kind=fake_engine and are NEVER "
-            "leaderboard-eligible."
+            "Engine selection:\n"
+            "  --engine-fake / --engine fake — deterministic in-repo stubs; "
+            "receipts forced to kind=fake_engine (NEVER leaderboard-eligible)\n"
+            "  --engine local-arc — genuine local ARC-style grid engine for "
+            "arc-agi-3; measured $0 cost; honest self_reported receipt "
+            "(still not leaderboard-eligible — no scorecard authority)"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -205,11 +245,20 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
         help="optional path to also write the MeasureResult JSON",
     )
     measure.add_argument(
+        "--engine",
+        choices=[_ENGINE_FAKE, _ENGINE_LOCAL_ARC],
+        default=None,
+        help=(
+            "engine backend: 'fake' (NOT-FOR-LEADERBOARD stubs) or "
+            "'local-arc' (genuine local ARC-style grid, arc-agi-3 only)"
+        ),
+    )
+    measure.add_argument(
         "--engine-fake",
         action="store_true",
         help=(
             "use deterministic in-repo fake engines (NOT-FOR-LEADERBOARD; "
-            "receipts forced to kind=fake_engine)"
+            "receipts forced to kind=fake_engine). Alias for --engine fake."
         ),
     )
     measure.set_defaults(func=cmd_measure)

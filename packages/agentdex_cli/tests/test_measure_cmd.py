@@ -206,3 +206,97 @@ def test_absolute_mutable_glob_exits_2(
     assert rc == 2
     assert "Traceback" not in captured.err
     assert "absolute" in captured.err or "mutable" in captured.err
+
+
+_GREEDY_AGENT = textwrap.dedent(
+    """\
+    import json
+    import sys
+
+    def choose(frame):
+        agent = frame.get("agent") or [0, 0]
+        goal = frame.get("goal") or [0, 0]
+        ar, ac = int(agent[0]), int(agent[1])
+        gr, gc = int(goal[0]), int(goal[1])
+        if ar < gr:
+            return "down"
+        if ar > gr:
+            return "up"
+        if ac < gc:
+            return "right"
+        if ac > gc:
+            return "left"
+        return "up"
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        msg = json.loads(line)
+        if msg.get("type") == "observation":
+            action = choose(msg.get("frame") or {})
+            print(json.dumps({"type": "action", "action": action}), flush=True)
+    """
+)
+
+
+def test_happy_path_arc_local_engine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-7: --engine local-arc produces a genuine measured self_reported run."""
+    root = tmp_path / "arc-scripted"
+    root.mkdir()
+    (root / "agent.py").write_text(_GREEDY_AGENT, encoding="utf-8")
+    manifest = {
+        "name": "arc-scripted-heuristic",
+        "entrypoint": f"{sys.executable} agent.py",
+        "mutable": ["agent.py"],
+        "base_model": "scripted-heuristic-no-llm",
+        "budget": {"usd": 1.0, "wall_clock_min": 2.0},
+        "ladders": ["arc-agi-3"],
+    }
+    (root / "candidate.yaml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "arc-agi-3",
+            "--engine",
+            "local-arc",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0, f"stderr={captured.err!r}"
+    payload = json.loads(captured.out)
+    assert set(payload["scores"]) == set(FRONTIER_AXES)
+    assert payload["cost_is_measured"] is True
+    assert payload["scores"]["cost_dollar"] == 0.0
+    assert payload["receipt"]["tier"] == "self_reported"
+    assert payload["receipt"]["kind"] != "fake_engine"
+    quality = payload["scores"]["quality"]
+    assert isinstance(quality, (int, float))
+    assert 0.0 <= float(quality) <= 1.0
+    assert payload["ladder_id"] == "arc-agi-3"
+
+
+def test_local_arc_engine_rejects_non_arc_ladder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-7: --engine local-arc on tb2 exits _EXIT_NO_ADAPTER cleanly."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        ["measure", "--agent", str(root), "--ladder", "tb2", "--engine", "local-arc"]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 3
+    assert "local-arc" in captured.err
+    assert "Traceback" not in captured.err

@@ -1,0 +1,23 @@
+{
+  "ladder_id": "arc-agi-3",
+  "base_model": "scripted-heuristic-no-llm",
+  "scores": {
+    "quality": 1.0,
+    "cost_dollar": 0.0,
+    "wall_clock_sec": 0.029488842003047466
+  },
+  "cost_is_measured": true,
+  "receipt": {
+    "tier": "self_reported",
+    "kind": "raw_artifacts",
+    "ref": "",
+    "artifacts": [
+      "/home/admin/gh/agentdex-cli-redesign/.fleet-goal/evidence/M2/candidates/arc-scripted/.adx/runs/arc-agi-3-20260711T170831Z-5a51e4b6.json"
+    ]
+  },
+  "budget": {
+    "usd": 1.0,
+    "wall_clock_min": 2.0
+  },
+  "measured_at_utc": "2026-07-11T17:08:31Z"
+}
