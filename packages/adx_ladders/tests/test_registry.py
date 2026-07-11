@@ -55,11 +55,16 @@ def test_v1_run_adapters() -> None:
 
 
 def test_known_ladders_consistency() -> None:
-    """Registry ladder ids MUST be a superset of adx_frontier KNOWN_LADDERS."""
+    """Registry ladder ids MUST equal adx_frontier KNOWN_LADDERS exactly."""
     registry = load_registry()
     registry_ids = {ladder.id for ladder in registry.ladders}
     missing = KNOWN_LADDERS - registry_ids
-    assert not missing, f"KNOWN_LADDERS missing from registry: {sorted(missing)}"
+    extra = registry_ids - KNOWN_LADDERS
+    assert not missing and not extra, (
+        f"registry ↔ KNOWN_LADDERS mismatch: "
+        f"missing-from-registry={sorted(missing)}; "
+        f"extra-in-registry={sorted(extra)}"
+    )
 
 
 def test_lookup_by_id() -> None:
