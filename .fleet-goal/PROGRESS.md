@@ -47,8 +47,14 @@ cross_cutting: true
 
 ### What's next
 
-- Real-engine integration WUs (arc-agi pip client, Harbor client behind the existing protocols; network installs) → then fresh M2 audit + review → M3 (PokeAgent adapter + frontier ledger).
-- Residual: BYO --api-key differential (needs a gemini/openai/anthropic key).
+- **M2 audit + review DONE (wf_a973b1de-359): AUDIT_M2_PASS (honesty) + CODE_REVIEW_M2_FAIL (3 CONFIRMED P1 gate bypasses in landed code).** M2 STAYS OPEN. evidence/M2/audit-summary.md.
+- WU-6 dispatched (mroute execute): gate-hardening fixes — P1 non-finite budget + non-spec JSON; P1 stdin-deadlock defeats budget kill; P1 process-group kill (grandchildren leak); + gate-integrity P2s (read-only dir, glob confinement, MeasureResult value validation, receipt blank ref). Regression test per bug. Capsule: evidence/M2/capsules/wu6-gate-hardening-fixes.md.
+- After WU-6: real-engine integration WUs (arc-agi + Harbor clients, with MEASURED-COST acceptance per P2 finding) → real measured runs filed under evidence/M2/ → re-audit → M3.
+- Residual (needs DEFERRED.md rows w/ Until): BYO --api-key differential; PokeAgent organizer ToS ask.
+
+### Any blockers
+
+- M2 blocked from closure until WU-6 P1 fixes land + real measured runs exist. Fix worker in flight on mroute.
 
 ### Any blockers
 
