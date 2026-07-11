@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from adx_frontier.candidate import (
     FRONTIER_AXES,
     AgentCandidate,
@@ -161,6 +160,32 @@ def test_measure_result_rejects_non_finite_score() -> None:
             base_model="claude-sonnet-5",
             budget_usd=5.0,
             budget_wall_clock_min=60.0,
+        )
+
+
+@pytest.mark.parametrize("axis", ["cost_dollar", "wall_clock_sec"])
+def test_measure_result_rejects_negative_minimized_axis(axis: str) -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        MeasureResult(
+            scores={**_valid_scores(), axis: -100.0},
+            receipt=Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1"),
+            ladder_id="arc-agi-3",
+            base_model="claude-sonnet-5",
+            budget_usd=5.0,
+            budget_wall_clock_min=60.0,
+        )
+
+
+@pytest.mark.parametrize("field", ["budget_usd", "budget_wall_clock_min"])
+def test_measure_result_rejects_nonpositive_budget(field: str) -> None:
+    kwargs = {"budget_usd": 5.0, "budget_wall_clock_min": 60.0, field: 0.0}
+    with pytest.raises(ValueError, match=f"{field} must be"):
+        MeasureResult(
+            scores=_valid_scores(),
+            receipt=Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1"),
+            ladder_id="arc-agi-3",
+            base_model="claude-sonnet-5",
+            **kwargs,
         )
 
 

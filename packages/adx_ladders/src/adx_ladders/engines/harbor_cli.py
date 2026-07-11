@@ -35,6 +35,7 @@ as a genuine measured reward-0 (WU-11 P2 #9).
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import signal
@@ -297,9 +298,10 @@ class HarborCliClient:
         if cost is None:
             return None
         try:
-            return float(cost)
+            value = float(cost)
         except (TypeError, ValueError):
             return None
+        return value if math.isfinite(value) and value >= 0.0 else None
 
     @staticmethod
     def _kill(proc: subprocess.Popen[str]) -> None:

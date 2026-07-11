@@ -324,17 +324,20 @@ def test_cost_propagated_or_none(tmp_path: Path, stub_path: Path) -> None:
         outcomes={
             "with-cost": {"passed": True, "cost_usd": 1.25},
             "no-cost": {"passed": True},  # cost_usd omitted
+            "negative-cost": {"passed": True, "cost_usd": -100.0},
         },
     )
     client = HarborCliClient(
         harbor_bin="harbor",
         jobs_dir=tmp_path / "jobs",
-        tasks=("with-cost", "no-cost"),
+        tasks=("with-cost", "no-cost", "negative-cost"),
     )
     with_cost = client.run_task("with-cost", "oracle", timeout_sec=5.0)
     no_cost = client.run_task("no-cost", "oracle", timeout_sec=5.0)
+    negative_cost = client.run_task("negative-cost", "oracle", timeout_sec=5.0)
     assert with_cost.cost_dollar == pytest.approx(1.25)
     assert no_cost.cost_dollar is None
+    assert negative_cost.cost_dollar is None
 
     root = _write_candidate(tmp_path / "agent", wall_clock_min=2.0)
     candidate = load_candidate(root)
