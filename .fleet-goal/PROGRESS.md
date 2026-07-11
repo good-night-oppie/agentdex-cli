@@ -41,9 +41,12 @@ cross_cutting: true
 - WU-5 DONE + committed: `adx measure` CLI verb — M2's headline outcome now runs end-to-end (fake engines, hard-fenced receipts); 44 tests, coordinator-verified incl. live invocation.
 - Spikes 3 (ToS) + 5 (arXiv) running as a research Workflow (wf_93d1700c-fd5).
 
+- Spikes 2/3/4/5 DONE (evidence/M2/): ToS per-source verdicts; 8/8 arXiv VERIFIED; mixed-direction frontier native (+mean/sum aggregation pinned); fourth adapter = SWE-Bench Pro @ N=10.
+
 ### What's next
 
-- Ingest spike 3+5 results → evidence files. Remaining: spike 1 (weco economics — empirical, may need operator account decision), spike 2 (footprint, mroute), spike 4 (Benchmark.score() axes, mroute). Then real-engine integration WUs (arc-agi client, Harbor client) and the fresh M2 audit + review.
+- Spike 1 (weco economics): BLOCKED-ON-OPERATOR — needs a Weco account/credit decision before the empirical run.
+- Real-engine integration WUs (arc-agi pip client, Harbor client behind the existing protocols; network installs) → then fresh M2 audit + review.
 
 ### Any blockers
 

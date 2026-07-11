@@ -243,3 +243,13 @@ Evidence: live site probe; board re-scope record; audit + review.
   across problems; cost_dollar and wall_clock_sec aggregate as SUM** (the
   declared budget is a per-run total, so totals are what the budget bounds —
   mean would understate real spend). Served by mroute execute (grok-4.5).
+- 2026-07-11 (M2 spike 2 done, manifest-metadata only, zero pulls): **fourth
+  adapter slot → SWE-Bench Pro at N=10 sample** — 731 public instances, one
+  Docker Hub image each (jefzda/sweap-images, median ~0.87 GiB compressed,
+  weak layer sharing → 10-instance sample ~10-15 GB disk). WebArena-Verified
+  full compose = 32.1 GiB compressed / ~60 GB images + ~160 GB wiki/map data
+  on disk + 16 GB-class RAM (GitLab alone 20.5 GiB) — only viable later as an
+  offline-eval or shopping_admin-subset path if web modality becomes
+  mandatory. Evidence: `evidence/M2/spike2-footprint.out.txt`. Served by
+  mroute execute (grok-4.5). Spikes 2/3/4/5 now DONE; spike 1 (weco
+  economics) awaits an operator account decision.
