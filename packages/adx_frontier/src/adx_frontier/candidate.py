@@ -7,6 +7,7 @@ when weco --sources limits, declared budget, or axes-partition keys fail.
 from __future__ import annotations
 
 import math
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,7 @@ class AgentCandidate:
                 raise CandidateValidationError(
                     f"invalid mutable glob {pattern!r}: {exc}"
                 ) from exc
+            matched_files = 0
             for path in matches:
                 # Follow symlinks via resolve(); reject anything outside root.
                 if not path.is_file():
@@ -95,16 +97,30 @@ class AgentCandidate:
                         f"(pattern {pattern!r})"
                     )
                 found.add(resolved)
+                matched_files += 1
+            if matched_files == 0:
+                raise CandidateValidationError(
+                    f"mutable glob {pattern!r} matched zero files under candidate root"
+                )
         return sorted(found)
 
     def validate(self) -> None:
         """Pre-run gate. Raises ``CandidateValidationError`` on any violation."""
         if not self.name or not str(self.name).strip():
             raise CandidateValidationError("name must be a non-empty string")
+        if _has_invisible_format_chars(str(self.name)):
+            raise CandidateValidationError(
+                "name must not contain invisible Unicode format characters "
+                "(e.g. zero-width space)"
+            )
         if not self.entrypoint or not str(self.entrypoint).strip():
             raise CandidateValidationError("entrypoint must be a non-empty string")
         if not self.base_model or not str(self.base_model).strip():
             raise CandidateValidationError("base_model must be a non-empty string")
+        if not self.mutable:
+            raise CandidateValidationError(
+                "mutable must be a non-empty list of glob patterns"
+            )
         if not self.ladders:
             raise CandidateValidationError("ladders must be a non-empty list")
         unknown = [ladder for ladder in self.ladders if ladder not in KNOWN_LADDERS]
@@ -153,6 +169,11 @@ class AgentCandidate:
                 + "; ".join(violations)
                 + f" (expanded {n_files} files, {total} bytes total)"
             )
+
+
+def _has_invisible_format_chars(value: str) -> bool:
+    """True if ``value`` contains Unicode format (Cf) chars such as U+200B."""
+    return any(unicodedata.category(ch) == "Cf" for ch in value)
 
 
 def _is_under_root(path: Path, root: Path) -> bool:

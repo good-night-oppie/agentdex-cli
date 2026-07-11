@@ -253,3 +253,84 @@ def test_reject_out_of_root_symlink_mutable(tmp_path: Path) -> None:
     candidate = load_candidate(root)
     with pytest.raises(CandidateValidationError, match="escapes candidate root"):
         candidate.validate()
+
+
+def test_reject_empty_mutable_list(tmp_path: Path) -> None:
+    """P3: mutable: [] must fail the pre-run gate (not expand to zero silently)."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(mutable=[]),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="mutable must be a non-empty"):
+        candidate.validate()
+
+
+def test_reject_missing_mutable_key(tmp_path: Path) -> None:
+    """P3: omitted mutable key normalizes to empty and must fail validate()."""
+    manifest = _valid_manifest()
+    del manifest["mutable"]
+    root = _write_candidate(
+        tmp_path,
+        manifest,
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="mutable must be a non-empty"):
+        candidate.validate()
+
+
+def test_reject_zero_match_mutable_glob(tmp_path: Path) -> None:
+    """P3: typo glob that matches zero files must name the offending pattern."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(mutable=["src/**/*.py", "typo_dir/**/*.py"]),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match=r"typo_dir/\*\*/\*\.py") as exc_info:
+        candidate.validate()
+    assert "matched zero files" in str(exc_info.value)
+
+
+def test_reject_sole_zero_match_mutable_glob(tmp_path: Path) -> None:
+    """P3: a single typo glob (no other patterns) still fails closed."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(mutable=["does_not_exist/**/*.py"]),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(
+        CandidateValidationError,
+        match=r"does_not_exist/\*\*/\*\.py.*matched zero files",
+    ):
+        candidate.validate()
+
+
+def test_reject_name_with_zero_width_space(tmp_path: Path) -> None:
+    """P3: U+200B in name must not pass as a non-empty visible name."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(name="my\u200bagent"),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(
+        CandidateValidationError,
+        match="invisible Unicode format",
+    ):
+        candidate.validate()
+
+
+def test_reject_name_that_is_only_zero_width_space(tmp_path: Path) -> None:
+    """P3: name consisting solely of Cf chars is not a valid identity."""
+    root = _write_candidate(
+        tmp_path,
+        _valid_manifest(name="\u200b"),
+        files={"src/a.py": b"x\n"},
+    )
+    candidate = load_candidate(root)
+    with pytest.raises(CandidateValidationError, match="name"):
+        candidate.validate()
