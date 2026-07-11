@@ -10,7 +10,7 @@ layer: cross-cutting
 cross_cutting: true
 ---
 
-status: ACTIVE — M2 Pareto measurement engine (M1 closed 2026-07-11, user-confirmed)
+status: ACTIVE — M3 PokeAgent adapter + frontier ledger (M2 closed 2026-07-11)
 project: agentdex-redesign-evolution-market
 state_root_note: this .fleet-goal/ lives in the redesign worktree (branch redesign/evolution-market off origin/main); the harness-engineering .fleet-goal/ is a DIFFERENT project (EDITH continuation) — never cross-write.
 parent_decision: supersedes the invited-user GA supergoal (.supergoal/ in this repo) per user decision 2026-07-11; EDITH-M7 fork esc-1335b26251 ACKED on that basis.
@@ -131,7 +131,7 @@ Evidence required (evidence/M1/):
 5. Fresh-thread 5-question audit + review pass.
 6. User confirmation of the design (recorded verbatim).
 
-### M2 — Pareto measurement engine (MVP moat) [ACTIVE]
+### M2 — Pareto measurement engine (MVP moat) [DONE 2026-07-11 — final audit Q1–Q5 PASS, independent review ACCEPT]
 
 **Standing principle (user, M1 confirmation, verbatim): "the gate scores the
 REAL objective, not a proxy."** Anti-precedent: the s14 search agent
@@ -156,7 +156,7 @@ browser session (mirror vs link-out per ladder), arXiv citation pass.
 Evidence: measured runs on both adapters w/ score JSON + receipts; spike
 briefs; audit + review.
 
-### M3 — PokeAgent adapter + frontier ledger
+### M3 — PokeAgent adapter + frontier ledger [ACTIVE]
 
 Outcome: pokeagent adapter (poke-env substrate, adx-bot-1 auth, Gen 1 OU) +
 adx_frontier (mh_bridge, gates.py class-differentiated policies, two-tier
@@ -265,7 +265,7 @@ Evidence: live site probe; board re-scope record; audit + review.
 - 2026-07-11 (M2 spike 1 done — empirical, operator-authenticated account):
   free grant 20.00 credits (dollar-denominated); 3-step toy run = $0.17 on
   default gemini-3-flash-preview with per-step transparent billing
-  (`credits cost` matches balance delta exactly); `weco start claude` + 
+  (`credits cost` matches balance delta exactly); `weco start claude` +
   `weco share <run_id>` verified on the CLI; BYO `--api-key` limited to
   gemini/openai/anthropic (operator's ~/.sakana fish_ token unsupported) —
   **BYO-vs-credits differential UNMEASURED; do not publish "free on your own

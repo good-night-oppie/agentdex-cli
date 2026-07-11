@@ -25,7 +25,7 @@ cross_cutting: true
 
 - (done) M1 CLOSED 2026-07-11 — user confirmation verbatim in evidence/M1/user-confirmation.md.
 
-## M2 — Pareto measurement engine [ACTIVE]
+## M2 — Pareto measurement engine [DONE 2026-07-11]
 
 ### What's done
 
@@ -44,12 +44,12 @@ cross_cutting: true
 - Spikes 2/3/4/5 DONE (evidence/M2/): ToS per-source verdicts; 8/8 arXiv VERIFIED; mixed-direction frontier native (+mean/sum aggregation pinned); fourth adapter = SWE-Bench Pro @ N=10.
 
 - Spike 1 DONE (operator authenticated a fresh account): grant 20 credits, $0.17/3-step toy, per-step transparent billing; `weco start claude` + `weco share` verified; BYO differential unmeasured (supported providers gemini/openai/anthropic only). All five M2 spikes closed.
+- Final closure gate PASS at merged head `7c2af28e`: WU13–WU16 merged as PRs #665–#668; independent five-question audit PASS; independent code review ACCEPT; 116 focused tests and scoped Ruff pass; all receipt paths are repository-relative, present, and tracked. Evidence: `evidence/M2/final-validation.md`.
 
 ### What's next
 
-- Run the fresh independent M2 five-question audit + code review against the final head and genuine no-cost receipts.
-- Close M2 only if both gates pass; then activate M3. Paid leaderboard-comparable TB2 remains tracked as RD-3 and is not an M2 closure gate.
-- Publish the accumulated redesign work as bounded logical PRs and babysit each to MERGED before M3 implementation.
+- M2 is closed. Activate M3: PokeAgent adapter + frontier ledger.
+- Preserve paid leaderboard-comparable TB2 as RD-3; do not spend or make a quality claim without separate authorization.
 
 ### Any blockers
 
@@ -77,3 +77,14 @@ cross_cutting: true
   - Each fix landed via mroute execute + coordinator review + INDEPENDENT fail-on-old/pass-on-new reproduction (same audit→fix→reverify loop as WU-6). WU-9 oracle/no-op evidence stands (trusted agents); the harness is now hardened for untrusted candidates.
   - **FIX-REGRESSION CHECK (wf_e12e9a0c-2e5, 6 agents): WU-10 + WU-11 CLEAN; caught ONE new P2 the WU-12 fix introduced** — the new `--jobs-dir` flag crashed with a raw traceback on a bad path (mkdir OSError not caught), violating the CLI's never-a-traceback contract. Fixed [WU-12F] (OSError guard → exit 2), repro-proven. commit 064fae2a. This is the fix-introduces-bug tail the reverify pass exists to catch. The former paid-TB2 fork is resolved by the no-spend RD-3 disposition above.
 - Free legs DONE (2026-07-11, harness-41 cont.): [WU-8+8F] real `HarborCliClient` LANDED. [WU-9] $0 GENUINE real-Harbor runs LANDED: oracle leg on real task `terminal-bench/regex-log` (passed=true, reward 1.0, 39s, real Docker env — engine-integration evidence, `evidence/M2/measured/tb2-harbor-oracle.json`) + no-op candidate leg through the full `adx measure → Tb2HarborAdapter → HarborCliClient` stack (honest quality=0.0, self_reported/raw_artifacts receipt, real job artifacts — `tb2-harbor-noop.json`). Both adapters now have genuine measured integration runs. [WU-9F] org/name→*name filename sanitization fix LANDED at ff88eff7.
+
+## M3 — PokeAgent adapter + frontier ledger [ACTIVE]
+
+### What's next
+
+- Define the first tiny M3 implementation capsule from the audited M2 head.
+- Preserve the collaborative MCP promotion boundary and class-differentiated live-adversarial gate from GOALS.md.
+
+### Any blockers
+
+- None recorded at activation.
