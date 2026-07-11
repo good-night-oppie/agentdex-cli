@@ -251,6 +251,7 @@ def make_harness_player(
     server: Any = None,
     battle_format: str = DEFAULT_FORMAT,
     decide: DecideFn | None = None,
+    team: str | None = None,
 ) -> Any:
     """Build the live poke-env ``Player`` for a harness (lazy poke-env import).
 
@@ -388,6 +389,7 @@ def make_harness_player(
         account_configuration=account,
         server_configuration=server or _server_config(),
         battle_format=battle_format,
+        team=team,
     )
 
 
