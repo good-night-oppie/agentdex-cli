@@ -13,6 +13,8 @@ dependencies = [
   "agentdex-plugin",
   "agentdex-observe",
   "adx-bridges",
+  "adx-frontier",
+  "adx-ladders",
   "helios-client",
   "pyyaml>=6.0",
   "requests>=2.31",

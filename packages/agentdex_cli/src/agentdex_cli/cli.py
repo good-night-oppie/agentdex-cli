@@ -643,6 +643,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arena.set_defaults(func=cmd_arena_defer)
 
+    # ---- measure: AgentCandidate × ladder → MeasureResult JSON (M2 WU-5) ----
+    from agentdex_cli.measure_cmd import register_measure_parser
+
+    register_measure_parser(subs)
+
     return p
 
 

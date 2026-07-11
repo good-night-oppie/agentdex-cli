@@ -134,6 +134,8 @@ version = "0.1.0"
 source = { editable = "packages/agentdex_cli" }
 dependencies = [
     { name = "adx-bridges" },
+    { name = "adx-frontier" },
+    { name = "adx-ladders" },
     { name = "agentdex-engine" },
     { name = "agentdex-observe" },
     { name = "agentdex-plugin" },
@@ -149,6 +151,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "adx-bridges", editable = "packages/adx_bridges" },
+    { name = "adx-frontier", editable = "packages/adx_frontier" },
+    { name = "adx-ladders", editable = "packages/adx_ladders" },
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "agentdex-observe", editable = "packages/agentdex_observe" },
     { name = "agentdex-plugin", editable = "packages/agentdex_plugin" },
