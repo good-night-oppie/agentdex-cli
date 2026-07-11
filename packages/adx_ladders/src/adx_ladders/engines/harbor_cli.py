@@ -257,8 +257,6 @@ class HarborCliClient:
             if isinstance(payload, dict):
                 candidates.append((path, payload))
 
-        if len(candidates) == 1:
-            return candidates[0][0]
         if not candidates:
             return None
 
