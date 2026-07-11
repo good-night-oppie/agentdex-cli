@@ -104,12 +104,17 @@ def _write_stub_harbor(
         passed = bool(outcome.get("passed", True))
         cost = outcome.get("cost_usd", None)
 
-        trial_dir = jobs_dir / job_name / f"trial-{{task_id}}"
+        # Real Harbor trial dirs are slash-free (e.g. regex-log__N2roHLD);
+        # slug task_id so org-prefixed ids stay depth-1 under the job root.
+        trial_slug = "".join(
+            c if (c.isalnum() or c in "._-") else "_" for c in task_id
+        )
+        trial_dir = jobs_dir / job_name / f"trial-{{trial_slug}}"
         trial_dir.mkdir(parents=True, exist_ok=True)
         (jobs_dir / job_name / "config.json").write_text("{{}}\\n", encoding="utf-8")
         result = {{
             "task_name": task_id,
-            "trial_name": f"trial-{{task_id}}",
+            "trial_name": f"trial-{{trial_slug}}",
             "verifier_result": {{
                 "rewards": {{"reward": 1.0 if passed else 0.0}},
             }},
@@ -456,3 +461,111 @@ def test_org_prefixed_task_id_exact_filter_slugged_paths(
         assert "/" not in log.name
         assert "org_task-x" in log.name
         assert log.is_file()
+
+
+def _write_trial_result(
+    path: Path,
+    *,
+    task_name: str,
+    reward: float,
+    cost_usd: float | None = None,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, object] = {
+        "task_name": task_name,
+        "verifier_result": {"rewards": {"reward": reward}},
+    }
+    if cost_usd is not None:
+        payload["agent_result"] = {"cost_usd": cost_usd}
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def test_forged_artifact_result_json_ignored(
+    tmp_path: Path, stub_path: Path
+) -> None:
+    """WU-10 P1: agent-planted artifacts/.../result.json must not gate pass/cost.
+
+    Genuine verifier file at depth-1 has reward=0 + org-prefixed task_name;
+    forged file under artifacts/ matches the bare --harbor-tasks id with
+    reward=1 + cost_usd=0. Path confinement must honor only the trial root.
+    """
+    _write_stub_harbor(stub_path)  # binary present for client ctor
+    job_dir = tmp_path / "wu9-oracle"
+    trial_dir = job_dir / "regex-log__N2roHLD"
+    trial_dir.mkdir(parents=True)
+    (job_dir / "result.json").write_text("{}\n", encoding="utf-8")  # job-level
+
+    _write_trial_result(
+        trial_dir / "result.json",
+        task_name="terminal-bench/regex-log",
+        reward=0.0,
+    )
+    _write_trial_result(
+        trial_dir / "artifacts" / "logs" / "artifacts" / "result.json",
+        task_name="regex-log",
+        reward=1.0,
+        cost_usd=0.0,
+    )
+
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs-unused",
+        tasks=("regex-log",),
+    )
+    result = client._parse_job_result(job_dir, task_id="regex-log")
+    assert result.passed is False
+    assert result.cost_dollar is None
+    assert result.timed_out is False
+    assert Path(result.log_path) == trial_dir
+
+
+def test_depth1_trial_result_honors_org_prefixed_task_name(
+    tmp_path: Path, stub_path: Path
+) -> None:
+    """WU-10: single depth-1 trial root is trusted even when task_name is org-prefixed."""
+    _write_stub_harbor(stub_path)
+    job_dir = tmp_path / "job"
+    trial_dir = job_dir / "regex-log__abc"
+    _write_trial_result(
+        trial_dir / "result.json",
+        task_name="terminal-bench/regex-log",
+        reward=1.0,
+        cost_usd=0.42,
+    )
+
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs-unused",
+        tasks=("regex-log",),
+    )
+    result = client._parse_job_result(job_dir, task_id="regex-log")
+    assert result.passed is True
+    assert result.cost_dollar == pytest.approx(0.42)
+    assert Path(result.log_path) == trial_dir
+
+
+def test_empty_job_dir_honest_non_measurement(
+    tmp_path: Path, stub_path: Path
+) -> None:
+    """WU-10: no trial-root result.json → passed=False, cost None (honest)."""
+    _write_stub_harbor(stub_path)
+    job_dir = tmp_path / "empty-job"
+    job_dir.mkdir()
+    (job_dir / "result.json").write_text("{}\n", encoding="utf-8")
+    (job_dir / "config.json").write_text("{}\n", encoding="utf-8")
+
+    client = HarborCliClient(
+        harbor_bin="harbor",
+        jobs_dir=tmp_path / "jobs-unused",
+        tasks=("regex-log",),
+    )
+    result = client._parse_job_result(job_dir, task_id="regex-log")
+    assert result.passed is False
+    assert result.cost_dollar is None
+    assert result.timed_out is False
+    assert result.log_path == str(job_dir)
+
+    missing = tmp_path / "no-such-job"
+    result_missing = client._parse_job_result(missing, task_id="regex-log")
+    assert result_missing.passed is False
+    assert result_missing.cost_dollar is None

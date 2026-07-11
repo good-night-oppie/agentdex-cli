@@ -209,27 +209,43 @@ class HarborCliClient:
 
     @staticmethod
     def _find_trial_result(job_dir: Path, *, task_id: str) -> Path | None:
+        """Locate the verifier-written trial ``result.json`` by path confinement.
+
+        Trust model: only ``<job_dir>/<trial>/result.json`` (depth-1 trial
+        root) is trustworthy. Harbor copies the untrusted candidate
+        container's ``/logs/artifacts`` into ``<trial>/artifacts/...``; that
+        subtree is agent-writable and MUST NEVER be read. Do not rglob.
+        """
         if not job_dir.is_dir():
             return None
-        matches: list[Path] = []
-        fallback: list[Path] = []
-        for path in job_dir.rglob("result.json"):
-            if path.parent == job_dir:
-                continue  # job-level JobResult
+
+        candidates: list[tuple[Path, dict[object, object]]] = []
+        for trial_dir in (p for p in job_dir.iterdir() if p.is_dir()):
+            path = trial_dir / "result.json"
+            if not path.is_file():
+                continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if not isinstance(payload, dict):
+            if isinstance(payload, dict):
+                candidates.append((path, payload))
+
+        if len(candidates) == 1:
+            return candidates[0][0]
+        if not candidates:
+            return None
+
+        task_tail = task_id.rsplit("/", 1)[-1]
+        matched: list[Path] = []
+        for path, payload in candidates:
+            name = payload.get("task_name")
+            if not isinstance(name, str):
                 continue
-            if payload.get("task_name") == task_id:
-                matches.append(path)
-            elif "verifier_result" in payload or "task_name" in payload:
-                fallback.append(path)
-        if matches:
-            return matches[0]
-        if len(fallback) == 1:
-            return fallback[0]
+            if name == task_id or name.rsplit("/", 1)[-1] == task_tail:
+                matched.append(path)
+        if len(matched) == 1:
+            return matched[0]
         return None
 
     @staticmethod
