@@ -38,11 +38,13 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Protocol
 
 from adx_frontier.candidate import AgentCandidate
+
 from adx_ladders.base import LadderAdapter, LadderClass, MeasureResult, Receipt
 
 _KILL_GRACE_SEC = 0.5
@@ -363,7 +365,7 @@ class ArcAgi3Adapter(LadderAdapter):
         wall_clock_sec: float,
         timed_out: bool,
     ) -> str:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         filename = f"arc-agi-3-{stamp}-{uuid.uuid4().hex[:8]}.json"
         payload = {
             "ladder_id": self.ladder_id,

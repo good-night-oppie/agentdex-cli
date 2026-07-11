@@ -10,7 +10,8 @@ real agent/goal geometry on a seeded grid, not a hardcoded stub score.
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 # Cell markers in the observation grid.
 _EMPTY = 0
