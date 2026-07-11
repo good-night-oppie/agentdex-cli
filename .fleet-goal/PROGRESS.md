@@ -37,9 +37,13 @@ cross_cutting: true
 - WU-4 dispatched (mroute execute): tb2_harbor static-class adapter — HarborProtocol injected, equal-split per-task timeouts, always self_reported receipts w/ per-task summary JSON for M3's decontam gate. Capsule: evidence/M2/capsules/wu4-tb2-harbor-adapter.md.
 - Fleet coordination: rpo-addressed A2A handled as parent (rpo idle-done) — ai-scientist's s14 ladder-probe proposal answered DO-NOT-SUBMIT (operator's s14 anti-precedent statement on record); mroute adoption feedback sent (using=yes freq=often).
 
+- WU-4 DONE + committed (be46e1cd): tb2_harbor static-class adapter.
+- WU-5 DONE + committed: `adx measure` CLI verb — M2's headline outcome now runs end-to-end (fake engines, hard-fenced receipts); 44 tests, coordinator-verified incl. live invocation.
+- Spikes 3 (ToS) + 5 (arXiv) running as a research Workflow (wf_93d1700c-fd5).
+
 ### What's next
 
-- Review WU-4 → commit → WU-5 pokeagent adapter is M3 scope; next in M2: the five spikes (weco economics + verb check, footprint, ToS incl. Weco's own, score-axes, arXiv pass) — spikes are research, may run via Workflow (not coding).
+- Ingest spike 3+5 results → evidence files. Remaining: spike 1 (weco economics — empirical, may need operator account decision), spike 2 (footprint, mroute), spike 4 (Benchmark.score() axes, mroute). Then real-engine integration WUs (arc-agi client, Harbor client) and the fresh M2 audit + review.
 
 ### Any blockers
 
