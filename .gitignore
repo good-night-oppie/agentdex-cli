@@ -143,3 +143,6 @@ LATEST_HIGHLIGHTS.md
 
 # Adapter scratch run-logs (transient; measured evidence lives in .fleet-goal/evidence/M2/measured/)
 **/.adx/runs/
+
+# model_route.sh dispatch telemetry (transient status files, created by harness dispatches)
+/data/_meta/state/model_route_runs/

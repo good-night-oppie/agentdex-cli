@@ -14,6 +14,12 @@ results are NEVER leaderboard-eligible: receipts are forced to
 ``--engine local-arc`` wires the genuine local ARC-style grid engine for
 ``arc-agi-3`` only (measured $0 cost, honest self_reported / no-scorecard
 receipt — still NOT leaderboard-eligible, but not a hardcoded-score stub).
+
+``--engine harbor-cli`` wires the real Harbor CLI client for ``tb2``
+(subprocess + process-group kill). Requires ``harbor`` on PATH
+(``uv tool install harbor``). A missing binary surfaces a clean error,
+not a traceback. Paid LLM runs are an operator decision — this engine
+only constructs the client.
 """
 
 from __future__ import annotations
@@ -22,7 +28,7 @@ import argparse
 import json
 import sys
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +36,7 @@ from adx_frontier.candidate import CandidateValidationError, load_candidate
 from adx_ladders.adapters.arc_agi3 import ArcAgi3Adapter
 from adx_ladders.adapters.tb2_harbor import Tb2HarborAdapter
 from adx_ladders.base import MeasureResult, Receipt
+from adx_ladders.engines.harbor_cli import HarborCliClient
 from adx_ladders.engines.local_arc import LocalArcEngine
 from adx_ladders.registry import LadderEntry, load_registry
 
@@ -42,6 +49,7 @@ _EXIT_NO_ADAPTER = 3
 
 _ENGINE_FAKE = "fake"
 _ENGINE_LOCAL_ARC = "local-arc"
+_ENGINE_HARBOR_CLI = "harbor-cli"
 
 
 def _serialize_measure_result(result: MeasureResult, *, measured_at_utc: str) -> dict[str, Any]:
@@ -95,8 +103,9 @@ def _build_adapter(ladder_id: str, *, engine_mode: str | None):
         raise RuntimeError(
             "real hosted ladder engines are not wired yet; pass "
             "--engine-fake / --engine fake for a deterministic local demo "
-            "(NOT leaderboard-eligible), or --engine local-arc for the "
-            "genuine local ARC-style engine on arc-agi-3"
+            "(NOT leaderboard-eligible), --engine local-arc for the "
+            "genuine local ARC-style engine on arc-agi-3, or "
+            "--engine harbor-cli for the real Harbor CLI client on tb2"
         )
     if engine_mode == _ENGINE_FAKE:
         if ladder_id == "arc-agi-3":
@@ -110,8 +119,7 @@ def _build_adapter(ladder_id: str, *, engine_mode: str | None):
     if engine_mode == _ENGINE_LOCAL_ARC:
         if ladder_id != "arc-agi-3":
             raise RuntimeError(
-                f"--engine local-arc only supports ladder 'arc-agi-3' "
-                f"(got {ladder_id!r})"
+                f"--engine local-arc only supports ladder 'arc-agi-3' (got {ladder_id!r})"
             )
         # cost_dollar=0.0 → measured $0 (no LLM); scorecard_id is None →
         # honest self_reported receipt (never leaderboard-eligible).
@@ -120,6 +128,14 @@ def _build_adapter(ladder_id: str, *, engine_mode: str | None):
             game_ids=["game-0"],
             cost_dollar=0.0,
         )
+    if engine_mode == _ENGINE_HARBOR_CLI:
+        if ladder_id != "tb2":
+            raise RuntimeError(
+                f"--engine harbor-cli only supports ladder 'tb2' (got {ladder_id!r})"
+            )
+        # FileNotFoundError (missing harbor binary) propagates to cmd_measure
+        # for a clean stderr message — never a traceback.
+        return Tb2HarborAdapter(HarborCliClient(), suite="default")
     raise RuntimeError(f"unknown engine mode: {engine_mode!r}")
 
 
@@ -146,8 +162,7 @@ def cmd_measure(args: argparse.Namespace) -> int:
         entry = registry.get_ladder(ladder_id)
     except KeyError:
         print(
-            f"unknown ladder id: {ladder_id!r}; "
-            f"known={[e.id for e in registry.ladders]}",
+            f"unknown ladder id: {ladder_id!r}; known={[e.id for e in registry.ladders]}",
             file=sys.stderr,
         )
         return 1
@@ -169,6 +184,10 @@ def cmd_measure(args: argparse.Namespace) -> int:
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return _EXIT_NO_ADAPTER
+    except FileNotFoundError as exc:
+        # harbor-cli missing binary → actionable message, no traceback.
+        print(str(exc), file=sys.stderr)
+        return _EXIT_NO_ADAPTER
 
     # Adapter pre_run_check re-validates + confirms ladder ∈ candidate.ladders.
     try:
@@ -180,11 +199,17 @@ def cmd_measure(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
-    result = adapter.measure(candidate)
+    try:
+        result = adapter.measure(candidate)
+    except ValueError as exc:
+        # e.g. HarborCliClient.list_tasks with no injected tasks= — clean
+        # message, never a raw traceback (WU-8F F3).
+        print(str(exc), file=sys.stderr)
+        return 1
     if engine_mode == _ENGINE_FAKE:
         result = _force_fake_receipt(result)
 
-    measured_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    measured_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     payload = _serialize_measure_result(result, measured_at_utc=measured_at)
     # RFC-8259: never emit bare NaN/Infinity tokens (allow_nan=False).
     try:
@@ -225,7 +250,9 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
             "receipts forced to kind=fake_engine (NEVER leaderboard-eligible)\n"
             "  --engine local-arc — genuine local ARC-style grid engine for "
             "arc-agi-3; measured $0 cost; honest self_reported receipt "
-            "(still not leaderboard-eligible — no scorecard authority)"
+            "(still not leaderboard-eligible — no scorecard authority)\n"
+            "  --engine harbor-cli — real Harbor CLI client for tb2 "
+            "(requires `uv tool install harbor`; paid LLM runs are operator-gated)"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -246,11 +273,12 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
     )
     measure.add_argument(
         "--engine",
-        choices=[_ENGINE_FAKE, _ENGINE_LOCAL_ARC],
+        choices=[_ENGINE_FAKE, _ENGINE_LOCAL_ARC, _ENGINE_HARBOR_CLI],
         default=None,
         help=(
-            "engine backend: 'fake' (NOT-FOR-LEADERBOARD stubs) or "
-            "'local-arc' (genuine local ARC-style grid, arc-agi-3 only)"
+            "engine backend: 'fake' (NOT-FOR-LEADERBOARD stubs), "
+            "'local-arc' (genuine local ARC-style grid, arc-agi-3 only), or "
+            "'harbor-cli' (real Harbor CLI client, tb2 only)"
         ),
     )
     measure.add_argument(

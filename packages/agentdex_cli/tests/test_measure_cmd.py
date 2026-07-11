@@ -300,3 +300,101 @@ def test_local_arc_engine_rejects_non_arc_ladder(
     assert rc == 3
     assert "local-arc" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_harbor_cli_engine_rejects_non_tb2_ladder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-8: --engine harbor-cli on arc-agi-3 exits _EXIT_NO_ADAPTER cleanly."""
+    root = _write_candidate(tmp_path, ladders=["arc-agi-3", "tb2"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "arc-agi-3",
+            "--engine",
+            "harbor-cli",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 3
+    assert "harbor-cli" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_harbor_cli_missing_binary_clean_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WU-8: missing harbor binary → exit 3, actionable message, no traceback."""
+    # Empty PATH so shutil.which("harbor") fails during HarborCliClient init.
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
+    (tmp_path / "empty-bin").mkdir()
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 3
+    assert "uv tool install harbor" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_f3_harbor_cli_measure_valueerror_clean_exit(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F3: harbor-cli present but no tasks= → exit 1, ValueError on stderr, no traceback."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "harbor"
+    stub.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import sys
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "tasks=" in captured.err or "task-list" in captured.err
+    assert "Traceback" not in captured.err
+    assert "Traceback" not in captured.out
