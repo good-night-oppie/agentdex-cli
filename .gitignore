@@ -146,3 +146,6 @@ LATEST_HIGHLIGHTS.md
 
 # model_route.sh dispatch telemetry (transient status files, created by harness dispatches)
 /data/_meta/state/model_route_runs/
+
+# pytest coverage data (transient)
+.coverage

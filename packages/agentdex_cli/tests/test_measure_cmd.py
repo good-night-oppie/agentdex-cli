@@ -523,6 +523,87 @@ def test_jobs_dir_rejects_non_harbor_engine(
     assert "Traceback" not in captured.err
 
 
+def test_jobs_dir_existing_file_exits_gate_no_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WU-12F: --jobs-dir pointing at an existing regular file → exit 2, no traceback."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub_harbor_for_measure(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+    bad_jobs = tmp_path / "not-a-dir"
+    bad_jobs.write_text("regular file\n", encoding="utf-8")
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "hello-world",
+            "--jobs-dir",
+            str(bad_jobs),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--jobs-dir" in captured.err
+    assert "not a usable directory" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_jobs_dir_nested_under_file_exits_gate_no_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WU-12F: --jobs-dir nested under a file (NotADirectoryError) → exit 2, no traceback."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub_harbor_for_measure(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+    file_parent = tmp_path / "file-as-parent"
+    file_parent.write_text("regular file\n", encoding="utf-8")
+    nested_jobs = file_parent / "nested" / "jobs"
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "hello-world",
+            "--jobs-dir",
+            str(nested_jobs),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--jobs-dir" in captured.err
+    assert "not a usable directory" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def _write_stub_harbor_for_measure(bin_dir: Path) -> Path:
     """Minimal stub harbor that writes TrialResult under -o/--job-name."""
     script = bin_dir / "harbor"

@@ -283,8 +283,21 @@ def cmd_measure(args: argparse.Namespace) -> int:
         return _EXIT_NO_ADAPTER
     except FileNotFoundError as exc:
         # harbor-cli missing binary → actionable message, no traceback.
+        # Must stay before OSError (FileNotFoundError is an OSError subclass).
         print(str(exc), file=sys.stderr)
         return _EXIT_NO_ADAPTER
+    except OSError as exc:
+        # --jobs-dir mkdir failures (FileExistsError / NotADirectoryError /
+        # PermissionError): clean exit 2, never a traceback (WU-12F).
+        jobs_dir_arg = getattr(args, "jobs_dir", None)
+        if jobs_dir_arg is not None:
+            print(
+                f"--jobs-dir {jobs_dir_arg!r} is not a usable directory: {exc}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"cannot prepare measure adapter: {exc}", file=sys.stderr)
+        return _EXIT_GATE
 
     # Adapter pre_run_check re-validates + confirms ladder ∈ candidate.ladders.
     try:
