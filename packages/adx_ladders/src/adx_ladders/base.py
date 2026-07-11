@@ -71,8 +71,13 @@ class MeasureResult:
     budget_usd: float
     budget_wall_clock_min: float
     cost_is_measured: bool = False
+    effective_ladder_class: LadderClass | None = None
 
     def __post_init__(self) -> None:
+        if self.effective_ladder_class is not None and not isinstance(
+            self.effective_ladder_class, LadderClass
+        ):
+            raise ValueError("effective_ladder_class must be a LadderClass")
         expected = set(FRONTIER_AXES)
         got = set(self.scores)
         if got != expected:

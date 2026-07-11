@@ -148,6 +148,19 @@ def test_measure_result_cost_is_measured_explicit() -> None:
     assert result.cost_is_measured is True
 
 
+def test_measure_result_carries_measured_effective_ladder_class() -> None:
+    result = MeasureResult(
+        scores=_valid_scores(),
+        receipt=Receipt(tier="verified", kind="pokeagent_rating", ref="1512"),
+        ladder_id="pokeagent-gen1ou",
+        base_model="claude-sonnet-5",
+        budget_usd=5.0,
+        budget_wall_clock_min=60.0,
+        effective_ladder_class=LadderClass.STATIC,
+    )
+    assert result.effective_ladder_class is LadderClass.STATIC
+
+
 def test_measure_result_rejects_non_finite_score() -> None:
     """P2-c: NaN/Inf score values must be rejected."""
     receipt = Receipt(tier="verified", kind="arc_scorecard_id", ref="sc-1")
