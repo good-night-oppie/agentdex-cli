@@ -18,6 +18,7 @@ class PokeAgentResult:
     total_opponents: int
     wall_clock_sec: float
     cost_dollar: float = 0.0
+    cost_is_measured: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.rating_ref, str) or not self.rating_ref.strip():
@@ -72,6 +73,6 @@ class PokeAgentAdapter(LadderAdapter):
             base_model=candidate.base_model,
             budget_usd=candidate.budget.usd,
             budget_wall_clock_min=candidate.budget.wall_clock_min,
-            cost_is_measured=True,
+            cost_is_measured=window.cost_is_measured,
             effective_ladder_class=effective,
         )

@@ -63,14 +63,23 @@ version = "0.1.0"
 source = { editable = "packages/adx_ladders" }
 dependencies = [
     { name = "adx-frontier" },
+    { name = "adx-showdown" },
     { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+pokeagent = [
+    { name = "poke-env" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "adx-frontier", editable = "packages/adx_frontier" },
+    { name = "adx-showdown", editable = "packages/adx_showdown" },
+    { name = "poke-env", marker = "extra == 'pokeagent'", specifier = ">=0.15" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
+provides-extras = ["pokeagent"]
 
 [[package]]
 name = "adx-showdown"
