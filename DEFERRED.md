@@ -33,6 +33,8 @@ cross_cutting: true
 
 | ID | Surface | Cited finding | Until | Owner | Open commit |
 |----|---------|---------------|-------|-------|-------------|
+| RD-1 | Weco integration (M2 spike 1) | BYO `--api-key` credits differential UNMEASURED (only gemini/openai/anthropic supported; `~/.sakana` token unusable). Blocks "free on your own subscriptions" copy — do NOT publish until measured with a supported-provider key. | 2026-08-15 | etang | 7d524487 |
+| RD-2 | PokeAgent ladder (M5 market) | pokeagentchallenge.com has NO ToS; mirroring its leaderboard needs an organizer ask (email/Discord — Karten/Grigsby) before M5 can display anything beyond a deep-link. Link-out is the safe default until then. | 2026-08-15 | etang | 7d524487 |
 
 ## Closed (delete after one weekly audit cycle confirms gone)
 
