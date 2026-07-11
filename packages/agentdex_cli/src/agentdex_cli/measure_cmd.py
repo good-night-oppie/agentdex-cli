@@ -98,7 +98,43 @@ def _resolve_engine_mode(args: argparse.Namespace) -> str | None:
     return None
 
 
-def _build_adapter(ladder_id: str, *, engine_mode: str | None):
+def _parse_harbor_tasks(raw: str | None) -> tuple[str, ...] | None:
+    """Parse ``--harbor-tasks`` into a non-empty tuple, or ``None`` if unset.
+
+    Empty / whitespace-only items raise ``ValueError`` (caller maps to exit 2).
+
+    Org-prefixed Harbor package ids (``org/name``) are rewritten to a
+    slash-free trailing-segment glob (``*name``) before they reach
+    ``HarborCliClient``: the client embeds ``task_id`` in on-disk job
+    names, and a literal ``/`` makes ``open(jobs_dir / f"{job_name}.log")``
+    fail with ``FileNotFoundError``. Harbor's ``-i`` accepts globs, and
+    ``_find_trial_result`` falls back to the sole trial when the filter
+    string differs from ``result.json``'s ``task_name``.
+    """
+    if raw is None:
+        return None
+    parts = [p.strip() for p in str(raw).split(",")]
+    if not parts or any(not p for p in parts):
+        raise ValueError(
+            "--harbor-tasks requires a non-empty comma-separated list of "
+            "task names (empty/whitespace items are rejected)"
+        )
+    return tuple(_slash_safe_harbor_task(p) for p in parts)
+
+
+def _slash_safe_harbor_task(task: str) -> str:
+    """Rewrite ``org/name`` → ``*name`` so HarborCliClient job paths stay flat."""
+    if "/" not in task:
+        return task
+    return f"*{task.rsplit('/', 1)[-1]}"
+
+
+def _build_adapter(
+    ladder_id: str,
+    *,
+    engine_mode: str | None,
+    harbor_tasks: tuple[str, ...] | None = None,
+):
     if engine_mode is None:
         raise RuntimeError(
             "real hosted ladder engines are not wired yet; pass "
@@ -135,7 +171,10 @@ def _build_adapter(ladder_id: str, *, engine_mode: str | None):
             )
         # FileNotFoundError (missing harbor binary) propagates to cmd_measure
         # for a clean stderr message — never a traceback.
-        return Tb2HarborAdapter(HarborCliClient(), suite="default")
+        return Tb2HarborAdapter(
+            HarborCliClient(tasks=harbor_tasks),
+            suite="default",
+        )
     raise RuntimeError(f"unknown engine mode: {engine_mode!r}")
 
 
@@ -143,6 +182,21 @@ def cmd_measure(args: argparse.Namespace) -> int:
     agent_dir = Path(args.agent)
     ladder_id = str(args.ladder)
     engine_mode = _resolve_engine_mode(args)
+
+    # --harbor-tasks is harbor-cli only; reject empty items and wrong engines.
+    harbor_tasks_raw = getattr(args, "harbor_tasks", None)
+    if harbor_tasks_raw is not None and engine_mode != _ENGINE_HARBOR_CLI:
+        print(
+            "--harbor-tasks requires --engine harbor-cli "
+            f"(got engine={engine_mode!r})",
+            file=sys.stderr,
+        )
+        return _EXIT_GATE
+    try:
+        harbor_tasks = _parse_harbor_tasks(harbor_tasks_raw)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return _EXIT_GATE
 
     try:
         candidate = load_candidate(agent_dir)
@@ -180,7 +234,11 @@ def cmd_measure(args: argparse.Namespace) -> int:
         return _EXIT_NO_ADAPTER
 
     try:
-        adapter = _build_adapter(ladder_id, engine_mode=engine_mode)
+        adapter = _build_adapter(
+            ladder_id,
+            engine_mode=engine_mode,
+            harbor_tasks=harbor_tasks,
+        )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return _EXIT_NO_ADAPTER
@@ -287,6 +345,15 @@ def register_measure_parser(subs: argparse._SubParsersAction) -> None:
         help=(
             "use deterministic in-repo fake engines (NOT-FOR-LEADERBOARD; "
             "receipts forced to kind=fake_engine). Alias for --engine fake."
+        ),
+    )
+    measure.add_argument(
+        "--harbor-tasks",
+        default=None,
+        help=(
+            "comma-separated Harbor task names injected into HarborCliClient "
+            "(--engine harbor-cli only; required for real TB2 runs because "
+            "harbor has no task-list CLI surface)"
         ),
     )
     measure.set_defaults(func=cmd_measure)

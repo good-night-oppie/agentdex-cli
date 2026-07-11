@@ -398,3 +398,241 @@ def test_f3_harbor_cli_measure_valueerror_clean_exit(
     assert "tasks=" in captured.err or "task-list" in captured.err
     assert "Traceback" not in captured.err
     assert "Traceback" not in captured.out
+
+
+def _write_stub_harbor_for_measure(bin_dir: Path) -> Path:
+    """Minimal stub harbor that writes TrialResult under -o/--job-name."""
+    script = bin_dir / "harbor"
+    script.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json, sys
+            from pathlib import Path
+
+            def _arg(flag_long, flag_short=None, default=None):
+                argv = sys.argv[1:]
+                for i, a in enumerate(argv):
+                    if a == flag_long or (flag_short and a == flag_short):
+                        if i + 1 < len(argv):
+                            return argv[i + 1]
+                    if a.startswith(flag_long + "="):
+                        return a.split("=", 1)[1]
+                return default
+
+            if len(sys.argv) < 2 or sys.argv[1] != "run":
+                raise SystemExit(2)
+            task_id = _arg("--include-task-name", "-i")
+            jobs_dir = Path(_arg("--jobs-dir", "-o", "jobs"))
+            job_name = _arg("--job-name", default="stub-job")
+            agent = _arg("--agent", "-a", default="")
+            jobs_dir.mkdir(parents=True, exist_ok=True)
+            (jobs_dir / f".argv-{{job_name}}.json").write_text(
+                json.dumps({{"argv": sys.argv, "agent": agent, "task_id": task_id}})
+                + "\\n",
+                encoding="utf-8",
+            )
+            trial_dir = jobs_dir / job_name / f"trial-{{task_id}}"
+            trial_dir.mkdir(parents=True, exist_ok=True)
+            result = {{
+                "task_name": task_id,
+                "trial_name": f"trial-{{task_id}}",
+                "verifier_result": {{"rewards": {{"reward": 0.0}}}},
+                "agent_result": {{"cost_usd": 0.0}},
+            }}
+            (trial_dir / "result.json").write_text(
+                json.dumps(result, indent=2) + "\\n", encoding="utf-8"
+            )
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return script
+
+
+def test_harbor_tasks_forwarded_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WU-9: --harbor-tasks reaches HarborCliClient and is used as -i."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub_harbor_for_measure(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+    out_path = tmp_path / "out.json"
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "hello-world,other-task",
+            "--out",
+            str(out_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0, f"stderr={captured.err!r}"
+    payload = json.loads(captured.out)
+    assert payload["ladder_id"] == "tb2"
+    assert payload["scores"]["quality"] == pytest.approx(0.0)
+    assert payload["receipt"]["kind"] == "raw_artifacts"
+    assert out_path.is_file()
+
+    # Stub wrote .argv-*.json into HarborCliClient.jobs_dir; log_path artifacts
+    # are trial dirs under that jobs_dir (…/job-name/trial-<task>).
+    argv_task_ids: set[str] = set()
+    for art in payload["receipt"]["artifacts"]:
+        art_path = Path(art)
+        if not art_path.exists():
+            continue
+        # Walk parents looking for the jobs_dir that holds .argv-*.json.
+        for parent in [art_path, *art_path.parents]:
+            for argv_file in parent.glob(".argv-*.json"):
+                data = json.loads(argv_file.read_text(encoding="utf-8"))
+                tid = data.get("task_id")
+                if isinstance(tid, str) and tid:
+                    argv_task_ids.add(tid)
+    assert argv_task_ids == {"hello-world", "other-task"}, (
+        f"expected both tasks forwarded via -i; got {argv_task_ids!r}; "
+        f"artifacts={payload['receipt']['artifacts']!r}"
+    )
+
+
+def test_harbor_tasks_rejects_empty_item(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-9: empty/whitespace --harbor-tasks items → exit 2, clean stderr."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "ok,,bad",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--harbor-tasks" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_harbor_tasks_rejects_whitespace_only(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-9: whitespace-only task name → exit 2."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "  ",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--harbor-tasks" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_harbor_tasks_rejects_non_harbor_engine(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WU-9: --harbor-tasks with --engine-fake → exit 2."""
+    root = _write_candidate(tmp_path, ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine-fake",
+            "--harbor-tasks",
+            "hello-world",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "--harbor-tasks" in captured.err
+    assert "harbor-cli" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_harbor_tasks_slash_safe_org_prefix(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WU-9: org/name task ids are rewritten to *name for HarborCliClient paths."""
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_stub_harbor_for_measure(bin_dir)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    root = _write_candidate(tmp_path / "agent", ladders=["tb2", "arc-agi-3"])
+
+    rc = main(
+        [
+            "measure",
+            "--agent",
+            str(root),
+            "--ladder",
+            "tb2",
+            "--engine",
+            "harbor-cli",
+            "--harbor-tasks",
+            "terminal-bench/regex-log",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0, f"stderr={captured.err!r}"
+    payload = json.loads(captured.out)
+
+    argv_task_ids: set[str] = set()
+    for art in payload["receipt"]["artifacts"]:
+        art_path = Path(art)
+        if not art_path.exists():
+            continue
+        for parent in [art_path, *art_path.parents]:
+            for argv_file in parent.glob(".argv-*.json"):
+                data = json.loads(argv_file.read_text(encoding="utf-8"))
+                tid = data.get("task_id")
+                if isinstance(tid, str) and tid:
+                    argv_task_ids.add(tid)
+    # Slash rewritten to trailing-segment glob so job_name paths stay flat.
+    assert argv_task_ids == {"*regex-log"}, argv_task_ids
