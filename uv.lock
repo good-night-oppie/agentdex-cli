@@ -157,6 +157,11 @@ dependencies = [
     { name = "rich" },
 ]
 
+[package.optional-dependencies]
+bene = [
+    { name = "bene" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "adx-bridges", editable = "packages/adx_bridges" },
@@ -165,6 +170,7 @@ requires-dist = [
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "agentdex-observe", editable = "packages/agentdex_observe" },
     { name = "agentdex-plugin", editable = "packages/agentdex_plugin" },
+    { name = "bene", marker = "extra == 'bene'", specifier = ">=0.2.1" },
     { name = "cryptography", specifier = ">=42.0" },
     { name = "helios-client", editable = "packages/helios_client" },
     { name = "hermes-agent", specifier = ">=0.15.1" },
@@ -173,6 +179,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
     { name = "rich", specifier = ">=13.0" },
 ]
+provides-extras = ["bene"]
 
 [[package]]
 name = "agentdex-cli-workspace"
@@ -368,6 +375,26 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
+name = "bene"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "textual" },
+    { name = "ulid-py" },
+    { name = "zstandard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/b1/86d91bfb084dff0a6e47a05317a64092ea762e16025dcf69894c2d594449/bene-0.2.1.tar.gz", hash = "sha256:b8d003746927f5f324c711269abb5bbb041ee9a9e57d33432661f3ae44ae3480", size = 356108, upload-time = "2026-06-17T04:55:33.018Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/23/a96c0834c752edca90fe9d9621952752dfd30395668801e207333b850e27/bene-0.2.1-py3-none-any.whl", hash = "sha256:4aabdece00685e971560d04f4345e34632a9ae561bf2e8feab8ddce372ccc107", size = 437427, upload-time = "2026-06-17T04:55:31.629Z" },
 ]
 
 [[package]]

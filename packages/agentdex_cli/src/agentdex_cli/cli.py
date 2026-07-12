@@ -653,6 +653,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_evolve_parser(subs)
 
+    # ---- evolve-submit: measure JSON → Bene collaborative bridge → frontier.json ----
+    from agentdex_cli.evolve_submit_cmd import register_evolve_submit_parser
+
+    register_evolve_submit_parser(subs)
+
     return p
 
 
