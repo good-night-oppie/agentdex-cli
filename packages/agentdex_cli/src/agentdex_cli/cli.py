@@ -648,6 +648,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_measure_parser(subs)
 
+    # ---- evolve: Weco starts Claude; AgentDex supplies RSI contract ----
+    from agentdex_cli.evolve_cmd import register_evolve_parser
+
+    register_evolve_parser(subs)
+
     return p
 
 
