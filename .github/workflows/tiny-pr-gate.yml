@@ -1,0 +1,102 @@
+name: tiny-pr-gate
+
+# Deterministic tiny-PR LOC gate (POSTMERGE_CONTROL_FAILURE follow-up to #687).
+# TOTAL changed LOC = additions + deletions from git diff --numstat.
+# <=50 passes; >50 (or binary/unparseable numstat) requires the exact PR-body
+# contract documented in agents/review/AGENTS.md §"Tiny-PR indivisible gate".
+#
+# TRUSTED BASE: pull_request_target loads this workflow from the target branch,
+# then checkout pull_request.base.sha and execute gate+smoke from base so a PR
+# cannot weaken either the orchestration or the validator for itself.
+# The first installation PR is manually reviewed; no candidate-head bootstrap
+# is permitted because that would execute untrusted code in a merge-blocking
+# control path.
+# Head is always fetched for numstat in every path.
+# Stable required-check name: job id `tiny-pr-gate` (workflow name matches).
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+    branches:
+      - main
+      - redesign/evolution-market
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: tiny-pr-gate-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tiny-pr-gate:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: checkout trusted base (validator source of truth)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+
+      - name: resolve gate sources + fetch head for numstat
+        id: resolve
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Always fetch head — required for numstat.
+          git fetch --no-tags origin "$HEAD_SHA"
+
+          GATE_PY="scripts/tiny_pr_gate.py"
+          SMOKE_SH="scripts/_smoke_tiny_pr_gate.sh"
+          base_has_gate=0
+          base_has_smoke=0
+          [[ -f "$GATE_PY" ]] && base_has_gate=1
+          [[ -f "$SMOKE_SH" ]] && base_has_smoke=1
+
+          # Truth table MUST match scripts/tiny_pr_gate.py::resolve_execution_mode.
+          if [[ "$base_has_gate" -eq 1 && "$base_has_smoke" -eq 1 ]]; then
+            mode="trusted_base"
+            gate_py="$PWD/$GATE_PY"
+            smoke_sh="$PWD/$SMOKE_SH"
+            smoke_root="$PWD"
+            echo "tiny-pr-gate: mode=$mode (executing trusted base artifacts)"
+          else
+            echo "tiny-pr-gate: FAIL mode=fail_closed_partial base_has_gate=$base_has_gate base_has_smoke=$base_has_smoke" >&2
+            echo "tiny-pr-gate: incomplete trusted base — refusing candidate-head fallback" >&2
+            exit 1
+          fi
+
+          {
+            echo "mode=$mode"
+            echo "gate_py=$gate_py"
+            echo "smoke_sh=$smoke_sh"
+            echo "smoke_root=$smoke_root"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: smoke fixtures (no network)
+        env:
+          TINY_PR_GATE_ROOT: ${{ steps.resolve.outputs.smoke_root }}
+        run: bash "${{ steps.resolve.outputs.smoke_sh }}"
+
+      - name: materialize PR numstat against merge-base...head
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Head was fetched in the resolve step; re-fetch is idempotent insurance.
+          git fetch --no-tags origin "$HEAD_SHA"
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          echo "tiny-pr-gate: merge_base=$merge_base head=$HEAD_SHA"
+          git diff --numstat "$merge_base" "$HEAD_SHA" > /tmp/tiny-pr-numstat.txt
+          wc -l /tmp/tiny-pr-numstat.txt
+
+      - name: evaluate PR against tiny-pr-gate contract
+        run: |
+          set -euo pipefail
+          python3 "${{ steps.resolve.outputs.gate_py }}" \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --numstat-file /tmp/tiny-pr-numstat.txt
