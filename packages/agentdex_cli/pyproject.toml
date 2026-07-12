@@ -26,6 +26,11 @@ dependencies = [
 [project.scripts]
 adx = "agentdex_cli.cli:main"
 
+# ADR-0013 D1: Bene stays optional so the base wheel stays lean. Operators who
+# need ``adx evolve-submit`` (or BENE-driven play) install the extra explicitly.
+[project.optional-dependencies]
+bene = ["bene>=0.2.1"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentdex_cli"]
 

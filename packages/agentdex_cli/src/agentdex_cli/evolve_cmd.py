@@ -28,8 +28,8 @@ def _outer_prompt(candidate_name: str, ladder_id: str, *, inner_weco_run: bool) 
         f"Run the AgentDex RSI outer loop for candidate {candidate_name!r} on ladder "
         f"{ladder_id!r}. Measure the real ladder objective before and after each mutation. "
         "Modify only the candidate.yaml mutable files and stay within its declared budget. "
-        f"{inner} Submit each measured candidate through the collaborative Bene gate; "
-        "only an ACCEPT verdict may be called promoted."
+        f"{inner} Submit each measured candidate with `adx evolve-submit` through the "
+        "collaborative Bene gate; only an ACCEPT verdict may be called promoted."
     )
 
 
