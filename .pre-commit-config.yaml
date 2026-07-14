@@ -99,3 +99,26 @@ repos:
         files: ^CLAUDE\.md$
         pass_filenames: false
         require_serial: true
+
+  # clean-state: no unignored untracked files.
+  #
+  # doc_lint globs the WORKING TREE; CI runs on a FRESH CLONE. One untracked .md
+  # under docs/ therefore trips DOC-LINT-020 locally while CI stays green —
+  # blocking every commit by every session for a reason nobody can see. That
+  # asymmetry is what taught this repo to reach for --no-verify. Refusing to let
+  # untracked files accumulate makes the local tree congruent with the CI tree,
+  # so the two gates finally agree.
+  #
+  # `always_run` + `pass_filenames: false`: the finding is a property of the TREE,
+  # not of any staged file, so there is nothing to match on and nothing to pass in.
+  # A `files:` pattern here would make the gate skip exactly when it matters —
+  # a commit that touches no matching file is precisely when junk slips through.
+  - repo: local
+    hooks:
+      - id: clean-state
+        name: clean-state — no unignored untracked files
+        entry: python3 scripts/clean_state.py --mode precommit
+        language: system
+        always_run: true
+        pass_filenames: false
+        require_serial: true
