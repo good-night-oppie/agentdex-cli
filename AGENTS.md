@@ -88,6 +88,9 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [adr cascade](docs/adr/) — historical decisions
 - [.harness/CORPUS_QUERY_KEYWORDS](.harness/CORPUS_QUERY_KEYWORDS) — SessionStart hook seed
 - [.harness/doc-templates/](.harness/doc-templates/) — doc-lint template starters
+- [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) — where issues live (GitHub); what is NOT skill-writable
+- [docs/agents/triage-labels.md](docs/agents/triage-labels.md) — the 5 canonical triage label strings
+- [docs/agents/domain.md](docs/agents/domain.md) — domain-doc consumer rules (single-context)
 
 ## Feedback
 
