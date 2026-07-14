@@ -61,6 +61,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      # PyYAML is NOT preinstalled on ubuntu-latest. Without it clean_state.py falls
+      # back to a comment-stripped grep — a DIFFERENT, less precise code path than the
+      # one every developer runs under `uv`. The first CI run went red for exactly this
+      # reason, on a divergence that could not reproduce locally. Pin the environment so
+      # CI gates the same path humans do.
+      - name: install PyYAML (gate the same code path developers run)
+        run: python3 -m pip install --quiet pyyaml
+
       - name: smoke — gate must FAIL on unclean input, not just pass on clean
         run: bash scripts/_smoke_clean_state.sh
 
