@@ -91,6 +91,7 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) — where issues live (GitHub); what is NOT skill-writable
 - [docs/agents/triage-labels.md](docs/agents/triage-labels.md) — the 5 canonical triage label strings
 - [docs/agents/domain.md](docs/agents/domain.md) — domain-doc consumer rules (single-context)
+- [harness HA orchestrator design](docs/references/2026-07-11-harness-ha-orchestrator-design.md) — HA orchestrator design (draft)
 
 ## Feedback
 
