@@ -281,15 +281,39 @@ def check_hook_wired(root: Path) -> list[Finding]:
             )
         )
 
-    installer = root / "scripts" / "install_doc_lint_precommit.sh"
-    if installer.exists():
-        body = _strip_comments(installer.read_text(encoding="utf-8", errors="replace"))
-        if "clean_state.py" not in body:
+    # DELETION IS THE EASIEST ROT. The previous version guarded each file with
+    # `if path.exists():` -- so removing install_doc_lint_precommit.sh (or the CI
+    # workflow) made the anti-rot check pass with flying colours. "Absent" was
+    # silently treated as "fine". Every one of these files is REQUIRED; a missing
+    # one is the loudest possible finding, not an excuse to skip the check.
+    required = (
+        (
+            root / "scripts" / "install_doc_lint_precommit.sh",
+            "clean_state.py",
+            "restore the clean-state block in the hook template",
+        ),
+        (
+            root / ".github" / "workflows" / "clean-state-gate.yml",
+            "clean_state.py",
+            "restore the clean-state CI gate workflow",
+        ),
+        (
+            root / "scripts" / "_smoke_clean_state.sh",
+            "clean_state.py",
+            "restore the smoke test — an unproven gate is an unrunning gate",
+        ),
+    )
+    for path, needle, remedy in required:
+        rel = path.relative_to(root)
+        if not path.exists():
+            out.append(Finding("hook-wired", f"{rel} has been DELETED", remedy))
+            continue
+        if needle not in _strip_comments(path.read_text(encoding="utf-8", errors="replace")):
             out.append(
                 Finding(
                     "hook-wired",
-                    "install_doc_lint_precommit.sh no longer installs clean_state.py (comments don't count)",
-                    "restore the clean-state block in the hook template",
+                    f"{rel} no longer references {needle} (comments don't count)",
+                    remedy,
                 )
             )
     return out
@@ -321,7 +345,20 @@ def check_junk_paths(root: Path, extra: list[str]) -> list[Finding]:
     TIME, not only in CI against a PR diff. Previously JUNK_PATTERNS only ran when
     --added-paths was passed, i.e. never at the one moment junk actually appears.
     """
-    candidates = {p for _xy, p in _porcelain(root)} | set(extra)
+    # Scanning only the porcelain was a STRUCTURAL NO-OP for the untracked case:
+    # both JUNK_PATTERNS are already in .gitignore, so they never show up as `??`
+    # and the check could never fire on the state it was written for. It still
+    # caught a `git add -f` (staged -> porcelain), but that is the rare path.
+    #
+    # The failure that actually matters is junk that is ALREADY TRACKED -- it is
+    # in history, CI sees it, and nothing was ever going to tell you. So ask git
+    # for the tracked set too.
+    tracked = _run(["git", "ls-files", "-z"], root)
+    candidates = (
+        {p for _xy, p in _porcelain(root)}
+        | {p for p in tracked.stdout.split("\0") if p}
+        | set(extra)
+    )
     out: list[Finding] = []
     for p in sorted(candidates):
         for pat, why in JUNK_PATTERNS:
@@ -359,8 +396,15 @@ def main(argv: list[str] | None = None) -> int:
         findings: list[Finding] = []
         for check in MODES[ns.mode]:
             findings.extend(runners[check]())
-    except (RuntimeError, OSError) as exc:
-        print(f"[clean-state] error: {exc}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        # Deliberately broad. The contract above promises "never a traceback", and
+        # the narrow (RuntimeError, OSError) tuple did not keep it: a malformed
+        # .pre-commit-config.yaml raised yaml.YAMLError, which fell straight
+        # through as an uncaught traceback with exit 1 -- indistinguishable from a
+        # real finding, and exit 1 is the "unclean" code, not the error code.
+        # A gate that crashes with a stack trace teaches people to bypass it.
+        print(f"[clean-state] error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print("[clean-state] this is a gate BUG, not an unclean tree — exit 2", file=sys.stderr)
         return EXIT_ERROR
 
     if not findings:

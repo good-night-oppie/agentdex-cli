@@ -72,6 +72,12 @@ repos:
         always_run: true
         pass_filenames: false
 CFG
+# hook-wired requires these to EXIST (deletion is the easiest rot), so the sandbox
+# must carry them or every ci-mode assertion below fails for the wrong reason.
+mkdir -p "$SANDBOX/.github/workflows"
+printf 'run: python3 scripts/clean_state.py --mode ci\n' > "$SANDBOX/.github/workflows/clean-state-gate.yml"
+printf 'python3 scripts/clean_state.py --mode precommit\n' > "$SANDBOX/scripts/_smoke_clean_state.sh"
+
 git -C "$SANDBOX" add -A >/dev/null
 git -C "$SANDBOX" commit -qm seed >/dev/null
 
@@ -280,6 +286,50 @@ grep -q 'a file with spaces.txt' <<<"$out" \
   && pass "untracked path with spaces is reported verbatim (-z parsing)" \
   || fail "path with spaces was mangled by porcelain parsing"
 rm -f "$SANDBOX/a file with spaces.txt"
+
+# ============================================================================
+# Round-2 regressions — defects the adversarial review found in the ALREADY
+# COMMITTED gate (b04ce60b). Each fails against that commit.
+# ============================================================================
+
+# R8 — exit-code contract. A malformed .pre-commit-config.yaml raised yaml.YAMLError
+# straight through the narrow `except (RuntimeError, OSError)` as an uncaught
+# traceback with exit 1 — which is the UNCLEAN code, indistinguishable from a real
+# finding. The module docstring promises "never a traceback; exit 2".
+cp "$SANDBOX/.pre-commit-config.yaml" "$TMP/cfg.bak2"
+printf 'repos: [ unclosed\n' > "$SANDBOX/.pre-commit-config.yaml"
+out="$( cd "$SANDBOX" && python3 scripts/clean_state.py --mode ci 2>&1 )"; rc=$?
+if [[ "$rc" -eq 2 ]] && ! grep -q 'Traceback' <<<"$out"; then
+  pass "malformed YAML -> exit 2, no traceback (contract honored)"
+else
+  fail "malformed YAML -> rc=$rc $(grep -q Traceback <<<"$out" && echo '+ TRACEBACK') — contract says 2, never a traceback"
+fi
+cp "$TMP/cfg.bak2" "$SANDBOX/.pre-commit-config.yaml"
+
+# R9 — DELETION is the easiest rot. The anti-rot check guarded each file with
+# `if path.exists():`, so deleting the installer (or the CI workflow) made the
+# check pass cheerfully. "Absent" was treated as "fine".
+mv "$SANDBOX/scripts/install_doc_lint_precommit.sh" "$TMP/installer.bak"
+assert_rc "hook-wired FAILS when the installer is DELETED" 1 run_gate --mode ci
+mv "$TMP/installer.bak" "$SANDBOX/scripts/install_doc_lint_precommit.sh"
+mv "$SANDBOX/.github/workflows/clean-state-gate.yml" "$TMP/wf.bak"
+assert_rc "hook-wired FAILS when the CI workflow is DELETED" 1 run_gate --mode ci
+mv "$TMP/wf.bak" "$SANDBOX/.github/workflows/clean-state-gate.yml"
+
+# R10 — junk-paths was a STRUCTURAL NO-OP for the case it exists for: both patterns
+# are gitignored, so they never appear as untracked. The failure that matters is
+# junk that is ALREADY TRACKED — in history, visible to CI, and nobody would know.
+mkdir -p "$SANDBOX/.playwright-mcp"; printf 'challstr\n' > "$SANDBOX/.playwright-mcp/page.yml"
+git -C "$SANDBOX" add -f .playwright-mcp/page.yml >/dev/null 2>&1
+git -C "$SANDBOX" commit -qm "junk lands in history" >/dev/null 2>&1
+printf '.playwright-mcp/\n' >> "$SANDBOX/.gitignore"   # ignored AND tracked: the blind spot
+git -C "$SANDBOX" add .gitignore >/dev/null; git -C "$SANDBOX" commit -qm ign >/dev/null
+assert_rc "junk-path caught when ALREADY TRACKED (gitignored, so invisible to porcelain)" 1 \
+  run_gate --mode precommit
+git -C "$SANDBOX" rm -q --cached .playwright-mcp/page.yml >/dev/null
+git -C "$SANDBOX" commit -qm "untrack junk" >/dev/null
+rm -rf "$SANDBOX/.playwright-mcp"
+assert_rc "clean once the junk is untracked" 0 run_gate --mode precommit
 
 printf '\n[smoke] %s\n' "$( ((FAIL == 0)) && echo 'ALL ASSERTIONS PASS' || echo "$FAIL ASSERTION(S) FAILED" )"
 exit $((FAIL > 0))
