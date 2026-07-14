@@ -125,6 +125,17 @@ sweeps/_kaos-digests/
 .specstory/
 sweeps/*.lock
 
+# browser-automation page dumps (transient). NEVER track: these are verbatim
+# snapshots of live pages and carry session material — the 2026-07-12 dumps
+# contained Showdown `challstr` login nonces from battling.pokeagentchallenge.com.
+.playwright-mcp/
+
+# machine-local agent settings (absolute paths, per-host trust config).
+# The shared, reviewable agent configs (.codex/, .devin/, .factory/mcp.json,
+# .cursorrules) ARE tracked — only the *.local.* overlays are not.
+.factory/settings.local.json
+**/settings.local.json
+
 # Python build artifacts (anchored — already covered above with /dist /build)
 *.whl
 
