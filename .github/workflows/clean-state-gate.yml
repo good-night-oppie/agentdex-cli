@@ -1,0 +1,97 @@
+# clean-state-gate — keep the local tree congruent with the CI tree.
+#
+# WHY THIS RUNS ON ubuntu-latest AND NOT [self-hosted, linux, x64]
+# ---------------------------------------------------------------
+# Every other gate in this repo targets the self-hosted runner. As of 2026-07-14
+# `tiny-pr-gate` is a REQUIRED check on redesign/evolution-market that is not
+# producing runs, so every PR into that branch sits permanently BLOCKED /
+# mergeable-but-unmergeable. A required check that cannot execute is worse than
+# no check: it stops the repo without catching anything.
+#
+# This gate therefore runs on a GitHub-hosted runner so it is always executable.
+# It needs no repo-local hardware: it runs a python script and a bash smoke test.
+#
+# WHAT CI CAN AND CANNOT ENFORCE
+# ------------------------------
+# CI checks out a FRESH CLONE, which by construction has zero untracked files.
+# So CI *cannot* police "no untracked junk" — asserting it here would be theater
+# that always passes. Untracked files are policed at the only place they exist:
+# the pre-commit hook (scripts/clean_state.py --mode precommit).
+#
+# What CI *can* enforce, and does:
+#   1. generators  — run every generator, then assert the tree did not move.
+#                    Catches a CLAUDE.md TOC that was hand-edited or left stale.
+#   2. hook-wired  — the clean-state hook is still declared in
+#                    .pre-commit-config.yaml and still installed by the installer.
+#                    Anti-rot: a gate you can quietly delete is not a gate.
+#   3. junk-paths  — refuse a PR that ADDS a path that must never be tracked
+#                    (.playwright-mcp/ page dumps, *settings.local.json).
+#   4. smoke       — the gate is proved to FAIL on unclean input, not merely to
+#                    pass on clean input. A gate only ever seen passing is
+#                    indistinguishable from one that is not running.
+name: clean-state-gate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - redesign/evolution-market
+  push:
+    branches:
+      - main
+      - redesign/evolution-market
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clean-state-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the junk-path check diffs against the merge base.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: smoke — gate must FAIL on unclean input, not just pass on clean
+        run: bash scripts/_smoke_clean_state.sh
+
+      - name: generators + hook-wired
+        run: python3 scripts/clean_state.py --mode ci
+
+      - name: junk paths added by this PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # FAIL CLOSED. Three ways the obvious version of this step fails OPEN —
+          # i.e. reports success while checking nothing:
+          #   1. `mapfile < <(git diff ...)` runs git in a SUBSHELL, so a git error
+          #      (bad sha, shallow clone) yields an EMPTY list and the step passes.
+          #      Capture to a file first and check git's own exit status.
+          #   2. `${#ADDED[@]}` on an empty array is an unbound-variable error under
+          #      `set -u` on older bash — the step dies before it checks anything.
+          #   3. --diff-filter=A misses RENAMES: `git mv junk.yml .playwright-mcp/`
+          #      is an R, not an A, so junk could be moved into a forbidden path
+          #      undetected. Accept A *and* R, and take the destination path.
+          set -euo pipefail
+          if ! git diff --name-only --diff-filter=AR "$BASE_SHA...$HEAD_SHA" > /tmp/added.txt; then
+            echo "::error::git diff failed — refusing to pass a check that inspected nothing"
+            exit 1
+          fi
+          if [ ! -s /tmp/added.txt ]; then
+            echo "no files added or renamed by this PR"
+            exit 0
+          fi
+          sed 's/^/added: /' /tmp/added.txt
+          # xargs -r: no args -> do not invoke. -d '\n': paths with spaces survive.
+          xargs -r -d '\n' -a /tmp/added.txt python3 scripts/clean_state.py --mode ci --added-paths
