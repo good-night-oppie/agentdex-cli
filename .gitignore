@@ -125,6 +125,13 @@ sweeps/_kaos-digests/
 .specstory/
 sweeps/*.lock
 
+# Tooling debris that clean_state.py --mode precommit would otherwise treat as an
+# unclean tree, blocking EVERY commit. Each is created by a documented workflow:
+#   node_modules/ — worktree setup symlinks it;  htmlcov/ — pytest --cov-report=html
+# A gate a routine command can trip is a gate that gets bypassed.
+node_modules/
+htmlcov/
+
 # browser-automation page dumps (transient). NEVER track: these are verbatim
 # snapshots of live pages and carry session material — the 2026-07-12 dumps
 # contained Showdown `challstr` login nonces from battling.pokeagentchallenge.com.
