@@ -122,3 +122,4 @@ All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finit
 - [PR 650 Digest](docs/reviews/PR_650_DIGEST.md)
 - [PR 651 Digest](docs/reviews/PR_651_DIGEST.md)
 - [PR 652 Digest](docs/reviews/PR_652_DIGEST.md)
+- [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
