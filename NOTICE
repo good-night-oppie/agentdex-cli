@@ -1,0 +1,8 @@
+AgentDex CLI
+Copyright 2026 Eddie Tang (@EdwardTang)
+
+This product includes software developed by third parties:
+
+- packages/kaos/ — vendored subtree of KAOS,
+  MIT License, Copyright (c) 2026 Danilo Canivel.
+  The full license text is at packages/kaos/LICENSE.
