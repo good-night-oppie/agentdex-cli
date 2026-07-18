@@ -2,23 +2,24 @@
 title: PR 621 Digest
 status: draft
 owner: etang
-created: 2026-07-09
-updated: 2026-07-09
+created: 2026-07-17
+updated: 2026-07-17
 type: reference
 scope: monorepo
 layer: cross-cutting
 cross_cutting: true
 ---
+
 ```reviewer_finding
 kind: architecture
 priority: P3
-blocking_verdict: DEFER_TO_FOLLOWUP
+blocking_verdict: APPROVE
 exploitability: SAFE
-file: _design/arena2d-v2/arena2d-v4.html
+file: web/dashboard/verify.sh
 evidence_quote: |
-  <title>arena2d v4 · focus plane + neuron-core mind readout</title>
+  grep -Fq "gen9randombattle" <<<"$DOM"         && ok "format label rendered (gen9randombattle)"             || no "format label"
 fix_suggestion: |
-  Looks good! Mockups are being correctly added to the _design scratch space.
-withdraw_condition: "Approved PR 621."
-citation: "SEARCH.json idx:_design/arena2d-v2/arena2d-v4.html"
+  The PR successfully updates the Arena2D UI rendering logic and verification scripts to support v4 relayout requirements. The changes improve layout fidelity and include appropriate assertions in the verify script.
+withdraw_condition: "This finding is a review summary and acts as an approval for PR 621."
+citation: "SEARCH.json idx:web/dashboard/verify.sh"
 ```
