@@ -109,7 +109,7 @@ def max_cost_from_constraints(constraints: str) -> float | None:
 
 
 def _parse_axes(raw_scores: dict[str, Any]) -> dict[str, float] | None:
-    """Parse frontier axes; None on missing / bool / non-finite / unconvertible."""
+    """Parse frontier axes; None on missing / bool / non-finite / out-of-range."""
     try:
         scores: dict[str, float] = {}
         for axis in FRONTIER_AXES:
@@ -120,6 +120,10 @@ def _parse_axes(raw_scores: dict[str, Any]) -> dict[str, float] | None:
                 return None
             parsed = float(value)
             if not math.isfinite(parsed):
+                return None
+            if axis == "quality" and not (0.0 <= parsed <= 1.0):
+                return None
+            if axis in ("cost_dollar", "wall_clock_sec") and parsed < 0.0:
                 return None
             scores[axis] = parsed
         return scores

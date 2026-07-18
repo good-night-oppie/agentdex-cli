@@ -34,7 +34,21 @@ from agentdex_cli.run_cmd import _policy_list, _yaml_loc, load_policy
 # constants
 # --------------------------------------------------------------------------- #
 KNOWN_KINDS = frozenset({"subscription-cli", "anthropic-endpoint", "openai-endpoint"})
-SECRET_RE = re.compile(r"(sk-[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{20,}|xoxb-|AKIA[0-9A-Z]{12,})")
+SECRET_RE = re.compile(
+    r"("
+    r"sk-[A-Za-z0-9-]{8,}"
+    r"|ghp_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|glpat-[A-Za-z0-9_-]{15,}"
+    r"|xoxb-"
+    r"|AKIA[0-9A-Z]{12,}"
+    r"|AIza[0-9A-Za-z_-]{30,}"
+    r"|Bearer\s+[A-Za-z0-9._~+/-]{16,}"
+    r"|eyJ[A-Za-z0-9_-]{20,}"
+    r"|[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:[^@\s]+@"
+    r")",
+    re.IGNORECASE,
+)
 TOKEN_REF_RE = re.compile(r"^(none|env:[A-Za-z_][A-Za-z0-9_]*|file:/.+)$")
 PROBE_TIMEOUT_SEC = 10
 
@@ -138,6 +152,13 @@ def _warn_file_ref(token_ref: str) -> None:
     if not token_ref.startswith("file:"):
         return
     path = Path(token_ref[len("file:") :])
+    if SECRET_RE.search(str(path)):
+        print(
+            "warning: token_ref file path matches a credential pattern — "
+            "path withheld; use a plain file path",
+            file=sys.stderr,
+        )
+        return
     if not path.exists():
         print(f"warning: token_ref file does not exist: {path}", file=sys.stderr)
         return
@@ -288,6 +309,7 @@ def cmd_openbox_check(args: argparse.Namespace) -> int:
     # Pool coverage.
     policy_path = Path(args.policy).expanduser()
     pool_covered: bool | None
+    empty_pool = False
     if not policy_path.exists():
         print(f"pool coverage: skipped (no policy at {policy_path})")
         pool_covered = None
@@ -301,18 +323,26 @@ def cmd_openbox_check(args: argparse.Namespace) -> int:
             exit_ok = True
         else:
             pool = _policy_list(policy.get("pool"))
-            ready_count = 0
-            for pname in pool:
-                if statuses.get(pname) == "READY":
-                    ready_count += 1
-            print(f"pool coverage: {ready_count}/{len(pool)} pool names have a READY backend")
-            pool_covered = ready_count == len(pool)
-            exit_ok = pool_covered
+            if not pool:
+                print("policy has an empty pool — run `adx interview` to set one")
+                pool_covered = None
+                exit_ok = False
+                empty_pool = True
+            else:
+                ready_count = 0
+                for pname in pool:
+                    if statuses.get(pname) == "READY":
+                        ready_count += 1
+                print(f"pool coverage: {ready_count}/{len(pool)} pool names have a READY backend")
+                pool_covered = ready_count == len(pool)
+                exit_ok = pool_covered
 
     if args.json:
         payload = {"backends": statuses, "pool_covered": pool_covered}
         print(json.dumps(payload))
 
+    if empty_pool:
+        return 2
     return 0 if exit_ok else 1
 
 
