@@ -185,3 +185,6 @@ LATEST_HIGHLIGHTS.md
 
 # pytest coverage data (transient)
 .coverage
+
+# per-machine agentdex runtime config (adx interview / openbox / seeds) — local-only
+.agentdex/
