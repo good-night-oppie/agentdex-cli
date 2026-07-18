@@ -21,11 +21,13 @@ Engines
 a hash across the three frontier axes, so the loop is fully demonstrable with no
 network, no secrets, no spend — mirroring ``adx measure``'s fake-engine
 convention. Different models win different signatures under different
-objectives, so learning is observable. ``--engine bridges`` (later add-back)
-will dispatch through ``adx_bridges`` over the TeamClaude substrate and run the
-policy's real ``gate`` command.
+objectives, so learning is observable. ``--engine bridges`` dispatches live
+through the local TeamClaude gateway (Anthropic ``/v1/messages`` on loopback
+only — never remote, never credentials). Quality stays neutral 0.5 until the
+policy gate is wired; ranking falls through to cost/latency.
 
-stdlib + PyYAML + ``adx_frontier`` only. No model is called in fake mode.
+stdlib + PyYAML + ``adx_frontier`` (+ urllib for bridges). No model is called
+in fake mode.
 """
 
 from __future__ import annotations
@@ -34,11 +36,15 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import random
 import re
+import time
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 from adx_frontier import selection
@@ -147,9 +153,23 @@ class FrontierSeedLedger:
         self.path = path
         self.max_cost = max_cost
 
-    def append(self, *, signature: str, model: str, scores: dict[str, float], ts: str) -> None:
+    def append(
+        self,
+        *,
+        signature: str,
+        model: str,
+        scores: dict[str, float],
+        ts: str,
+        receipt_kind: str = "adx-run-fake",
+    ) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        row = {"signature": signature, "model": model, "scores": scores, "ts": ts}
+        row: dict[str, Any] = {
+            "signature": signature,
+            "model": model,
+            "scores": scores,
+            "ts": ts,
+            "receipt_kind": receipt_kind,
+        }
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
 
@@ -169,6 +189,7 @@ class FrontierSeedLedger:
 
     def _to_record(self, row: dict[str, Any], scores: dict[str, float], ts: str) -> FrontierRecord:
         sig = str(row["signature"])
+        kind = str(row.get("receipt_kind") or "adx-run-fake")
         return FrontierRecord(
             candidate=str(row["model"]),
             ladder_id=f"job:{sig}",
@@ -178,7 +199,7 @@ class FrontierSeedLedger:
             budget_wall_clock_min=10.0,
             receipt=TrustReceipt(
                 tier="self_reported",
-                kind="adx-run-fake",
+                kind=kind,
                 artifacts=(f"seeds:{self.path}",),
             ),
             measured_at_utc=ts,
@@ -262,8 +283,23 @@ class FrontierSeedLedger:
 
 
 # --------------------------------------------------------------------------- #
-# engine — fake now, bridges later
+# engine — fake + bridges (loopback TeamClaude gateway)
 # --------------------------------------------------------------------------- #
+
+# Per-1M USD (input, output) for the interview default pool. Unknown models
+# fall through to adx_bridges.rate_table when importable, else 0.0 → unmetered.
+_RATE_TABLE: dict[str, tuple[float, float]] = {
+    "claude-opus": (15.0, 75.0),
+    "claude-sonnet": (3.0, 15.0),
+    "codex-gpt-5.6": (2.50, 10.00),
+    "deepseek": (0.27, 1.10),
+    "sakana-fugu": (1.0, 5.0),
+}
+
+_DEFAULT_BRIDGES_BASE = "http://127.0.0.1:3456"
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost"})
+
+
 def fake_axes(model: str, sig: str, task: str) -> dict[str, float]:
     """Deterministic pseudo-scores for the three frontier axes.
 
@@ -292,6 +328,82 @@ def fake_axes(model: str, sig: str, task: str) -> dict[str, float]:
         "cost_dollar": cost_dollar,
         "wall_clock_sec": wall_clock_sec,
     }
+
+
+def _bridges_base_url() -> str:
+    return os.environ.get("ADX_BRIDGES_BASE_URL", _DEFAULT_BRIDGES_BASE).rstrip("/")
+
+
+def require_loopback_base_url(base_url: str) -> None:
+    """Refuse any non-loopback host — bridges must never talk to a remote."""
+    host = (urlparse(base_url).hostname or "").lower()
+    if host not in _LOOPBACK_HOSTS:
+        raise ValueError(
+            f"bridges engine refuses non-loopback host {host!r} — "
+            "ADX_BRIDGES_BASE_URL must be http://127.0.0.1:… or localhost"
+        )
+
+
+def _cost_dollar_and_kind(model: str, tokens_in: int, tokens_out: int) -> tuple[float, str]:
+    """Return (cost_dollar, receipt_kind). Unmetered when rates are fallback-0."""
+    if model in _RATE_TABLE:
+        in_rate, out_rate = _RATE_TABLE[model]
+        if in_rate == 0.0 and out_rate == 0.0:
+            return 0.0, "adx-run-bridges-unmetered"
+        cost = round((tokens_in * in_rate + tokens_out * out_rate) / 1_000_000.0, 6)
+        return max(cost, 0.0), "adx-run-bridges"
+    try:
+        from adx_bridges.rate_table import estimate_cost_usd
+
+        estimated = estimate_cost_usd(model, tokens_in, tokens_out)
+        if estimated is not None:
+            return float(estimated), "adx-run-bridges"
+    except ImportError:
+        pass
+    return 0.0, "adx-run-bridges-unmetered"
+
+
+def _extract_message_text(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for block in payload.get("content") or []:
+        if isinstance(block, dict) and block.get("type") == "text":
+            parts.append(str(block.get("text") or ""))
+    return "".join(parts)
+
+
+def _sanitize_model_filename(model: str) -> str:
+    return model.replace("/", "-").replace(" ", "-")
+
+
+def _post_messages(
+    base_url: str,
+    *,
+    model: str,
+    task: str,
+    max_tokens: int,
+    timeout: float,
+) -> dict[str, Any]:
+    """POST Anthropic-wire ``/v1/messages``; no credentials. Raises on failure."""
+    url = f"{base_url.rstrip('/')}/v1/messages"
+    body = json.dumps(
+        {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": task}],
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "content-type": "application/json",
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8")
+    return json.loads(raw)
 
 
 # --------------------------------------------------------------------------- #
@@ -334,6 +446,8 @@ def _run_record(
     ts: str,
     ledger_path: Path,
     max_cost: float | None,
+    *,
+    receipt_kind: str = "adx-run-fake",
 ) -> FrontierRecord:
     return FrontierRecord(
         candidate=model,
@@ -344,11 +458,61 @@ def _run_record(
         budget_wall_clock_min=10.0,
         receipt=TrustReceipt(
             tier="self_reported",
-            kind="adx-run-fake",
+            kind=receipt_kind,
             artifacts=(f"seeds:{ledger_path}",),
         ),
         measured_at_utc=ts,
     )
+
+
+def _dispatch_bridges(
+    models: list[str],
+    *,
+    task: str,
+    max_tokens: int,
+    timeout: float,
+    base_url: str,
+) -> list[dict[str, Any]]:
+    """Live-dispatch each model; skip failures with a one-line type-only note."""
+    results: list[dict[str, Any]] = []
+    for model in models:
+        try:
+            t0 = time.perf_counter()
+            payload = _post_messages(
+                base_url,
+                model=model,
+                task=task,
+                max_tokens=max_tokens,
+                timeout=timeout,
+            )
+            elapsed = round(time.perf_counter() - t0, 1)
+            usage = payload.get("usage") if isinstance(payload, dict) else None
+            if not isinstance(usage, dict):
+                usage = {}
+            tokens_in = int(usage.get("input_tokens") or 0)
+            tokens_out = int(usage.get("output_tokens") or 0)
+            cost, kind = _cost_dollar_and_kind(model, tokens_in, tokens_out)
+            text = _extract_message_text(payload) if isinstance(payload, dict) else ""
+            results.append(
+                {
+                    "model": model,
+                    "scores": {
+                        "quality": 0.5,
+                        "cost_dollar": cost,
+                        "wall_clock_sec": elapsed,
+                    },
+                    "tokens_in": tokens_in,
+                    "tokens_out": tokens_out,
+                    "text": text,
+                    "receipt_kind": kind,
+                }
+            )
+        except Exception as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            # Type name only — never echo response/request bodies.
+            print(f"  FAILED {model}: {type(exc).__name__}")
+    return results
 
 
 # --------------------------------------------------------------------------- #
@@ -374,13 +538,91 @@ def cmd_run(args: argparse.Namespace) -> int:
     best = ledger.best_model(sig, objective, max_cost)
     models, mode = allocate(pool, best, _explore_rate(policy), rng, args.fanout)
 
-    if args.engine != "fake":
-        print(f"engine '{args.engine}' not wired yet — use --engine fake (bridges is the add-back)")
-        return 2
+    engine = getattr(args, "engine", "fake")
+    max_tokens = int(getattr(args, "max_tokens", 2000))
+    dispatch_timeout = float(getattr(args, "dispatch_timeout", 180.0))
+    save_outputs = getattr(args, "save_outputs", None)
 
     ts = datetime.now(UTC).replace(microsecond=0).isoformat()
-    scored: list[tuple[str, dict[str, float]]] = [(m, fake_axes(m, sig, args.task)) for m in models]
-    run_records = [_run_record(m, sig, axes, ts, ledger.path, max_cost) for m, axes in scored]
+    candidates: list[dict[str, Any]] = []
+    scored: list[tuple[str, dict[str, float]]] = []
+    receipt_by_model: dict[str, str] = {}
+
+    if engine == "bridges":
+        base_url = _bridges_base_url()
+        try:
+            require_loopback_base_url(base_url)
+        except ValueError as exc:
+            print(str(exc))
+            return 2
+        dispatched = _dispatch_bridges(
+            models,
+            task=args.task,
+            max_tokens=max_tokens,
+            timeout=dispatch_timeout,
+            base_url=base_url,
+        )
+        if not dispatched:
+            print("all bridge candidates failed — nothing appended")
+            return 1
+        print("quality     : neutral 0.5 (gate not wired for bridges yet — rank by cost/latency)")
+        save_dir = Path(save_outputs).expanduser() if save_outputs else None
+        if save_dir is not None:
+            save_dir.mkdir(parents=True, exist_ok=True)
+        for item in dispatched:
+            model = str(item["model"])
+            axes = item["scores"]
+            scored.append((model, axes))
+            receipt_by_model[model] = str(item["receipt_kind"])
+            out_file: str | None = None
+            if save_dir is not None:
+                out_path = save_dir / f"{_sanitize_model_filename(model)}.md"
+                out_path.write_text(str(item.get("text") or ""), encoding="utf-8")
+                out_file = str(out_path)
+                print(f"saved     : {out_path}")
+            candidates.append(
+                {
+                    "model": model,
+                    "quality": axes["quality"],
+                    "cost_dollar": axes["cost_dollar"],
+                    "wall_clock_sec": axes["wall_clock_sec"],
+                    "tokens_in": item["tokens_in"],
+                    "tokens_out": item["tokens_out"],
+                    "output_file": out_file,
+                }
+            )
+    elif engine == "fake":
+        for m in models:
+            axes = fake_axes(m, sig, args.task)
+            scored.append((m, axes))
+            receipt_by_model[m] = "adx-run-fake"
+            candidates.append(
+                {
+                    "model": m,
+                    "quality": axes["quality"],
+                    "cost_dollar": axes["cost_dollar"],
+                    "wall_clock_sec": axes["wall_clock_sec"],
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                    "output_file": None,
+                }
+            )
+    else:
+        print(f"engine '{engine}' not wired yet — use --engine fake or --engine bridges")
+        return 2
+
+    run_records = [
+        _run_record(
+            m,
+            sig,
+            axes,
+            ts,
+            ledger.path,
+            max_cost,
+            receipt_kind=receipt_by_model.get(m, "adx-run-fake"),
+        )
+        for m, axes in scored
+    ]
     survivors = selection.select(run_records, objective, max_cost_dollar=max_cost)
     winner_rec = survivors[0] if survivors else None
     winner = winner_rec.candidate if winner_rec else None
@@ -390,11 +632,16 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"signature : {sig}")
     print(f"allocation: {mode}  ({len(models)} candidate(s))")
     print(f"objective  : {obj_display}")
+    tok_by_model = {c["model"]: c for c in candidates}
     for m, axes in scored:
         flag = "  <- winner" if m == winner else ""
+        tok = tok_by_model.get(m) or {}
+        tok_part = ""
+        if engine == "bridges":
+            tok_part = f" tok={tok.get('tokens_in', 0)}/{tok.get('tokens_out', 0)}"
         print(
             f"  q={axes['quality']:.4f} $={axes['cost_dollar']:.4f} "
-            f"t={axes['wall_clock_sec']:.1f}s  {m}{flag}"
+            f"t={axes['wall_clock_sec']:.1f}s{tok_part}  {m}{flag}"
         )
     if winner_rec is None:
         ceiling = max_cost if max_cost is not None else 0.0
@@ -408,18 +655,26 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     try:
         for m, axes in scored:
-            ledger.append(signature=sig, model=m, scores=axes, ts=ts)
+            ledger.append(
+                signature=sig,
+                model=m,
+                scores=axes,
+                ts=ts,
+                receipt_kind=receipt_by_model.get(m, "adx-run-fake"),
+            )
         frontier_path = ledger.export_frontier()
     except OSError as exc:
         print(f"could not persist ledger: {type(exc).__name__}")
         if args.json:
             payload: dict[str, Any] = {
+                "engine": engine,
                 "signature": sig,
                 "mode": mode,
                 "winner": winner,
                 "axes": dict(winner_rec.scores) if winner_rec else None,
                 "next_best": None,
                 "frontier": None,
+                "candidates": candidates,
             }
             print(json.dumps(payload))
         return 1
@@ -429,12 +684,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"frontier   : {frontier_path}")
     if args.json:
         payload = {
+            "engine": engine,
             "signature": sig,
             "mode": mode,
             "winner": winner,
             "axes": dict(winner_rec.scores) if winner_rec else None,
             "next_best": nxt,
             "frontier": str(frontier_path),
+            "candidates": candidates,
         }
         print(json.dumps(payload))
     return 0
@@ -463,7 +720,27 @@ def register_run_parser(subs: argparse._SubParsersAction) -> None:
         "--engine",
         default="fake",
         choices=["fake", "bridges"],
-        help="fake = deterministic, no spend; bridges = real (add-back)",
+        help="fake = deterministic, no spend; bridges = live loopback TeamClaude gateway",
+    )
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=2000,
+        dest="max_tokens",
+        help="per-model output token cap for bridges dispatch (cost ceiling)",
+    )
+    p.add_argument(
+        "--dispatch-timeout",
+        type=float,
+        default=180.0,
+        dest="dispatch_timeout",
+        help="per-model HTTP timeout seconds for bridges dispatch",
+    )
+    p.add_argument(
+        "--save-outputs",
+        default=None,
+        dest="save_outputs",
+        help="directory to write each model's answer as <model>.md (bridges)",
     )
     p.add_argument("--fanout", type=int, default=4, help="max candidates on a cold start")
     p.add_argument("--seed", type=int, default=None, help="RNG seed (deterministic explore)")

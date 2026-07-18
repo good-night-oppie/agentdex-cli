@@ -439,3 +439,132 @@ def test_cmd_run_malformed_policy_rc2_no_token_no_traceback(tmp_path, capsys):
     assert _FAKE_SK not in combined
     assert "Traceback" not in combined
     assert "line" in combined and "column" in combined
+
+
+# --------------------------------------------------------------------------- #
+# bridges engine (mocked — no network)
+# --------------------------------------------------------------------------- #
+
+
+def _bridges_ns(tmp_path, *, fanout: int = 2, save_outputs=None, as_json: bool = True):
+    policy = _policy_file(tmp_path)
+    return argparse.Namespace(
+        task="fix the bugfix",
+        policy=str(policy),
+        ledger=str(tmp_path / "seeds.jsonl"),
+        engine="bridges",
+        fanout=fanout,
+        seed=0,
+        json=as_json,
+        max_tokens=2000,
+        dispatch_timeout=180.0,
+        save_outputs=str(save_outputs) if save_outputs is not None else None,
+    )
+
+
+def _fake_messages_response(*, model: str, input_tokens: int, output_tokens: int, text: str):
+    return {
+        "model": model,
+        "content": [{"type": "text", "text": text}],
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }
+
+
+def test_bridges_success_measures_axes_saves_json_ledger(tmp_path, capsys, monkeypatch):
+    """Two models succeed → measured axes, adx-run-bridges receipts, saved outputs."""
+    calls: list[str] = []
+
+    def fake_post(base_url, *, model, task, max_tokens, timeout):
+        calls.append(model)
+        assert "127.0.0.1" in base_url or "localhost" in base_url
+        # m-a cheaper (fewer tokens); equal quality → cost wins under objective.
+        if model == "m-a":
+            return _fake_messages_response(
+                model=model, input_tokens=100, output_tokens=20, text="answer-a"
+            )
+        return _fake_messages_response(
+            model=model, input_tokens=500, output_tokens=200, text="answer-b"
+        )
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", fake_post)
+    out_dir = tmp_path / "outs"
+    ns = _bridges_ns(tmp_path, fanout=2, save_outputs=out_dir)
+    assert cmd_run(ns) == 0
+    out = capsys.readouterr().out
+    assert "neutral 0.5" in out
+    assert "tok=" in out
+    assert calls == ["m-a", "m-b"]
+
+    ledger = tmp_path / "seeds.jsonl"
+    rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line]
+    assert len(rows) == 2
+    assert all(r["receipt_kind"] == "adx-run-bridges" for r in rows)
+    assert all(r["scores"]["quality"] == 0.5 for r in rows)
+
+    assert (out_dir / "m-a.md").read_text(encoding="utf-8") == "answer-a"
+    assert (out_dir / "m-b.md").read_text(encoding="utf-8") == "answer-b"
+    assert "saved" in out
+
+    payload = json.loads([ln for ln in out.splitlines() if ln.startswith("{")][-1])
+    assert payload["engine"] == "bridges"
+    assert payload["winner"] == "m-a"  # cheaper under equal quality
+    assert len(payload["candidates"]) == 2
+    by_model = {c["model"]: c for c in payload["candidates"]}
+    assert by_model["m-a"]["tokens_in"] == 100
+    assert by_model["m-a"]["tokens_out"] == 20
+    assert by_model["m-a"]["output_file"].endswith("m-a.md")
+    assert by_model["m-a"]["cost_dollar"] < by_model["m-b"]["cost_dollar"]
+
+
+def test_bridges_one_model_urlerror_other_survives(tmp_path, capsys, monkeypatch):
+    import urllib.error
+
+    def fake_post(base_url, *, model, task, max_tokens, timeout):
+        if model == "m-a":
+            raise urllib.error.URLError("connection refused")
+        return _fake_messages_response(model=model, input_tokens=50, output_tokens=10, text="ok-b")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", fake_post)
+    ns = _bridges_ns(tmp_path, fanout=2)
+    assert cmd_run(ns) == 0
+    out = capsys.readouterr().out
+    assert "FAILED m-a: URLError" in out
+    assert "connection refused" not in out  # type only — no body/message echo
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "seeds.jsonl").read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    assert len(rows) == 1
+    assert rows[0]["model"] == "m-b"
+
+
+def test_bridges_all_models_error_exits_1_no_ledger(tmp_path, capsys, monkeypatch):
+    import urllib.error
+
+    def fake_post(base_url, *, model, task, max_tokens, timeout):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", fake_post)
+    ns = _bridges_ns(tmp_path, fanout=2)
+    assert cmd_run(ns) == 1
+    out = capsys.readouterr().out
+    assert "all bridge candidates failed" in out
+    assert not (tmp_path / "seeds.jsonl").exists()
+
+
+def test_bridges_non_loopback_refuses_rc2_no_network(tmp_path, capsys, monkeypatch):
+    called = {"n": 0}
+
+    def fake_post(*args, **kwargs):
+        called["n"] += 1
+        raise AssertionError("must not dispatch")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", fake_post)
+    monkeypatch.setenv("ADX_BRIDGES_BASE_URL", "http://example.com:3456")
+    ns = _bridges_ns(tmp_path, fanout=2)
+    assert cmd_run(ns) == 2
+    out = capsys.readouterr().out
+    assert "non-loopback" in out
+    assert called["n"] == 0
+    assert not (tmp_path / "seeds.jsonl").exists()
