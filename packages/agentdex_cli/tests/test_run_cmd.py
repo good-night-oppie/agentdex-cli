@@ -371,7 +371,7 @@ def test_export_frontier_dedupes_identical_runs(tmp_path, capsys):
     assert len(keys) == len(set(keys))
 
 
-def test_cmd_run_missing_policy_is_clean_error(tmp_path):
+def test_cmd_run_missing_policy_is_clean_error(tmp_path, capsys):
     ns = argparse.Namespace(
         task="t",
         policy=str(tmp_path / "nope.yaml"),
@@ -381,9 +381,30 @@ def test_cmd_run_missing_policy_is_clean_error(tmp_path):
         seed=0,
         json=False,
     )
-    try:
-        cmd_run(ns)
-    except FileNotFoundError as exc:
-        assert "adx interview" in str(exc)
-    else:
-        raise AssertionError("expected FileNotFoundError for missing policy")
+    assert cmd_run(ns) == 2
+    out = capsys.readouterr().out
+    assert "adx interview" in out
+    assert "Traceback" not in out
+
+
+_FAKE_SK = "sk-TESTFAKEabcdefghijklmnop"
+
+
+def test_cmd_run_malformed_policy_rc2_no_token_no_traceback(tmp_path, capsys):
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text(f'pool: "{_FAKE_SK}\n', encoding="utf-8")
+    ns = argparse.Namespace(
+        task="t",
+        policy=str(policy),
+        ledger=str(tmp_path / "s.jsonl"),
+        engine="fake",
+        fanout=3,
+        seed=0,
+        json=False,
+    )
+    assert cmd_run(ns) == 2
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert _FAKE_SK not in combined
+    assert "Traceback" not in combined
+    assert "line" in combined and "column" in combined
