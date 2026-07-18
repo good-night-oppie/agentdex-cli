@@ -15,10 +15,9 @@ terminal-bench/terminal-bench-2 • oracle
 
 Job Info
 Total runtime: 36s
-Results written to 
+Results written to
 .fleet-goal/evidence/M2/measured/wu9-oracle-jobs/wu9-oracle/result.json
-Inspect results by running `harbor view 
+Inspect results by running `harbor view
 .fleet-goal/evidence/M2/measured/wu9-oracle-jobs`
-Share results by running `harbor upload 
+Share results by running `harbor upload
 .fleet-goal/evidence/M2/measured/wu9-oracle-jobs/wu9-oracle`
-

@@ -29,7 +29,7 @@ def test_rendered_policy_is_valid_yaml_with_expected_shape():
     assert isinstance(doc["pool"], list) and doc["pool"]
     # scalar fields stay scalar
     assert isinstance(doc["gate"], str)
-    assert isinstance(doc["explore_rate"], (str, float, int))
+    assert isinstance(doc["explore_rate"], str | float | int)
 
 
 def test_comma_answer_splits_into_list():

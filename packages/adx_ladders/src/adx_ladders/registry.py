@@ -64,11 +64,7 @@ class Registry:
 
 def load_registry() -> Registry:
     """Load the packaged ``registry.yaml`` curated market."""
-    raw_text = (
-        resources.files("adx_ladders")
-        .joinpath("registry.yaml")
-        .read_text(encoding="utf-8")
-    )
+    raw_text = resources.files("adx_ladders").joinpath("registry.yaml").read_text(encoding="utf-8")
     raw = yaml.safe_load(raw_text)
     if not isinstance(raw, dict):
         raise ValueError("registry.yaml must be a mapping")
@@ -96,8 +92,7 @@ def _parse_ladder(item: Any) -> LadderEntry:
         ladder_class = LadderClass(class_raw)
     except ValueError as exc:
         raise ValueError(
-            f"unknown ladder_class {class_raw!r}; "
-            f"expected {[c.value for c in LadderClass]}"
+            f"unknown ladder_class {class_raw!r}; expected {[c.value for c in LadderClass]}"
         ) from exc
     return LadderEntry(
         id=str(item["id"]),

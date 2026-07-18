@@ -15,9 +15,8 @@ terminal-bench/terminal-bench-2 • tb2-noop
 
 Job Info
 Total runtime: 32s
-Results written to 
+Results written to
 /tmp/adx-harbor-jobs-v61lzbaw/adx-*regex-log-e97af5ae/result.json
 Inspect results by running `harbor view /tmp/adx-harbor-jobs-v61lzbaw`
-Share results by running `harbor upload 
+Share results by running `harbor upload
 /tmp/adx-harbor-jobs-v61lzbaw/adx-*regex-log-e97af5ae`
-

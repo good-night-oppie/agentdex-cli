@@ -77,9 +77,7 @@ class AgentCandidate:
             try:
                 matches = list(self.root.glob(pattern))
             except (NotImplementedError, ValueError, OSError) as exc:
-                raise CandidateValidationError(
-                    f"invalid mutable glob {pattern!r}: {exc}"
-                ) from exc
+                raise CandidateValidationError(f"invalid mutable glob {pattern!r}: {exc}") from exc
             matched_files = 0
             for path in matches:
                 # Follow symlinks via resolve(); reject anything outside root.
@@ -93,8 +91,7 @@ class AgentCandidate:
                     ) from exc
                 if not _is_under_root(resolved, root_resolved):
                     raise CandidateValidationError(
-                        f"mutable path escapes candidate root: {resolved} "
-                        f"(pattern {pattern!r})"
+                        f"mutable path escapes candidate root: {resolved} (pattern {pattern!r})"
                     )
                 found.add(resolved)
                 matched_files += 1
@@ -110,17 +107,14 @@ class AgentCandidate:
             raise CandidateValidationError("name must be a non-empty string")
         if _has_invisible_format_chars(str(self.name)):
             raise CandidateValidationError(
-                "name must not contain invisible Unicode format characters "
-                "(e.g. zero-width space)"
+                "name must not contain invisible Unicode format characters (e.g. zero-width space)"
             )
         if not self.entrypoint or not str(self.entrypoint).strip():
             raise CandidateValidationError("entrypoint must be a non-empty string")
         if not self.base_model or not str(self.base_model).strip():
             raise CandidateValidationError("base_model must be a non-empty string")
         if not self.mutable:
-            raise CandidateValidationError(
-                "mutable must be a non-empty list of glob patterns"
-            )
+            raise CandidateValidationError("mutable must be a non-empty list of glob patterns")
         if not self.ladders:
             raise CandidateValidationError("ladders must be a non-empty list")
         unknown = [ladder for ladder in self.ladders if ladder not in KNOWN_LADDERS]
@@ -157,9 +151,7 @@ class AgentCandidate:
             violations.append(f"file_count={n_files} (max {_MAX_MUTABLE_FILES})")
         if oversized:
             detail = ", ".join(f"{name}={size}B" for name, size in oversized)
-            violations.append(
-                f"per-file size > {_MAX_BYTES_PER_FILE}B: {detail}"
-            )
+            violations.append(f"per-file size > {_MAX_BYTES_PER_FILE}B: {detail}")
         if total > _MAX_BYTES_TOTAL:
             violations.append(f"total_bytes={total} (max {_MAX_BYTES_TOTAL})")
 
@@ -225,9 +217,7 @@ def _from_mapping(raw: dict[str, Any], root: Path) -> AgentCandidate:
     if not isinstance(budget_raw, dict):
         raise CandidateValidationError("budget must be a mapping with usd and wall_clock_min")
     if "usd" not in budget_raw or "wall_clock_min" not in budget_raw:
-        raise CandidateValidationError(
-            "budget must include both usd and wall_clock_min"
-        )
+        raise CandidateValidationError("budget must include both usd and wall_clock_min")
 
     try:
         usd = float(budget_raw["usd"])

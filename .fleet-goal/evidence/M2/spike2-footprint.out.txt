@@ -4,7 +4,7 @@
 
 ### Direct actionable pivot (SAP)
 
-Open a note and lock this decision line:  
+Open a note and lock this decision line:
 `fourth_adapter = swe-bench-pro; sample_n=10; mode=local_docker_beta; skip_webarena_full_stack`.
 
 ---
@@ -48,8 +48,8 @@ Open a note and lock this decision line:
 
 ### Practical synthesis (10-minute micro-sprint)
 
-1. Write the decision line above into the M2 spike note.  
-2. Optional verify (still metadata-only): `curl` Hub token + HEAD/GET manifest for one `jefzda/sweap-images` tag you plan to sample.  
+1. Write the decision line above into the M2 spike note.
+2. Optional verify (still metadata-only): `curl` Hub token + HEAD/GET manifest for one `jefzda/sweap-images` tag you plan to sample.
 3. Do **not** `docker pull` yet.
 
 **Still open:** exact same-repo sharing across all 731 tags (likely still weak); GHCR evaluator image size (anonymous 401); real wall-clock for one Pro instance under your scaffold.
