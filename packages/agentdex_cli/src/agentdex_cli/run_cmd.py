@@ -49,10 +49,26 @@ from adx_frontier.ledger import FrontierLedger, FrontierRecord, TrustReceipt
 # --------------------------------------------------------------------------- #
 # policy + signature
 # --------------------------------------------------------------------------- #
+def _yaml_loc(exc: yaml.YAMLError) -> str:
+    """Return `` (line N, column M)`` from a YAMLError mark — never str(exc)."""
+    mark = getattr(exc, "problem_mark", None)
+    if mark is None:
+        return ""
+    return f" (line {mark.line + 1}, column {mark.column + 1})"
+
+
 def load_policy(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"no orchestration policy at {path} — run `adx interview` first")
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(
+            f"invalid YAML in policy at {path}{_yaml_loc(exc)} — fix the file"
+        ) from None
+    if not isinstance(doc, dict):
+        raise ValueError(f"policy at {path} must be a YAML mapping")
+    return doc
 
 
 def _policy_list(value: Any) -> list[str]:
@@ -335,7 +351,11 @@ def _run_record(
 # command
 # --------------------------------------------------------------------------- #
 def cmd_run(args: argparse.Namespace) -> int:
-    policy = load_policy(Path(args.policy).expanduser())
+    try:
+        policy = load_policy(Path(args.policy).expanduser())
+    except (FileNotFoundError, ValueError) as exc:
+        print(str(exc))
+        return 2
     pool = _policy_list(policy.get("pool"))
     if not pool:
         print("policy has an empty pool — run `adx interview` to set one")

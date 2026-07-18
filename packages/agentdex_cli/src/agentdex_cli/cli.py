@@ -668,6 +668,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_run_parser(subs)
 
+    # ---- openbox: bind pool names to invokable backends (zero creds) ----
+    from agentdex_cli.openbox_cmd import register_openbox_parser
+
+    register_openbox_parser(subs)
+
     return p
 
 
