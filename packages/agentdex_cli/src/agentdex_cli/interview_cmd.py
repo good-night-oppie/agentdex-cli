@@ -157,8 +157,11 @@ def render_policy_yaml(answers: dict[str, str]) -> str:
 
 
 def cmd_interview(args: argparse.Namespace) -> int:
-    answers = _ask(ORCHESTRATION_QUESTIONS, non_interactive=args.non_interactive)
     out = Path(args.out).expanduser()
+    if out.exists() and not args.force:
+        print(f"refusing to overwrite existing policy at {out} (pass --force)")
+        return 2
+    answers = _ask(ORCHESTRATION_QUESTIONS, non_interactive=args.non_interactive)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_policy_yaml(answers), encoding="utf-8")
     print(f"\nwrote orchestration policy → {out}")
@@ -180,5 +183,10 @@ def register_interview_parser(subs: argparse._SubParsersAction) -> None:
         "--non-interactive",
         action="store_true",
         help="use documented defaults for every answer (CI / smoke tests)",
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing policy file",
     )
     p.set_defaults(func=cmd_interview)

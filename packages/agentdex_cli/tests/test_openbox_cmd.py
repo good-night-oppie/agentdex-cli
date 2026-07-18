@@ -606,3 +606,142 @@ def test_json_missing_policy_pool_covered_null(tmp_path, capsys):
     assert rc == 0
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert payload["pool_covered"] is None
+
+
+def test_broadened_secret_shapes_rejected_without_echo(tmp_path):
+    """C1: hyphenated sk-, JWT Bearer, URL userinfo, github_pat, AIza — no echo."""
+    cases = [
+        ("api_key", "sk-ant-api03-TESTFAKE0000000000"),
+        ("api_key", "sk-proj-TESTFAKE0000000000"),
+        ("headers", ["Authorization: Bearer eyJTESTFAKE00000000000000"]),
+        ("base_url", "https://user:hunter2@host.example"),
+        ("extra", "github_pat_TESTFAKE00000000000000000"),
+        ("extra2", "AIzaTESTFAKE000000000000000000000000"),
+    ]
+    for field, value in cases:
+        path = tmp_path / f"ob-{field}.yaml"
+        backend: dict = {
+            "kind": "subscription-cli",
+            "probe": [],
+            "invoke": "x",
+            "token_ref": "none",
+            field: value,
+        }
+        path.write_text(
+            yaml.safe_dump({"version": 1, "backends": {"nested": backend}}, sort_keys=False),
+            encoding="utf-8",
+        )
+        with pytest.raises(OpenboxError) as ei:
+            load_openbox(path)
+        msg = str(ei.value)
+        body = value if isinstance(value, str) else value[0]
+        # secret body must never appear; for Bearer the JWT substring is the body
+        if "eyJ" in body:
+            assert "eyJTESTFAKE00000000000000" not in msg
+        elif "hunter2" in body:
+            assert "hunter2" not in msg
+        else:
+            assert body not in msg
+
+
+def test_legit_openbox_fields_still_pass(tmp_path):
+    """C1: base_url without userinfo, probe argv, token_ref forms stay accepted."""
+    path = tmp_path / "openbox.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "backends": {
+                    "ok": {
+                        "kind": "subscription-cli",
+                        "probe": ["claude", "--version"],
+                        "invoke": "claude",
+                        "token_ref": "none",
+                        "base_url": "http://127.0.0.1:8085",
+                    },
+                    "env-ref": {
+                        "kind": "anthropic-endpoint",
+                        "probe": [],
+                        "invoke": "anthropic-endpoint",
+                        "token_ref": "env:ANTHROPIC_API_KEY",
+                    },
+                    "file-ref": {
+                        "kind": "openai-endpoint",
+                        "probe": [],
+                        "invoke": "openai-endpoint",
+                        "token_ref": "file:/tmp/plain-cred-path",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    doc = load_openbox(path)
+    assert set(doc["backends"]) == {"ok", "env-ref", "file-ref"}
+
+
+def test_check_empty_pool_rc2_pool_covered_null(tmp_path, capsys):
+    """F2: empty policy pool is not vacuous coverage — rc 2, pool_covered null."""
+    openbox = tmp_path / "openbox.yaml"
+    openbox.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "backends": {
+                    "x": {
+                        "kind": "subscription-cli",
+                        "probe": [],
+                        "invoke": "x",
+                        "token_ref": "none",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text("version: 1\npool: []\n", encoding="utf-8")
+    rc = cmd_openbox_check(_ns_check(file=str(openbox), policy=str(policy), json=True))
+    assert rc == 2
+    captured = capsys.readouterr().out
+    assert "empty pool" in captured
+    payload = json.loads(captured.strip().splitlines()[-1])
+    assert payload["pool_covered"] is None
+
+
+def test_secret_shaped_file_token_ref_no_echo(tmp_path, capsys):
+    """F3: file: path matching SECRET_RE is rejected without echoing the secret body."""
+    secret_body = "sk-ant-TESTFAKE0000000000"
+    path = tmp_path / "openbox.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "backends": {
+                    "x": {
+                        "kind": "subscription-cli",
+                        "probe": [],
+                        "invoke": "x",
+                        "token_ref": f"file:/tmp/{secret_body}",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(OpenboxError) as ei:
+        load_openbox(path)
+    msg = str(ei.value)
+    assert secret_body not in msg
+    assert "token_ref" in msg
+    # Also exercise check path (rc != 0, no secret echo).
+    rc = cmd_openbox_check(_ns_check(file=str(path), policy=str(tmp_path / "nope.yaml")))
+    assert rc != 0
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert secret_body not in combined
+    assert "token_ref" in combined
+    assert "Traceback" not in combined

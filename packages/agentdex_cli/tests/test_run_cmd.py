@@ -363,12 +363,43 @@ def test_export_frontier_dedupes_identical_runs(tmp_path, capsys):
     sig = "bugfix/python"
     partition = next(p for p in frontier["partitions"] if p["ladder_id"] == f"job:{sig}")
     # Collect (candidate, scores) from the partition's frontier list.
-    entries = partition.get("frontier") or partition.get("records") or []
+    entries = partition["frontier"]
+    assert entries
     keys = []
     for rec in entries:
         scores = rec.get("scores") or {}
         keys.append((rec.get("candidate") or rec.get("model"), tuple(sorted(scores.items()))))
     assert len(keys) == len(set(keys))
+
+
+def test_out_of_range_quality_never_wins(tmp_path):
+    """C3: quality outside [0,1] must be skipped — honest candidate wins."""
+    path = tmp_path / "seeds.jsonl"
+    rows = [
+        {
+            "signature": "sig",
+            "model": "poison-huge",
+            "scores": {"quality": 1e9, "cost_dollar": 0.01, "wall_clock_sec": 5.0},
+            "ts": "t-huge",
+        },
+        {
+            "signature": "sig",
+            "model": "poison-neg-q",
+            "scores": {"quality": -0.5, "cost_dollar": 0.01, "wall_clock_sec": 5.0},
+            "ts": "t-neg-q",
+        },
+        {
+            "signature": "sig",
+            "model": "honest",
+            "scores": {"quality": 0.7, "cost_dollar": 0.2, "wall_clock_sec": 30.0},
+            "ts": "t-honest",
+        },
+    ]
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    led = FrontierSeedLedger(path)
+    assert led.best_model("sig", ["correctness", "cost"], None) == "honest"
+    means = led.mean_records("sig")
+    assert [m.candidate for m in means] == ["honest"]
 
 
 def test_cmd_run_missing_policy_is_clean_error(tmp_path, capsys):
