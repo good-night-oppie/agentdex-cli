@@ -40,18 +40,12 @@ class Receipt:
 
     def __post_init__(self) -> None:
         if self.tier not in ("verified", "self_reported"):
-            raise ValueError(
-                f"tier must be 'verified' or 'self_reported' (got {self.tier!r})"
-            )
+            raise ValueError(f"tier must be 'verified' or 'self_reported' (got {self.tier!r})")
         if self.tier == "verified" and not str(self.ref).strip():
             raise ValueError("tier 'verified' requires a non-empty ref")
         if self.tier == "self_reported":
-            if not self.artifacts or not any(
-                str(a).strip() for a in self.artifacts
-            ):
-                raise ValueError(
-                    "tier 'self_reported' requires a non-empty artifacts tuple"
-                )
+            if not self.artifacts or not any(str(a).strip() for a in self.artifacts):
+                raise ValueError("tier 'self_reported' requires a non-empty artifacts tuple")
 
 
 @dataclass(frozen=True)
@@ -81,21 +75,15 @@ class MeasureResult:
         expected = set(FRONTIER_AXES)
         got = set(self.scores)
         if got != expected:
-            raise ValueError(
-                f"scores keys must be exactly {FRONTIER_AXES}; got {sorted(got)}"
-            )
+            raise ValueError(f"scores keys must be exactly {FRONTIER_AXES}; got {sorted(got)}")
         validated: dict[str, float] = {}
         for key, value in self.scores.items():
             # bool is a subclass of int — reject it explicitly.
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(
-                    f"score {key!r} must be a finite float; got {value!r}"
-                )
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise ValueError(f"score {key!r} must be a finite float; got {value!r}")
             fval = float(value)
             if not math.isfinite(fval):
-                raise ValueError(
-                    f"score {key!r} must be a finite float; got {value!r}"
-                )
+                raise ValueError(f"score {key!r} must be a finite float; got {value!r}")
             if key in ("cost_dollar", "wall_clock_sec") and fval < 0.0:
                 raise ValueError(f"score {key!r} must be non-negative; got {value!r}")
             validated[key] = fval
@@ -105,7 +93,7 @@ class MeasureResult:
         ):
             if (
                 isinstance(value, bool)
-                or not isinstance(value, (int, float))
+                or not isinstance(value, int | float)
                 or not math.isfinite(float(value))
                 or float(value) <= 0.0
             ):
@@ -130,8 +118,7 @@ class LadderAdapter(abc.ABC):
         candidate.validate()
         if self.ladder_id not in candidate.ladders:
             raise ValueError(
-                f"ladder {self.ladder_id!r} not in candidate.ladders="
-                f"{list(candidate.ladders)}"
+                f"ladder {self.ladder_id!r} not in candidate.ladders={list(candidate.ladders)}"
             )
 
     @abc.abstractmethod

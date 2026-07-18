@@ -128,11 +128,7 @@ class ArcAgi3Adapter(LadderAdapter):
             quality = float(self._engine.score())
 
         cost_is_measured = self._cost_dollar is not None
-        cost = (
-            float(self._cost_dollar)
-            if cost_is_measured
-            else float(candidate.budget.usd)
-        )
+        cost = float(self._cost_dollar) if cost_is_measured else float(candidate.budget.usd)
 
         artifact_ref = self._write_run_log(
             candidate=candidate,
