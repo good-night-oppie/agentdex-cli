@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.0",
   "fastapi>=0.110",
-  "cryptography>=42",
+  "cryptography>=49.0.0",
   "adx-showdown",
   "agentdex-engine",
   "adx-bridges",

@@ -35,7 +35,7 @@ kaos             = { workspace = true }
 # AGENTS.md:28 was config-only theater. Install via `uv sync --group dev`.
 [dependency-groups]
 dev = [
-  "pytest>=8.0",
+  "pytest>=9.1.1",
   "pytest-asyncio>=0.24",
   "pytest-timeout>=2.3",
   "tiktoken>=0.8",
