@@ -125,6 +125,42 @@ sweeps/_kaos-digests/
 .specstory/
 sweeps/*.lock
 
+# Tooling debris that clean_state.py --mode precommit would otherwise treat as an
+# unclean tree, blocking EVERY commit. Each is created by a documented workflow:
+#   node_modules/ — worktree setup symlinks it;  htmlcov/ — pytest --cov-report=html
+# A gate a routine command can trip is a gate that gets bypassed.
+node_modules/
+htmlcov/
+
+# ROOT-LEVEL images. THE repo-stopper, found by adversarial review after the first
+# version of the clean-state gate had already shipped:
+#
+# This is a browser-driven UI-redesign branch. Its verification loop SCREENSHOTS
+# the arena and drops the PNGs at the repo root — 11 of them were sitting untracked
+# when this session opened. They were git-mv'd into .fleet-goal/evidence/, which
+# tracked the 10 INSTANCES but never ignored the CLASS. With clean-state armed, the
+# very next screenshot blocks EVERY commit — across all 30 worktrees that share
+# $GIT_COMMON_DIR/hooks. The gate would have strangled the loop that feeds it.
+#
+# ANCHORED to the root (leading /) on purpose: site/, web/ and packages/ ship real
+# image assets and must stay trackable. Only the root is a scratch surface.
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
+
+# browser-automation page dumps (transient). NEVER track: these are verbatim
+# snapshots of live pages and carry session material — the 2026-07-12 dumps
+# contained Showdown `challstr` login nonces from battling.pokeagentchallenge.com.
+.playwright-mcp/
+
+# machine-local agent settings (absolute paths, per-host trust config).
+# The shared, reviewable agent configs (.codex/, .devin/, .factory/mcp.json,
+# .cursorrules) ARE tracked — only the *.local.* overlays are not.
+.factory/settings.local.json
+**/settings.local.json
+
 # Python build artifacts (anchored — already covered above with /dist /build)
 *.whl
 
@@ -140,3 +176,15 @@ worktrees/
 # Machine-local and self-declared "DO NOT EDIT" — it is never a repo artifact.
 # Ignored fleet-wide (arc-kb, eddie-agi-kb, edith, fabricator, harness-engineering).
 LATEST_HIGHLIGHTS.md
+
+# Adapter scratch run-logs (transient; measured evidence lives in .fleet-goal/evidence/M2/measured/)
+**/.adx/runs/
+
+# model_route.sh dispatch telemetry (transient status files, created by harness dispatches)
+/data/_meta/state/model_route_runs/
+
+# pytest coverage data (transient)
+.coverage
+
+# per-machine agentdex runtime config (adx interview / openbox / seeds) — local-only
+.agentdex/

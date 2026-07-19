@@ -1,0 +1,66 @@
+**Recommendation: put SWE-Bench Pro (10-instance local sample) in the fourth adapter slot.** Laptop cost is ~10–15 GB disk, ~4–8 GB RAM peak (one container), and a controllable few hours—not WebArena’s ~32 GiB image pull + optional ~160 GB wiki/map data and a multi-service always-on stack.
+
+---
+
+### Direct actionable pivot (SAP)
+
+Open a note and lock this decision line:  
+`fourth_adapter = swe-bench-pro; sample_n=10; mode=local_docker_beta; skip_webarena_full_stack`.
+
+---
+
+### Comparison (laptop / per-user local)
+
+| Dimension | WebArena-Verified | SWE-Bench Pro (public) |
+|---|---|---|
+| **Image strategy** | Fixed 6-site compose stack (`am1n3e/webarena-verified-*`) | **One prebuilt image per instance**: `jefzda/sweap-images:{dockerhub_tag}` (HF column) — not a shared base+overlay you can count on |
+| **Compressed download (registry)** | **32.1 GiB** sum of 6 compose images | Typical **~0.5–2.7 GiB/image** (sample n=12: median **0.87**, mean **~1.1–1.3** GiB). **10-instance sample ≈ 9–13 GiB** compressed; mixed-repo layer dedup ~0–2% |
+| **On-disk after load (docs)** | Docs “optimized” sizes sum **~60 GB** (shopping 13.3 + gitlab 31.6 + reddit 8.4 + …) | Roughly **1.5–2× compressed** per image → **~15–25 GB** for 10 instances |
+| **Extra data** | Wikipedia **~100 GB** + Map **~60 GB** (map alone wants **≥200 GB** disk) | Dataset parquet only **~7.8 MB** (731 rows); images are the cost |
+| **Full public set** | 812 tasks / Hard 258 — but env cost is fixed, not per-task | **731** public instances; naive full pull **~0.7–1+ TB** compressed if little sharing |
+| **RAM** | GitLab **≥4 GB**; Map **4 GB+ + 4 GB swap**; Magento ES heap **512m**; original AMI guidance **t3a.xlarge (16 GB)**; compose sets GitLab `shm_size: 2gb` | One instance container at a time → laptop-friendly; Modal recommended for scale; local Docker is **beta** |
+| **Wall time** | Demo path **~5–15 min**; site boot **minutes** (GitLab several min); full agent eval = agent-bound; original map backend setup **60–90 min / ~180 GB** | Tasks are **hours–days** for humans; agent runs capped (paper: up to **200 turns**; some leaderboard tables **50 turns / $2**); tutao evals historically slow; eval harness defaults to high Modal parallelism |
+
+**Per-image registry evidence (WebArena-Verified compose):**
+
+| Image | Compressed |
+|---|---|
+| `shopping_admin` | 1.16 GiB |
+| `shopping` | 5.05 GiB |
+| `gitlab` | **20.50 GiB** |
+| `reddit` | 4.26 GiB |
+| `wikipedia` (image only) | 0.04 GiB |
+| `map` (image only) | 1.11 GiB |
+| **Total** | **32.11 GiB** |
+
+---
+
+### Reasoning path
+
+1. Measured Hub manifest layer sizes (metadata only, no pulls) for the exact compose list in [ServiceNow/webarena-verified `docker-compose.yml`](https://github.com/ServiceNow/webarena-verified/blob/main/docker-compose.yml).
+2. Cross-checked docs “optimized size” table ([environments docs](https://raw.githubusercontent.com/ServiceNow/webarena-verified/main/docs/environments/index.md)) — those look like **uncompressed/on-disk**, ~2× registry compressed.
+3. SWE-Bench Pro: HF confirms **731** test rows + `dockerhub_tag`; README states one Hub tag per instance under `jefzda/sweap-images`. Sampled 12 tags via registry API; 10-tag mixed-repo dedup was **&lt;1%**, so treat sample disk as **sum**, not shared base.
+4. Laptop fourth-adapter criterion = **disk + RAM + hours a user actually pays**. SWE-Bench Pro scales with N; WebArena’s cost is front-loaded and dominated by GitLab + optional wiki/map.
+
+**Counterargument:** If the fourth slot must cover **browser/web agents**, SWE-Bench Pro is the wrong modality. Then use WebArena-Verified’s **offline eval** (HAR replay, no sites) or a **1–2 site subset** (e.g. `shopping_admin` alone ≈ 1.2 GiB compressed / ~2.9 GB on-disk) — not the full compose + wiki/map.
+
+---
+
+### Practical synthesis (10-minute micro-sprint)
+
+1. Write the decision line above into the M2 spike note.  
+2. Optional verify (still metadata-only): `curl` Hub token + HEAD/GET manifest for one `jefzda/sweap-images` tag you plan to sample.  
+3. Do **not** `docker pull` yet.
+
+**Still open:** exact same-repo sharing across all 731 tags (likely still weak); GHCR evaluator image size (anonymous 401); real wall-clock for one Pro instance under your scaffold.
+
+---
+
+### Four fields
+
+| Field | Content |
+|---|---|
+| **learned** | WebArena-Verified compose = **6 images, 32.1 GiB compressed** (GitLab alone 20.5); docs on-disk ~60 GB images + **~160 GB** wiki/map data → full stack **~200+ GB / 16 GB-class RAM**. SWE-Bench Pro = **731** public instances, **one image each** (`jefzda/sweap-images`), typical **~0.9–1.3 GiB** compressed; **10-instance sample ~10–15 GB** disk, weak layer sharing; Modal preferred, local Docker beta. **Fourth slot → SWE-Bench Pro @ N=10** for laptop cost; WebArena only if web modality via offline/subset. |
+| **changed** | `none` |
+| **evidence** | Compose: https://github.com/ServiceNow/webarena-verified/blob/main/docker-compose.yml · Env sizes/data: https://raw.githubusercontent.com/ServiceNow/webarena-verified/main/docs/environments/index.md (wiki ~100GB, map ~60GB; map disk ≥200GB) · GitLab RAM: `docs/environments/gitlab.md` (≥4GB) · Original AMI: https://github.com/web-arena-x/webarena/blob/main/environment_docker/README.md (t3a.xlarge / 16GB, 1000GB EBS) · Registry sums this run: shopping_admin 1.16 / shopping 5.05 / gitlab 20.50 / reddit 4.26 / wiki 0.04 / map 1.11 = **32.11 GiB** · Pro README: https://github.com/scaleapi/SWE-bench_Pro-os · HF: https://huggingface.co/datasets/ScaleAI/SWE-bench_Pro (**731** rows, `dockerhub_tag`) · Public set 731: https://labs.scale.com/leaderboard/swe_bench_pro_public · Paper: https://arxiv.org/abs/2509.16941 · Sample image sizes: 12 tags median 0.87 / mean ~1.14 GiB; 10 mixed naive 12.8 GiB compressed |
+| **next** | Spike 3 (still lightweight): pick 10 Pro `dockerhub_tag`s across ≥3 repos, record per-tag compressed sizes + estimated agent wall-time under existing scaffold caps; only then decide whether to authorize a real pull. If web coverage is mandatory instead, spike a **shopping_admin-only** WebArena adapter path (skip gitlab/wiki/map). |

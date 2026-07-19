@@ -1,0 +1,91 @@
+{
+  "label": "critic",
+  "result": {
+    "learned": "The six lanes are individually strong but the synthesis has one falsified premise, one central unresolved fork, and one gap no lane surfaced. (1) FALSIFIED PREMISE: GOALS.md's objective (\"Weco drives Claude Code to recursively self-improve\") is contradicted by the weco lane's primary-source finding that Weco cannot spawn agents; the shipped integration is the inverse (`weco setup claude-code` makes Claude Code drive weco; agent-in-the-loop exists only via `--require-review` review/revise/submit). This resolves adx's open question #3 but requires rewriting the objective sentence and putting the inversion verbatim in front of the user (M1 evidence item 6). (2) CENTRAL FORK: four overlapping Pareto/search substrates exist (agentdex_engine one-shot 3-objective verdict; vendored-unused kaos.metaharness ParetoFrontier; bene mh multi-objective persistent frontier with MCP collaborative mode; weco which is single-scalar-metric only and structurally cannot own a frontier) — the architecture cannot be written without picking one frontier owner and a scalarization contract for weco inner-loop runs; evidence for the decision is already sufficient (bene mh dominates on verified capability). (3) UNSURFACED GAP: no lane defined the agent-candidate interface — the design's central noun. The verified substrates have four incompatible candidate shapes (bene: one Python program run(problem); weco: ≤10 in-place-mutated source files; Harbor: agent CLI or --agent-import-path class; ARC-AGI-3: arcengine SDK agent). Secondary load-bearing gaps: canonical frontier axes + base_model partitioning (implied by Weng's RE-Bench budget-crossover and STOP facts but proposed by nobody); anti-gaming/verifiability model for self-reported local runs (ledger schema blocker; partial rails exist via ARC scorecards and Kaggle submission ids); benchmark-mirroring ToS (unclosed by all lanes, but a link-out fallback de-blocks M1); weco credit economics with BYO keys (blocks the 'free with your own subscriptions' hook claim); bene evaluator's in-process exec() + divided timeout being incompatible with hour-long ladder runs (forces adapter-owned out-of-process execution). Cross-lane resolutions to record: Weng's post does not cover Weco/AIDE (weco lane confirms independent lineage); zero weco integration code exists in agentdex or bene (pure greenfield seam); duplicate ARC-AGI-3 adapters — prefer bene's real-arcengine one, mooting the kaos-synthetic question; GOALS says 7 packages but adx verified 9; 'hook your Weco login' as website OAuth is unsupported (no public server API documented) — the verified shape is local CLI exporting `weco run results/overview --format json` into the agentdex ledger; HuggingFace is not a ladder (Open LLM Leaderboard retired; HF is the distribution layer for TB2/SWE-Bench Pro datasets) so req 3's 'six ladders' needs a recast the user must confirm. Most remaining lane open questions (2026 arXiv IDs, TB2 exact count, Datacurve misgrading, README-EN parity, index internals, WAL load limits, mh_resume collaborative) are nice-to-know, not architecture blockers.",
+    "changed": "none — read-only research",
+    "evidence": [
+      {
+        "cite": "/home/admin/gh/agentdex-cli-redesign/.fleet-goal/GOALS.md:22-28,43-45,66-67,84-85",
+        "note": "Objective states 'Weco drives Claude Code'; req 4 claims no hosted-compute cost; constraint says '7 packages'; risk section itself flags the weco-hook mechanism as must-verify — the weco lane's verification came back inverted."
+      },
+      {
+        "cite": "weco lane key_facts 5-6 (task input)",
+        "note": "'Weco CANNOT spawn agents… the documented integration is the inverse: weco setup claude-code installs a skill so Claude Code drives weco'; review-mode (--require-review → review/revise/submit) is the only agent-in-the-loop path. Falsifies the GOALS hook direction."
+      },
+      {
+        "cite": "weco lane key_facts 2,8 (task input)",
+        "note": "Source files + eval output upload to Weco backend (weco/optimizer.py, weco/api.py); exactly one scalar metric per run — Weco structurally cannot own the Pareto frontier; privacy/retention and BYO-key credit economics remain unverified."
+      },
+      {
+        "cite": "adx lane key_facts 1-3 + open_questions 2,6 (task input)",
+        "note": "Three in-house Pareto implementations (engine verdict, battle fitness, vendored kaos frontier) with incompatible axes; substrate-choice and local-run-verifiability questions are explicitly unanswered — the two hardest design forks."
+      },
+      {
+        "cite": "mh lane key_facts 1-2,8-9,13 + open_questions 2,4-5 (task input)",
+        "note": "bene mh has the only persistent multi-objective frontier + MCP collaborative proposer + real arcengine ARC-AGI-3 adapter; but candidate = single Python program, evaluator = in-process exec() with timeout/len(problems), and SKILL.md-vs-autopromote.py wiring contradiction is unresolved."
+      },
+      {
+        "cite": "benchmarks lane key_facts 2,7,9 + open_questions 1-3,7 (task input)",
+        "note": "ARC-AGI-3 local engine (pip, no key) and TB2 Harbor (Apache-2.0, --agent-import-path) are the tractable run-adapters; MLE-bench needs 36 vCPU/440GB (Kaggle = curate-only); every mirroring-ToS question (Kaggle, arcprize, SEAL, HF dataset license) is still open."
+      },
+      {
+        "cite": "weng lane key_facts 6,10 (task input)",
+        "note": "STOP (base-model gates whether improvement loops help) and RE-Bench budget crossover (score is a function of budget) — together they force frontier partitioning by base_model and a declared-budget axis; no lane translated this into the data model."
+      },
+      {
+        "cite": "evolution lane key_facts 8,10 + open_questions 5-6 (task input)",
+        "note": "agent-evolution content is CC BY 4.0 with attribution and self-labeled [INFERRED]/claim-status — absorbable if labels are carried through; their license does NOT cover benchmark-leaderboard mirroring, which they explicitly punt to the benchmarks lane, where it stayed open."
+      },
+      {
+        "cite": "/home/admin/gh/bene-main/bene/metaharness/ (ls verified this session)",
+        "note": "bene-main checkout exists on host with pareto.py/evaluator.py/harness.py/benchmarks/ — the grounding reads and git-log probe in my recipes are executable as-is."
+      }
+    ],
+    "next": [
+      "Synthesis lane drafts DESIGN.md resolving GAP-1..5, 8, 11 as explicit decisions — evidence is already sufficient for all of them; do not commission more reading for these.",
+      "Fire three fast probes before ADR-0015 freeze: (a) weco economics spike (install CLI, weco run --help, fresh account, 3-step toy run with --api-key, watch credit balance), (b) one authenticated headless-browser ToS session (Kaggle terms + Meta Kaggle license, arcprize terms, SEAL page, HF SWE-bench_Pro license field), (c) git -C /home/admin/gh/bene-main log -- bene/metaharness/autopromote.py bene/SKILL.md to settle the kill-gate wiring canon.",
+      "Put three reframings verbatim into the user-confirmation question set: hook direction inversion (Claude Code drives weco), HuggingFace recast from ladder to distribution substrate, 9-packages correction to the GOALS constraint.",
+      "Name ARC-AGI-3 + TB2 as the v1 run-adapters in DESIGN.md; reserve adapter slot 3 and add an M2 spike card measuring webarena-verified and SWE-Bench Pro per-instance disk/RAM/wall-time footprints.",
+      "One arxiv verification pass over the 2026 IDs (2603.28052, 2604.01658, and the Weng-cited set) before publishing ADR-0015 citations; carry agent-evolution claim-status labels + CC BY attribution through any absorbed taxonomy."
+    ],
+    "open_questions": [
+      "Does Weco's ToS permit third-party display of run/lineage data even when exported locally by the user (weco run results --format json → agentdex ledger), and does it permit embedding share links? No lane found a primary answer.",
+      "Does BYO --api-key eliminate weco credit consumption, and what is the free-credit grant? Determines whether the 'recursively self-improve on your own subscriptions' hook is truthful; verify empirically, not from search synthesis.",
+      "Will the user accept that weco uploads agent source + eval output to Weco's hosted backend inside a product pitched as 'local, BYO, no credential custody'? (Mechanism verified from code; retention/training-use policy unread.) Needs disclosure in the design's data-flow section and user sign-off.",
+      "Can bene Benchmark.score() express cost_dollar and wall_clock cleanly at ladder scale (free-form floats say yes, no shipped benchmark proves it) — 30-min spike, blocks only the frontier-owner recommendation's fine print.",
+      "Real disk/RAM/wall-time footprint of webarena-verified and SWE-Bench Pro on a user machine — blocks only the third-adapter pick (deferred to M2 spike by design).",
+      "Kaggle/arcprize/SEAL/HF republication terms for leaderboard snapshots — blocks mirror-vs-link-out in the website data model; link-out fallback keeps M1 unblocked either way.",
+      "Which doc is canonical on bene mh→kill-gate wiring (SKILL.md 'NOT wired' vs working-tree autopromote.py) — settle via git history before ADR-0015 cites BENE-gated promotion as reusable machinery."
+    ],
+    "key_facts": [
+      "GAP-1 (blocking, evidence-complete): GOALS objective 'Weco drives Claude Code' is falsified — weco lane verified Weco cannot spawn agents; real integrations are Claude-Code-drives-weco (weco setup claude-code skill) and agent-in-the-loop review mode (--require-review → review/revise/submit). Resolves adx open question 3; requires user-confirmed objective rewrite.",
+      "GAP-2 (blocking design fork): frontier ownership — four overlapping substrates (agentdex_engine 3-objective one-shot verdict; vendored-unused kaos.metaharness ParetoFrontier with possibly-synthetic adapters; bene mh persistent multi-objective frontier + MCP collaborative proposer; weco single-scalar-only). Architecture needs one owner + a scalarization contract mapping weco inner-loop runs onto frontier axes.",
+      "GAP-3 (blocking, unsurfaced by ALL six lanes): the agent-candidate interface is undefined — bene mh candidate is one Python program run(problem), weco mutates ≤10 source files ≤500KB in place, Harbor takes an agent CLI or --agent-import-path class, ARC-AGI-3 takes an arcengine SDK agent. The design's central noun has four incompatible shapes across verified substrates.",
+      "GAP-4 (blocking for data model): no lane proposed the canonical frontier axis set; existing vectors are incompatible ({pass_rate,cost,wall_clock} vs 5-dim battle fitness without cost vs {+rhae,-actions}); Weng's RE-Bench budget-crossover and STOP facts force score-at-declared-budget and per-base-model frontier partitioning.",
+      "GAP-5 (blocking for ledger schema): server-side verifiability of self-reported local BYO-compute runs is unanswered everywhere; verified partial rails exist (ARC-AGI-3 official scorecard ids, Kaggle submission ids, raw-artifact retention) enabling a two-tier verified/self-reported trust model.",
+      "GAP-6: benchmark-mirroring ToS unclosed by all lanes (evolution lane explicitly punts; benchmarks lane couldn't fetch Kaggle terms) — blocks only mirror-vs-link-out in the website data model; link-out + user-local fetch is a design-safe fallback.",
+      "GAP-7: weco credit economics with BYO API keys and privacy/retention policy unverified — blocks the truthfulness of the 'free on your own subscriptions' hook, not the module boundaries.",
+      "GAP-8 (evidence-complete, needs ADR statement): bene evaluator's in-process exec() + timeout/len(problems) is incompatible with minutes-to-hours ladder runs — ladder execution must be adapter-owned and out-of-process, frontier store consumes score dicts only.",
+      "CONTRADICTION: GOALS constraint says 7 packages; adx lane verified 9 (agentdex_arena, adx_showdown undocumented in README) — reuse-vs-replace verdicts must cover all 9.",
+      "CONTRADICTION (mh lane, internal): SKILL.md 2026-06-16 says mh→kill-gate NOT wired vs working-tree autopromote.py wired opt-in default-off; must be settled via git history before ADR cites BENE-gated promotion.",
+      "MISMATCH: 'hook your Weco login' as a website OAuth integration has zero evidentiary support (auth is local CLI device flow; no public server-to-server API documented); verified alternative shape is local CLI exporting weco run results/overview JSON to the agentdex ledger.",
+      "MISMATCH: HuggingFace is not a ladder (Open LLM Leaderboard retired; HF is the dataset-distribution layer for TB2/SWE-Bench Pro) — req 3's 'curate all six' needs recasting; similarly SWE-Bench Pro has no self-serve leaderboard submission path, so 'ladder' semantics differ per benchmark.",
+      "RESOLUTIONS to record in synthesis: Weng's post covers neither Weco nor AIDE (cite AIDE from arXiv 2502.13138, not Weng); weco integration is 100% greenfield (zero code in agentdex packages and bene-main); duplicate ARC-AGI-3 adapters — prefer bene's real-arcengine adapter over kaos's, which moots the kaos-synthetic open question if kaos.metaharness is not selected.",
+      "NICE-TO-KNOW (explicitly demoted, do not block M1): 2026 arXiv ID verification (citation hygiene only), TB2 exact 89 count, Datacurve misgrading claim, weco observe free tier, README-EN parity, evolveAgiIndex TS internals, agent-evolution operator identity/traffic, mh_resume collaborative mode, bene.db WAL load limits, deployed-site pixel parity."
+    ],
+    "design_implications": [
+      "GAP-1 close (0 research): write DESIGN.md around Claude Code (or agentdex CLI skill) driving weco — background run + weco run status polling + derive steering for autonomous mode, --require-review + revise/submit for agent-in-the-loop mode; list the inversion as user-confirmation question #1.",
+      "GAP-2 close (30 min grounding + decision table): read /home/admin/gh/bene-main/bene/metaharness/pareto.py and benchmarks/base.py to confirm free-form score dicts take cost/latency axes; then decide in DESIGN.md with a 4-row trade table — recommend bene mh frontier as owner (only verified persistent multi-objective + collaborative-proposer substrate), weco as optional single-metric inner loop logged via weco observe, kaos.metaharness rejected (vendored, unused, unverified adapters).",
+      "GAP-3 close (0 research, definition): ADR-0015 defines AgentCandidate = directory + manifest (entrypoint command, mutable-file globs, base_model, budget declaration); each run-adapter maps it to its native shape (Harbor --agent-import-path wrapper, arcengine agent shim, weco --sources = the mutable-file globs). All grounding facts already in the lane briefs.",
+      "GAP-4 close (0 research, decision): fix axes as {quality: ladder-native score ↑, cost_dollar ↓, wall_clock_sec ↓} at a declared budget per run; partition frontier by (ladder, base_model); justify from RE-Bench crossover + STOP (weng lane) + the GA-SELFPLAY-EVOLVE 'cost not in current fitness' comment (adx lane).",
+      "GAP-5 close (0 research, schema decision): two-tier ledger — 'verified' entries carry a third-party receipt (ARC-AGI-3 scorecard id via hosted API, Kaggle submission id) and 'self-reported' entries carry mandatory raw artifacts (eval logs, transcripts, weco/mh lineage JSON) + a spot-replay flag; benchmarks lane's misgrading finding independently argues for storing raw artifacts.",
+      "GAP-6 close (1h, timeboxed): one authenticated headless-browser session (claude-in-chrome or the persistent-profile Playwright kit at scripts/browser/) over https://www.kaggle.com/terms, the Meta Kaggle dataset license tab, arcprize.org terms, the Scale SEAL leaderboard page, and huggingface.co/datasets/ScaleAI/SWE-bench_Pro license field; until answered, ADR-0015 commits to link-out + user-local fetch so M1 is not blocked.",
+      "GAP-7 close (30 min empirical): install weco-cli, run `weco run --help` (also resolves the --model vs --api-key doc discrepancy), sign up a fresh account, note the credit grant, run a 3-step toy optimization with --api-key anthropic=<op read …>, and watch the credit balance; record the FAQ privacy answer from the docs-site bundle if accordions block plain fetch.",
+      "GAP-8 close (0 research, ADR statement): ladder execution is adapter-owned and out-of-process (Harbor / arcengine / Docker) with per-run wall-clock budgets; the frontier/search layer only ever consumes emitted score dicts; never exec() ladder code inside bene's evaluator.",
+      "GAP-10 close (10 min): `git -C /home/admin/gh/bene-main log --oneline -- bene/metaharness/autopromote.py bene/SKILL.md` + read autopromote.py; treat working-tree code as canonical if SKILL.md predates the wiring commit, and say so in the ADR's reuse verdict for BENE promotion.",
+      "GAP-12 close (defer by design): v1 names ARC-AGI-3 + Terminal-Bench 2 as run-adapters (both verified tractable: pip arc-agi local engine; uv tool install harbor) and reserves slot 3; M2 gets a spike card measuring webarena-verified compose-stack and SWE-Bench Pro per-instance image footprints on a reference machine.",
+      "GAP-9/GAP-11 close (doc edits in M1): update GOALS constraint to 9 packages and include agentdex_arena + adx_showdown in the reuse-vs-replace table; respecify the website 'connect Weco' feature as local-CLI-push of exported run/lineage JSON (no OAuth server integration), with weco share-link embedding ToS parked as an open question.",
+      "Citation hygiene for ADR-0015: one arxiv pass verifying the 2026 IDs (2603.28052, 2604.01658, Weng's 2026 reference set); any absorbed agent-evolution taxonomy keeps their [INFERRED]/claim-status labels and carries the CC BY attribution string 'Self Evolve / Awesome Self-Evolving AI Agents, aha team' + repo link."
+    ]
+  }
+}

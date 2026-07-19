@@ -3,7 +3,7 @@ title: agents/review — agentdex-cli
 status: active
 owner: etang
 created: 2026-06-08
-updated: 2026-06-25
+updated: 2026-07-12
 type: reference
 scope: monorepo
 layer: cross-cutting
@@ -11,8 +11,10 @@ cross_cutting: true
 enforced_by:
   - .github/workflows/pr-cascade-breaker-gate.yml
   - .github/workflows/review-comment-signoff-gate.yml
+  - .github/workflows/tiny-pr-gate.yml
   - scripts/pr_cascade_breaker_gate.py
   - scripts/enforce_review_bounds.sh
+  - scripts/tiny_pr_gate.py
 ---
 
 # agents/review — agentdex-cli
@@ -54,12 +56,43 @@ its own tiny PR instead of gating yours on it.
 - Coverage delta ≥ 0 (`coverage run -m pytest` vs main baseline)
 - Golden Pareto verdict shape still matches
   `tests/golden/nvidia_pareto_expected.yaml` (smoke test invariant)
-- Tiny-PR discipline holds: diff touches ≤ 10 files OR commit body
-  carries `Note: bundled because <reason>` (per
-  `feedback_tiny_pr_discipline` memory + Ideal Moment 1 in
-  `IDEAL_EXPERIENCE.md` v2)
+- Tiny-PR indivisible gate green — see §"Tiny-PR indivisible gate" below
+  (required check name `tiny-pr-gate`; per `feedback_tiny_pr_discipline`
+  memory + Ideal Moment 1 in `IDEAL_EXPERIENCE.md` v2)
 - Doctrine anchors green per latest
   `sweeps/<date>-weekly-harness-audit.md` cross-check (10/10 anchors)
+
+## Tiny-PR indivisible gate
+
+Merge-blocking CI check `tiny-pr-gate` (workflow
+`.github/workflows/tiny-pr-gate.yml`, validator `scripts/tiny_pr_gate.py`).
+Runs from the trusted PR **base** commit under a base-controlled
+`pull_request_target` workflow, so a PR cannot weaken its own check. The first
+installation PR is manually reviewed; candidate-head bootstrap is forbidden.
+Triggers on `pull_request_target` targeting `main` and
+`redesign/evolution-market`.
+
+Contract (fail-closed, deterministic):
+
+1. TOTAL changed LOC = git `diff --numstat` additions + deletions.
+2. TOTAL ≤ 50 → PASS (no exception required).
+3. TOTAL > 50 → PASS only when the PR body contains **both** exact
+   case-sensitive lines:
+   - `Indivisible-Unit: <specific non-placeholder reason>`
+   - `Indivisible-Scope: <space-separated exact repo-relative changed paths>`
+4. Reason is mandatory and deterministic: at least 40 collapsed characters,
+   at least 6 words, the standalone lowercase causal word `because`, and at
+   least 6 distinct non-placeholder content words. Loose words alone never
+   bypass: `indivisible`, `bootstrap unit`, `tiny-pr-exempt`, `Local-review`
+   (including a `Local-review:` header misuse as the unit reason).
+5. Scope set MUST equal the changed-path set exactly — no missing, extra,
+   duplicate, or unsafe paths (`..`, absolute, empty components).
+6. Binary or unparseable numstat → FAIL unless the exact exception + exact
+   scope are present (still path-exact).
+
+`#687` (1262+2 across 6 paths, `Local-review:` body, no exact marker) is
+the motivating counter-example: that shape FAILs this gate. Do not claim
+`#687` complied.
 
 ## Escalation path
 

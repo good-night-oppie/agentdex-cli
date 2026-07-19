@@ -1,0 +1,10 @@
+name: arc-scripted-heuristic
+entrypoint: python3 agent.py
+mutable:
+  - agent.py
+base_model: scripted-heuristic-no-llm
+budget:
+  usd: 1.0
+  wall_clock_min: 2.0
+ladders:
+  - arc-agi-3

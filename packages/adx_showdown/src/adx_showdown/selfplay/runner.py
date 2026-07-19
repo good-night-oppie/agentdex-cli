@@ -38,7 +38,7 @@ from adx_showdown.selfplay.baselines import (
     build_baseline,
     max_base_power_choice,
 )
-from adx_showdown.selfplay.codex_adapter import CODEX_STRATEGIES
+from adx_showdown.selfplay.codex_adapter import CODEX_STRATEGIES, DecideFn
 
 DEFAULT_FORMAT = "gen9randombattle"
 
@@ -250,6 +250,8 @@ def make_harness_player(
     account: Any = None,
     server: Any = None,
     battle_format: str = DEFAULT_FORMAT,
+    decide: DecideFn | None = None,
+    team: str | None = None,
 ) -> Any:
     """Build the live poke-env ``Player`` for a harness (lazy poke-env import).
 
@@ -342,8 +344,8 @@ def make_harness_player(
             if self.strategy in CODEX_STRATEGIES:
                 from adx_showdown.selfplay.codex_adapter import select_codex_move
 
-                decide = _resolve_agent()
-                if decide is None:
+                move_agent = decide if decide is not None else _resolve_agent()
+                if move_agent is None:
                     # greedy default — pure + fast, no subprocess; stays on-loop.
                     chosen = select_codex_move(h, battle, on_illegal=self._note_illegal)
                 else:
@@ -357,7 +359,7 @@ def make_harness_player(
                     chosen = await loop.run_in_executor(
                         _get_codex_executor(),
                         lambda: select_codex_move(
-                            h, battle, decide=decide, on_illegal=lambda: flagged.append(True)
+                            h, battle, decide=move_agent, on_illegal=lambda: flagged.append(True)
                         ),
                     )
                     if flagged:
@@ -387,6 +389,7 @@ def make_harness_player(
         account_configuration=account,
         server_configuration=server or _server_config(),
         battle_format=battle_format,
+        team=team,
     )
 
 

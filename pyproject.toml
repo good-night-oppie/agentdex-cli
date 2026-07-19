@@ -11,6 +11,8 @@ members = [
   "packages/agentdex_plugin",
   "packages/adx_bridges",
   "packages/adx_showdown",
+  "packages/adx_frontier",
+  "packages/adx_ladders",
   "packages/agentdex_arena",
   "packages/helios_client",
   "packages/agentdex_observe",
@@ -23,6 +25,8 @@ agentdex-engine  = { workspace = true }
 agentdex-plugin  = { workspace = true }
 adx-bridges      = { workspace = true }
 adx-showdown     = { workspace = true }
+adx-frontier     = { workspace = true }
+adx-ladders      = { workspace = true }
 agentdex-arena   = { workspace = true }
 helios-client    = { workspace = true }
 agentdex-observe = { workspace = true }

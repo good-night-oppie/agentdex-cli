@@ -1,0 +1,10 @@
+{
+    "task": {
+        "name": "terminal-bench/regex-log",
+        "ref": "sha256:72f5f52d6b523a00380cb088fcf0ba83a2e2f7b478fdad6515598ab43584e337",
+        "source": "terminal-bench/terminal-bench-2"
+    },
+    "trial_name": "regex-log__N2roHLD",
+    "trials_dir": ".fleet-goal/evidence/M2/measured/wu9-oracle-jobs/wu9-oracle",
+    "job_id": "1bd50c51-a1f1-489b-b032-b829405bb39b"
+}
