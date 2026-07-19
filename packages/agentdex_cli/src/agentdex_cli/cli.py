@@ -658,6 +658,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_evolve_submit_parser(subs)
 
+    # ---- interview: capture orchestration policy → .agentdex/orchestration.yaml ----
+    from agentdex_cli.interview_cmd import register_interview_parser
+
+    register_interview_parser(subs)
+
+    # ---- run: allocate a task across the pool, gate, learn a seed ----
+    from agentdex_cli.run_cmd import register_run_parser
+
+    register_run_parser(subs)
+
+    # ---- openbox: bind pool names to invokable backends (zero creds) ----
+    from agentdex_cli.openbox_cmd import register_openbox_parser
+
+    register_openbox_parser(subs)
+
     return p
 
 

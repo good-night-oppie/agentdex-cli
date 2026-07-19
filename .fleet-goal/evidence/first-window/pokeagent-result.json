@@ -1,0 +1,22 @@
+{
+  "ladder_id": "pokeagent-gen1ou",
+  "base_model": "scripted-legal-no-llm",
+  "scores": {
+    "quality": 1076.0,
+    "cost_dollar": 0.01,
+    "wall_clock_sec": 27.186924073961563
+  },
+  "cost_is_measured": false,
+  "effective_ladder_class": "static",
+  "receipt": {
+    "tier": "verified",
+    "kind": "pokeagent_rating",
+    "ref": "https://battling.pokeagentchallenge.com/ladder#gen1ou/adx-bot-1",
+    "artifacts": []
+  },
+  "budget": {
+    "usd": 0.01,
+    "wall_clock_min": 120.0
+  },
+  "measured_at_utc": "2026-07-18T23:52:58Z"
+}

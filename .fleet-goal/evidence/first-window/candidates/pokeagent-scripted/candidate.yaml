@@ -1,0 +1,10 @@
+name: pokeagent-scripted-legal
+entrypoint: python3 agent.py
+mutable:
+  - agent.py
+base_model: scripted-legal-no-llm
+budget:
+  usd: 0.01
+  wall_clock_min: 120.0
+ladders:
+  - pokeagent-gen1ou

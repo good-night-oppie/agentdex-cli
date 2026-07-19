@@ -1,0 +1,10 @@
+name: pokeagent-llm-gen1ou
+entrypoint: python3 agent.py
+mutable:
+  - agent.py
+base_model: teamclaude-loopback-llm
+budget:
+  usd: 0.50
+  wall_clock_min: 120.0
+ladders:
+  - pokeagent-gen1ou
