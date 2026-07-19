@@ -753,7 +753,7 @@ def test_secret_shaped_file_token_ref_no_echo(tmp_path, capsys):
 
 def test_init_rejects_secret_pool_name_pre_write(tmp_path, capsys):
     """F3: policy pool with fake sk-ant- → init rc 2, nothing persisted, secret absent."""
-    secret = "sk-ant-TESTFAKE0000000000"
+    secret = "sk-ant-TESTFAKE0000000000"  # pragma: allowlist secret
     policy = tmp_path / "orchestration.yaml"
     policy.write_text(
         f"version: 1\npool:\n  - {secret}\nexplore_rate: 0.2\n",
@@ -842,7 +842,7 @@ def test_top_level_nested_and_key_shaped_secrets_rejected():
 
     keyed = {
         "version": 1,
-        secret: "whatever",
+        secret: "whatever",  # pragma: allowlist secret
         "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
     }
     with pytest.raises(OpenboxError) as exc2:
