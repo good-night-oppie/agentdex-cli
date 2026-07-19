@@ -82,7 +82,8 @@ repos:
             packages/kaos/.*|
             \.secrets\.baseline|
             expeditions/.*|
-            \.supergoal/.*
+            \.supergoal/.*|
+            \.fleet-goal/evidence/M2/measured/.*
           )$
 
   # PR-F (workflow w0z1i9vcs H5): auto-fire scripts/sync_toc.sh when

@@ -429,7 +429,7 @@ def test_cmd_run_missing_policy_is_clean_error(tmp_path, capsys):
     assert "Traceback" not in out
 
 
-_FAKE_SK = "sk-TESTFAKEabcdefghijklmnop"
+_FAKE_SK = "sk-TESTFAKEabcdefghijklmnop"  # pragma: allowlist secret
 
 
 def test_cmd_run_malformed_policy_rc2_no_token_no_traceback(tmp_path, capsys):

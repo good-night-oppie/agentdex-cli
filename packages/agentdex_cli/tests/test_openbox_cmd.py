@@ -493,7 +493,7 @@ def test_nested_secrets_rejected_without_echo(tmp_path):
                         "probe": [],
                         "invoke": "x",
                         "token_ref": "none",
-                        secret_key: "ok",
+                        secret_key: "ok",  # pragma: allowlist secret
                     },
                 },
             },
@@ -612,12 +612,15 @@ def test_json_missing_policy_pool_covered_null(tmp_path, capsys):
 def test_broadened_secret_shapes_rejected_without_echo(tmp_path):
     """C1: hyphenated sk-, JWT Bearer, URL userinfo, github_pat, AIza — no echo."""
     cases = [
-        ("api_key", "sk-ant-api03-TESTFAKE0000000000"),
-        ("api_key", "sk-proj-TESTFAKE0000000000"),
-        ("headers", ["Authorization: Bearer eyJTESTFAKE00000000000000"]),
-        ("base_url", "https://user:hunter2@host.example"),
-        ("extra", "github_pat_TESTFAKE00000000000000000"),
-        ("extra2", "AIzaTESTFAKE000000000000000000000000"),
+        ("api_key", "sk-ant-api03-TESTFAKE0000000000"),  # pragma: allowlist secret
+        ("api_key", "sk-proj-TESTFAKE0000000000"),  # pragma: allowlist secret
+        (
+            "headers",
+            ["Authorization: Bearer eyJTESTFAKE00000000000000"],
+        ),  # pragma: allowlist secret
+        ("base_url", "https://user:hunter2@host.example"),  # pragma: allowlist secret
+        ("extra", "github_pat_TESTFAKE00000000000000000"),  # pragma: allowlist secret
+        ("extra2", "AIzaTESTFAKE000000000000000000000000"),  # pragma: allowlist secret
     ]
     for field, value in cases:
         path = tmp_path / f"ob-{field}.yaml"
@@ -714,7 +717,7 @@ def test_check_empty_pool_rc2_pool_covered_null(tmp_path, capsys):
 
 def test_secret_shaped_file_token_ref_no_echo(tmp_path, capsys):
     """F3: file: path matching SECRET_RE is rejected without echoing the secret body."""
-    secret_body = "sk-ant-TESTFAKE0000000000"
+    secret_body = "sk-ant-TESTFAKE0000000000"  # pragma: allowlist secret
     path = tmp_path / "openbox.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -812,7 +815,7 @@ def test_top_level_secret_rejected_without_echo():
     shape the P1 finding cited (`api_key: sk-ant-api03-...`) loaded at rc 0 when
     parked one level up.
     """
-    secret = "sk-ant-api03-" + "A" * 24
+    secret = "sk-ant-api03-" + "A" * 24  # pragma: allowlist secret
     doc = {
         "version": 1,
         "default_api_key": secret,
@@ -827,7 +830,7 @@ def test_top_level_secret_rejected_without_echo():
 
 
 def test_top_level_nested_and_key_shaped_secrets_rejected():
-    secret = "sk-proj-" + "B" * 24
+    secret = "sk-proj-" + "B" * 24  # pragma: allowlist secret
     nested = {
         "version": 1,
         "extra": {"deep": [{"inner": secret}]},
@@ -864,21 +867,21 @@ def test_clean_top_level_keys_still_load():
 # --------------------------------------------------------------------------- #
 
 _CREDENTIAL_SHAPES = [
-    ("basic-auth", "Basic YWRtaW46aHVudGVyMnNlY3JldA=="),
-    ("basic-lower", "basic YWRtaW46cGFzc3dvcmQxMjM="),
-    ("bearer-jwt", "Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghijklmnop"),
-    ("anthropic", "sk-ant-api03-" + "A" * 24),
-    ("openai-proj", "sk-proj-" + "B" * 24),
-    ("raw-long-sk", "sk-" + "C" * 30),
-    ("stripe", "sk_live_" + "D" * 24),
-    ("huggingface", "hf_" + "E" * 34),
-    ("groq", "gsk_" + "F" * 44),
-    ("replicate", "r8_" + "G" * 38),
-    ("sendgrid", "SG." + "H" * 24 + "." + "I" * 24),
-    ("aws-akia", "AKIA" + "J" * 16),
-    ("aws-asia", "ASIA" + "K" * 16),
-    ("github-pat", "ghp_" + "L" * 24),
-    ("url-userinfo", "https://svc:hunter2secret@api.example.com/v1"),
+    ("basic-auth", "Basic YWRtaW46aHVudGVyMnNlY3JldA=="),  # pragma: allowlist secret
+    ("basic-lower", "basic YWRtaW46cGFzc3dvcmQxMjM="),  # pragma: allowlist secret
+    ("bearer-jwt", "Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghijklmnop"),  # pragma: allowlist secret
+    ("anthropic", "sk-ant-api03-" + "A" * 24),  # pragma: allowlist secret
+    ("openai-proj", "sk-proj-" + "B" * 24),  # pragma: allowlist secret
+    ("raw-long-sk", "sk-" + "C" * 30),  # pragma: allowlist secret
+    ("stripe", "sk_live_" + "D" * 24),  # pragma: allowlist secret
+    ("huggingface", "hf_" + "E" * 34),  # pragma: allowlist secret
+    ("groq", "gsk_" + "F" * 44),  # pragma: allowlist secret
+    ("replicate", "r8_" + "G" * 38),  # pragma: allowlist secret
+    ("sendgrid", "SG." + "H" * 24 + "." + "I" * 24),  # pragma: allowlist secret
+    ("aws-akia", "AKIA" + "J" * 16),  # pragma: allowlist secret
+    ("aws-asia", "ASIA" + "K" * 16),  # pragma: allowlist secret
+    ("github-pat", "ghp_" + "L" * 24),  # pragma: allowlist secret
+    ("url-userinfo", "https://svc:hunter2secret@api.example.com/v1"),  # pragma: allowlist secret
 ]
 
 
