@@ -203,10 +203,25 @@ def _warn_file_ref(token_ref: str) -> None:
             file=sys.stderr,
         )
         return
-    if not path.exists():
-        print(f"warning: token_ref file does not exist: {path}", file=sys.stderr)
+    # Every probe below is advisory — this function is documented non-fatal.
+    # `Path.exists()` swallows ENOENT/ENOTDIR/EBADF/ELOOP but PROPAGATES EACCES,
+    # so a token_ref under an unreadable parent used to raise PermissionError
+    # straight out of here. PermissionError is an OSError, which is not in the
+    # handler tuples at the CLI boundary, so it surfaced as a bare traceback —
+    # in the one surface whose whole point is that it never prints raw state.
+    # Warn and carry on; only the exception TYPE is named, never its message,
+    # since an OSError message embeds the path.
+    try:
+        if not path.exists():
+            print(f"warning: token_ref file does not exist: {path}", file=sys.stderr)
+            return
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError as exc:
+        print(
+            f"warning: cannot inspect token_ref file ({type(exc).__name__}): {path}",
+            file=sys.stderr,
+        )
         return
-    mode = stat.S_IMODE(path.stat().st_mode)
     if mode != 0o600:
         print(
             f"warning: token_ref file mode is {mode:04o}, expected 0600: {path}",
@@ -292,6 +307,18 @@ def load_openbox(path: Path) -> dict[str, Any]:
     except yaml.YAMLError as exc:
         raise OpenboxError(
             f"invalid YAML in openbox at {path}{_yaml_loc(exc)} — fix the file"
+        ) from None
+    except OSError as exc:
+        # `path.exists()` above returns True for a file we are not allowed to
+        # READ, so read_text can still raise EACCES/EIO. That is an OSError, and
+        # the CLI boundary only catches (FileNotFoundError, ValueError,
+        # OpenboxError) — so it escaped as a bare traceback. Convert it here in
+        # the same shape as the YAMLError arm rather than widening the boundary
+        # tuple, which would also swallow genuine I/O bugs elsewhere. Only the
+        # exception TYPE is named; an OSError's message embeds the path already
+        # carried by `path`, and nothing else about it is useful to a user.
+        raise OpenboxError(
+            f"cannot read openbox at {path} ({type(exc).__name__}) — check permissions"
         ) from None
     return validate_openbox_doc(doc)
 
