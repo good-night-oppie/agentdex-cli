@@ -942,6 +942,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             receipt_kind=receipt_by_model.get(m, "adx-run-fake"),
         )
         for m, axes in scored
+        # #706: a substituted candidate is quarantined from the ledger, so it
+        # must not be eligible to be announced as this run's winner either.
+        # Reporting it here while `learned:` says None is the display asserting
+        # something the data does not support — the same class of defect the
+        # quarantine exists to prevent, one layer up.
+        if receipt_by_model.get(m) != SUBSTITUTED_RECEIPT_KIND
     ]
     survivors = selection.select(run_records, objective, max_cost_dollar=max_cost)
     winner_rec = survivors[0] if survivors else None
@@ -954,7 +960,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"objective  : {obj_display}")
     tok_by_model = {c["model"]: c for c in candidates}
     for m, axes in scored:
-        flag = "  <- winner" if m == winner else ""
+        if receipt_by_model.get(m) == SUBSTITUTED_RECEIPT_KIND:
+            flag = "  <- SUBSTITUTED, quarantined (#706)"
+        else:
+            flag = "  <- winner" if m == winner else ""
         tok = tok_by_model.get(m) or {}
         tok_part = ""
         if engine == "bridges":
@@ -964,8 +973,22 @@ def cmd_run(args: argparse.Namespace) -> int:
             f"t={axes['wall_clock_sec']:.1f}s{tok_part}  {m}{flag}"
         )
     if winner_rec is None:
-        ceiling = max_cost if max_cost is not None else 0.0
-        print(f"all candidates exceed max cost ${ceiling} — recording, no winner")
+        # Three different reasons produce "no winner" and they are not
+        # interchangeable. Blaming the budget for a quarantine (or for an
+        # unset ceiling, which printed a nonsense "$0.0") sends the operator
+        # to fix the wrong thing.
+        quarantined = sum(
+            1 for m, _ in scored if receipt_by_model.get(m) == SUBSTITUTED_RECEIPT_KIND
+        )
+        if scored and quarantined == len(scored):
+            print(
+                f"all {quarantined} candidate(s) were SUBSTITUTED and quarantined (#706) "
+                "— recorded for audit, excluded from the frontier, no winner"
+            )
+        elif max_cost is not None:
+            print(f"all candidates exceed max cost ${max_cost} — recording, no winner")
+        else:
+            print("no candidate survived selection — recording, no winner")
     else:
         wa = winner_rec.scores
         print(
@@ -1063,10 +1086,10 @@ def register_run_parser(subs: argparse._SubParsersAction) -> None:
         default="fake",
         choices=["fake", "bridges"],
         help=(
-            "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway "
-            "(dispatches pool names as model ids; does NOT yet consult openbox.yaml "
-            "backend bindings — openbox check only declares reachability; per-backend "
-            "base_url routing is tracked in issue #706)"
+            "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway. "
+            "bridges consults openbox.yaml bindings (--openbox): a bound pool name goes to "
+            "its own base_url, the row is priced on the model that actually served, and a "
+            "serves_model mismatch is quarantined out of selection and export (#706)"
         ),
     )
     p.add_argument(

@@ -228,3 +228,73 @@ def test_binding_fields_are_type_checked():
         }
         with pytest.raises(OpenboxError):
             validate_openbox_doc(doc)
+
+
+# ------------- gate 5 fallout: the DISPLAY must not outrun the data --------- #
+#
+# Both of these were found by running the real E2E (gate 5), not by the unit
+# tests above — the quarantine worked correctly at the ledger while the console
+# still announced the quarantined candidate as the run's winner. A display that
+# asserts more than the data supports is the same defect class the quarantine
+# exists to prevent, one layer up.
+
+
+def _run_cmd_with_substitution(tmp_path: Path, capsys, *, serves: str):
+    import argparse
+
+    from agentdex_cli import run_cmd as rc
+
+    (tmp_path / "policy.yaml").write_text(
+        "pool: claude-opus\njob_types: default\nobjective: cost, latency\nconstraints: none\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "openbox.yaml").write_text(
+        "version: 1\nbackends:\n  claude-opus:\n    kind: anthropic-endpoint\n"
+        f'    invoke: "n/a"\n    base_url: http://127.0.0.1:{PORT_HOLDER[0]}\n'
+        f"    serves_model: {serves}\n    token_ref: none\n",
+        encoding="utf-8",
+    )
+    args = argparse.Namespace(
+        task="hi",
+        policy=str(tmp_path / "policy.yaml"),
+        ledger=str(tmp_path / "seeds.jsonl"),
+        openbox=str(tmp_path / "openbox.yaml"),
+        engine="bridges",
+        max_tokens=16,
+        dispatch_timeout=10,
+        fanout=4,
+        seed=1,
+        json=False,
+        save_outputs=None,
+        explore_rate=0.0,
+    )
+    rc.cmd_run(args)
+    return capsys.readouterr().out
+
+
+PORT_HOLDER = [0]
+
+
+def test_substituted_candidate_is_never_announced_as_winner(tmp_path, capsys):
+    srv, url = _serving("deepseek-v4-flash")
+    PORT_HOLDER[0] = srv.server_port
+    try:
+        out = _run_cmd_with_substitution(tmp_path, capsys, serves="claude-opus-4-8")
+    finally:
+        srv.shutdown()
+    assert "SUBSTITUTED, quarantined" in out
+    assert "winner    : claude-opus" not in out, "quarantined row must not be announced as winner"
+    assert "<- winner" not in out
+
+
+def test_all_substituted_says_so_rather_than_blaming_the_budget(tmp_path, capsys):
+    """The no-winner branch used to blame max cost and print a nonsense '$0.0'."""
+    srv, url = _serving("deepseek-v4-flash")
+    PORT_HOLDER[0] = srv.server_port
+    try:
+        out = _run_cmd_with_substitution(tmp_path, capsys, serves="claude-opus-4-8")
+    finally:
+        srv.shutdown()
+    assert "were SUBSTITUTED and quarantined" in out
+    assert "exceed max cost" not in out
+    assert "$0.0 " not in out

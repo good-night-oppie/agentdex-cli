@@ -327,14 +327,45 @@ mroute started — their #3944 reported P0-v2 complete, which was the capacity g
 | 4. quarantine | `serves_model` mismatch → `adx-run-bridges-substituted`, loud warning, excluded from `_measured_rows` (so from `records`/`mean_records`/`best_model`) and from both `export_frontier` loops — kept in the JSONL for audit. |
 | 5. docs paired | `run_cmd` module docstring rewritten, `--openbox` help added, this row closed. |
 
-**Gates.** 1 binding resolution + quarantine: PASS. 2 pricing on served model: PASS.
-3 per-backend loopback refusal: PASS. 4 regression **310 passed / 1 skipped**, ruff
-check + format clean: PASS. **Gate 5 (real ≤$0.02 E2E) NOT RUN** — it is the only
-gate requiring live spend, and it is deliberately deferred rather than quietly
-skipped. Everything above is proven against a real stdlib `http.server` on an
-ephemeral loopback port that answers with a *different* `model` than requested;
-no API calls, no spend. That exercises the substitution path a mocked dispatch
+**Gates — all five PASS.** 1 binding resolution + quarantine. 2 pricing on served
+model. 3 per-backend loopback refusal. 4 regression **312 passed / 1 skipped**,
+ruff check + format clean. Gates 1–4 run against a real stdlib `http.server` on an
+ephemeral loopback port that answers with a *different* `model` than requested —
+no API calls, no spend — which exercises the substitution path a mocked dispatch
 structurally cannot.
+
+**Gate 5 (real E2E) PASS, total spend ≈ $0.0003** against the ≤$0.02 grant.
+Routing made this a genuine test rather than a formality: the live gateway's
+`opus` route lists `deepseek-flash3` first, so a request for `claude-opus` is
+really served by DeepSeek today.
+
+- 5A, `serves_model: deepseek-v4-flash` (matches): row carried
+  `served_model: deepseek-v4-flash`, normal `adx-run-bridges` receipt, and
+  `$0.000102`. **Priced at flash rates — it would have been `$0.00075` at the
+  requested `claude-opus` rates, a 7.4× fabricated cost.** That is the #706
+  defect, measured live rather than argued.
+- 5B, `serves_model: claude-opus-4-8` (mismatch): `adx-run-bridges-substituted`,
+  loud warning, row kept in the JSONL with `served_model`, `frontier.json`
+  `partitions: []`, `learned → None`.
+
+**Two defects the E2E found that the unit tests did not**, both fixed and now
+pinned by regression tests (mutation-verified):
+
+1. The console still announced the quarantined candidate as `winner    :
+   claude-opus` while `learned:` correctly said `None`. The ledger quarantine was
+   right; the *display* asserted more than the data supported — the same defect
+   class the quarantine exists to prevent, one layer up. Substituted candidates
+   are now excluded from in-run winner selection and marked
+   `<- SUBSTITUTED, quarantined (#706)`.
+2. With every candidate quarantined, the no-winner branch printed
+   `all candidates exceed max cost $0.0` — blaming a budget that was not set
+   (`constraints: none`), and printing a nonsense `$0.0` ceiling. That misleading
+   `$0.0` was **pre-existing**, reachable whenever selection returned empty with
+   no ceiling; the quarantine merely gave it a second route. The branch now
+   distinguishes all-quarantined / over-budget / nothing-survived.
+
+This is the argument for gate 5 existing at all: 9/9 unit tests and five caught
+mutations still left a user-visible claim that contradicted the data.
 
 **The tests were mutation-verified**, because 9/9 passing on the first run is not
 evidence. Five independent mutations — price on requested; never flag mismatch;
