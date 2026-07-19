@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "adx-bridges"
-version = "0.1.0"
+version = "1.0.0"
 description = "adx_bridges: long-lived subscription-CLI bridges (Claude Code, Codex, Manus) — invoked as Hermes plugin tools"
 requires-python = ">=3.11"
 dependencies = [

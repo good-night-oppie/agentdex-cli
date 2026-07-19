@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentdex-observe"
-version = "0.1.0"
+version = "1.0.0"
 description = "Langfuse-wrapped observability glue: anthropic_client / openai_client / @trace_session / @trace_turn — self-host default per ADR-0009 §Observability"
 requires-python = ">=3.11"
 dependencies = [

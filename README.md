@@ -3,7 +3,7 @@ title: "agentdex-cli — Agent Pokédex"
 status: active
 owner: "@EdwardTang"
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-07-19
 type: reference
 scope: .
 layer: cross-cutting
@@ -12,117 +12,150 @@ cross_cutting: true
 
 # agentdex-cli — Agent Pokédex
 
-Async co-opetition (合作竞争) orchestrator across subscription-CLI baselines
-(Claude Code, Codex app-server, Manus / codex-web fallback). Produces a
-Pokédex-style record of each Expedition: 3 Result Cards, 1 Pareto verdict,
-1 Evolution Card with mutation seeds, plus a per-bridge trace excerpt
-(metrics + response excerpt + `langfuse_trace_id` pointer; the full Langfuse
-span-tree export is an M6+ target, not yet wired).
+[![GA Release](https://img.shields.io/badge/status-GA-brightgreen)](https://github.com/good-night-oppie/agentdex-cli/releases)
+[![PyPI](https://img.shields.io/badge/pypi-agentdex--cli-blue)](https://pypi.org/project/agentdex-cli/)
 
-See [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) for the
-unifying architecture and [CLAUDE.md](CLAUDE.md) for codebase doctrine.
+**The model-allocation loop that learns which model does which job better.**
+
+agentdex is a CLI-based agent orchestration system that runs a three-step cycle:
+
+1. **Interview** — captures how you want models orchestrated (objectives, pool, constraints, explore/exploit)
+2. **Run** — allocates and dispatches a task across your pool, selects winner by constrained-Pareto frontier
+3. **Openbox** — self-service backend onboarding (binds pool names to invokable backends, zero credentials stored)
+
+Together they form an *evolution market*: each run appends a seed ledger row, and over iterations the system learns which model sits on the frontier for each job signature under your objective.
+
+> [Landing page](https://agentdex.builders/adx/) | [GitHub](https://github.com/good-night-oppie/agentdex-cli) | [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md)
 
 ## Quickstart
 
 ```bash
-# 1. Clone + enter
+# 1. Install (uv workspace)
 git clone git@github.com:good-night-oppie/agentdex-cli.git ~/gh/agentdex-cli
 cd ~/gh/agentdex-cli
-
-# 2. uv workspace sync (resolves all 7 packages)
 uv sync
 
-# 3. Install bridges / cli / observe as editable
-uv pip install -e packages/adx_bridges -e packages/agentdex_cli \
-                -e packages/agentdex_observe -e packages/agentdex_engine \
-                -e packages/kaos
+# 2. Configure your orchestration policy
+adx interview --out .agentdex/orchestration.yaml
 
-# 4. (Optional) install Manus camoufox backend
-uv pip install camoufox && uv run python -m camoufox fetch
+# 3. Bind pool names to backends
+adx openbox init --policy .agentdex/orchestration.yaml
+adx openbox check
 
-# 5. Probe one baseline against the frozen NVIDIA task
-uv run adx bridge probe --bridge claude --task nvidia-earnings-infographic
-
-# 6. Run the full M5 Expedition (mocked path = no live live live live API keys needed)
-uv run adx expedition \
-    --task nvidia-earnings-infographic \
-    --baselines claude,codex,manus \
-    --judge claude-haiku-4-5 \
-    --output expeditions/nvidia-q3-fy2026-exp-001/ \
-    --mocked
+# 4. Run a task (fake engine = no network, no secrets)
+adx run --task my-task --policy .agentdex/orchestration.yaml
 ```
 
-Artifacts land under `expeditions/<id>/`:
-- `task_card.yaml`
-- `result_card_<agent>.yaml` (×3)
-- `pareto_verdict.yaml`
-- `evolution_card.yaml`
-- `trace/<agent>_trace_excerpt.jsonl` (×3)
+Or install from PyPI:
 
-KAOS lineage is persisted under `kaos.db` (or `--kaos-db <path>`).
+```bash
+pip install agentdex-cli
+adx interview
+adx run --task my-task
+```
 
 ## Architecture
 
 ```
-                           ┌──────────────────────────┐
-                           │  adx CLI (agentdex_cli)  │
-                           │  bridge probe / expedition│
-                           └──────────┬───────────────┘
-                                      │
-                          ┌───────────┴───────────────┐
-                          │  agentdex_engine          │
-                          │  Three Cards + Oracle     │
-                          │  + Pareto + Expedition    │
-                          └─┬───────────┬─────────────┘
-                            │           │
-              ┌─────────────┘           └───────────────┐
-              ▼                                         ▼
-  ┌────────────────────┐                  ┌──────────────────────┐
-  │  adx_bridges       │                  │  agentdex_plugin     │
-  │  Claude / Codex /  │                  │  Hermes gateway      │
-  │  Manus (Camofox)   │                  │  entry-point + tools │
-  └─────────┬──────────┘                  └────────────┬─────────┘
-            │                                          │
-            ▼                                          ▼
-     subscription CLIs                       hermes_cli.plugins
-     (stdio JSON-RPC)                        (PluginContext + manifest)
+                        ┌──────────────────────────────┐
+                        │         adx CLI               │
+                        │  (agentdex_cli shell +        │
+                        │   orchestrator entrypoint)    │
+                        └──────┬───────┬──────┬─────────┘
+                               │       │      │
+                 ┌─────────────┘       │      └──────────────┐
+                 ▼                     ▼                     ▼
+     ┌────────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
+     │   adx interview    │ │    adx run       │ │   adx openbox        │
+     │  Interactive Q&A   │ │ Allocation loop  │ │  Backend probing     │
+     │  → policy YAML     │ │ → frontier.json  │ │  (zero creds stored) │
+     │  (objectives,      │ │ → seed ledger    │ │                      │
+     │   pool, constraints)│ │ → winner select  │ │                      │
+     └────────┬───────────┘ └────────┬─────────┘ └──────────┬───────────┘
+              │                      │                      │
+              ▼                      ▼                      ▼
+     ┌──────────────────────────────────────────────────────────┐
+     │                 agentdex_engine                           │
+     │  FrontierLedger (Pareto selection) +                     │
+     │  adx_frontier (constrained-Pareto axes)                  │
+     └────────────┬─────────────────────────────┬───────────────┘
+                  │                             │
+                  ▼                             ▼
+     ┌──────────────────┐          ┌──────────────────────────┐
+     │  adx_frontier     │          │   adx_bridges            │
+     │  AgentCandidate   │          │  TeamClaude loopback     │
+     │  Axis manifest    │          │  gateway (--engine       │
+     │  Pre-run gate     │          │  bridges)                │
+     └──────────────────┘          └──────────────────────────┘
 ```
 
-Two-tier substrate:
-- **Hot tier (M6+):** `helios` daemon — mutation-seed scoring in-process.
-  Vendors only the Python client at `packages/helios_client/`.
-- **Warm/cold tier (M5):** `packages/kaos/` — durable agent/checkpoint/blob
-  store. Lineage entries live here.
+### Three-Capability Flow
+
+```
+Interview                          Run                             Learn
+────────                           ───                             ─────
+adx interview                      adx run --engine fake           ledger.append(sig, model, axes)
+   │                                    │                              │
+   ├─ job_types ──────────────────────►  ├─ classify task → signature   │
+   ├─ objective ──────────────────────────┼─ sort lexicographic ──────────┘
+   ├─ pool      ──────────────────────────┼─ allocate (exploit/explore)  │
+   ├─ gate      ──────────────────────────┼─ dispatch models             │
+   ├─ constraints ────────────────────────┼─ prune by constraint         │
+   └─ explore_rate ───────────────────────┼─ non-dominated sort          │
+                                          └─ winner → frontier.json      │
+                                                                         │
+Openbox                                     ◄─────────────────────────────┘
+───────
+adx openbox init   (skeleton from pool)
+adx openbox check  (probe each backend)
+```
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `adx interview` | Fixed interactive Q&A capturing how agentdex should orchestrate your models. Writes `.agentdex/orchestration.yaml`. Pass `--non-interactive` for CI/smoke defaults. |
+| `adx run` | The allocation loop. `--engine fake` (default) demonstrates deterministically. `--engine bridges` dispatches live through loopback TeamClaude gateway. Outputs `.agentdex/frontier.json` + seed JSONL. |
+| `adx openbox` | Self-service backend onboarding. `init` seeds `.agentdex/openbox.yaml` from the interview pool. `check` probes each backend's liveness (MISSING / READY / NO-AUTH / TIMEOUT). Zero credential values stored. |
+| `adx bridge probe` | (v1 legacy) One-turn probe through a baseline bridge. |
+| `adx expedition` | (v2 legacy) Full expedition: load task, resolve bridges, run orchestrator, write result cards. |
+| `adx pool` | Manage pool mode (local loopback vs remote), base URL, key path. |
+| `adx deploy` | Deploy agentdex as a Docker service. |
+| `adx arena` | Defer to the Arena TUI (Pokemon Showdown ladder battles). |
 
 ## Packages (uv workspace)
 
 | Package | Purpose |
 |---------|---------|
-| `packages/agentdex_cli` | `adx` shell + orchestrator + bridge probe |
-| `packages/agentdex_engine` | Three Cards + Oracle + Pareto + Expedition |
-| `packages/agentdex_plugin` | Hermes plugin discoverable via entry-points |
-| `packages/adx_bridges` | Claude / Codex / Manus / codex-web bridges |
+| `packages/agentdex_cli` | `adx` shell + orchestrator entrypoint + interview/run/openbox commands |
+| `packages/agentdex_engine` | Expedition orchestration, Three Cards, Pareto verdict, Evolution Card |
+| `packages/adx_frontier` | `AgentCandidate` manifest, frontier axes, constrained-Pareto selection |
+| `packages/adx_bridges` | Claude / Codex / Manus bridges |
+| `packages/adx_ladders` | Shared ladder engine for arena showdowns |
+| `packages/adx_showdown` | Pokemon Showdown ladder adapter |
+| `packages/agentdex_arena` | Arena TUI for head-to-head battles |
+| `packages/agentdex_plugin` | Hermes plugin (entry-point discoverable) |
 | `packages/agentdex_observe` | Langfuse glue (anthropic + openai wraps, trace_session/turn) |
-| `packages/helios_client` | Python client to external `helios` daemon |
-| `packages/kaos` | Vendored KAOS substrate (squashed git subtree) |
+| `packages/kaos` | Vendored KAOS substrate (durable agent/checkpoint/blob store) |
 
 ## Tests
 
 ```bash
-uv run pytest packages/agentdex_engine/tests/ -v   # 28 tests (Cards + Oracle + Pareto)
-uv run pytest packages/adx_bridges/tests/ -v       # 9 tests (mock + live live live)
-uv run pytest packages/agentdex_cli/tests/ -v      # 9 smoke (Expedition end-to-end)
-ADX_LIVE_BRIDGES=1 uv run pytest packages/adx_bridges/tests/ -v   # live subscription CLIs
+# Unit tests across all packages
+uv run pytest packages/ -v
+
+# Bridge integration tests (live subscription CLIs)
+ADX_LIVE_BRIDGES=1 uv run pytest packages/adx_bridges/tests/ -v
 ```
 
 ## Doctrine + references
 
-- [CLAUDE.md](CLAUDE.md) — codebase doctrine (Hermes retrofit, KAOS subtree,
-  two-tier substrate, context discipline).
-- [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — unifying
-  meta-ADR (Pokédex framing + async co-opetition + Langfuse observability).
-- Superlinear post "Agent Pokédex" §4 / §8 — origin of the Three Cards
-  pattern + Repair Oracle as mutation seed source.
+- [CLAUDE.md](CLAUDE.md) — codebase doctrine (Hermes retrofit, KAOS subtree, two-tier substrate, context discipline)
+- [ADR-0009](docs/adr/0009-kaos-substrate-and-retrofit-framing-pokedex-pivot.md) — unifying meta-ADR (Pokedex framing + async co-opetition + Langfuse observability)
+- [ADR-0015](docs/adr/0015-frontier-ledger-run-allocator.md) — frontier ledger, run allocator, adx_frontier engine contract
+- `docs/adr/0016-interview-cmd.md` — interview command design
+- `docs/adr/0017-openbox-cmd.md` — openbox (zero-credential backend onboarding)
+- Superlinear post "Agent Pokedex" §4 / §8 — origin of the Three Cards pattern + Repair Oracle as mutation seed source
 
 ## License
 

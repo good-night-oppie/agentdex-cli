@@ -3,15 +3,11 @@ title: AGENTS.md — agentdex-cli
 status: active
 owner: etang
 created: 2026-06-07
-updated: 2026-06-25
+updated: 2026-06-18
 type: reference
 scope: monorepo
 layer: cross-cutting
 cross_cutting: true
-enforced_by:
-  - .github/workflows/pr-cascade-breaker-gate.yml
-  - scripts/pr_cascade_breaker_gate.py
-  - scripts/enforce_review_bounds.sh
 ---
 
 # AGENTS.md
@@ -53,7 +49,6 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [ADR-0012 (scale)](docs/adr/0012-arena-partitioning-and-scale-to-100-concurrent.md) — battle_id is the partition key (share-nothing, single-writer/battle); scale to ~100 concurrent via SidecarPool + battle routing; recover via inputLog/serializeBattle; ladder = incremental cached derived view; multiplayer routes by battle_id not user_id
 - [ADR-0013 (onboarding)](docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md) — proposed/design-first first-time-user journey: `pip install agentdex-cli[bene]` → `adx login` (GitHub device-flow) → `adx onboard` wizard → account-authed enroll → play (MCP/`adx arena play`) → `adx status`; account↔consent-token bridge reuses today's `ConsentAuthority`; adx-cli↔adx-core wire-contract split; release to PyPI last (once play-ready)
 - [ADR-0014 (poke-env)](docs/adr/0014-pokeenv-battle-substrate-and-codex-bene-evolution.md) — proposed/design-first: poke-env + a real Pokémon Showdown server replace the `adx_showdown` sidecar; gateway platform features (consent/quota/membership/badge/ladder/replay/EventLog) + Three-Cards/Pareto unchanged; two-loop evolution — Codex auto-drive proposes, BENE win-rate probe + kill gate promotes; local-first then `54.203.252.69`
-- [ADR-0015 (evolution ladder)](docs/adr/0015-evolution-ladder-redesign.md) — draft: Agent Evolution Ladder redesign — supersedes the invited-user GA story; AgentCandidate manifest; 3-layer RSI loop (weco start claude drives, weco run inner mutation, bene mh frontier + kill-gated promotion); axes-at-budget frontier partitioned by (ladder, base_model); two-class ladder taxonomy (live-adversarial vs static + HF substrate); v1 adapters ARC-AGI-3 + TB2 + PokeAgent; two-tier trust ledger; knowledge→market→leaderboard site spine
 - [Membership admin runbook](docs/runbooks/membership-admin.md) — operator-only: generate admin token, set Koyeb env, grant/revoke/rotate (NOT for agent clients)
 - [Arena go-live runbook](docs/runbooks/arena-go-live.md) — operator-only: pre-flight env contract (fail-closed vs soft-degraded), dev→main promotion deploy, SidecarPool scaling, /healthz+/metrics thresholds, SHA-attested rollback
 - [arena deploy go/no-go](docs/references/2026-06-11-arena-deploy-gonogo.md) — measured Spaces/Koyeb contract, sidecar RSS, determinism finding, durable-store choice
@@ -61,8 +56,6 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [arena fun + multi-dim + reward-hack design](docs/references/2026-06-12-arena-fun-multidim-rewardhack-design.md) — Will Wright × Lilian Weng synthesis: 4 fun moves = 4 capability dimensions, each shipped with the anti-reward-hack defense it needs (phases 9–11 backlog)
 - [arena playtest dogfood](docs/references/2026-06-12-arena-playtest-dogfood.md) — 3 real agent CLIs (codex/agy/claude) played the loop; independently validated #2/#3/#6/SDK; fixed capacity-503 + owner-validation; top remaining = battle observability
 - [arena load-test measured](docs/references/2026-06-17-arena-loadtest-measured.md) — `scripts/arena_loadtest.py` per-sidecar curve (ADR-0012 #1): memory FLAT ~197MB (96MB heap cap, not linear); limiter = single-thread event-loop latency (p95 13→422ms over N=1→32, zero think-time worst case); sim cheaper than feared → ~2–4 sidecars for 100, LLM tier is the real bottleneck
-- [EventLog append throughput](docs/references/2026-06-23-eventlog-append-throughput.md) — `scripts/eventlog_append_bench.py` for ADR-0012 #2; current NDJSON `append` clears 100 turns/sec at N=100, while aged-log `append_many` is not safe as a hot-path grouped writer
-- [LLM proxy fan-out measured](docs/references/2026-06-23-llm-proxy-measured.md) — `scripts/llm_proxy_measure.py` for ADR-0012 #3; current run reached `/v1/models` but blocked on upstream provider balance/auth before 100-concurrent data
 - [Showdown × Human-vs-AI UI/UX digest](docs/references/2026-06-17-showdown-ux-hvai-digest.md) — battle-render / reasoning-surface / spectator / replay / ladder / TUI design distilled from @pkmn + CloudRetro + Showdown clients + PokemonLLMBattleAI + Gemini-Plays-Pokémon; one typed `|pipe|` protocol → reducer, `(seed,inputLog)` verifiable replay, `{reason,action}` schema, P1/P2/P3 UX backlog
 - [arena typed line-protocol](docs/references/2026-06-17-arena-line-protocol.md) — the `|TYPE|args` message-set spec (P1-a): major/minor/meta tier rule, `lineproto.MESSAGE_TYPES` registry (90 types), `|split|` secret-sharing → fog-of-war, `|t:|` strip-for-hash, kwarg `[from]`/`[of]` semantics; the single wire format adx-sim/client/view all fold over
 - [BENE-Supabase event sourcing](docs/references/2026-06-12-bene-supabase-event-sourcing.md) — two-tier design (server Supabase Postgres authoritative mirror / client SQLite); RLS per consent token proven on PG16; O(1) chain append; write-behind mirror; WASM-in-browser rejected (appendix)
@@ -88,11 +81,6 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [adr cascade](docs/adr/) — historical decisions
 - [.harness/CORPUS_QUERY_KEYWORDS](.harness/CORPUS_QUERY_KEYWORDS) — SessionStart hook seed
 - [.harness/doc-templates/](.harness/doc-templates/) — doc-lint template starters
-- [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) — where issues live (GitHub); what is NOT skill-writable
-- [docs/agents/triage-labels.md](docs/agents/triage-labels.md) — the 5 canonical triage label strings
-- [docs/agents/domain.md](docs/agents/domain.md) — domain-doc consumer rules (single-context)
-- [harness HA orchestrator design](docs/references/2026-07-11-harness-ha-orchestrator-design.md) — HA orchestrator design (draft)
-- [clean-state runbook](docs/runbooks/clean-state.md) — tracked-or-ignored rule; pre-commit / lint / CI / worktree gates
 
 ## Feedback
 
@@ -111,26 +99,6 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 ## Learned notes
 
 - [learned-notes.md](agents/learned-notes.md) — user preferences + workspace facts (promoted out of index per DOC-LINT-021)
-
-## PR Cascade Breaker — reviewer protocol
-
-All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finite state machine. The 11 hard rules live in [agents/review/AGENTS.md §"PR Cascade Breaker"](agents/review/AGENTS.md). Canonical skill: `~/.claude/skills/pr-cascade-breaker/SKILL.md` (synthesised 2026-06-25 from 6 historical cascade post-mortems). CI: `.github/workflows/pr-cascade-breaker-gate.yml`.
-
-## Reviews
-- [PR 621 Digest](docs/reviews/PR_621_DIGEST.md)
-- [PR 623 Digest](docs/reviews/PR_623_DIGEST.md)
-- [PR 624 Digest](docs/reviews/PR_624_DIGEST.md)
-- [PR 649 Digest](docs/reviews/PR_649_DIGEST.md)
-- [PR 689 Digest](docs/reviews/PR_689_DIGEST.md)
-- [PR 694 Digest](docs/reviews/PR_694_DIGEST.md)
-- [PR 695 Digest](docs/reviews/PR_695_DIGEST.md)
-- [PR 696 Digest](docs/reviews/PR_696_DIGEST.md)
-- [PR 650 Digest](docs/reviews/PR_650_DIGEST.md)
-- [PR 651 Digest](docs/reviews/PR_651_DIGEST.md)
-- [PR 652 Digest](docs/reviews/PR_652_DIGEST.md)
-- [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
-- [PR 701 Digest](docs/reviews/PR_701_DIGEST.md)
-- [PR 702 Digest](docs/reviews/PR_702_DIGEST.md)
 
 ## Droid skills (global)
 

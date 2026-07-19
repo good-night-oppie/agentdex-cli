@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "helios-client"
-version = "0.1.0"
+version = "1.0.0"
 description = "helios client adapter: SQLite-backed stub at M2 (per ADR-0009 §D2); FFI/gRPC decision benched at M6"
 requires-python = ">=3.11"
 dependencies = []

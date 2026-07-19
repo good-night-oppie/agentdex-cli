@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentdex-engine"
-version = "0.1.0"
+version = "1.0.0"
 description = "agentdex engine: Three Cards (Task/Result/Evolution) + Oracle layer + Pareto judge + battles/modules"
 requires-python = ">=3.11"
 dependencies = [

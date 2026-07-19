@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentdex-plugin"
-version = "0.1.0"
+version = "1.0.0"
 description = "agentdex Hermes plugin: tools + commands + hooks + KAOS-backed memory provider; kind=standalone"
 requires-python = ">=3.11"
 dependencies = [
