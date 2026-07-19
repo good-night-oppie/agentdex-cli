@@ -17,7 +17,7 @@ def pokeagent_gate_class(
         raise ValueError("opponent counts must satisfy 0 <= community <= total")
     if (
         isinstance(minimum_community_share, bool)
-        or not isinstance(minimum_community_share, (int, float))
+        or not isinstance(minimum_community_share, int | float)
         or not math.isfinite(float(minimum_community_share))
         or not 0.0 <= float(minimum_community_share) <= 1.0
     ):

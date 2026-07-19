@@ -262,7 +262,7 @@ def test_json_shape(tmp_path, monkeypatch, capsys):
 # validation
 # --------------------------------------------------------------------------- #
 def test_literal_sk_token_ref_rejected_without_echo(tmp_path):
-    secret = "sk-abcdefghijklmnopqrstuvwxyz"
+    secret = "sk-abcdefghijklmnopqrstuvwxyz"  # pragma: allowlist secret
     path = tmp_path / "openbox.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -396,7 +396,7 @@ def test_probe_backend_empty_is_unprobed():
 # --------------------------------------------------------------------------- #
 # secrets-hardening (FIX-A..F)
 # --------------------------------------------------------------------------- #
-_FAKE_SK = "sk-TESTFAKEabcdefghijklmnop"
+_FAKE_SK = "sk-TESTFAKEabcdefghijklmnop"  # pragma: allowlist secret
 
 
 def test_check_malformed_yaml_rc2_no_token_no_traceback(tmp_path, capsys):
@@ -431,7 +431,7 @@ def test_init_malformed_policy_rc2_no_token_no_traceback(tmp_path, capsys):
 
 def test_nested_secrets_rejected_without_echo(tmp_path):
     secret = _FAKE_SK
-    secret_key = "sk-TESTFAKEkeyvaluexx"
+    secret_key = "sk-TESTFAKEkeyvaluexx"  # pragma: allowlist secret
     path = tmp_path / "openbox.yaml"
 
     # headers list item

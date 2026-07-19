@@ -91,7 +91,7 @@ def _policy_list(value: Any) -> list[str]:
         return []
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [str(item) for item in value]
     raise ValueError("policy field must be a list or comma-separated string")
 
@@ -658,7 +658,7 @@ def _dispatch_bridges(
                 }
             )
         except Exception as exc:
-            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            if isinstance(exc, KeyboardInterrupt | SystemExit):
                 raise
             # Type name only — never echo response/request bodies.
             print(f"  FAILED {model}: {type(exc).__name__}")

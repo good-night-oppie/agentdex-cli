@@ -79,7 +79,7 @@ class MeasureResult:
         validated: dict[str, float] = {}
         for key, value in self.scores.items():
             # bool is a subclass of int — reject it explicitly.
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
+            if isinstance(value, bool) or not isinstance(value, int | float):
                 raise ValueError(f"score {key!r} must be a finite float; got {value!r}")
             fval = float(value)
             if not math.isfinite(fval):
@@ -93,7 +93,7 @@ class MeasureResult:
         ):
             if (
                 isinstance(value, bool)
-                or not isinstance(value, (int, float))
+                or not isinstance(value, int | float)
                 or not math.isfinite(float(value))
                 or float(value) <= 0.0
             ):
