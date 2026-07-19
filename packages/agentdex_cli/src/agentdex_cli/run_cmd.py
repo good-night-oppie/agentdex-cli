@@ -26,9 +26,16 @@ through the local TeamClaude gateway (Anthropic ``/v1/messages`` on loopback
 only — never remote, never credentials). Quality stays neutral 0.5 until the
 policy gate is wired; ranking falls through to cost/latency.
 
-bridges dispatches pool names as model ids through the loopback TeamClaude
-gateway; it does NOT yet consult openbox.yaml backend bindings — openbox check
-only declares reachability. Per-backend base_url routing is tracked in issue #706.
+bridges consults ``openbox.yaml`` backend bindings (#706). A pool name bound to a
+backend dispatches to that backend's ``base_url`` (loopback-enforced per backend);
+an unbound name falls back to the default gateway and is named in a one-line
+advisory. Because the gateway glob-routes and may rewrite the model, the response's
+own ``model`` is recorded as ``served_model`` and is what the row is PRICED on —
+pricing the requested name is how a request served by a different model writes a
+fabricated cost into the frontier. When a backend declares ``serves_model`` and
+something else answers, the row is quarantined as ``adx-run-bridges-substituted``:
+kept in the JSONL for audit, excluded from selection and from frontier export,
+because it is a measurement of the wrong candidate.
 
 stdlib + PyYAML + ``adx_frontier`` (+ urllib for bridges). No model is called
 in fake mode.
@@ -152,6 +159,12 @@ def _parse_axes(raw_scores: dict[str, Any]) -> dict[str, float] | None:
         return None
 
 
+#: Receipt kind for a row the gateway served with a model we did not request
+#: (#706). Defined here rather than beside the other bridges constants because
+#: the ledger's quarantine predicate is the primary consumer.
+SUBSTITUTED_RECEIPT_KIND = "adx-run-bridges-substituted"
+
+
 # --------------------------------------------------------------------------- #
 # ledger — append-only axis rows; Pareto selection delegates to adx_frontier
 # --------------------------------------------------------------------------- #
@@ -176,6 +189,7 @@ class FrontierSeedLedger:
         scores: dict[str, float],
         ts: str,
         receipt_kind: str = "adx-run-fake",
+        served_model: str | None = None,
     ) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         row: dict[str, Any] = {
@@ -185,6 +199,14 @@ class FrontierSeedLedger:
             "ts": ts,
             "receipt_kind": receipt_kind,
         }
+        # #706: `model` stays the REQUESTED pool name so the row key still lives
+        # in the same name-space as policy.pool (the allocator looks models up by
+        # that name). `served_model` records what actually answered, which is the
+        # only thing that makes the cost figure interpretable after the fact.
+        # Omitted entirely when unknown rather than written as null, so existing
+        # ledgers and fake-engine rows keep their exact shape.
+        if served_model:
+            row["served_model"] = served_model
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
 
@@ -256,6 +278,19 @@ class FrontierSeedLedger:
             measured_at_utc=ts,
         )
 
+    @staticmethod
+    def _is_substituted(row: dict[str, Any]) -> bool:
+        """True for a row the gateway served with a model we did not ask for.
+
+        #706 quarantine. Such a row is a real measurement, but it is a fact
+        about the WRONG candidate — the latency and cost belong to whatever
+        actually served, while the row is keyed by the requested pool name.
+        Letting it into selection re-creates the poison the provenance split
+        already guards against, with extra steps. It stays in the JSONL for
+        audit and is excluded from selection and export.
+        """
+        return str(row.get("receipt_kind") or "") == SUBSTITUTED_RECEIPT_KIND
+
     def _measured_rows(self, sig: str) -> tuple[list[dict[str, Any]], bool]:
         """Rows for ``sig``, provenance-partitioned. Returns (rows, mixed).
 
@@ -267,7 +302,11 @@ class FrontierSeedLedger:
         drives real allocation. Measured rows win outright when any exist; the
         caller is told when a mix was present so it can say so.
         """
-        rows = [r for r in self._rows() if r.get("signature") == sig and "model" in r]
+        rows = [
+            r
+            for r in self._rows()
+            if r.get("signature") == sig and "model" in r and not self._is_substituted(r)
+        ]
         measured = [r for r in rows if not str(r.get("receipt_kind", "")).endswith("-fake")]
         if measured and len(measured) != len(rows):
             return measured, True
@@ -364,6 +403,8 @@ class FrontierSeedLedger:
             for row in self._rows():
                 if "model" not in row or "signature" not in row:
                     continue
+                if self._is_substituted(row):
+                    continue
                 raw = row.get("scores")
                 if not isinstance(raw, dict):
                     continue
@@ -379,6 +420,9 @@ class FrontierSeedLedger:
         seen: set[tuple[str, str, tuple[tuple[str, float], ...]]] = set()
         for row in self._rows():
             if "model" not in row or "signature" not in row:
+                continue
+            # #706: substituted rows are audit-only — never exported.
+            if self._is_substituted(row):
                 continue
             raw_scores = row.get("scores")
             if not isinstance(raw_scores, dict):
@@ -622,14 +666,28 @@ def _dispatch_bridges(
     max_tokens: int,
     timeout: float,
     base_url: str,
+    bindings: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Live-dispatch each model; skip failures with a one-line type-only note."""
+    """Live-dispatch each model; skip failures with a one-line type-only note.
+
+    #706: when ``bindings`` carries an entry for a pool name, that backend's
+    ``base_url`` is used for its dispatch and its ``serves_model`` is the model
+    the operator expects to answer. The response's own ``model`` field is
+    recorded as ``served_model`` and is what the row is PRICED on — the gateway
+    glob-routes and may rewrite the model, so pricing the requested name is how
+    a request for an expensive model served cheaply (or the reverse) writes a
+    fabricated cost into the frontier.
+    """
     results: list[dict[str, Any]] = []
+    bindings = bindings or {}
     for model in models:
+        binding = bindings.get(model)
+        target = getattr(binding, "base_url", None) or base_url
+        expected = getattr(binding, "serves_model", None)
         try:
             t0 = time.perf_counter()
             payload = _post_messages(
-                base_url,
+                target,
                 model=model,
                 task=task,
                 max_tokens=max_tokens,
@@ -641,11 +699,23 @@ def _dispatch_bridges(
                 usage = {}
             tokens_in = int(usage.get("input_tokens") or 0)
             tokens_out = int(usage.get("output_tokens") or 0)
-            cost, kind = _cost_dollar_and_kind(model, tokens_in, tokens_out)
+            served_raw = payload.get("model") if isinstance(payload, dict) else None
+            served_model = str(served_raw) if isinstance(served_raw, str) and served_raw else None
+            # Price on what SERVED, falling back to the requested name only when
+            # the response does not say — never silently price a substitution at
+            # the requested model's rates.
+            cost, kind = _cost_dollar_and_kind(served_model or model, tokens_in, tokens_out)
+            if expected and served_model and served_model != expected:
+                kind = SUBSTITUTED_RECEIPT_KIND
+                print(
+                    f"  SUBSTITUTED {model}: expected {expected}, served {served_model} "
+                    "— quarantined from selection and export (#706)"
+                )
             text = _extract_message_text(payload) if isinstance(payload, dict) else ""
             results.append(
                 {
                     "model": model,
+                    "served_model": served_model,
                     "scores": {
                         "quality": 0.5,
                         "cost_dollar": cost,
@@ -732,6 +802,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     candidates: list[dict[str, Any]] = []
     scored: list[tuple[str, dict[str, float]]] = []
     receipt_by_model: dict[str, str] = {}
+    served_by_model: dict[str, str] = {}
 
     if engine == "bridges":
         base_url = _bridges_base_url()
@@ -740,6 +811,49 @@ def cmd_run(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc))
             return 2
+        # #706: consult openbox.yaml bindings. Imported lazily because
+        # openbox_cmd imports load_policy/_policy_list from this module — a
+        # module-level import here would be circular.
+        from agentdex_cli.openbox_cmd import OpenboxError, load_bindings
+
+        # getattr, not args.openbox: cmd_run is called programmatically with a
+        # hand-built Namespace (the suite does this throughout), and adding a
+        # required attribute to that implicit contract breaks every such caller.
+        #
+        # A missing attribute means NO BINDINGS — deliberately not a fallback to
+        # the CLI's default path. That default is relative, so resolving it here
+        # would read whatever `.agentdex/openbox.yaml` happens to sit in the
+        # process CWD: a gitignored, per-machine file. The repo's own working
+        # copy has one declaring real backends, so the suite would silently
+        # depend on this developer's local config and fail differently on a box
+        # whose bindings point somewhere else. argparse supplies the real
+        # default for actual CLI use; programmatic callers opt in explicitly.
+        openbox_path = getattr(args, "openbox", None)
+        try:
+            bindings = load_bindings(Path(openbox_path).expanduser()) if openbox_path else {}
+        except (OpenboxError, ValueError) as exc:
+            print(str(exc))
+            return 2
+        for name, binding in sorted(bindings.items()):
+            if binding.base_url is None:
+                continue
+            try:
+                require_loopback_base_url(binding.base_url)
+            except ValueError:
+                # Name the BACKEND — "which of my bindings is wrong" is the
+                # question an operator actually has here, and the generic
+                # message only names the env var.
+                print(
+                    f"openbox backend {name!r}: base_url is not loopback — "
+                    "bridges refuses to dispatch off-host"
+                )
+                return 2
+        unbound = [m for m in models if m not in bindings]
+        if bindings and unbound:
+            print(
+                f"advisory   : no openbox binding for {', '.join(sorted(unbound))} "
+                "— dispatching to the default gateway (#706)"
+            )
         # PRE-dispatch budget guard: skip candidates whose rate-table expected
         # cost for --max-tokens output + a modest input estimate exceeds max_cost
         # so `max $/task` is a real hard budget for live runs (no spend).
@@ -764,6 +878,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             max_tokens=max_tokens,
             timeout=dispatch_timeout,
             base_url=base_url,
+            bindings=bindings,
         )
         if not dispatched:
             print("all bridge candidates failed — nothing appended")
@@ -777,6 +892,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             axes = item["scores"]
             scored.append((model, axes))
             receipt_by_model[model] = str(item["receipt_kind"])
+            if item.get("served_model"):
+                served_by_model[model] = str(item["served_model"])
             out_file: str | None = None
             if save_dir is not None:
                 out_path = save_dir / f"{_sanitize_model_filename(model)}.md"
@@ -825,6 +942,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             receipt_kind=receipt_by_model.get(m, "adx-run-fake"),
         )
         for m, axes in scored
+        # #706: a substituted candidate is quarantined from the ledger, so it
+        # must not be eligible to be announced as this run's winner either.
+        # Reporting it here while `learned:` says None is the display asserting
+        # something the data does not support — the same class of defect the
+        # quarantine exists to prevent, one layer up.
+        if receipt_by_model.get(m) != SUBSTITUTED_RECEIPT_KIND
     ]
     survivors = selection.select(run_records, objective, max_cost_dollar=max_cost)
     winner_rec = survivors[0] if survivors else None
@@ -837,7 +960,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"objective  : {obj_display}")
     tok_by_model = {c["model"]: c for c in candidates}
     for m, axes in scored:
-        flag = "  <- winner" if m == winner else ""
+        if receipt_by_model.get(m) == SUBSTITUTED_RECEIPT_KIND:
+            flag = "  <- SUBSTITUTED, quarantined (#706)"
+        else:
+            flag = "  <- winner" if m == winner else ""
         tok = tok_by_model.get(m) or {}
         tok_part = ""
         if engine == "bridges":
@@ -847,8 +973,22 @@ def cmd_run(args: argparse.Namespace) -> int:
             f"t={axes['wall_clock_sec']:.1f}s{tok_part}  {m}{flag}"
         )
     if winner_rec is None:
-        ceiling = max_cost if max_cost is not None else 0.0
-        print(f"all candidates exceed max cost ${ceiling} — recording, no winner")
+        # Three different reasons produce "no winner" and they are not
+        # interchangeable. Blaming the budget for a quarantine (or for an
+        # unset ceiling, which printed a nonsense "$0.0") sends the operator
+        # to fix the wrong thing.
+        quarantined = sum(
+            1 for m, _ in scored if receipt_by_model.get(m) == SUBSTITUTED_RECEIPT_KIND
+        )
+        if scored and quarantined == len(scored):
+            print(
+                f"all {quarantined} candidate(s) were SUBSTITUTED and quarantined (#706) "
+                "— recorded for audit, excluded from the frontier, no winner"
+            )
+        elif max_cost is not None:
+            print(f"all candidates exceed max cost ${max_cost} — recording, no winner")
+        else:
+            print("no candidate survived selection — recording, no winner")
     else:
         wa = winner_rec.scores
         print(
@@ -864,6 +1004,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 scores=axes,
                 ts=ts,
                 receipt_kind=receipt_by_model.get(m, "adx-run-fake"),
+                served_model=served_by_model.get(m),
             )
         frontier_path = ledger.export_frontier()
     except OSError as exc:
@@ -932,14 +1073,23 @@ def register_run_parser(subs: argparse._SubParsersAction) -> None:
         ),
     )
     p.add_argument(
+        "--openbox",
+        default=".agentdex/openbox.yaml",
+        help=(
+            "backend bindings from `adx openbox init`; --engine bridges dispatches a "
+            "bound pool name to its base_url and quarantines a serves_model mismatch. "
+            "Absent file = every candidate uses the default gateway"
+        ),
+    )
+    p.add_argument(
         "--engine",
         default="fake",
         choices=["fake", "bridges"],
         help=(
-            "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway "
-            "(dispatches pool names as model ids; does NOT yet consult openbox.yaml "
-            "backend bindings — openbox check only declares reachability; per-backend "
-            "base_url routing is tracked in issue #706)"
+            "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway. "
+            "bridges consults openbox.yaml bindings (--openbox): a bound pool name goes to "
+            "its own base_url, the row is priced on the model that actually served, and a "
+            "serves_model mismatch is quarantined out of selection and export (#706)"
         ),
     )
     p.add_argument(

@@ -919,3 +919,57 @@ def test_benign_strings_are_not_false_positives(label, value):
     """
     doc = {"version": 1, "backends": {"m-a": {"kind": "subscription-cli", "invoke": value}}}
     assert validate_openbox_doc(doc) is doc
+
+
+# --------------------------------------------------------------------------- #
+# AS17-N2 — EACCES must not escape as a bare traceback
+#
+# Two independent escapes, both found while answering ai-scientist-17's Q1/Q3
+# (see DEFERRED.md AS17-N2). `Path.exists()` swallows ENOENT/ENOTDIR/EBADF/ELOOP
+# but PROPAGATES EACCES, and PermissionError is an OSError — which is not in the
+# `(FileNotFoundError, ValueError, OpenboxError)` tuple the CLI catches. Exception
+# traces are a channel this module explicitly defends, so a traceback out of the
+# credential path is a regression against a stated property, not just ergonomics.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores mode bits")
+def test_token_ref_under_unreadable_parent_warns_and_does_not_raise(tmp_path, capsys):
+    """An unreadable parent must degrade to a warning — _warn_file_ref is non-fatal."""
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "tok").write_text("x")
+    doc = {
+        "version": 1,
+        "backends": {
+            "b": {
+                "kind": "anthropic-endpoint",
+                "invoke": "echo hi",
+                "token_ref": f"file:{locked / 'tok'}",
+            }
+        },
+    }
+    locked.chmod(0o000)
+    try:
+        assert validate_openbox_doc(doc) is doc  # must NOT raise
+    finally:
+        locked.chmod(0o755)
+    err = capsys.readouterr().err
+    assert "cannot inspect token_ref file" in err
+    assert "PermissionError" in err
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores mode bits")
+def test_unreadable_openbox_yaml_is_a_clean_error_not_a_traceback(tmp_path):
+    """`path.exists()` is True for a file we may not READ, so read_text still raises."""
+    cfg = tmp_path / "openbox.yaml"
+    cfg.write_text("version: 1\nbackends: {}\n")
+    cfg.chmod(0o000)
+    try:
+        with pytest.raises(OpenboxError) as excinfo:
+            load_openbox(cfg)
+    finally:
+        cfg.chmod(0o644)
+    msg = str(excinfo.value)
+    assert "cannot read openbox" in msg
+    assert "PermissionError" in msg

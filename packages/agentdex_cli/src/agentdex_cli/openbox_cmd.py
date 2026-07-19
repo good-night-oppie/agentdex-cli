@@ -25,7 +25,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -203,10 +203,25 @@ def _warn_file_ref(token_ref: str) -> None:
             file=sys.stderr,
         )
         return
-    if not path.exists():
-        print(f"warning: token_ref file does not exist: {path}", file=sys.stderr)
+    # Every probe below is advisory — this function is documented non-fatal.
+    # `Path.exists()` swallows ENOENT/ENOTDIR/EBADF/ELOOP but PROPAGATES EACCES,
+    # so a token_ref under an unreadable parent used to raise PermissionError
+    # straight out of here. PermissionError is an OSError, which is not in the
+    # handler tuples at the CLI boundary, so it surfaced as a bare traceback —
+    # in the one surface whose whole point is that it never prints raw state.
+    # Warn and carry on; only the exception TYPE is named, never its message,
+    # since an OSError message embeds the path.
+    try:
+        if not path.exists():
+            print(f"warning: token_ref file does not exist: {path}", file=sys.stderr)
+            return
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError as exc:
+        print(
+            f"warning: cannot inspect token_ref file ({type(exc).__name__}): {path}",
+            file=sys.stderr,
+        )
         return
-    mode = stat.S_IMODE(path.stat().st_mode)
     if mode != 0o600:
         print(
             f"warning: token_ref file mode is {mode:04o}, expected 0600: {path}",
@@ -235,12 +250,81 @@ def _validate_backend(name: str, entry: Any) -> None:
     if not isinstance(probe, list) or not all(isinstance(x, str) for x in probe):
         raise OpenboxError(f"backend {name!r}: probe must be a list of strings")
 
+    # #706 binding fields. `base_url` existed as a key with zero consumers; it is
+    # now read by `adx run --engine bridges`, so it has to be type-checked here
+    # rather than silently ignored. `serves_model` is what the operator EXPECTS
+    # the gateway to serve for this pool name — dispatch compares it against the
+    # model the response actually reports and quarantines a mismatch.
+    # Loopback enforcement deliberately does NOT live here: it belongs at
+    # dispatch (run_cmd.require_loopback_base_url), so `adx openbox check` can
+    # still describe a binding it would refuse to dispatch to, and there is one
+    # implementation of the rule rather than two that can drift.
+    for field in ("base_url", "serves_model"):
+        value = entry.get(field)
+        if value is not None and not isinstance(value, str):
+            raise OpenboxError(f"backend {name!r} field {field!r}: must be a string")
+        if isinstance(value, str) and not value.strip():
+            raise OpenboxError(f"backend {name!r} field {field!r}: must not be empty")
+
     _scan_strings(name, "", entry)
 
     token_ref = entry.get("token_ref", "none")
     _validate_token_ref(name, token_ref if token_ref is not None else "none")
     if isinstance(token_ref, str):
         _warn_file_ref(token_ref)
+
+
+class Binding(NamedTuple):
+    """One pool-name -> backend binding, as declared in ``openbox.yaml`` (#706)."""
+
+    backend: str
+    base_url: str | None
+    serves_model: str | None
+
+
+def bindings_from_doc(doc: dict[str, Any]) -> dict[str, Binding]:
+    """Map pool model name -> :class:`Binding` for backends that declare one.
+
+    A backend contributes a binding only when it carries ``base_url`` and/or
+    ``serves_model``; a plain subscription-cli entry declares no dispatch
+    intent and is deliberately absent from the result, so callers can treat
+    "no binding" as "use the default gateway" without special-casing kinds.
+    """
+    out: dict[str, Binding] = {}
+    backends = doc.get("backends")
+    if not isinstance(backends, dict):
+        return out
+    for name, entry in backends.items():
+        if not isinstance(entry, dict):
+            continue
+        base_url = entry.get("base_url")
+        serves_model = entry.get("serves_model")
+        if not isinstance(base_url, str):
+            base_url = None
+        if not isinstance(serves_model, str):
+            serves_model = None
+        if base_url is None and serves_model is None:
+            continue
+        out[str(name)] = Binding(
+            backend=str(name),
+            base_url=base_url.rstrip("/") if base_url else None,
+            serves_model=serves_model,
+        )
+    return out
+
+
+def load_bindings(path: Path) -> dict[str, Binding]:
+    """Bindings from ``openbox.yaml``, or ``{}`` when absent.
+
+    A MISSING file is not an error — `adx run` must keep working for users who
+    never ran `adx openbox init`. A file that exists but is INVALID is a real
+    error and is allowed to propagate: silently ignoring a malformed binding
+    would dispatch somewhere the operator did not intend, which is the exact
+    class of failure #706 exists to close.
+    """
+    if not path.exists():
+        return {}
+    return bindings_from_doc(load_openbox(path))
 
 
 def validate_openbox_doc(doc: Any) -> dict[str, Any]:
@@ -292,6 +376,18 @@ def load_openbox(path: Path) -> dict[str, Any]:
     except yaml.YAMLError as exc:
         raise OpenboxError(
             f"invalid YAML in openbox at {path}{_yaml_loc(exc)} — fix the file"
+        ) from None
+    except OSError as exc:
+        # `path.exists()` above returns True for a file we are not allowed to
+        # READ, so read_text can still raise EACCES/EIO. That is an OSError, and
+        # the CLI boundary only catches (FileNotFoundError, ValueError,
+        # OpenboxError) — so it escaped as a bare traceback. Convert it here in
+        # the same shape as the YAMLError arm rather than widening the boundary
+        # tuple, which would also swallow genuine I/O bugs elsewhere. Only the
+        # exception TYPE is named; an OSError's message embeds the path already
+        # carried by `path`, and nothing else about it is useful to a user.
+        raise OpenboxError(
+            f"cannot read openbox at {path} ({type(exc).__name__}) — check permissions"
         ) from None
     return validate_openbox_doc(doc)
 
