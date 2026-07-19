@@ -35,20 +35,41 @@ from agentdex_cli.run_cmd import _policy_list, _yaml_loc, load_policy
 # constants
 # --------------------------------------------------------------------------- #
 KNOWN_KINDS = frozenset({"subscription-cli", "anthropic-endpoint", "openai-endpoint"})
+# Case-SENSITIVE by design. A blanket re.IGNORECASE made the AWS arm match the
+# lowercase word "akia…" and, with `-` in the sk- class, matched ordinary
+# hyphenated identifiers — `task-sk-runner-service` and the plausible MODEL NAME
+# `sk-model-v2` were both hard-rejected with no override flag. Pool entries ARE
+# model names, so a false positive there is a usability failure, not a safe
+# default. Vendor prefixes are literal-cased; only the HTTP auth schemes carry an
+# inline (?i), since header casing genuinely varies.
 SECRET_RE = re.compile(
     r"("
-    r"sk-[A-Za-z0-9-]{8,}"
+    # Anthropic / OpenAI: a known vendor prefix, OR a long unbroken key body.
+    r"sk-(?:ant|proj|live|test|or)-[A-Za-z0-9_-]{8,}"
+    r"|sk-[A-Za-z0-9]{16,}"
+    # Underscore-separated vendors (Stripe, HuggingFace, Groq, Replicate,
+    # DigitalOcean, SendGrid) — the previous pattern only knew hyphenated forms.
+    r"|(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}"
+    r"|hf_[A-Za-z0-9]{30,}"
+    r"|gsk_[A-Za-z0-9]{40,}"
+    r"|r8_[A-Za-z0-9]{35,}"
+    r"|dop_v1_[a-f0-9]{60,}"
+    r"|SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"
     r"|ghp_[A-Za-z0-9]{20,}"
     r"|github_pat_[A-Za-z0-9_]{20,}"
     r"|glpat-[A-Za-z0-9_-]{15,}"
-    r"|xoxb-"
+    r"|xox[baprs]-"
     r"|AKIA[0-9A-Z]{12,}"
+    r"|ASIA[0-9A-Z]{12,}"
     r"|AIza[0-9A-Za-z_-]{30,}"
-    r"|Bearer\s+[A-Za-z0-9._~+/-]{16,}"
+    # HTTP auth schemes. `Basic` was missing entirely: a base64 user:pass header
+    # loaded at rc 0, which is exactly the credential-in-config shape this guard
+    # exists to stop.
+    r"|(?i:bearer)\s+[A-Za-z0-9._~+/-]{16,}"
+    r"|(?i:basic)\s+[A-Za-z0-9+/]{16,}={0,2}"
     r"|eyJ[A-Za-z0-9_-]{20,}"
     r"|[A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]+:[^@\s]+@"
-    r")",
-    re.IGNORECASE,
+    r")"
 )
 TOKEN_REF_RE = re.compile(r"^(none|env:[A-Za-z_][A-Za-z0-9_]*|file:/.+)$")
 PROBE_TIMEOUT_SEC = 10

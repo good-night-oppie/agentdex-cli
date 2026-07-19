@@ -60,6 +60,14 @@ cross_cutting: true
 | OPENBOX-BRIDGES-WIRING | [issue #706](https://github.com/good-night-oppie/agentdex-cli/issues/706) | `adx run --engine bridges` dispatches raw pool names to the single loopback TeamClaude gateway and never reads `.agentdex/openbox.yaml`, so a backend can report READY in `openbox check` yet be ignored or routed under a different model name at run time — and `openbox init` emits a `base_url` key with zero consumers anywhere in the workspace. Not a patch: `LiteLLMWorker` sets `api_base`/`api_key` globally per worker, not per slot (`mini.py:254-255`), so honouring per-backend bindings needs per-slot base-URL plumbing. Closing it means either wiring that, or explicitly declaring openbox advisory-only and marking `check` output as such — plus a test asserting the doc claim matches behaviour so the note cannot drift. Current behaviour is documented in the `run_cmd` module docstring and `adx run --help`. |
 
 
+## PR #704 fleet-review findings (tc-fugu lineage, 2026-07-19)
+
+| id | tracked | state |
+|---|---|---|
+| SECRET-RE-RECALL | this row | `Basic <base64>` auth headers loaded at rc 0 — found by ai-scientist-17's AI-Scientist-v2 harness review, FIXED. Regex is now case-sensitive with literal vendor prefixes plus inline `(?i)` on the HTTP auth schemes only; added Stripe/HuggingFace/Groq/Replicate/DigitalOcean/SendGrid/ASIA arms and removed the false positives on `sk-model-v2` / `task-sk-runner-service` / lowercase `akia`. **Still a denylist** — it is defence-in-depth behind the structural `token_ref` contract, not the boundary itself. Any new vendor prefix is a new gap by construction. |
+| SELECTION-UNVALIDATED | [#708](https://github.com/good-night-oppie/agentdex-cli/issues/708) | ai-scientist-17: the suite proves selection is *correct*, not that it *picks good models*. No baseline comparison against random / round-robin / epsilon-greedy on the same pool. This is the same root as #708 — a baseline harness would have caught "selects for non-answers" immediately, which is precisely why it belongs before any "measurement engine" claim. |
+
+
 ## Cross-references
 
 - `cron/weekly_harness_audit.sh` §2 doctrine-vs-filesystem cross-check

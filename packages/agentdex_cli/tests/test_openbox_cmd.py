@@ -857,3 +857,65 @@ def test_clean_top_level_keys_still_load():
         "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
     }
     assert validate_openbox_doc(doc) is doc
+
+
+# --------------------------------------------------------------------------- #
+# SECRET_RE recall + precision (ai-scientist-17 fleet review, PR #704)
+# --------------------------------------------------------------------------- #
+
+_CREDENTIAL_SHAPES = [
+    ("basic-auth", "Basic YWRtaW46aHVudGVyMnNlY3JldA=="),
+    ("basic-lower", "basic YWRtaW46cGFzc3dvcmQxMjM="),
+    ("bearer-jwt", "Bearer eyJhbGciOiJIUzI1NiJ9.abcdefghijklmnop"),
+    ("anthropic", "sk-ant-api03-" + "A" * 24),
+    ("openai-proj", "sk-proj-" + "B" * 24),
+    ("raw-long-sk", "sk-" + "C" * 30),
+    ("stripe", "sk_live_" + "D" * 24),
+    ("huggingface", "hf_" + "E" * 34),
+    ("groq", "gsk_" + "F" * 44),
+    ("replicate", "r8_" + "G" * 38),
+    ("sendgrid", "SG." + "H" * 24 + "." + "I" * 24),
+    ("aws-akia", "AKIA" + "J" * 16),
+    ("aws-asia", "ASIA" + "K" * 16),
+    ("github-pat", "ghp_" + "L" * 24),
+    ("url-userinfo", "https://svc:hunter2secret@api.example.com/v1"),
+]
+
+
+@pytest.mark.parametrize("label,value", _CREDENTIAL_SHAPES, ids=[c[0] for c in _CREDENTIAL_SHAPES])
+def test_credential_shapes_rejected_without_echo(label, value):
+    """`Basic` was missing entirely — a base64 user:pass header loaded at rc 0."""
+    doc = {
+        "version": 1,
+        "backends": {
+            "m-a": {
+                "kind": "subscription-cli",
+                "invoke": "echo",
+                "headers": {"Authorization": value},
+            }
+        },
+    }
+    with pytest.raises(OpenboxError) as exc:
+        validate_openbox_doc(doc)
+    assert value not in str(exc.value), "error text must never echo the credential"
+
+
+_BENIGN = [
+    ("model-name-sk", "sk-model-v2"),
+    ("hyphenated-sk", "task-sk-runner-service"),
+    ("lowercase-akia", "akia0123456789ab"),
+    ("ordinary-model", "claude-opus"),
+    ("cli-invoke", "pytest -q tests/"),
+    ("english-basic", "basic usage notes"),
+]
+
+
+@pytest.mark.parametrize("label,value", _BENIGN, ids=[c[0] for c in _BENIGN])
+def test_benign_strings_are_not_false_positives(label, value):
+    """Pool entries ARE model names, so a false positive here blocks real usage.
+
+    A blanket IGNORECASE plus `-` in the sk- class rejected `sk-model-v2` and
+    `task-sk-runner-service` outright, with no override flag.
+    """
+    doc = {"version": 1, "backends": {"m-a": {"kind": "subscription-cli", "invoke": value}}}
+    assert validate_openbox_doc(doc) is doc
