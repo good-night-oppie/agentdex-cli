@@ -259,10 +259,31 @@ def check_hook_wired(root: Path) -> list[Finding]:
     cfg_path = root / ".pre-commit-config.yaml"
     declared = False
     if cfg_path.exists():
+        text = cfg_path.read_text(encoding="utf-8")
         try:
             import yaml  # noqa: PLC0415
 
-            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            try:
+                cfg = yaml.safe_load(text) or {}
+            except yaml.YAMLError as exc:
+                # A malformed config is a REPO problem, not a gate crash: pre-commit
+                # itself cannot load the file, so no hook in it runs. Report it as a
+                # FINDING (exit 1) — never an internal error (exit 2), never a
+                # traceback.
+                #
+                # This also keeps the exit code IDENTICAL with and without PyYAML.
+                # It previously DIVERGED: ubuntu-latest ships no yaml, so CI silently
+                # took the grep fallback and exited 1, while a local `uv` run raised
+                # YAMLError and exited 2. A gate whose contract depends on an optional
+                # import is a gate nobody can reason about — and it turned the first
+                # CI run red for a reason that never reproduced locally.
+                return [
+                    Finding(
+                        "hook-wired",
+                        f".pre-commit-config.yaml is not valid YAML ({type(exc).__name__})",
+                        "fix the YAML — pre-commit cannot load this file, so NO hook in it runs",
+                    )
+                ]
             for repo in cfg.get("repos", []) or []:
                 for hook in repo.get("hooks", []) or []:
                     if hook.get("id") == "clean-state" and "clean_state.py" in str(
@@ -270,8 +291,10 @@ def check_hook_wired(root: Path) -> list[Finding]:
                     ):
                         declared = True
         except ImportError:
-            # No yaml on a bare runner: fall back to a comment-stripped grep.
-            declared = "id: clean-state" in _strip_comments(cfg_path.read_text(encoding="utf-8"))
+            # No PyYAML (bare runner): comment-stripped grep. Same exit code, less
+            # precision. CI installs PyYAML so the precise path is the one gated.
+            body = _strip_comments(text)
+            declared = "id: clean-state" in body and "clean_state.py" in body
     if not declared:
         out.append(
             Finding(

@@ -299,10 +299,15 @@ rm -f "$SANDBOX/a file with spaces.txt"
 cp "$SANDBOX/.pre-commit-config.yaml" "$TMP/cfg.bak2"
 printf 'repos: [ unclosed\n' > "$SANDBOX/.pre-commit-config.yaml"
 out="$( cd "$SANDBOX" && python3 scripts/clean_state.py --mode ci 2>&1 )"; rc=$?
-if [[ "$rc" -eq 2 ]] && ! grep -q 'Traceback' <<<"$out"; then
-  pass "malformed YAML -> exit 2, no traceback (contract honored)"
+# Contract: a malformed config is a repo FINDING (exit 1) — pre-commit cannot load the
+# file, so no hook in it runs. NOT a gate crash (exit 2), and never a traceback.
+# It must also be exit 1 WITH and WITHOUT PyYAML: the original asserted exit 2, which
+# only held where yaml was importable, so CI (no yaml) went red on a divergence that
+# never reproduced locally.
+if [[ "$rc" -eq 1 ]] && ! grep -q 'Traceback' <<<"$out"; then
+  pass "malformed YAML -> exit 1 finding, no traceback (same with and without PyYAML)"
 else
-  fail "malformed YAML -> rc=$rc $(grep -q Traceback <<<"$out" && echo '+ TRACEBACK') — contract says 2, never a traceback"
+  fail "malformed YAML -> rc=$rc $(grep -q Traceback <<<"$out" && echo '+TRACEBACK') — want rc=1, no traceback"
 fi
 cp "$TMP/cfg.bak2" "$SANDBOX/.pre-commit-config.yaml"
 
