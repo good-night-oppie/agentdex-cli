@@ -251,10 +251,27 @@ class FrontierSeedLedger:
             measured_at_utc=ts,
         )
 
+    def _measured_rows(self, sig: str) -> tuple[list[dict[str, Any]], bool]:
+        """Rows for ``sig``, provenance-partitioned. Returns (rows, mixed).
+
+        SIMULATED AND MEASURED MUST NEVER AVERAGE. ``--engine fake`` derives
+        quality from a hash uniform on [0,1] while the live path pins 0.5, so
+        pooling them lets roughly half of all synthetic rows structurally
+        outrank EVERY real measurement under a quality-first objective — and
+        ``fake`` is the default engine, so a first run poisons the ledger that
+        drives real allocation. Measured rows win outright when any exist; the
+        caller is told when a mix was present so it can say so.
+        """
+        rows = [r for r in self._rows() if r.get("signature") == sig and "model" in r]
+        measured = [r for r in rows if not str(r.get("receipt_kind", "")).endswith("-fake")]
+        if measured and len(measured) != len(rows):
+            return measured, True
+        return (measured or rows), False
+
     def records(self, sig: str) -> list[FrontierRecord]:
         """Parse rows for ``sig`` into ``FrontierRecord``s (skip corrupt lines)."""
         out: list[FrontierRecord] = []
-        for row in self._rows():
+        for row in self._measured_rows(sig)[0]:
             if row.get("signature") != sig or "model" not in row:
                 continue
             raw_scores = row.get("scores")
@@ -274,7 +291,7 @@ class FrontierSeedLedger:
         agg: dict[str, list[dict[str, float]]] = {}
         latest_ts: dict[str, str] = {}
         latest_row: dict[str, dict[str, Any]] = {}
-        for row in self._rows():
+        for row in self._measured_rows(sig)[0]:
             if row.get("signature") != sig or "model" not in row:
                 continue
             raw_scores = row.get("scores")
@@ -297,6 +314,25 @@ class FrontierSeedLedger:
             except (KeyError, TypeError, ValueError):
                 continue
         return out
+
+    def degenerate_primary_axis(self, sig: str, objective: list[str]) -> str | None:
+        """Name the primary axis when every candidate ties on it, else None.
+
+        A constant primary axis is NOT a tiebreak situation — it silently
+        changes what is being optimised. With ``quality`` pinned (as the live
+        bridges path does until the policy gate is wired), the decision falls
+        through to cost and wall-clock, which are BOTH monotone in output
+        tokens: the candidate that produces the least output then strictly
+        dominates the one that did the work, making a refusal or a truncated
+        reply the global optimum. Callers surface this rather than ranking
+        quietly.
+        """
+        recs = self.mean_records(sig)
+        if len(recs) < 2:
+            return None
+        axis = selection.objective_axes(objective)[0]
+        values = {r.scores.get(axis) for r in recs}
+        return axis if len(values) == 1 else None
 
     def best_model(self, sig: str, objective: list[str], max_cost: float | None) -> str | None:
         """Winner under constrained-Pareto objective order over mean records."""
@@ -842,16 +878,28 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     nxt = ledger.best_model(sig, objective, max_cost)
+    degenerate = ledger.degenerate_primary_axis(sig, objective)
+    if engine == "fake":
+        print("provenance: SIMULATED — deterministic hash, no model was called")
+    if degenerate is not None:
+        print(
+            f"WARNING   : every candidate ties on '{degenerate}' — the objective's "
+            "primary axis carries no signal, so this ranking fell through to "
+            "cost/latency, which both favour the SHORTEST reply. Treat "
+            f"'{nxt}' as unvalidated (see issue #708)."
+        )
     print(f"learned   : next '{sig}' will prefer -> {nxt}")
     print(f"frontier   : {frontier_path}")
     if args.json:
         payload = {
             "engine": engine,
+            "provenance": "simulated" if engine == "fake" else "measured",
             "signature": sig,
             "mode": mode,
             "winner": winner,
             "axes": dict(winner_rec.scores) if winner_rec else None,
             "next_best": nxt,
+            "degenerate_primary_axis": degenerate,
             "frontier": str(frontier_path),
             "candidates": candidates,
         }

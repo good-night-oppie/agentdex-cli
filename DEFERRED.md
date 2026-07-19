@@ -68,6 +68,13 @@ cross_cutting: true
 | SELECTION-UNVALIDATED | [#708](https://github.com/good-night-oppie/agentdex-cli/issues/708) | ai-scientist-17: the suite proves selection is *correct*, not that it *picks good models*. No baseline comparison against random / round-robin / epsilon-greedy on the same pool. This is the same root as #708 — a baseline harness would have caught "selects for non-answers" immediately, which is precisely why it belongs before any "measurement engine" claim. |
 
 
+## PR #704 disposition ruling (tc-fugu-4, 2026-07-19)
+
+| id | tracked | ruling |
+|---|---|---|
+| SCAFFOLD-RULING | [#707](https://github.com/good-night-oppie/agentdex-cli/issues/707) [#708](https://github.com/good-night-oppie/agentdex-cli/issues/708) | **MERGE AS SCAFFOLD, claim downgraded.** #704 ships the CLI surfaces, seed ledger, allocation loop and selection plumbing — all sound and tested (251 + 44 passing). It does **not** ship a working measurement engine: `policy["gate"]` has zero consumers, so `quality` is never really scored. Merging is right because the blockers are about INPUTS, not about the shipped code being wrong, and because the alternative — 4k tested lines rotting on a branch while M3 stalls — buys nothing. Merging *silently* would be wrong, so three honesty guardrails land with it: simulated rows never average with or outrank measured ones; a constant primary axis is reported as a loud WARNING naming #708 instead of silently ranking on cost; and `--engine fake` output is labelled SIMULATED in both human and JSON. The docs and PR framing no longer call this "the measurement engine". Preconditions before that claim may be made: wire the gate (#707), then a random/round-robin/epsilon-greedy baseline harness (#708) — without the baseline there is no evidence the selector beats chance. |
+
+
 ## Cross-references
 
 - `cron/weekly_harness_audit.sh` §2 doctrine-vs-filesystem cross-check

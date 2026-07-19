@@ -905,3 +905,91 @@ def test_export_excludes_model_whose_MEAN_cost_is_over_budget(tmp_path):
     assert "spiky" not in listed, (
         "a model the allocator rejects on mean cost must not be advertised"
     )
+
+
+# --------------------------------------------------------------------------- #
+# honesty guardrails for the scaffold ruling (issue #708)
+# --------------------------------------------------------------------------- #
+
+
+def _seed_rows(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "signature": "bugfix",
+                    "model": m,
+                    "scores": {"quality": q, "cost_dollar": c, "wall_clock_sec": w},
+                    "ts": "2026-07-19T00:00:00Z",
+                    "receipt_kind": k,
+                }
+            )
+            for m, q, c, w, k in rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_simulated_rows_never_outrank_measured_ones(tmp_path):
+    """Blocker 2 (#708): fake quality is a uniform hash draw, live is pinned 0.5.
+
+    Pooling them let ~half of all synthetic rows structurally outrank EVERY real
+    measurement — and `fake` is the DEFAULT engine, so a first run poisoned the
+    ledger that drives real allocation.
+    """
+    seeds = tmp_path / "seeds.jsonl"
+    _seed_rows(
+        seeds,
+        [
+            ("model-A", 0.92, 0.40, 50.0, "adx-run-fake"),
+            ("model-B", 0.50, 0.01, 1.0, "adx-run-bridges"),
+        ],
+    )
+    led = FrontierSeedLedger(seeds)
+    assert led.best_model("bugfix", ["correctness", "cost"], None) == "model-B"
+    assert all(r.candidate == "model-B" for r in led.mean_records("bugfix"))
+
+
+def test_simulated_only_ledger_still_usable(tmp_path):
+    """With no measured rows, fake rows are all there is — do not blank the run."""
+    seeds = tmp_path / "seeds.jsonl"
+    _seed_rows(
+        seeds,
+        [
+            ("model-A", 0.92, 0.40, 50.0, "adx-run-fake"),
+            ("model-B", 0.10, 0.01, 1.0, "adx-run-fake"),
+        ],
+    )
+    led = FrontierSeedLedger(seeds)
+    assert led.best_model("bugfix", ["correctness", "cost"], None) == "model-A"
+
+
+def test_constant_primary_axis_is_detected(tmp_path):
+    """Blocker 1 (#708): a pinned primary axis makes the SHORTEST reply optimal."""
+    seeds = tmp_path / "seeds.jsonl"
+    _seed_rows(
+        seeds,
+        [
+            ("did-real-work", 0.5, 0.0400, 42.0, "adx-run-bridges"),
+            ("refused-instantly", 0.5, 0.0001, 0.3, "adx-run-bridges"),
+        ],
+    )
+    led = FrontierSeedLedger(seeds)
+    assert led.degenerate_primary_axis("bugfix", ["correctness", "cost", "latency"]) == "quality"
+    # The winner is still the refusal — the guard reports, it does not re-rank.
+    assert led.best_model("bugfix", ["correctness", "cost", "latency"], None) == "refused-instantly"
+
+
+def test_no_false_alarm_when_primary_axis_varies(tmp_path):
+    seeds = tmp_path / "seeds.jsonl"
+    _seed_rows(
+        seeds,
+        [
+            ("a", 0.9, 0.1, 1.0, "adx-run-bridges"),
+            ("b", 0.4, 0.1, 1.0, "adx-run-bridges"),
+        ],
+    )
+    led = FrontierSeedLedger(seeds)
+    assert led.degenerate_primary_axis("bugfix", ["correctness", "cost"]) is None
