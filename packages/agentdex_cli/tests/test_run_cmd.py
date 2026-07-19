@@ -148,6 +148,17 @@ def test_allocate_cold_start_fans_out():
     assert models == ["a", "b"]
 
 
+def test_allocate_cold_start_rotates_by_offset():
+    """F6: repeated cold-starts with growing ledger cover later pool prefixes."""
+    pool = ["a", "b", "c", "d"]
+    m0, mode0 = allocate(pool, None, 0.0, random.Random(0), fanout=2, rotation=0)
+    m2, mode2 = allocate(pool, None, 0.0, random.Random(0), fanout=2, rotation=2)
+    assert mode0 == mode2 == "cold-start-fanout"
+    assert m0 == ["a", "b"]
+    assert m2 == ["c", "d"]
+    assert m0 != m2
+
+
 def test_allocate_exploits_known_best_when_explore_zero():
     models, mode = allocate(["a", "b", "c"], "b", 0.0, random.Random(0), fanout=3)
     assert mode == "exploit"
@@ -568,3 +579,291 @@ def test_bridges_non_loopback_refuses_rc2_no_network(tmp_path, capsys, monkeypat
     assert "non-loopback" in out
     assert called["n"] == 0
     assert not (tmp_path / "seeds.jsonl").exists()
+
+
+# --------------------------------------------------------------------------- #
+# PR #704 closure findings F1 / F2 / F4 / F5 / F6
+# --------------------------------------------------------------------------- #
+
+
+def test_policy_list_non_iterable_scalar_rc2_no_traceback(tmp_path, capsys):
+    """F1: pool: true / objective: 1 → rc 2 clean message, no TypeError traceback."""
+    cases = [
+        "pool: true\n",
+        "pool:\n  - m-a\nobjective: 1\n",
+    ]
+    for extra in cases:
+        policy = tmp_path / "orchestration.yaml"
+        policy.write_text(
+            "version: 1\n"
+            "job_types:\n  - bugfix\n"
+            "objective:\n  - correctness\n"
+            f"{extra}"
+            "constraints: none\n"
+            "explore_rate: 0.0\n",
+            encoding="utf-8",
+        )
+        ns = argparse.Namespace(
+            task="t",
+            policy=str(policy),
+            ledger=str(tmp_path / "s.jsonl"),
+            engine="fake",
+            fanout=3,
+            seed=0,
+            json=False,
+        )
+        assert cmd_run(ns) == 2
+        captured = capsys.readouterr()
+        combined = captured.out + captured.err
+        assert "policy field must be a list or comma-separated string" in combined
+        assert "Traceback" not in combined
+        assert "TypeError" not in combined
+
+
+def test_cmd_run_unknown_objective_token_rc2(tmp_path, capsys):
+    """F2: objective ['bogus'] → rc 2 naming bogus."""
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text(
+        "version: 1\n"
+        "job_types:\n  - bugfix\n"
+        "objective:\n  - bogus\n"
+        "pool:\n  - m-a\n"
+        "constraints: none\n"
+        "explore_rate: 0.0\n",
+        encoding="utf-8",
+    )
+    ns = argparse.Namespace(
+        task="t",
+        policy=str(policy),
+        ledger=str(tmp_path / "s.jsonl"),
+        engine="fake",
+        fanout=3,
+        seed=0,
+        json=False,
+    )
+    assert cmd_run(ns) == 2
+    out = capsys.readouterr().out
+    assert "bogus" in out
+    assert "Traceback" not in out
+
+
+def test_cmd_run_cased_objective_tokens_ok(tmp_path, capsys):
+    """F2: Latency/Cost/Correctness casefold to valid axes."""
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text(
+        "version: 1\n"
+        "job_types:\n  - bugfix\n"
+        "objective:\n  - Latency\n  - Cost\n  - Correctness\n"
+        "pool:\n  - m-a\n  - m-b\n"
+        "constraints: none\n"
+        "explore_rate: 0.0\n",
+        encoding="utf-8",
+    )
+    ns = argparse.Namespace(
+        task="fix the bugfix",
+        policy=str(policy),
+        ledger=str(tmp_path / "s.jsonl"),
+        engine="fake",
+        fanout=2,
+        seed=0,
+        json=True,
+    )
+    assert cmd_run(ns) == 0
+    out = capsys.readouterr().out
+    assert "Traceback" not in out
+    assert '"winner"' in out
+
+
+def test_export_frontier_excludes_over_budget_rows(tmp_path):
+    """F4: max_cost set → frontier.json drops rows above the ceiling."""
+    path = tmp_path / "seeds.jsonl"
+    rows = [
+        {
+            "signature": "sig",
+            "model": "pricey",
+            "scores": {"quality": 0.99, "cost_dollar": 0.40, "wall_clock_sec": 10.0},
+            "ts": "t1",
+        },
+        {
+            "signature": "sig",
+            "model": "cheap",
+            "scores": {"quality": 0.50, "cost_dollar": 0.01, "wall_clock_sec": 20.0},
+            "ts": "t2",
+        },
+    ]
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    led = FrontierSeedLedger(path, max_cost=0.05)
+    frontier_path = led.export_frontier()
+    payload = json.loads(frontier_path.read_text(encoding="utf-8"))
+    candidates = {rec["candidate"] for part in payload["partitions"] for rec in part["frontier"]}
+    assert candidates == {"cheap"}
+    assert "pricey" not in candidates
+
+
+def test_bridges_pre_dispatch_cost_ceiling_skips_without_network(tmp_path, capsys, monkeypatch):
+    """F5: max $0.0001/task + metered model → not dispatched, exit 3, urlopen never called."""
+    called = {"n": 0}
+
+    def fake_post(*args, **kwargs):
+        called["n"] += 1
+        raise AssertionError("must not dispatch when over pre-dispatch ceiling")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", fake_post)
+    policy = tmp_path / "orchestration.yaml"
+    # claude-opus has nonzero rates in _RATE_TABLE
+    policy.write_text(
+        "version: 1\n"
+        "job_types:\n  - bugfix\n"
+        "objective:\n  - correctness\n  - cost\n"
+        "pool:\n  - claude-opus\n"
+        "constraints: max $0.0001/task\n"
+        "explore_rate: 0.0\n",
+        encoding="utf-8",
+    )
+    ns = argparse.Namespace(
+        task="fix the bugfix",
+        policy=str(policy),
+        ledger=str(tmp_path / "seeds.jsonl"),
+        engine="bridges",
+        fanout=1,
+        seed=0,
+        json=False,
+        max_tokens=2000,
+        dispatch_timeout=180.0,
+        save_outputs=None,
+    )
+    assert cmd_run(ns) == 3
+    out = capsys.readouterr().out
+    assert "skipped claude-opus" in out
+    assert "not dispatched" in out
+    assert "no_feasible_candidate" in out
+    assert called["n"] == 0
+    assert not (tmp_path / "seeds.jsonl").exists()
+
+
+def test_allocate_rotation_wraps_pool():
+    """F6: rotation past end wraps deterministically."""
+    pool = ["a", "b", "c"]
+    models, mode = allocate(pool, None, 0.0, random.Random(0), fanout=2, rotation=2)
+    assert mode == "cold-start-fanout"
+    assert models == ["c", "a"]
+
+
+# --------------------------------------------------------------------------- #
+# F6 follow-up: rotation must survive rounds that append NOTHING
+# --------------------------------------------------------------------------- #
+
+
+def _pool5_policy(tmp_path, *, constraints: str = "none"):
+    p = tmp_path / "orchestration.yaml"
+    p.write_text(
+        "version: 1\n"
+        "job_types:\n  - bugfix/python\n"
+        "objective:\n  - correctness\n  - cost\n  - latency\n"
+        "pool:\n  - m-a\n  - m-b\n  - m-c\n  - m-d\n  - m-e\n"
+        f"constraints: {constraints}\n"
+        "explore_rate: 0.0\n",
+        encoding="utf-8",
+    )
+    return p
+
+
+def test_cold_start_rotation_advances_when_every_dispatch_fails(tmp_path, monkeypatch):
+    """The reviewer's actual withdraw condition, end-to-end.
+
+    Every dispatch fails, so NO ledger rows are ever appended. A row-derived
+    offset replays the same dead prefix forever; an attempt-derived one must
+    still reach the later pool entries. Asserted on real dispatch attempts.
+    """
+    policy = _pool5_policy(tmp_path)
+    attempted: list[str] = []
+
+    def _explode(base_url, *, model, task, max_tokens, timeout):  # noqa: ANN001
+        attempted.append(model)
+        raise OSError("bridge down")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", _explode)
+
+    for _ in range(3):
+        ns = argparse.Namespace(
+            task="t",
+            policy=str(policy),
+            ledger=str(tmp_path / "seeds.jsonl"),
+            engine="bridges",
+            fanout=2,
+            seed=0,
+            json=False,
+            max_tokens=64,
+            dispatch_timeout=5.0,
+            save_outputs=None,
+        )
+        assert cmd_run(ns) == 1
+
+    ledger = FrontierSeedLedger(tmp_path / "seeds.jsonl")
+    assert ledger._rows() == [], "precondition: failing rounds must append nothing"
+    # 3 rounds x fanout 2 over a 5-model pool must reach every entry.
+    assert set(attempted) == {"m-a", "m-b", "m-c", "m-d", "m-e"}, (
+        f"rotation must cover the pool despite zero rows; got {attempted}"
+    )
+
+
+def test_bump_attempt_is_per_signature_and_monotonic(tmp_path):
+    """Global counters alias mod len(pool) when signatures interleave."""
+    led = FrontierSeedLedger(tmp_path / "seeds.jsonl")
+    a = [led.bump_attempt("sig-A") for _ in range(3)]
+    b = [led.bump_attempt("sig-B") for _ in range(2)]
+    assert a == [0, 1, 2], "per-signature count must not be perturbed by other sigs"
+    assert b == [0, 1]
+    reloaded = FrontierSeedLedger(tmp_path / "seeds.jsonl")
+    assert reloaded.bump_attempt("sig-A") == 3, "must persist across processes"
+
+
+def test_bump_attempt_tolerates_corrupt_sidecar(tmp_path):
+    led = FrontierSeedLedger(tmp_path / "seeds.jsonl")
+    led.attempts_path.parent.mkdir(parents=True, exist_ok=True)
+    led.attempts_path.write_text("{not json", encoding="utf-8")
+    assert led.bump_attempt("sig") == 0, "corrupt sidecar is advisory, never fatal"
+
+
+def test_budget_prunes_pool_not_slice_so_affordable_model_still_runs(tmp_path, monkeypatch, capsys):
+    """Probe-3 regression: an unaffordable prefix must not mask an affordable model.
+
+    ceiling $0.01: claude-opus/claude-sonnet are over, deepseek is 4x under.
+    Slice-pruning reported no_feasible_candidate; pool-pruning must dispatch
+    deepseek instead.
+    """
+    p = tmp_path / "orchestration.yaml"
+    p.write_text(
+        "version: 1\n"
+        "job_types:\n  - bugfix/python\n"
+        "objective:\n  - correctness\n  - cost\n  - latency\n"
+        "pool:\n  - claude-opus\n  - claude-sonnet\n  - deepseek\n"
+        "constraints: max $0.01/task\n"
+        "explore_rate: 0.0\n",
+        encoding="utf-8",
+    )
+    seen: list[str] = []
+
+    def _fake_post(base_url, *, model, task, max_tokens, timeout):  # noqa: ANN001
+        seen.append(model)
+        return _fake_messages_response(model=model, input_tokens=10, output_tokens=5, text="ok")
+
+    monkeypatch.setattr("agentdex_cli.run_cmd._post_messages", _fake_post)
+    ns = argparse.Namespace(
+        task="t",
+        policy=str(p),
+        ledger=str(tmp_path / "seeds.jsonl"),
+        engine="bridges",
+        fanout=2,
+        seed=0,
+        json=False,
+        max_tokens=2000,
+        dispatch_timeout=5.0,
+        save_outputs=None,
+    )
+    rc = cmd_run(ns)
+    out = capsys.readouterr().out
+    assert "no_feasible_candidate" not in out, "affordable model exists — must not claim none"
+    assert rc != 3
+    assert "deepseek" in seen, f"affordable model must be dispatched, got {seen}"
+    assert "claude-opus" not in seen, "over-budget model must never be dispatched"

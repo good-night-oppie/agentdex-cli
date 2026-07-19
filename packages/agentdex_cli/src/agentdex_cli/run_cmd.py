@@ -26,6 +26,10 @@ through the local TeamClaude gateway (Anthropic ``/v1/messages`` on loopback
 only — never remote, never credentials). Quality stays neutral 0.5 until the
 policy gate is wired; ranking falls through to cost/latency.
 
+bridges dispatches pool names as model ids through the loopback TeamClaude
+gateway; it does NOT yet consult openbox.yaml backend bindings — openbox check
+only declares reachability. Per-backend base_url routing is a tracked follow-up.
+
 stdlib + PyYAML + ``adx_frontier`` (+ urllib for bridges). No model is called
 in fake mode.
 """
@@ -78,12 +82,18 @@ def load_policy(path: Path) -> dict[str, Any]:
 
 
 def _policy_list(value: Any) -> list[str]:
-    """Accept a YAML sequence or a comma-separated scalar; return list[str]."""
+    """Accept a YAML sequence or a comma-separated scalar; return list[str].
+
+    Non-iterable scalars (bool/int/float/dict) raise ``ValueError`` so callers
+    can map them to a clean rc-2 without a TypeError traceback.
+    """
     if value is None:
         return []
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
-    return [str(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value]
+    raise ValueError("policy field must be a list or comma-separated string")
 
 
 def signature(task: str, job_types: list[str]) -> str:
@@ -173,6 +183,42 @@ class FrontierSeedLedger:
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
 
+    @property
+    def attempts_path(self) -> Path:
+        """Sidecar holding per-signature cold-start attempt counts."""
+        return self.path.parent / "attempts.json"
+
+    def bump_attempt(self, sig: str) -> int:
+        """Return this signature's prior cold-start count, then persist +1.
+
+        Rotation MUST advance on attempts, not on appended rows: a round where
+        every candidate fails dispatch or is pruned by the budget writes zero
+        rows, so a row-derived offset would replay the same dead prefix forever
+        — the counter would be advanced by exactly the thing whose failure it
+        exists to route around. Kept per-signature because a global counter
+        aliases mod len(pool) when two signatures interleave, starving each of
+        a disjoint slice.
+        """
+        counts: dict[str, Any] = {}
+        if self.attempts_path.exists():
+            try:
+                loaded = json.loads(self.attempts_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    counts = loaded
+            except (json.JSONDecodeError, OSError):
+                counts = {}  # corrupt sidecar is advisory only — never fatal
+        raw = counts.get(sig)
+        prior = raw if isinstance(raw, int) and raw >= 0 else 0
+        counts[sig] = prior + 1
+        try:
+            self.attempts_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.attempts_path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(counts), encoding="utf-8")
+            os.replace(tmp, self.attempts_path)
+        except OSError:
+            pass  # rotation is an optimisation; never block a run on it
+        return prior
+
     def _rows(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
@@ -258,7 +304,12 @@ class FrontierSeedLedger:
         return survivors[0].candidate if survivors else None
 
     def export_frontier(self, path: Path | None = None) -> Path:
-        """Build a ``FrontierLedger`` from all raw rows and export ``frontier.json``."""
+        """Build a ``FrontierLedger`` from all raw rows and export ``frontier.json``.
+
+        When ``self.max_cost`` is set, rows whose ``cost_dollar`` exceeds the
+        ceiling are excluded from the export so frontier.json never advertises
+        candidates the allocator deems ineligible under the active hard budget.
+        """
         target = path if path is not None else self.path.parent / "frontier.json"
         ledger = FrontierLedger()
         seen: set[tuple[str, str, tuple[tuple[str, float], ...]]] = set()
@@ -270,6 +321,8 @@ class FrontierSeedLedger:
                 continue
             scores = _parse_axes(raw_scores)
             if scores is None:
+                continue
+            if self.max_cost is not None and scores["cost_dollar"] > self.max_cost:
                 continue
             key = (str(row["signature"]), str(row["model"]), tuple(sorted(scores.items())))
             if key in seen:
@@ -363,6 +416,31 @@ def _cost_dollar_and_kind(model: str, tokens_in: int, tokens_out: int) -> tuple[
     return 0.0, "adx-run-bridges-unmetered"
 
 
+def estimate_pre_dispatch_cost(model: str, task: str, max_tokens: int) -> float | None:
+    """Conservative PRE-dispatch cost estimate for the live bridges budget guard.
+
+    Uses the same ``_RATE_TABLE`` the engine meters with:
+    ``est = (est_input/1e6)*rate_in + (max_tokens/1e6)*rate_out`` where
+    ``est_input = len(task)//3 + 200``. Returns ``None`` when the model is
+    unmetered / unknown so the guard does not invent a ceiling.
+    """
+    est_input = len(task) // 3 + 200
+    if model in _RATE_TABLE:
+        rate_in, rate_out = _RATE_TABLE[model]
+        if rate_in == 0.0 and rate_out == 0.0:
+            return None
+        return (est_input / 1_000_000.0) * rate_in + (max_tokens / 1_000_000.0) * rate_out
+    try:
+        from adx_bridges.rate_table import estimate_cost_usd
+
+        estimated = estimate_cost_usd(model, est_input, max_tokens)
+        if estimated is not None and float(estimated) > 0.0:
+            return float(estimated)
+    except ImportError:
+        pass
+    return None
+
+
 def _extract_message_text(payload: dict[str, Any]) -> str:
     parts: list[str] = []
     for block in payload.get("content") or []:
@@ -415,16 +493,22 @@ def allocate(
     explore_rate: float,
     rng: random.Random,
     fanout: int,
+    rotation: int = 0,
 ) -> tuple[list[str], str]:
     """Return (models_to_dispatch, mode). Pure — incumbent ``best`` is injected.
 
     - cold start (``best`` is None or not in pool): fan out across up to
-      ``fanout`` of the pool.
+      ``fanout`` of the pool, starting at ``rotation % len(pool)`` so repeated
+      cold-starts cover later pool entries instead of the same prefix forever.
     - warm: with prob ``explore_rate``, add one non-incumbent explorer;
       otherwise exploit the known best alone.
     """
     if best is None or best not in pool:
-        return pool[: max(1, fanout)], "cold-start-fanout"
+        if not pool:
+            return [], "cold-start-fanout"
+        n = min(max(1, fanout), len(pool))
+        offset = rotation % len(pool)
+        return [pool[(offset + i) % len(pool)] for i in range(n)], "cold-start-fanout"
     if rng.random() < explore_rate:
         alts = [m for m in pool if m != best]
         if alts:
@@ -521,25 +605,60 @@ def _dispatch_bridges(
 def cmd_run(args: argparse.Namespace) -> int:
     try:
         policy = load_policy(Path(args.policy).expanduser())
+        pool = _policy_list(policy.get("pool"))
+        job_types = _policy_list(policy.get("job_types"))
+        objective = _policy_list(policy.get("objective"))
+        # Validate objective tokens early (case-insensitive map; reject unknown).
+        selection.objective_axes(objective)
     except (FileNotFoundError, ValueError) as exc:
         print(str(exc))
         return 2
-    pool = _policy_list(policy.get("pool"))
     if not pool:
         print("policy has an empty pool — run `adx interview` to set one")
         return 2
-    job_types = _policy_list(policy.get("job_types"))
-    objective = _policy_list(policy.get("objective"))
     max_cost = max_cost_from_constraints(str(policy.get("constraints", "")))
     ledger = FrontierSeedLedger(Path(args.ledger).expanduser(), max_cost=max_cost)
     rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
     sig = signature(args.task, job_types)
-    best = ledger.best_model(sig, objective, max_cost)
-    models, mode = allocate(pool, best, _explore_rate(policy), rng, args.fanout)
 
     engine = getattr(args, "engine", "fake")
     max_tokens = int(getattr(args, "max_tokens", 2000))
+
+    # Budget-prune the POOL before allocation, not the dispatch slice after it.
+    # Pruning the slice lets an unaffordable prefix consume the whole fanout and
+    # report no_feasible_candidate while an affordable pool member is never
+    # considered — a false claim that nothing fits the budget.
+    if engine == "bridges" and max_cost is not None:
+        affordable: list[str] = []
+        for model in pool:
+            est = estimate_pre_dispatch_cost(model, args.task, max_tokens)
+            if est is not None and est > max_cost:
+                print(
+                    f"skipped {model}: est cost ${est:.6f} > ceiling ${max_cost} — not dispatched"
+                )
+            else:
+                affordable.append(model)
+        if not affordable:
+            print("no_feasible_candidate")
+            return 3
+        pool = affordable
+
+    best = ledger.best_model(sig, objective, max_cost)
+    models, mode = allocate(
+        pool,
+        best,
+        _explore_rate(policy),
+        rng,
+        args.fanout,
+        # Step by `fanout` so consecutive cold-starts tile the pool instead of
+        # sliding by one and re-dispatching models that just failed.
+        rotation=(
+            ledger.bump_attempt(sig) * max(1, args.fanout)
+            if (best is None or best not in pool)
+            else 0
+        ),
+    )
     dispatch_timeout = float(getattr(args, "dispatch_timeout", 180.0))
     save_outputs = getattr(args, "save_outputs", None)
 
@@ -555,6 +674,24 @@ def cmd_run(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc))
             return 2
+        # PRE-dispatch budget guard: skip candidates whose rate-table expected
+        # cost for --max-tokens output + a modest input estimate exceeds max_cost
+        # so `max $/task` is a real hard budget for live runs (no spend).
+        if max_cost is not None:
+            kept: list[str] = []
+            for model in models:
+                est = estimate_pre_dispatch_cost(model, args.task, max_tokens)
+                if est is not None and est > max_cost:
+                    print(
+                        f"skipped {model}: est cost ${est:.6f} > ceiling ${max_cost} "
+                        "— not dispatched"
+                    )
+                else:
+                    kept.append(model)
+            models = kept
+            if not models:
+                print("no_feasible_candidate")
+                return 3
         dispatched = _dispatch_bridges(
             models,
             task=args.task,
@@ -720,7 +857,12 @@ def register_run_parser(subs: argparse._SubParsersAction) -> None:
         "--engine",
         default="fake",
         choices=["fake", "bridges"],
-        help="fake = deterministic, no spend; bridges = live loopback TeamClaude gateway",
+        help=(
+            "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway "
+            "(dispatches pool names as model ids; does NOT yet consult openbox.yaml "
+            "backend bindings — openbox check only declares reachability; per-backend "
+            "base_url routing is a tracked follow-up)"
+        ),
     )
     p.add_argument(
         "--max-tokens",

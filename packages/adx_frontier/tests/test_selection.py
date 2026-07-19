@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from adx_frontier.candidate import FRONTIER_AXES
 from adx_frontier.ledger import FrontierRecord, TrustReceipt
 from adx_frontier.selection import objective_axes, select
@@ -36,8 +37,21 @@ def test_objective_axes_maps_tokens_and_appends_missing() -> None:
     ]
 
 
-def test_objective_axes_skips_unknown_and_dedupes() -> None:
-    assert objective_axes(["speed", "bogus", "latency", "quality"]) == [
+def test_objective_axes_casefolds_then_maps() -> None:
+    assert objective_axes(["Latency", "Cost", "Correctness"]) == [
+        "wall_clock_sec",
+        "cost_dollar",
+        "quality",
+    ]
+
+
+def test_objective_axes_rejects_unknown_token() -> None:
+    with pytest.raises(ValueError, match="bogus"):
+        objective_axes(["bogus"])
+
+
+def test_objective_axes_dedupes_case_variants() -> None:
+    assert objective_axes(["speed", "latency", "quality"]) == [
         "wall_clock_sec",
         "quality",
         "cost_dollar",

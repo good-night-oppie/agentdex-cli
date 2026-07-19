@@ -16,6 +16,7 @@ from agentdex_cli.openbox_cmd import (
     load_openbox,
     probe_backend,
     render_openbox,
+    validate_openbox_doc,
 )
 
 
@@ -745,3 +746,114 @@ def test_secret_shaped_file_token_ref_no_echo(tmp_path, capsys):
     assert secret_body not in combined
     assert "token_ref" in combined
     assert "Traceback" not in combined
+
+
+def test_init_rejects_secret_pool_name_pre_write(tmp_path, capsys):
+    """F3: policy pool with fake sk-ant- → init rc 2, nothing persisted, secret absent."""
+    secret = "sk-ant-TESTFAKE0000000000"
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text(
+        f"version: 1\npool:\n  - {secret}\nexplore_rate: 0.2\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / ".agentdex" / "openbox.yaml"
+    rc = cmd_openbox_init(_ns_init(policy=str(policy), out=str(out)))
+    assert rc == 2
+    assert not out.exists()
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert secret not in combined
+    assert "Traceback" not in combined
+    assert "credential pattern" in combined or "pool name" in combined
+
+
+def test_init_and_check_non_iterable_pool_rc2(tmp_path, capsys):
+    """F1: pool: true → rc 2 clean message for openbox init and check."""
+    policy = tmp_path / "orchestration.yaml"
+    policy.write_text("version: 1\npool: true\n", encoding="utf-8")
+    out = tmp_path / "openbox.yaml"
+    rc = cmd_openbox_init(_ns_init(policy=str(policy), out=str(out)))
+    assert rc == 2
+    assert not out.exists()
+    captured = capsys.readouterr()
+    assert "policy field must be a list or comma-separated string" in captured.out
+    assert "Traceback" not in captured.out
+
+    # check path: need a valid openbox file + bad policy
+    openbox = tmp_path / "openbox.yaml"
+    openbox.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "backends": {
+                    "x": {
+                        "kind": "subscription-cli",
+                        "probe": [],
+                        "invoke": "x",
+                        "token_ref": "none",
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    rc = cmd_openbox_check(_ns_check(file=str(openbox), policy=str(policy)))
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert "policy field must be a list or comma-separated string" in captured.out
+    assert "Traceback" not in captured.out
+
+
+def test_top_level_secret_rejected_without_echo():
+    """C2 follow-up: a credential on a TOP-LEVEL key, not under 'backends'.
+
+    validate_openbox_doc previously walked only doc["backends"], so the exact
+    shape the P1 finding cited (`api_key: sk-ant-api03-...`) loaded at rc 0 when
+    parked one level up.
+    """
+    secret = "sk-ant-api03-" + "A" * 24
+    doc = {
+        "version": 1,
+        "default_api_key": secret,
+        "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
+    }
+    with pytest.raises(OpenboxError) as exc:
+        validate_openbox_doc(doc)
+    msg = str(exc.value)
+    assert "default_api_key" in msg
+    assert secret not in msg
+    assert "sk-ant" not in msg
+
+
+def test_top_level_nested_and_key_shaped_secrets_rejected():
+    secret = "sk-proj-" + "B" * 24
+    nested = {
+        "version": 1,
+        "extra": {"deep": [{"inner": secret}]},
+        "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
+    }
+    with pytest.raises(OpenboxError) as exc:
+        validate_openbox_doc(nested)
+    assert secret not in str(exc.value)
+
+    keyed = {
+        "version": 1,
+        secret: "whatever",
+        "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
+    }
+    with pytest.raises(OpenboxError) as exc2:
+        validate_openbox_doc(keyed)
+    assert secret not in str(exc2.value)
+    assert "not shown" in str(exc2.value)
+
+
+def test_clean_top_level_keys_still_load():
+    """No false positive: ordinary sibling metadata must survive."""
+    doc = {
+        "version": 1,
+        "generated": "2026-07-19T00:00:00Z",
+        "note": "hand-edited",
+        "backends": {"m-a": {"kind": "subscription-cli", "invoke": "echo"}},
+    }
+    assert validate_openbox_doc(doc) is doc

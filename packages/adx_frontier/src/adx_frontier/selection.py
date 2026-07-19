@@ -25,15 +25,19 @@ OBJECTIVE_AXIS_MAP: dict[str, str] = {
 def objective_axes(objective: list[str]) -> list[str]:
     """Map interview objective tokens (most-important-first) to frontier axes.
 
-    Unknown tokens are skipped. Axes not mentioned are appended in
+    Tokens are matched case-insensitively against ``OBJECTIVE_AXIS_MAP``. A
+    token that still fails to map after casefold is rejected with
+    ``ValueError`` naming the token. Axes not mentioned are appended in
     ``FRONTIER_AXES`` order so ordering is always total. Returns a list of
     unique axis names. Empty ``objective`` yields ``list(FRONTIER_AXES)``.
     """
     seen: set[str] = set()
     ordered: list[str] = []
     for token in objective:
-        axis = OBJECTIVE_AXIS_MAP.get(token)
-        if axis is None or axis in seen:
+        axis = OBJECTIVE_AXIS_MAP.get(str(token).casefold())
+        if axis is None:
+            raise ValueError(f"unknown objective token: {token}")
+        if axis in seen:
             continue
         seen.add(axis)
         ordered.append(axis)

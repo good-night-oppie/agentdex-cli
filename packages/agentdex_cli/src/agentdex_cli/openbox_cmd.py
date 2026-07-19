@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import stat
@@ -107,10 +108,28 @@ def _field_looks_secret(value: str) -> bool:
     return SECRET_RE.search(value) is not None
 
 
+def _reject_control_chars(context: str, value: str) -> None:
+    """Reject ASCII control characters without echoing the offending value."""
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise OpenboxError(f"{context}: contains control characters")
+
+
+#: Sentinel `backend` for strings scanned outside any backend (top-level keys).
+DOC_SCOPE = "\x00doc"
+
+
+def _scope_label(backend: str, field: str) -> str:
+    if backend == DOC_SCOPE:
+        return f"openbox.yaml top-level field {field!r}"
+    return f"backend {backend!r} field {field!r}"
+
+
 def _check_string_field(backend: str, field: str, value: str) -> None:
+    where = _scope_label(backend, field)
+    _reject_control_chars(where, value)
     if _field_looks_secret(value):
         raise OpenboxError(
-            f"backend {backend!r} field {field!r} looks like a credential value — "
+            f"{where} looks like a credential value — "
             "use a reference (none | env:NAME | file:/abs/path), never the value itself"
         )
 
@@ -124,9 +143,9 @@ def _scan_strings(backend: str, field_path: str, value: Any) -> None:
     if isinstance(value, dict):
         for k, v in value.items():
             if isinstance(k, str) and _field_looks_secret(k):
+                scope = "openbox.yaml" if backend == DOC_SCOPE else f"backend {backend!r}"
                 raise OpenboxError(
-                    f"backend {backend!r}: a field key matches a credential pattern "
-                    "(offending key not shown)"
+                    f"{scope}: a field key matches a credential pattern (offending key not shown)"
                 )
             child = f"{field_path}.{k}" if field_path else str(k)
             _scan_strings(backend, child, v)
@@ -199,18 +218,10 @@ def _validate_backend(name: str, entry: Any) -> None:
         _warn_file_ref(token_ref)
 
 
-def load_openbox(path: Path) -> dict[str, Any]:
-    """Load and validate ``openbox.yaml``. Raises ``OpenboxError`` / FileNotFoundError."""
-    if not path.exists():
-        raise FileNotFoundError(f"no openbox config at {path} — run `adx openbox init` first")
-    try:
-        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as exc:
-        raise OpenboxError(
-            f"invalid YAML in openbox at {path}{_yaml_loc(exc)} — fix the file"
-        ) from None
+def validate_openbox_doc(doc: Any) -> dict[str, Any]:
+    """Validate an openbox document in memory. Raises ``OpenboxError`` on failure."""
     if not isinstance(doc, dict):
-        raise OpenboxError(f"openbox at {path} must be a YAML mapping")
+        raise OpenboxError("openbox document must be a YAML mapping")
     version = doc.get("version")
     if version != 1:
         if isinstance(version, int):
@@ -221,13 +232,43 @@ def load_openbox(path: Path) -> dict[str, Any]:
         raise OpenboxError("openbox.yaml 'backends' must be a mapping")
     for name, entry in backends.items():
         name_str = str(name)
+        _reject_control_chars("a backend name", name_str)
         if _field_looks_secret(name_str):
             raise OpenboxError(
                 "a backend name matches a credential pattern — backend names must not "
                 "hold secrets (offending name not shown)"
             )
         _validate_backend(name_str, entry)
+    # Per-backend validation above only walks doc["backends"]. A credential
+    # parked on a TOP-LEVEL sibling key (`default_api_key: sk-ant-...`) was
+    # never scanned and loaded at rc 0 — which is the literal shape the
+    # zero-credential-value guarantee is about. Sweep everything outside
+    # "backends" too; that subtree is already covered and re-scanning it would
+    # only duplicate error text.
+    for key, value in doc.items():
+        if key == "backends":
+            continue
+        key_str = str(key)
+        if _field_looks_secret(key_str):
+            raise OpenboxError(
+                "a top-level key matches a credential pattern — openbox.yaml holds "
+                "references, never secret values (offending key not shown)"
+            )
+        _scan_strings(DOC_SCOPE, key_str, value)
     return doc
+
+
+def load_openbox(path: Path) -> dict[str, Any]:
+    """Load and validate ``openbox.yaml``. Raises ``OpenboxError`` / FileNotFoundError."""
+    if not path.exists():
+        raise FileNotFoundError(f"no openbox config at {path} — run `adx openbox init` first")
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise OpenboxError(
+            f"invalid YAML in openbox at {path}{_yaml_loc(exc)} — fix the file"
+        ) from None
+    return validate_openbox_doc(doc)
 
 
 # --------------------------------------------------------------------------- #
@@ -269,16 +310,25 @@ def cmd_openbox_init(args: argparse.Namespace) -> int:
         return 2
     try:
         policy = load_policy(Path(args.policy).expanduser())
+        pool = _policy_list(policy.get("pool"))
+        # Reject secret-shaped / control-char pool names before any write.
+        for name in pool:
+            _reject_control_chars("a pool name", name)
+            if _field_looks_secret(name):
+                raise OpenboxError(
+                    "a pool name matches a credential pattern — pool names must not "
+                    "hold secrets (offending name not shown)"
+                )
+        doc = render_openbox(pool)
+        validate_openbox_doc(doc)
     except (FileNotFoundError, ValueError, OpenboxError) as exc:
         print(str(exc))
         return 2
-    pool = _policy_list(policy.get("pool"))
-    doc = render_openbox(pool)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        yaml.safe_dump(doc, default_flow_style=False, sort_keys=False),
-        encoding="utf-8",
-    )
+    payload = yaml.safe_dump(doc, default_flow_style=False, sort_keys=False)
+    tmp = out.with_suffix(out.suffix + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, out)
     print(f"wrote openbox skeleton → {out}  ({len(pool)} backend(s))")
     print("next: fill token_ref / base_url as needed, then `adx openbox check`.")
     return 0
@@ -317,12 +367,16 @@ def cmd_openbox_check(args: argparse.Namespace) -> int:
     else:
         try:
             policy = load_policy(policy_path)
-        except (FileNotFoundError, ValueError, OpenboxError):
+            pool = _policy_list(policy.get("pool"))
+        except (FileNotFoundError, ValueError, OpenboxError) as exc:
+            # Non-iterable policy scalars (e.g. pool: true) → clean rc 2.
+            if "policy field must be a list" in str(exc):
+                print(str(exc))
+                return 2
             print(f"pool coverage: skipped (unreadable policy at {policy_path})")
             pool_covered = None
             exit_ok = True
         else:
-            pool = _policy_list(policy.get("pool"))
             if not pool:
                 print("policy has an empty pool — run `adx interview` to set one")
                 pool_covered = None

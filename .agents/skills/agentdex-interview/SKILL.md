@@ -35,7 +35,7 @@ Six fixed questions, each mapping to one field of the allocation policy:
 | key            | question                                             | drives                         |
 | -------------- | ---------------------------------------------------- | ------------------------------ |
 | `job_types`    | what kinds of jobs will you send agentdex            | per-signature allocation       |
-| `objective`    | rank correctness / cost / latency (most first)       | Pareto objective weights       |
+| `objective`    | rank correctness / cost / latency (most first)       | priority order (lexicographic), case-insensitive |
 | `pool`         | which models/subscriptions are available             | the candidate fan-out set      |
 | `gate`         | how a result is graded (shell cmd or tests/…)        | the deterministic verifier     |
 | `constraints`  | max $/task, latency ceiling, models to never use     | pool pruning                   |

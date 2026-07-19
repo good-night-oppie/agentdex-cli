@@ -55,7 +55,7 @@ ORCHESTRATION_QUESTIONS: list[Question] = [
     Question(
         key="objective",
         question="What does 'better' mean — rank correctness, cost, latency (most first)?",
-        why="Sets the objective weights the Pareto selection optimizes.",
+        why="Sets the objective priority order (lexicographic), case-insensitive — not weights.",
         default="correctness, cost, latency",
         example="correctness, latency, cost",
     ),
