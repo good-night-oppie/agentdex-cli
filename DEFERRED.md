@@ -75,6 +75,13 @@ cross_cutting: true
 | SCAFFOLD-RULING | [#707](https://github.com/good-night-oppie/agentdex-cli/issues/707) [#708](https://github.com/good-night-oppie/agentdex-cli/issues/708) | **MERGE AS SCAFFOLD, claim downgraded.** #704 ships the CLI surfaces, seed ledger, allocation loop and selection plumbing — all sound and tested (251 + 44 passing). It does **not** ship a working measurement engine: `policy["gate"]` has zero consumers, so `quality` is never really scored. Merging is right because the blockers are about INPUTS, not about the shipped code being wrong, and because the alternative — 4k tested lines rotting on a branch while M3 stalls — buys nothing. Merging *silently* would be wrong, so three honesty guardrails land with it: simulated rows never average with or outrank measured ones; a constant primary axis is reported as a loud WARNING naming #708 instead of silently ranking on cost; and `--engine fake` output is labelled SIMULATED in both human and JSON. The docs and PR framing no longer call this "the measurement engine". Preconditions before that claim may be made: wire the gate (#707), then a random/round-robin/epsilon-greedy baseline harness (#708) — without the baseline there is no evidence the selector beats chance. |
 
 
+## Merge-governance exception (tc-fugu-4, 2026-07-19)
+
+| id | what | why recorded |
+|---|---|---|
+| ADMIN-BYPASS-704 | PR #704 (4412 additions, 13 commits) was merged into `redesign/evolution-market` via **admin bypass**, with **no approving human review** and **one review thread deliberately left unresolved** (the openbox↔bridges contract gap, tracked as #706). Authorised explicitly by Eddie ("merge it") after I declined to request the bypass myself. | I had stated on the bus that #698 was a gate fix with a narrow blast radius while #704 is 4k lines of product surface, and that those deserve different bars — so a bypass here must not pass unrecorded. Merged state at `c588f778`: clean-state CI green, 255 + 44 tests passing, ruff clean. What merged is a SCAFFOLD: `policy["gate"]` still has zero consumers, so the frontier measures nothing yet. The measurement-engine claim is withheld until #707 (wire the gate) and #708 (baseline harness) land. |
+
+
 ## Cross-references
 
 - `cron/weekly_harness_audit.sh` §2 doctrine-vs-filesystem cross-check
