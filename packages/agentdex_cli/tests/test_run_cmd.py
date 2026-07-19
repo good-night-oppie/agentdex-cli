@@ -867,3 +867,41 @@ def test_budget_prunes_pool_not_slice_so_affordable_model_still_runs(tmp_path, m
     assert rc != 3
     assert "deepseek" in seen, f"affordable model must be dispatched, got {seen}"
     assert "claude-opus" not in seen, "over-budget model must never be dispatched"
+
+
+def test_export_excludes_model_whose_MEAN_cost_is_over_budget(tmp_path):
+    """F4 follow-up: raw-row filtering alone let one cheap run smuggle a model in.
+
+    The allocator judges eligibility on mean-per-model records, so a model with
+    runs at $0.000685 and $0.440135 (mean $0.22) is rejected by best_model under
+    a $0.05 ceiling — but the export listed it on the strength of the cheap run.
+    """
+    seeds = tmp_path / "seeds.jsonl"
+    seeds.parent.mkdir(parents=True, exist_ok=True)
+
+    def _row(model: str, cost: float):
+        return {
+            "signature": "sig-1",
+            "model": model,
+            "scores": {"quality": 0.9, "cost_dollar": cost, "wall_clock_sec": 1.0},
+            "ts": "2026-07-19T00:00:00Z",
+            "receipt_kind": "adx-run-bridges",
+        }
+
+    seeds.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in [_row("spiky", 0.000685), _row("spiky", 0.440135), _row("cheap", 0.001)]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    led = FrontierSeedLedger(seeds, max_cost=0.05)
+    assert led.best_model("sig-1", ["correctness", "cost"], 0.05) == "cheap"
+
+    out = json.loads(led.export_frontier().read_text(encoding="utf-8"))
+    listed = json.dumps(out)
+    assert "cheap" in listed
+    assert "spiky" not in listed, (
+        "a model the allocator rejects on mean cost must not be advertised"
+    )

@@ -28,7 +28,7 @@ policy gate is wired; ranking falls through to cost/latency.
 
 bridges dispatches pool names as model ids through the loopback TeamClaude
 gateway; it does NOT yet consult openbox.yaml backend bindings — openbox check
-only declares reachability. Per-backend base_url routing is a tracked follow-up.
+only declares reachability. Per-backend base_url routing is tracked in issue #706.
 
 stdlib + PyYAML + ``adx_frontier`` (+ urllib for bridges). No model is called
 in fake mode.
@@ -306,12 +306,35 @@ class FrontierSeedLedger:
     def export_frontier(self, path: Path | None = None) -> Path:
         """Build a ``FrontierLedger`` from all raw rows and export ``frontier.json``.
 
-        When ``self.max_cost`` is set, rows whose ``cost_dollar`` exceeds the
-        ceiling are excluded from the export so frontier.json never advertises
-        candidates the allocator deems ineligible under the active hard budget.
+        When ``self.max_cost`` is set, a row is excluded if its own
+        ``cost_dollar`` exceeds the ceiling OR if its (signature, model) MEAN
+        cost does. Both filters are needed: the allocator judges eligibility on
+        mean-per-model records (``best_model`` -> ``mean_records``), so
+        filtering raw rows alone still let a model whose mean is over budget be
+        advertised on the strength of one cheap run — exactly the "frontier
+        advertises what the allocator rejects" case, reproducible on the
+        bridges path where per-run cost varies.
         """
         target = path if path is not None else self.path.parent / "frontier.json"
         ledger = FrontierLedger()
+        over_budget_models: set[tuple[str, str]] = set()
+        if self.max_cost is not None:
+            sums: dict[tuple[str, str], list[float]] = {}
+            for row in self._rows():
+                if "model" not in row or "signature" not in row:
+                    continue
+                raw = row.get("scores")
+                if not isinstance(raw, dict):
+                    continue
+                parsed = _parse_axes(raw)
+                if parsed is None:
+                    continue
+                sums.setdefault((str(row["signature"]), str(row["model"])), []).append(
+                    parsed["cost_dollar"]
+                )
+            over_budget_models = {
+                k for k, costs in sums.items() if sum(costs) / len(costs) > self.max_cost
+            }
         seen: set[tuple[str, str, tuple[tuple[str, float], ...]]] = set()
         for row in self._rows():
             if "model" not in row or "signature" not in row:
@@ -323,6 +346,8 @@ class FrontierSeedLedger:
             if scores is None:
                 continue
             if self.max_cost is not None and scores["cost_dollar"] > self.max_cost:
+                continue
+            if (str(row["signature"]), str(row["model"])) in over_budget_models:
                 continue
             key = (str(row["signature"]), str(row["model"]), tuple(sorted(scores.items())))
             if key in seen:
@@ -861,7 +886,7 @@ def register_run_parser(subs: argparse._SubParsersAction) -> None:
             "fake = deterministic, no spend; bridges = live loopback TeamClaude gateway "
             "(dispatches pool names as model ids; does NOT yet consult openbox.yaml "
             "backend bindings — openbox check only declares reachability; per-backend "
-            "base_url routing is a tracked follow-up)"
+            "base_url routing is tracked in issue #706)"
         ),
     )
     p.add_argument(

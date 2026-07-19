@@ -53,6 +53,13 @@ cross_cutting: true
 | STATE.MD-REFRESH | phase-8/state-md-refresh | `.supergoal/STATE.md` refreshed in-place per session-2 user authorization ("do 1 to 3 to unblock"); content now reflects M0–M5 done, phase-8 active, the 6 session-2 PRs, and 95 pass + 7 skip test signal. `.supergoal/**` is gitignored so the refresh itself is local-only — this PR carries the DEFERRED row close + a memory-drift note. The `feedback_supergoal_perm_carveout_conflict.md` claim was stale; `echo "test" >> .supergoal/STATE.md` returned rc=0 in session 2 — perm rules now allow Bash-redirect writes |
 | MOCK-DATA | phase-8/mock-data-live-q3 | All 4 source MDs rewritten with live Q3 FY2026 results (quarter ended 2025-10-26; released 2025-11-19) + DOC-LINT-010 frontmatter added. New BLAKE3 = `2f3bf8fee53690f76e4701a5097aabb3e19f5bb146a136fe95a2b8d7169c3346` (was `9edcd1a1...`). `bundle.yaml` rehashed + 5 test files (`test_expedition.py` / `test_polish.py` / `test_calibration_fixtures.py` / `test_oracle.py` / `test_balancer.py`) updated to match. Headline numbers: revenue $57.0B (was $35.08B), Data Center $51.21B (was $30.77B), GAAP margin 73.4% (was 74.6%), Q4 guide $65.0B (was $37.5B). `expeditions/*/task_card.yaml` historical records intentionally NOT updated — those are frozen run snapshots, not part of the canonical bundle. 95 pass + 7 skip unchanged |
 
+## PR #704 review-closure deferrals (tc-fugu lineage, 2026-07-19)
+
+| id | tracked | why deferred, and what closing it requires |
+|---|---|---|
+| OPENBOX-BRIDGES-WIRING | [issue #706](https://github.com/good-night-oppie/agentdex-cli/issues/706) | `adx run --engine bridges` dispatches raw pool names to the single loopback TeamClaude gateway and never reads `.agentdex/openbox.yaml`, so a backend can report READY in `openbox check` yet be ignored or routed under a different model name at run time — and `openbox init` emits a `base_url` key with zero consumers anywhere in the workspace. Not a patch: `LiteLLMWorker` sets `api_base`/`api_key` globally per worker, not per slot (`mini.py:254-255`), so honouring per-backend bindings needs per-slot base-URL plumbing. Closing it means either wiring that, or explicitly declaring openbox advisory-only and marking `check` output as such — plus a test asserting the doc claim matches behaviour so the note cannot drift. Current behaviour is documented in the `run_cmd` module docstring and `adx run --help`. |
+
+
 ## Cross-references
 
 - `cron/weekly_harness_audit.sh` §2 doctrine-vs-filesystem cross-check
