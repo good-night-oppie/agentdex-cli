@@ -993,3 +993,42 @@ def test_no_false_alarm_when_primary_axis_varies(tmp_path):
     )
     led = FrontierSeedLedger(seeds)
     assert led.degenerate_primary_axis("bugfix", ["correctness", "cost"]) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [10**400, -(10**400), 10**309],
+    ids=["huge-int", "huge-negative-int", "just-over-float-max"],
+)
+def test_integer_encoded_quality_is_poison_not_a_crash(value):
+    """OverflowError is NOT a ValueError subclass, so it escaped the guard.
+
+    `float(10**400)` raises "int too large to convert to float". One such ledger
+    row crashed `adx run` with a traceback instead of being skipped as poison.
+    Flagged independently by three reviewers.
+    """
+    from agentdex_cli.run_cmd import _parse_axes
+
+    assert _parse_axes({"quality": value, "cost_dollar": 0.1, "wall_clock_sec": 1.0}) is None
+
+
+def test_poisoned_ledger_row_does_not_crash_the_run(tmp_path):
+    """End-to-end: a single int-encoded row must not take down the CLI."""
+    seeds = tmp_path / "seeds.jsonl"
+    seeds.parent.mkdir(parents=True, exist_ok=True)
+    seeds.write_text(
+        json.dumps(
+            {
+                "signature": "bugfix",
+                "model": "poison",
+                "scores": {"quality": 10**400, "cost_dollar": 0.1, "wall_clock_sec": 1.0},
+                "ts": "2026-07-19T00:00:00Z",
+                "receipt_kind": "adx-run-bridges",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    led = FrontierSeedLedger(seeds)
+    assert led.mean_records("bugfix") == []
+    assert led.best_model("bugfix", ["correctness", "cost"], None) is None

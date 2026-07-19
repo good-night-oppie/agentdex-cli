@@ -158,8 +158,12 @@ def _check_string_field(backend: str, field: str, value: str) -> None:
 def _scan_strings(backend: str, field_path: str, value: Any) -> None:
     """Recursively reject any string (value or dict key) matching SECRET_RE."""
     if isinstance(value, str):
-        if field_path:
-            _check_string_field(backend, field_path, value)
+        # Check even at an empty path. `_validate_backend` calls this with
+        # field_path="" (line ~234); the old `if field_path:` guard meant a bare
+        # string at that level was skipped silently. Not currently reachable —
+        # the entry-must-be-a-mapping check fires first — but a scanner that
+        # silently skips its input is the wrong shape for a credential guard.
+        _check_string_field(backend, field_path or "<root>", value)
         return
     if isinstance(value, dict):
         for k, v in value.items():

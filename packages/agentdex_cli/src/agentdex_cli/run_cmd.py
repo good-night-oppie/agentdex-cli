@@ -143,7 +143,12 @@ def _parse_axes(raw_scores: dict[str, Any]) -> dict[str, float] | None:
                 return None
             scores[axis] = parsed
         return scores
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # OverflowError is NOT a subclass of ValueError: `float(10**400)` raises
+        # "int too large to convert to float". A single ledger row with an
+        # integer-encoded quality therefore crashed `adx run` with a traceback
+        # instead of being skipped as poison — the exact hardening this parser
+        # exists to provide. Flagged independently by three reviewers.
         return None
 
 
@@ -282,7 +287,7 @@ class FrontierSeedLedger:
                 continue
             try:
                 out.append(self._to_record(row, scores, str(row.get("ts") or "")))
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, OverflowError):
                 continue
         return out
 
@@ -311,7 +316,7 @@ class FrontierSeedLedger:
             }
             try:
                 out.append(self._to_record(latest_row[model], means, latest_ts[model]))
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, OverflowError):
                 continue
         return out
 
@@ -391,7 +396,7 @@ class FrontierSeedLedger:
             seen.add(key)
             try:
                 ledger.add(self._to_record(row, scores, str(row.get("ts") or "")))
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, OverflowError):
                 continue
         return ledger.export(target)
 
@@ -580,7 +585,7 @@ def allocate(
 def _explore_rate(policy: dict[str, Any]) -> float:
     try:
         return max(0.0, min(1.0, float(policy.get("explore_rate", 0.2))))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0.2
 
 
