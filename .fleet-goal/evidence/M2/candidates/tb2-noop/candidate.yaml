@@ -1,0 +1,14 @@
+name: tb2-noop
+# Harbor -a import path (module.path:ClassName). Harbor resolves via
+# importlib.import_module — put this candidate directory on PYTHONPATH.
+entrypoint: tb2_noop:Tb2NoopAgent
+mutable:
+  - tb2_noop.py
+base_model: none-no-llm
+budget:
+  # WU-1 gate rejects usd=0.0 (must be finite and > 0); 0.01 is the
+  # smallest practical declared ceiling for this $0-intent no-op leg.
+  usd: 0.01
+  wall_clock_min: 20
+ladders:
+  - tb2

@@ -1,0 +1,23 @@
+{
+  "ladder_id": "arc-agi-3",
+  "base_model": "scripted-heuristic-no-llm",
+  "scores": {
+    "quality": 1.0,
+    "cost_dollar": 0.0,
+    "wall_clock_sec": 0.029488842003047466
+  },
+  "cost_is_measured": true,
+  "receipt": {
+    "tier": "self_reported",
+    "kind": "raw_artifacts",
+    "ref": "",
+    "artifacts": [
+      ".fleet-goal/evidence/M2/measured/arc-local-scripted-run.json"
+    ]
+  },
+  "budget": {
+    "usd": 1.0,
+    "wall_clock_min": 2.0
+  },
+  "measured_at_utc": "2026-07-11T17:08:31Z"
+}

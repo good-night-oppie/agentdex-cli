@@ -1,0 +1,24 @@
+{
+  "ladder_id": "arc-agi-3",
+  "candidate": "arc-scripted-heuristic",
+  "episodes": [
+    {
+      "game": "game-0",
+      "actions": 2,
+      "done": true,
+      "timed_out": false
+    }
+  ],
+  "actions_total": 2,
+  "scores": {
+    "quality": 1.0,
+    "cost_dollar": 0.0,
+    "wall_clock_sec": 0.029488842003047466
+  },
+  "cost_is_measured": true,
+  "timing": {
+    "wall_clock_sec": 0.029488842003047466,
+    "budget_wall_clock_min": 2.0,
+    "timed_out": false
+  }
+}

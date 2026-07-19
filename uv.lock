@@ -5,6 +5,8 @@ requires-python = ">=3.11, <3.14"
 [manifest]
 members = [
     "adx-bridges",
+    "adx-frontier",
+    "adx-ladders",
     "adx-showdown",
     "agentdex-arena",
     "agentdex-cli",
@@ -43,6 +45,41 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
 ]
 provides-extras = ["manus"]
+
+[[package]]
+name = "adx-frontier"
+version = "0.1.0"
+source = { editable = "packages/adx_frontier" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=6.0" }]
+
+[[package]]
+name = "adx-ladders"
+version = "0.1.0"
+source = { editable = "packages/adx_ladders" }
+dependencies = [
+    { name = "adx-frontier" },
+    { name = "adx-showdown" },
+    { name = "pyyaml" },
+]
+
+[package.optional-dependencies]
+pokeagent = [
+    { name = "poke-env" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "adx-frontier", editable = "packages/adx_frontier" },
+    { name = "adx-showdown", editable = "packages/adx_showdown" },
+    { name = "poke-env", marker = "extra == 'pokeagent'", specifier = ">=0.15" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
+provides-extras = ["pokeagent"]
 
 [[package]]
 name = "adx-showdown"
@@ -106,6 +143,8 @@ version = "0.1.0"
 source = { editable = "packages/agentdex_cli" }
 dependencies = [
     { name = "adx-bridges" },
+    { name = "adx-frontier" },
+    { name = "adx-ladders" },
     { name = "agentdex-engine" },
     { name = "agentdex-observe" },
     { name = "agentdex-plugin" },
@@ -118,12 +157,20 @@ dependencies = [
     { name = "rich" },
 ]
 
+[package.optional-dependencies]
+bene = [
+    { name = "bene" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "adx-bridges", editable = "packages/adx_bridges" },
+    { name = "adx-frontier", editable = "packages/adx_frontier" },
+    { name = "adx-ladders", editable = "packages/adx_ladders" },
     { name = "agentdex-engine", editable = "packages/agentdex_engine" },
     { name = "agentdex-observe", editable = "packages/agentdex_observe" },
     { name = "agentdex-plugin", editable = "packages/agentdex_plugin" },
+    { name = "bene", marker = "extra == 'bene'", specifier = ">=0.2.1" },
     { name = "cryptography", specifier = ">=49.0.0" },
     { name = "helios-client", editable = "packages/helios_client" },
     { name = "hermes-agent", specifier = ">=0.15.1" },
@@ -132,6 +179,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
     { name = "rich", specifier = ">=13.0" },
 ]
+provides-extras = ["bene"]
 
 [[package]]
 name = "agentdex-cli-workspace"
@@ -327,6 +375,26 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
+name = "bene"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "textual" },
+    { name = "ulid-py" },
+    { name = "zstandard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/b1/86d91bfb084dff0a6e47a05317a64092ea762e16025dcf69894c2d594449/bene-0.2.1.tar.gz", hash = "sha256:b8d003746927f5f324c711269abb5bbb041ee9a9e57d33432661f3ae44ae3480", size = 356108, upload-time = "2026-06-17T04:55:33.018Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/23/a96c0834c752edca90fe9d9621952752dfd30395668801e207333b850e27/bene-0.2.1-py3-none-any.whl", hash = "sha256:4aabdece00685e971560d04f4345e34632a9ae561bf2e8feab8ddce372ccc107", size = 437427, upload-time = "2026-06-17T04:55:31.629Z" },
 ]
 
 [[package]]
@@ -1399,7 +1467,7 @@ wheels = [
 
 [[package]]
 name = "mcp"
-version = "1.28.1"
+version = "1.27.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1417,9 +1485,9 @@ dependencies = [
     { name = "typing-inspection" },
     { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/77/9450b8f251a13affb6281997d0523c4615f8a8b35d0b21ff30db3a5aac9d/mcp-1.28.1.tar.gz", hash = "sha256:d51e36a5f5644faea4f85ea649bfffa6bc6c26770d42798ad6a3de3d2ba69683", size = 638501, upload-time = "2026-06-26T12:57:29.093Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/3c/347cf965d313f5d41764e7d46bea6ffe7d9ef13b983cc429b0340962a082/mcp-1.27.2.tar.gz", hash = "sha256:8e02db104096d1c25b28e64bde29a5c32b31bc241710213e12fd4d84985bdfef", size = 621116, upload-time = "2026-05-29T17:16:04.039Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/5e/d118fce19f87a2e7d8101c35c8ae0ec289098a4df0ff244cec23e415aca0/mcp-1.28.1-py3-none-any.whl", hash = "sha256:2726bca5e7193f61c5dde8b12500a6de2d9acf6d1a1c0be9e8c2e706437991df", size = 222620, upload-time = "2026-06-26T12:57:27.218Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/11/252c6f971dc4f16af1d98a1c469d8ba523aab00d1bb76b4d3bc1ff32eacc/mcp-1.27.2-py3-none-any.whl", hash = "sha256:d6ff5160c6ca65d93013626efb3fc249de683c30b2d8570755ceddd490344de5", size = 220498, upload-time = "2026-05-29T17:16:02.442Z" },
 ]
 
 [[package]]

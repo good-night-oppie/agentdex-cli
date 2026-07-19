@@ -1,0 +1,59 @@
+{
+  "learned": "SPIKE 5 citation verification: all 8 arXiv IDs resolve and match their claimed titles/topics — 2603.28052 \"Meta-Harness: End-to-End Optimization of Model Harnesses\" (Yoonho Lee et al., 2026-03-30), 2604.01658 \"CORAL: Towards Autonomous Multi-Agent Evolution for Open-Ended Discovery\" (Ao Qu et al., 2026-04-02; title does not say \"coevolution\" but abstract describes \"four co-evolving agents\"), 2603.15563 \"The PokeAgent Challenge: Competitive and Long-Context Learning at Scale\" (Seth Karten et al., 2026-03-16), 2606.09498 \"Self-Harness: Harnesses That Improve Themselves\" (Hangfan Zhang et al., 2026-06-08), 2505.22954 \"Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents\" (Jenny Zhang et al., 2025-05-29), 2502.13138 \"AIDE: AI-Driven Exploration in the Space of Code\" (Zhengyao Jiang et al., 2025-02-18), 2509.19349 \"ShinkaEvolve: Towards Open-Ended And Sample-Efficient Program Evolution\" (Lange/Imajuku/Cetin, 2025-09-17), 2507.19457 \"GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning\" (Lakshya A Agrawal et al., 2025-07-25). Lilian Weng's post https://lilianweng.github.io/posts/2026-07-04-harness/ (\"Harness Engineering for Self-Improvement\", 2026-07-04) still serves; its citation block lists 29 arXiv refs including 5 of the 8 spike IDs (Meta-Harness, Self-Harness, DGM, ShinkaEvolve, GEPA). CORAL, PokeAgent, and AIDE are NOT in Weng's citation block — ADR-0015 must not attribute those three to her post.",
+  "evidence": [
+    {
+      "cite": "https://arxiv.org/abs/2603.28052",
+      "note": "VERIFIED — 'Meta-Harness: End-to-End Optimization of Model Harnesses', Yoonho Lee, Roshen Nair, Qizheng Zhang, Kangwook Lee, Omar Khattab, Chelsea Finn; submitted 2026-03-30; outer-loop search over harness code. Matches claim 'Meta-Harness, Lee et al. 2026'."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2604.01658",
+      "note": "VERIFIED (title nuance) — 'CORAL: Towards Autonomous Multi-Agent Evolution for Open-Ended Discovery', Ao Qu et al., 2026-04-02. Claim said 'CORAL coevolution'; title says 'Multi-Agent Evolution' but abstract states 'four co-evolving agents improve the best known score from 1363 to 1103 cycles', so the coevolution framing is grounded. Cite the exact title in ADR-0015."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2603.15563",
+      "note": "VERIFIED — 'The PokeAgent Challenge: Competitive and Long-Context Learning at Scale', Seth Karten et al., 2026-03-16; two-track Pokemon benchmark (competitive strategic reasoning + long-horizon RPG planning), 100+ teams."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2606.09498",
+      "note": "VERIFIED — 'Self-Harness: Harnesses That Improve Themselves', Hangfan Zhang et al., 2026-06-08; agents iteratively refine their own harness, validated on Terminal-Bench-2.0. Matches claim 'Self-Harness, Zhang et al.'."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2505.22954",
+      "note": "VERIFIED — 'Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents', Jenny Zhang, Shengran Hu, Cong Lu, Robert Lange, Jeff Clune; 2025-05-29."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2502.13138",
+      "note": "VERIFIED — 'AIDE: AI-Driven Exploration in the Space of Code', Zhengyao Jiang et al., 2025-02-18; LLM tree-search ML-engineering agent."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2509.19349",
+      "note": "VERIFIED — 'ShinkaEvolve: Towards Open-Ended And Sample-Efficient Program Evolution', Robert Tjarko Lange, Yuki Imajuku, Edoardo Cetin; 2025-09-17."
+    },
+    {
+      "cite": "https://arxiv.org/abs/2507.19457",
+      "note": "VERIFIED — 'GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning', Lakshya A Agrawal et al., 2025-07-25."
+    },
+    {
+      "cite": "https://lilianweng.github.io/posts/2026-07-04-harness/",
+      "note": "SERVES — 'Harness Engineering for Self-Improvement', Lilian Weng, 2026-07-04. Citation block has 29 arXiv refs; includes spike IDs 2603.28052, 2606.09498, 2505.22954, 2509.19349, 2507.19457. Does NOT include 2604.01658 (CORAL), 2603.15563 (PokeAgent), 2502.13138 (AIDE)."
+    }
+  ],
+  "next": [
+    "Record all 8 IDs as VERIFIED in ADR-0015's citation-hygiene section, using the exact titles above (e.g. write CORAL's full title 'Towards Autonomous Multi-Agent Evolution for Open-Ended Discovery', not 'coevolution', with an optional abstract quote for the co-evolving-agents claim).",
+    "In ADR-0015, source CORAL (2604.01658), PokeAgent (2603.15563), and AIDE (2502.13138) independently — they are NOT in Lilian Weng's 2026-07-04 citation block, so any 'via Weng' attribution for those three would be a provenance error.",
+    "Optionally pin the DGM citation with the Unicode title as rendered on arXiv ('Darwin Godel Machine' — arXiv abs page renders it without the umlaut; 'Gödel' is the conventional spelling) so string-match citation linters don't false-flag.",
+    "If ADR-0015 wants deep-links into Weng's post for the 5 overlapping IDs, capture a dated snapshot of the post (it's live today, 2026-07-11) since blog citation blocks can be edited without versioning."
+  ],
+  "key_facts": [
+    "2603.28052 VERIFIED: 'Meta-Harness: End-to-End Optimization of Model Harnesses', Yoonho Lee et al. (incl. Khattab, Finn), 2026-03-30",
+    "2604.01658 VERIFIED: 'CORAL: Towards Autonomous Multi-Agent Evolution for Open-Ended Discovery', Ao Qu et al., 2026-04-02 — abstract mentions 'four co-evolving agents'; title itself does not say 'coevolution'",
+    "2603.15563 VERIFIED: 'The PokeAgent Challenge: Competitive and Long-Context Learning at Scale', Seth Karten et al., 2026-03-16",
+    "2606.09498 VERIFIED: 'Self-Harness: Harnesses That Improve Themselves', Hangfan Zhang et al., 2026-06-08",
+    "2505.22954 VERIFIED: 'Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents', Jenny Zhang et al., 2025-05-29",
+    "2502.13138 VERIFIED: 'AIDE: AI-Driven Exploration in the Space of Code', Zhengyao Jiang et al., 2025-02-18",
+    "2509.19349 VERIFIED: 'ShinkaEvolve: Towards Open-Ended And Sample-Efficient Program Evolution', Lange/Imajuku/Cetin, 2025-09-17",
+    "2507.19457 VERIFIED: 'GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning', Lakshya A Agrawal et al., 2025-07-25",
+    "Weng post https://lilianweng.github.io/posts/2026-07-04-harness/ SERVES ('Harness Engineering for Self-Improvement', 2026-07-04); cites 5/8 spike IDs — CORAL, PokeAgent, AIDE are absent from its citation block",
+    "Zero NOT-FOUND, zero MISMATCH across all 8 IDs; only nuance is CORAL's 'coevolution' being a paraphrase grounded in the abstract, not the title"
+  ]
+}

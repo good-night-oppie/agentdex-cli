@@ -55,8 +55,8 @@ class _DoubleBattle:
 
 def _install_fake_poke_env(monkeypatch: pytest.MonkeyPatch) -> None:
     class _FakePlayer:
-        def __init__(self, **_kw) -> None:
-            pass
+        def __init__(self, **kw) -> None:
+            self.kw = kw
 
         def create_order(self, choice):
             return ("order", getattr(choice, "id", choice))
@@ -138,6 +138,35 @@ def test_runner_dispatch_tracks_codex_strategy_constant(monkeypatch):
 
     assert chosen == ("order", "tackle")
     assert seen == {"strategy": "sentinel_codex"}
+
+
+def test_runner_honors_explicit_out_of_process_decider(monkeypatch):
+    from adx_showdown.selfplay import runner
+
+    _install_fake_poke_env(monkeypatch)
+    monkeypatch.setattr(
+        runner, "_resolve_agent", lambda: pytest.fail("explicit decider was ignored")
+    )
+    player = runner.make_harness_player(
+        BattleHarness(harness_id="candidate", move_selection_strategy="llm_freeform"),
+        server=object(),
+        decide=lambda _harness, _ctx: "tackle",
+    )
+    chosen = asyncio.run(player.choose_move(_Battle([_Move("tackle", 40), _Move("eruption", 150)])))
+    assert chosen == ("order", "tackle")
+
+
+def test_runner_passes_team_to_poke_env_player(monkeypatch):
+    from adx_showdown.selfplay.runner import make_harness_player
+
+    _install_fake_poke_env(monkeypatch)
+    player = make_harness_player(
+        BattleHarness(harness_id="gen1", move_selection_strategy="max_damage"),
+        server=object(),
+        battle_format="gen1ou",
+        team="Pikachu\n- Thunderbolt",
+    )
+    assert player.kw["team"] == "Pikachu\n- Thunderbolt"
 
 
 def test_fallback_orders_prefers_the_policy_allowed_set():

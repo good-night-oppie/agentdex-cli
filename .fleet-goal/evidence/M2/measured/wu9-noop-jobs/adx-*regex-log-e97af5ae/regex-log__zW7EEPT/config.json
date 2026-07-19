@@ -1,0 +1,13 @@
+{
+    "task": {
+        "name": "terminal-bench/regex-log",
+        "ref": "sha256:72f5f52d6b523a00380cb088fcf0ba83a2e2f7b478fdad6515598ab43584e337",
+        "source": "terminal-bench/terminal-bench-2"
+    },
+    "trial_name": "regex-log__zW7EEPT",
+    "trials_dir": "/tmp/adx-harbor-jobs-v61lzbaw/adx-*regex-log-e97af5ae",
+    "agent": {
+        "name": "tb2_noop:Tb2NoopAgent"
+    },
+    "job_id": "ed1384d1-e3e3-4256-8877-0b6f5484a11c"
+}

@@ -643,6 +643,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     arena.set_defaults(func=cmd_arena_defer)
 
+    # ---- measure: AgentCandidate × ladder → MeasureResult JSON (M2 WU-5) ----
+    from agentdex_cli.measure_cmd import register_measure_parser
+
+    register_measure_parser(subs)
+
+    # ---- evolve: Weco starts Claude; AgentDex supplies RSI contract ----
+    from agentdex_cli.evolve_cmd import register_evolve_parser
+
+    register_evolve_parser(subs)
+
+    # ---- evolve-submit: measure JSON → Bene collaborative bridge → frontier.json ----
+    from agentdex_cli.evolve_submit_cmd import register_evolve_submit_parser
+
+    register_evolve_submit_parser(subs)
+
+    # ---- interview: capture orchestration policy → .agentdex/orchestration.yaml ----
+    from agentdex_cli.interview_cmd import register_interview_parser
+
+    register_interview_parser(subs)
+
+    # ---- run: allocate a task across the pool, gate, learn a seed ----
+    from agentdex_cli.run_cmd import register_run_parser
+
+    register_run_parser(subs)
+
+    # ---- openbox: bind pool names to invokable backends (zero creds) ----
+    from agentdex_cli.openbox_cmd import register_openbox_parser
+
+    register_openbox_parser(subs)
+
     return p
 
 

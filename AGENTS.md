@@ -53,6 +53,7 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [ADR-0012 (scale)](docs/adr/0012-arena-partitioning-and-scale-to-100-concurrent.md) — battle_id is the partition key (share-nothing, single-writer/battle); scale to ~100 concurrent via SidecarPool + battle routing; recover via inputLog/serializeBattle; ladder = incremental cached derived view; multiplayer routes by battle_id not user_id
 - [ADR-0013 (onboarding)](docs/adr/0013-first-time-user-onboarding-pip-login-wizard.md) — proposed/design-first first-time-user journey: `pip install agentdex-cli[bene]` → `adx login` (GitHub device-flow) → `adx onboard` wizard → account-authed enroll → play (MCP/`adx arena play`) → `adx status`; account↔consent-token bridge reuses today's `ConsentAuthority`; adx-cli↔adx-core wire-contract split; release to PyPI last (once play-ready)
 - [ADR-0014 (poke-env)](docs/adr/0014-pokeenv-battle-substrate-and-codex-bene-evolution.md) — proposed/design-first: poke-env + a real Pokémon Showdown server replace the `adx_showdown` sidecar; gateway platform features (consent/quota/membership/badge/ladder/replay/EventLog) + Three-Cards/Pareto unchanged; two-loop evolution — Codex auto-drive proposes, BENE win-rate probe + kill gate promotes; local-first then `54.203.252.69`
+- [ADR-0015 (evolution ladder)](docs/adr/0015-evolution-ladder-redesign.md) — draft: Agent Evolution Ladder redesign — supersedes the invited-user GA story; AgentCandidate manifest; 3-layer RSI loop (weco start claude drives, weco run inner mutation, bene mh frontier + kill-gated promotion); axes-at-budget frontier partitioned by (ladder, base_model); two-class ladder taxonomy (live-adversarial vs static + HF substrate); v1 adapters ARC-AGI-3 + TB2 + PokeAgent; two-tier trust ledger; knowledge→market→leaderboard site spine
 - [Membership admin runbook](docs/runbooks/membership-admin.md) — operator-only: generate admin token, set Koyeb env, grant/revoke/rotate (NOT for agent clients)
 - [Arena go-live runbook](docs/runbooks/arena-go-live.md) — operator-only: pre-flight env contract (fail-closed vs soft-degraded), dev→main promotion deploy, SidecarPool scaling, /healthz+/metrics thresholds, SHA-attested rollback
 - [arena deploy go/no-go](docs/references/2026-06-11-arena-deploy-gonogo.md) — measured Spaces/Koyeb contract, sidecar RSS, determinism finding, durable-store choice
@@ -87,6 +88,11 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 - [adr cascade](docs/adr/) — historical decisions
 - [.harness/CORPUS_QUERY_KEYWORDS](.harness/CORPUS_QUERY_KEYWORDS) — SessionStart hook seed
 - [.harness/doc-templates/](.harness/doc-templates/) — doc-lint template starters
+- [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) — where issues live (GitHub); what is NOT skill-writable
+- [docs/agents/triage-labels.md](docs/agents/triage-labels.md) — the 5 canonical triage label strings
+- [docs/agents/domain.md](docs/agents/domain.md) — domain-doc consumer rules (single-context)
+- [harness HA orchestrator design](docs/references/2026-07-11-harness-ha-orchestrator-design.md) — HA orchestrator design (draft)
+- [clean-state runbook](docs/runbooks/clean-state.md) — tracked-or-ignored rule; pre-commit / lint / CI / worktree gates
 
 ## Feedback
 
@@ -125,3 +131,22 @@ All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finit
 - [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
 - [PR 701 Digest](docs/reviews/PR_701_DIGEST.md)
 - [PR 702 Digest](docs/reviews/PR_702_DIGEST.md)
+
+## Droid skills (global)
+
+Droid sessions in this repo can load the following skills from `~/.factory/skills/`.
+Activate by skill name when the task matches the trigger.
+
+| Skill | Use when | Trigger keywords |
+|---|---|---|
+| `ai-scientist` | AI-Scientist-v2 research workflows, BFTS experiments, paper/review stages, run ledgers | ai-scientist, BFTS, experiment, novelty, paper, writeup |
+| `bene` | Multi-agent harness, engrams, probes, kill gates, BENE CLI/MCP, fleet meta-harness | bene, engram, probe, kill gate, mh search, autonomy ladder |
+| `fleet-doctor` | Fleet stall/restart/OOM recovery, session/daemon revival, health checks | fleet-doctor, revive fleet, fleet health, bootstrap fleet, self-heal |
+| `fleet-enroll` | Fleet enrollment, A2A bus registration, sweep watch, fleet comms, COLLAB_CAPSULE | fleet-enroll, enroll, A2A, collab capsule, watch coverage |
+| `mroute` | Service-facing task routing, dispatch worker selection, cross-lineage handoff | mroute, route task, dispatch worker, fleet router, cross-lineage |
+| `orch-proj` | Long-running project orchestration, milestones, evidence gates, subagent delegation | orch-proj, milestone, fleet-goal, collab capsule, delegate, long-term project |
+| `prisma_deep_plan` | Deep planning, architecture decisions, debugging, reviews via the Prisma planner | prisma deep plan, deep planning, architecture review, refactoring plan |
+| `weco` | Code optimization against measurable metrics (speed, accuracy, cost, memory) | weco, optimize, make it faster, reduce latency, lower cost |
+
+Skill files live under `~/.factory/skills/<skill>/SKILL.md`. For runtimes without a
+native skill loader, read the relevant SKILL.md into context.

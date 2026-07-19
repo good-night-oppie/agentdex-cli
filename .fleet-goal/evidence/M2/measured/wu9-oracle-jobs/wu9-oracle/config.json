@@ -1,0 +1,15 @@
+{
+    "job_name": "wu9-oracle",
+    "jobs_dir": ".fleet-goal/evidence/M2/measured/wu9-oracle-jobs",
+    "n_concurrent_trials": 1,
+    "datasets": [
+        {
+            "name": "terminal-bench/terminal-bench-2",
+            "ref": "sha256:c6fc2e2382c1dbae99b2d5ecd2f4f4a60c3c01e0d84642d69b4afd92e99d078b",
+            "task_names": [
+                "terminal-bench/regex-log"
+            ],
+            "n_tasks": 1
+        }
+    ]
+}
