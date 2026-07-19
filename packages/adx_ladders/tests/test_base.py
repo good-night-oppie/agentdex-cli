@@ -15,9 +15,7 @@ from adx_frontier.candidate import (
 from adx_ladders.base import LadderAdapter, LadderClass, MeasureResult, Receipt
 
 
-def _write_candidate(
-    tmp_path: Path, manifest: dict, files: dict[str, bytes] | None = None
-) -> Path:
+def _write_candidate(tmp_path: Path, manifest: dict, files: dict[str, bytes] | None = None) -> Path:
     for rel, content in (files or {}).items():
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)

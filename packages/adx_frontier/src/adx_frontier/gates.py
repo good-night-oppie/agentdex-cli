@@ -6,7 +6,9 @@ from typing import Literal
 GateClass = Literal["live_adversarial", "static"]
 
 
-def pokeagent_gate_class(*, community_opponents: int, total_opponents: int, minimum_community_share: float) -> GateClass:
+def pokeagent_gate_class(
+    *, community_opponents: int, total_opponents: int, minimum_community_share: float
+) -> GateClass:
     """Select the measured gate class from the window's opponent mix (ADR-0015 D4a)."""
     counts = (community_opponents, total_opponents)
     if any(isinstance(value, bool) or not isinstance(value, int) for value in counts):

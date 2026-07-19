@@ -6,7 +6,10 @@ from adx_frontier.gates import pokeagent_gate_class
 
 def test_pokeagent_gate_class_follows_measured_opponent_mix() -> None:
     gate = pokeagent_gate_class
-    assert gate(community_opponents=3, total_opponents=4, minimum_community_share=0.75) == "live_adversarial"
+    assert (
+        gate(community_opponents=3, total_opponents=4, minimum_community_share=0.75)
+        == "live_adversarial"
+    )
     assert gate(community_opponents=2, total_opponents=4, minimum_community_share=0.75) == "static"
     assert gate(community_opponents=0, total_opponents=0, minimum_community_share=0.0) == "static"
 

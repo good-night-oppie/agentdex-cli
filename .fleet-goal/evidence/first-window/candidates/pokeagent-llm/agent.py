@@ -35,7 +35,9 @@ def _log(msg: str) -> None:
 def _legal(battle: dict) -> tuple[list[str], list[str]]:
     moves = [str(m.get("id", "")) for m in (battle.get("available_moves") or []) if m.get("id")]
     switches = [
-        str(s.get("species", "")) for s in (battle.get("available_switches") or []) if s.get("species")
+        str(s.get("species", ""))
+        for s in (battle.get("available_switches") or [])
+        if s.get("species")
     ]
     return moves, switches
 
@@ -62,11 +64,16 @@ def _ask_llm(battle: dict, moves: list[str], switches: list[str]) -> str | None:
         "Reply with ONLY the exact move id or switch species string, nothing else."
     )
     body = json.dumps(
-        {"model": MODEL, "max_tokens": MAX_TOKENS,
-         "messages": [{"role": "user", "content": prompt}]}
+        {
+            "model": MODEL,
+            "max_tokens": MAX_TOKENS,
+            "messages": [{"role": "user", "content": prompt}],
+        }
     ).encode()
     req = urllib.request.Request(
-        f"{GATEWAY}/v1/messages", data=body, method="POST",
+        f"{GATEWAY}/v1/messages",
+        data=body,
+        method="POST",
         headers={"content-type": "application/json", "anthropic-version": "2023-06-01"},
     )
     with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
@@ -108,7 +115,10 @@ def main() -> None:
         battle = msg.get("battle")
         if not isinstance(battle, dict):
             battle = {}
-        print(json.dumps({"type": "action", "action": _choose(battle)}, separators=(",", ":")), flush=True)
+        print(
+            json.dumps({"type": "action", "action": _choose(battle)}, separators=(",", ":")),
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

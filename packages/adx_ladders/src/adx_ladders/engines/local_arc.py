@@ -88,11 +88,7 @@ class LocalArcEngine:
         walls: set[tuple[int, int]] = set()
         r_lo, r_hi = sorted((self._agent[0], self._goal[0]))
         c_lo, c_hi = sorted((self._agent[1], self._goal[1]))
-        outside = [
-            (r, c)
-            for (r, c) in cells
-            if not (r_lo <= r <= r_hi and c_lo <= c <= c_hi)
-        ]
+        outside = [(r, c) for (r, c) in cells if not (r_lo <= r <= r_hi and c_lo <= c <= c_hi)]
         n_walls = min(self._max_walls, len(outside))
         cursor = rng_state
         for _ in range(n_walls):
