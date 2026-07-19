@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+import pytest
 import yaml
 from agentdex_cli.interview_cmd import (
     ORCHESTRATION_QUESTIONS,
@@ -76,3 +77,90 @@ def test_cmd_interview_force_overwrites(tmp_path):
     assert doc["version"] == 1
     assert "SENTINEL_OLD" not in out.read_text(encoding="utf-8")
     assert doc["gate"] == "tests"
+
+
+# --------------------------------------------------------------------------- #
+# emitter quoting — allowlist, not blocklist (fleet review finding)
+# --------------------------------------------------------------------------- #
+
+
+def test_leading_dash_scalar_stays_parseable():
+    """A bullet-style constraints answer must not emit invalid YAML.
+
+    `- never opus` previously emitted `constraints: - never opus`, which PyYAML
+    rejects; `adx interview` reported success and the NEXT `adx run` died at
+    load_policy with rc 2.
+    """
+    doc = yaml.safe_load(
+        render_policy_yaml(
+            {
+                "job_types": "bugfix",
+                "objective": "correctness",
+                "pool": "claude-opus",
+                "gate": "pytest",
+                "constraints": "- never opus",
+                "explore_rate": "0.2",
+            }
+        )
+    )
+    assert doc["constraints"] == "- never opus"
+
+
+def test_leading_dash_in_list_field_does_not_nest():
+    """The silent-corruption twin: a list field must not become a nested list.
+
+    `- claude-opus, deepseek` previously parsed as [['claude-opus'], 'deepseek'],
+    which _policy_list stringified into a pool member literally named
+    "['claude-opus']" — then dispatched as a model id, with no error anywhere.
+    """
+    doc = yaml.safe_load(
+        render_policy_yaml(
+            {
+                "job_types": "bugfix",
+                "objective": "correctness",
+                "pool": "- claude-opus, deepseek",
+                "gate": "pytest",
+                "constraints": "none",
+                "explore_rate": "0.2",
+            }
+        )
+    )
+    assert doc["pool"] == ["- claude-opus", "deepseek"]
+    assert all(isinstance(p, str) for p in doc["pool"])
+
+
+@pytest.mark.parametrize("value", ["yes", "no", "on", "off", "true", "false", "null", "~"])
+def test_yaml11_reserved_words_round_trip_as_strings(value):
+    """YAML 1.1 would coerce these to bool/None, changing the type run reads back."""
+    doc = yaml.safe_load(
+        render_policy_yaml(
+            {
+                "job_types": "bugfix",
+                "objective": "correctness",
+                "pool": "claude-opus",
+                "gate": value,
+                "constraints": "none",
+                "explore_rate": "0.2",
+            }
+        )
+    )
+    assert doc["gate"] == value, f"{value!r} must survive as a string"
+
+
+def test_ordinary_answers_are_not_over_quoted():
+    """The allowlist must not make the emitted policy unreadable."""
+    text = render_policy_yaml(
+        {
+            "job_types": "bugfix/python, refactor",
+            "objective": "correctness, cost, latency",
+            "pool": "claude-opus, claude-sonnet, deepseek",
+            "gate": "pytest -q tests/",
+            "constraints": "none",
+            "explore_rate": "0.2",
+        }
+    )
+    assert "- claude-opus\n" in text, "plain model names stay unquoted"
+    assert '"claude-opus"' not in text
+    doc = yaml.safe_load(text)
+    assert doc["pool"] == ["claude-opus", "claude-sonnet", "deepseek"]
+    assert doc["gate"] == "pytest -q tests/"

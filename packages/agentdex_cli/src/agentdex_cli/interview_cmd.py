@@ -21,6 +21,7 @@ Design notes
 from __future__ import annotations
 
 import argparse
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -117,10 +118,47 @@ def _as_list(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+#: Values safe to emit unquoted: a plain-scalar shape that cannot start a YAML
+#: sequence/mapping/anchor/tag/block, cannot be read as a bool/null under YAML
+#: 1.1, and contains no indicator character.
+_PLAIN_SAFE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ ./+=-]*$")
+_YAML11_RESERVED = frozenset(
+    {
+        "y",
+        "n",
+        "yes",
+        "no",
+        "true",
+        "false",
+        "on",
+        "off",
+        "null",
+        "none",
+        "~",
+    }
+)
+
+
 def _yaml_scalar(value: str) -> str:
-    """Quote a scalar only when YAML would otherwise misparse it."""
-    if value == "" or value.strip() != value or any(c in value for c in ":#{}[]&*!|>'\"%@`"):
+    """Quote a scalar unless it matches a known-safe plain shape.
+
+    Allowlist, not blocklist. The previous blocklist missed a leading ``-``,
+    which is the failure a user hits by answering the constraints question in
+    bullet style: ``- never opus`` emitted ``constraints: - never opus``, which
+    PyYAML rejects ("sequence entries are not allowed here"), so ``interview``
+    reported success and the next ``adx run`` died at load_policy. Inside a LIST
+    field the same gap corrupted silently instead — ``- claude-opus, deepseek``
+    became a nested sequence and reached the allocator as a pool member
+    literally named ``"['claude-opus']"``, which was then dispatched as a model
+    id. A blocklist cannot be audited against YAML's full indicator set; an
+    allowlist fails closed (worst case: a needlessly quoted string).
+    """
+    if _PLAIN_SAFE_RE.match(value) is None:
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if value.casefold() in _YAML11_RESERVED:
+        # YAML 1.1 would coerce these to bool/null, silently changing the type
+        # the run side reads back.
+        return '"' + value + '"'
     return value
 
 
