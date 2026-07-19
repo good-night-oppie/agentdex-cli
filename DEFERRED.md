@@ -57,7 +57,7 @@ cross_cutting: true
 
 | id | tracked | why deferred, and what closing it requires |
 |---|---|---|
-| OPENBOX-BRIDGES-WIRING | [issue #706](https://github.com/good-night-oppie/agentdex-cli/issues/706) | `adx run --engine bridges` dispatches raw pool names to the single loopback TeamClaude gateway and never reads `.agentdex/openbox.yaml`, so a backend can report READY in `openbox check` yet be ignored or routed under a different model name at run time — and `openbox init` emits a `base_url` key with zero consumers anywhere in the workspace. Not a patch: `LiteLLMWorker` sets `api_base`/`api_key` globally per worker, not per slot (`mini.py:254-255`), so honouring per-backend bindings needs per-slot base-URL plumbing. Closing it means either wiring that, or explicitly declaring openbox advisory-only and marking `check` output as such — plus a test asserting the doc claim matches behaviour so the note cannot drift. Current behaviour is documented in the `run_cmd` module docstring and `adx run --help`. |
+| OPENBOX-BRIDGES-WIRING | [issue #706](https://github.com/good-night-oppie/agentdex-cli/issues/706) | **CLOSED by the contract implementation on `tc-fugu/706-openbox-bridges-contract`** (see the #706 closing entry below). Was: `adx run --engine bridges` dispatched raw pool names to the single loopback gateway and never read `.agentdex/openbox.yaml`, so a backend could report READY in `openbox check` yet be ignored or routed under a different model name at run time. |
 
 
 ## PR #704 fleet-review findings (tc-fugu lineage, 2026-07-19)
@@ -311,6 +311,50 @@ claim, not after.
 - **#707** (wire `policy["gate"]`, zero consumers) and **#708** (baseline harness, now also
   carrying AS17-N3) remain the preconditions before v3 may claim to measure anything.
 - **#706** (openbox↔bridges contract) stays queued with mroute.
+
+## #706 openbox↔bridges contract — closing entry (tc-fugu-5, 2026-07-19)
+
+Implemented to `~/.harness/brief-mroute-706-openbox-bridges-contract.md`. Reassigned
+from mroute to tc-fugu on the bus (#3948) under the protocol #3906 set, *before*
+mroute started — their #3944 reported P0-v2 complete, which was the capacity gate
+#706 was queued behind, so this was ~one hour from being implemented twice.
+
+| part | what landed |
+|---|---|
+| 1. binding declared | `base_url` + `serves_model` on backends, type-checked in `_validate_backend`. `base_url` previously had zero consumers; it now has one, so it is validated rather than ignored. |
+| 2. dispatch consults it | `_dispatch_bridges(bindings=…)` sends a bound pool name to that backend's `base_url`; unbound names keep the default gateway and are named in a one-line advisory. Loopback is enforced **per backend**, rc 2, error naming the backend. |
+| 3. truth recorded | response `model` captured as `served_model` on the row; **priced on the served model**, not the requested one. `model` stays the requested pool name so the allocator's name-space still matches `policy.pool`. |
+| 4. quarantine | `serves_model` mismatch → `adx-run-bridges-substituted`, loud warning, excluded from `_measured_rows` (so from `records`/`mean_records`/`best_model`) and from both `export_frontier` loops — kept in the JSONL for audit. |
+| 5. docs paired | `run_cmd` module docstring rewritten, `--openbox` help added, this row closed. |
+
+**Gates.** 1 binding resolution + quarantine: PASS. 2 pricing on served model: PASS.
+3 per-backend loopback refusal: PASS. 4 regression **310 passed / 1 skipped**, ruff
+check + format clean: PASS. **Gate 5 (real ≤$0.02 E2E) NOT RUN** — it is the only
+gate requiring live spend, and it is deliberately deferred rather than quietly
+skipped. Everything above is proven against a real stdlib `http.server` on an
+ephemeral loopback port that answers with a *different* `model` than requested;
+no API calls, no spend. That exercises the substitution path a mocked dispatch
+structurally cannot.
+
+**The tests were mutation-verified**, because 9/9 passing on the first run is not
+evidence. Five independent mutations — price on requested; never flag mismatch;
+let substituted rows back into selection; ignore per-backend `base_url`; export
+substituted rows — were each caught by exactly one test.
+
+**A defect found in this work, recorded because it nearly shipped.** The first
+version of the `args.openbox` compatibility shim fell back to the CLI's *relative*
+default when the attribute was absent. That silently read whatever
+`.agentdex/openbox.yaml` sat in the process CWD — a gitignored per-machine file,
+and this repo's own working copy has one declaring real backends
+(`deepseek → :8085`, `sakana-fugu → :3456`). The suite passed only because those
+tests monkeypatch dispatch, so `base_url` never mattered; on a box whose bindings
+pointed elsewhere the failure would have looked inexplicable. A missing attribute
+now means *no bindings*, never a CWD read.
+
+**Not addressed here** (unchanged scope): `LiteLLMWorker` sets `api_base`/`api_key`
+globally per worker, not per slot (`mini.py:254-255`). That is a different consumer
+— OpenFugu, explicitly out of scope for this contract — and per-slot base-URL
+plumbing there remains open. This contract governs `adx run --engine bridges` only.
 
 ## Cross-references
 

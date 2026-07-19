@@ -25,7 +25,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -250,12 +250,81 @@ def _validate_backend(name: str, entry: Any) -> None:
     if not isinstance(probe, list) or not all(isinstance(x, str) for x in probe):
         raise OpenboxError(f"backend {name!r}: probe must be a list of strings")
 
+    # #706 binding fields. `base_url` existed as a key with zero consumers; it is
+    # now read by `adx run --engine bridges`, so it has to be type-checked here
+    # rather than silently ignored. `serves_model` is what the operator EXPECTS
+    # the gateway to serve for this pool name — dispatch compares it against the
+    # model the response actually reports and quarantines a mismatch.
+    # Loopback enforcement deliberately does NOT live here: it belongs at
+    # dispatch (run_cmd.require_loopback_base_url), so `adx openbox check` can
+    # still describe a binding it would refuse to dispatch to, and there is one
+    # implementation of the rule rather than two that can drift.
+    for field in ("base_url", "serves_model"):
+        value = entry.get(field)
+        if value is not None and not isinstance(value, str):
+            raise OpenboxError(f"backend {name!r} field {field!r}: must be a string")
+        if isinstance(value, str) and not value.strip():
+            raise OpenboxError(f"backend {name!r} field {field!r}: must not be empty")
+
     _scan_strings(name, "", entry)
 
     token_ref = entry.get("token_ref", "none")
     _validate_token_ref(name, token_ref if token_ref is not None else "none")
     if isinstance(token_ref, str):
         _warn_file_ref(token_ref)
+
+
+class Binding(NamedTuple):
+    """One pool-name -> backend binding, as declared in ``openbox.yaml`` (#706)."""
+
+    backend: str
+    base_url: str | None
+    serves_model: str | None
+
+
+def bindings_from_doc(doc: dict[str, Any]) -> dict[str, Binding]:
+    """Map pool model name -> :class:`Binding` for backends that declare one.
+
+    A backend contributes a binding only when it carries ``base_url`` and/or
+    ``serves_model``; a plain subscription-cli entry declares no dispatch
+    intent and is deliberately absent from the result, so callers can treat
+    "no binding" as "use the default gateway" without special-casing kinds.
+    """
+    out: dict[str, Binding] = {}
+    backends = doc.get("backends")
+    if not isinstance(backends, dict):
+        return out
+    for name, entry in backends.items():
+        if not isinstance(entry, dict):
+            continue
+        base_url = entry.get("base_url")
+        serves_model = entry.get("serves_model")
+        if not isinstance(base_url, str):
+            base_url = None
+        if not isinstance(serves_model, str):
+            serves_model = None
+        if base_url is None and serves_model is None:
+            continue
+        out[str(name)] = Binding(
+            backend=str(name),
+            base_url=base_url.rstrip("/") if base_url else None,
+            serves_model=serves_model,
+        )
+    return out
+
+
+def load_bindings(path: Path) -> dict[str, Binding]:
+    """Bindings from ``openbox.yaml``, or ``{}`` when absent.
+
+    A MISSING file is not an error — `adx run` must keep working for users who
+    never ran `adx openbox init`. A file that exists but is INVALID is a real
+    error and is allowed to propagate: silently ignoring a malformed binding
+    would dispatch somewhere the operator did not intend, which is the exact
+    class of failure #706 exists to close.
+    """
+    if not path.exists():
+        return {}
+    return bindings_from_doc(load_openbox(path))
 
 
 def validate_openbox_doc(doc: Any) -> dict[str, Any]:
