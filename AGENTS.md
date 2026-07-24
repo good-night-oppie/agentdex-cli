@@ -131,6 +131,12 @@ All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finit
 - [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
 - [PR 701 Digest](docs/reviews/PR_701_DIGEST.md)
 - [PR 702 Digest](docs/reviews/PR_702_DIGEST.md)
+- [PR 705 Digest](docs/reviews/PR_705_DIGEST.md)
+- [PR 710 Digest](docs/reviews/PR_710_DIGEST.md)
+- [PR 712 Digest](docs/reviews/PR_712_DIGEST.md)
+- [PR 713 Digest](docs/reviews/PR_713_DIGEST.md)
+- [PR 714 Digest](docs/reviews/PR_714_DIGEST.md)
+- [PR 715 Digest](docs/reviews/PR_715_DIGEST.md)
 
 ## Droid skills (global)
 
