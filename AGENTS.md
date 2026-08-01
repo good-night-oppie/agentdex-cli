@@ -132,6 +132,10 @@ All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finit
 - [PR 701 Digest](docs/reviews/PR_701_DIGEST.md)
 - [PR 702 Digest](docs/reviews/PR_702_DIGEST.md)
 
+- [PR 705 Digest](docs/reviews/PR_705_DIGEST.md)
+- [PR 710 Digest](docs/reviews/PR_710_DIGEST.md)
+- [PR 721 Digest](docs/reviews/PR_721_DIGEST.md)
+
 ## Droid skills (global)
 
 Droid sessions in this repo can load the following skills from `~/.factory/skills/`.
