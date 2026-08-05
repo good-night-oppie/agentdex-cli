@@ -150,3 +150,5 @@ Activate by skill name when the task matches the trigger.
 
 Skill files live under `~/.factory/skills/<skill>/SKILL.md`. For runtimes without a
 native skill loader, read the relevant SKILL.md into context.
+- [PR 705 Digest](docs/reviews/PR_705_DIGEST.md)
+- [PR 710 Digest](docs/reviews/PR_710_DIGEST.md)
