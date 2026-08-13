@@ -17,16 +17,16 @@ enforced_by:
 # AGENTS.md
 
 - Map (not encyclopedia) per [G2 ep3 pattern](docs/architecture/architecture.md)
-- Lazy-load linked surfaces — do not paste this file into the agent
+- [Lazy-load](.) linked surfaces — do not paste this file into the agent
 - Foundation: [CLAUDE.md](CLAUDE.md) + [IDEAL_EXPERIENCE.md](IDEAL_EXPERIENCE.md) + [EVAL.md](EVAL.md)
 
 ## CI-POLICY
 
-Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green CI.
+[Standing,](.) fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green CI.
 
 - WHY: repo has no required-status-check branch protection, and full-tree `pre-commit run --all-files` can transiently red on third-party / sibling-synced content the repo doesn't own — chasing 0-red on that noise is waste (PRs #251/#253/#199 — do not repeat). (`vendor/aaop/**` is globally hook-excluded in [.pre-commit-config.yaml](.pre-commit-config.yaml) so it never reds; the bene blog HTML that *did* red full-tree was durably hook-excluded in #253.)
-- DO: merge on the REAL gates only (your change's own lint+test checks + your tests); accept a full-tree pre-commit red caused by third-party / synced files you did not touch. `gh pr merge --squash` (no `--admin`).
-- STILL: fix a regression YOUR diff causes (green→red); keep fix-all tiny-PR cadence; add no make-CI-green PRs.
+- [DO:](.) merge on the REAL gates only (your change's own lint+test checks + your tests); accept a full-tree pre-commit red caused by third-party / synced files you did not touch. `gh pr merge --squash` (no `--admin`).
+- [STILL:](.) fix a regression YOUR diff causes (green→red); keep fix-all tiny-PR cadence; add no make-CI-green PRs.
 - See [agents/review/AGENTS.md](agents/review/AGENTS.md) — merge philosophy (its full-green auto-merge criteria are scoped by THIS policy: the gate is your change's own checks, not full-tree green; they are also gated OFF until `AUTONOMY_THRESHOLD.md` flips AUTONOMOUS).
 
 ## Tools
@@ -117,36 +117,28 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finite state machine. The 11 hard rules live in [agents/review/AGENTS.md §"PR Cascade Breaker"](agents/review/AGENTS.md). Canonical skill: `~/.claude/skills/pr-cascade-breaker/SKILL.md` (synthesised 2026-06-25 from 6 historical cascade post-mortems). CI: `.github/workflows/pr-cascade-breaker-gate.yml`.
 
 ## Reviews
-- [PR 621 Digest](docs/reviews/PR_621_DIGEST.md)
-- [PR 623 Digest](docs/reviews/PR_623_DIGEST.md)
-- [PR 624 Digest](docs/reviews/PR_624_DIGEST.md)
-- [PR 649 Digest](docs/reviews/PR_649_DIGEST.md)
-- [PR 689 Digest](docs/reviews/PR_689_DIGEST.md)
-- [PR 694 Digest](docs/reviews/PR_694_DIGEST.md)
-- [PR 695 Digest](docs/reviews/PR_695_DIGEST.md)
-- [PR 696 Digest](docs/reviews/PR_696_DIGEST.md)
-- [PR 650 Digest](docs/reviews/PR_650_DIGEST.md)
-- [PR 651 Digest](docs/reviews/PR_651_DIGEST.md)
-- [PR 652 Digest](docs/reviews/PR_652_DIGEST.md)
-- [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
-- [PR 701 Digest](docs/reviews/PR_701_DIGEST.md)
-- [PR 702 Digest](docs/reviews/PR_702_DIGEST.md)
+- [PR 621 Digest](docs/reviews/PR_621_DIGEST.md) | [PR 623 Digest](docs/reviews/PR_623_DIGEST.md) | [PR 624 Digest](docs/reviews/PR_624_DIGEST.md) | [PR 649 Digest](docs/reviews/PR_649_DIGEST.md) | [PR 689 Digest](docs/reviews/PR_689_DIGEST.md) | [PR 694 Digest](docs/reviews/PR_694_DIGEST.md)
+- [PR 695 Digest](docs/reviews/PR_695_DIGEST.md) | [PR 696 Digest](docs/reviews/PR_696_DIGEST.md) | [PR 650 Digest](docs/reviews/PR_650_DIGEST.md) | [PR 651 Digest](docs/reviews/PR_651_DIGEST.md) | [PR 652 Digest](docs/reviews/PR_652_DIGEST.md) | [PR 698 Digest](docs/reviews/PR_698_DIGEST.md)
+- [PR 701 Digest](docs/reviews/PR_701_DIGEST.md) | [PR 702 Digest](docs/reviews/PR_702_DIGEST.md) | [PR 705 Digest](docs/reviews/PR_705_DIGEST.md) | [PR 710 Digest](docs/reviews/PR_710_DIGEST.md) | [PR 712 Digest](docs/reviews/PR_712_DIGEST.md) | [PR 713 Digest](docs/reviews/PR_713_DIGEST.md)
+- [PR 714 Digest](docs/reviews/PR_714_DIGEST.md) | [PR 715 Digest](docs/reviews/PR_715_DIGEST.md) | [PR 716 Digest](docs/reviews/PR_716_DIGEST.md) | [PR 717 Digest](docs/reviews/PR_717_DIGEST.md) | [PR 718 Digest](docs/reviews/PR_718_DIGEST.md) | [PR 719 Digest](docs/reviews/PR_719_DIGEST.md)
+- [PR 720 Digest](docs/reviews/PR_720_DIGEST.md) | [PR 721 Digest](docs/reviews/PR_721_DIGEST.md) | [PR 722 Digest](docs/reviews/PR_722_DIGEST.md) | [PR 723 Digest](docs/reviews/PR_723_DIGEST.md) | [PR 724 Digest](docs/reviews/PR_724_DIGEST.md) | [PR 725 Digest](docs/reviews/PR_725_DIGEST.md)
+- [PR 726 Digest](docs/reviews/PR_726_DIGEST.md) | [PR 727 Digest](docs/reviews/PR_727_DIGEST.md) | [PR 728 Digest](docs/reviews/PR_728_DIGEST.md) | [PR 729 Digest](docs/reviews/PR_729_DIGEST.md) | [PR 730 Digest](docs/reviews/PR_730_DIGEST.md)
 
 ## Droid skills (global)
 
-Droid sessions in this repo can load the following skills from `~/.factory/skills/`.
-Activate by skill name when the task matches the trigger.
+[Droid](.) sessions in this repo can load the following skills from `~/.factory/skills/`.
+[Activate](.) by skill name when the task matches the trigger.
 
-| Skill | Use when | Trigger keywords |
-|---|---|---|
-| `ai-scientist` | AI-Scientist-v2 research workflows, BFTS experiments, paper/review stages, run ledgers | ai-scientist, BFTS, experiment, novelty, paper, writeup |
-| `bene` | Multi-agent harness, engrams, probes, kill gates, BENE CLI/MCP, fleet meta-harness | bene, engram, probe, kill gate, mh search, autonomy ladder |
-| `fleet-doctor` | Fleet stall/restart/OOM recovery, session/daemon revival, health checks | fleet-doctor, revive fleet, fleet health, bootstrap fleet, self-heal |
-| `fleet-enroll` | Fleet enrollment, A2A bus registration, sweep watch, fleet comms, COLLAB_CAPSULE | fleet-enroll, enroll, A2A, collab capsule, watch coverage |
-| `mroute` | Service-facing task routing, dispatch worker selection, cross-lineage handoff | mroute, route task, dispatch worker, fleet router, cross-lineage |
-| `orch-proj` | Long-running project orchestration, milestones, evidence gates, subagent delegation | orch-proj, milestone, fleet-goal, collab capsule, delegate, long-term project |
-| `prisma_deep_plan` | Deep planning, architecture decisions, debugging, reviews via the Prisma planner | prisma deep plan, deep planning, architecture review, refactoring plan |
-| `weco` | Code optimization against measurable metrics (speed, accuracy, cost, memory) | weco, optimize, make it faster, reduce latency, lower cost |
+| [Skill](.) | Use when | Trigger keywords |
+[|---|---|---|](.)
+| [`ai-scientist`](.) | AI-Scientist-v2 research workflows, BFTS experiments, paper/review stages, run ledgers | ai-scientist, BFTS, experiment, novelty, paper, writeup |
+| [`bene`](.) | Multi-agent harness, engrams, probes, kill gates, BENE CLI/MCP, fleet meta-harness | bene, engram, probe, kill gate, mh search, autonomy ladder |
+| [`fleet-doctor`](.) | Fleet stall/restart/OOM recovery, session/daemon revival, health checks | fleet-doctor, revive fleet, fleet health, bootstrap fleet, self-heal |
+| [`fleet-enroll`](.) | Fleet enrollment, A2A bus registration, sweep watch, fleet comms, COLLAB_CAPSULE | fleet-enroll, enroll, A2A, collab capsule, watch coverage |
+| [`mroute`](.) | Service-facing task routing, dispatch worker selection, cross-lineage handoff | mroute, route task, dispatch worker, fleet router, cross-lineage |
+| [`orch-proj`](.) | Long-running project orchestration, milestones, evidence gates, subagent delegation | orch-proj, milestone, fleet-goal, collab capsule, delegate, long-term project |
+| [`prisma_deep_plan`](.) | Deep planning, architecture decisions, debugging, reviews via the Prisma planner | prisma deep plan, deep planning, architecture review, refactoring plan |
+| [`weco`](.) | Code optimization against measurable metrics (speed, accuracy, cost, memory) | weco, optimize, make it faster, reduce latency, lower cost |
 
-Skill files live under `~/.factory/skills/<skill>/SKILL.md`. For runtimes without a
-native skill loader, read the relevant SKILL.md into context.
+[Skill](.) files live under `~/.factory/skills/<skill>/SKILL.md`. For runtimes without a
+[native](.) skill loader, read the relevant SKILL.md into context.
