@@ -10,13 +10,6 @@ layer: cross-cutting
 cross_cutting: true
 ---
 
-# Summary of Changes
-This PR formalizes the contract between `openbox` and `bridges`. It updates `DEFERRED.md` with new findings (including `SECRET_RE` regex gaps), fixes a latent scanner hole, and resolves `PermissionError` unhandled exceptions in the credential path.
-
-# Evaluations
-- **Security issues**: Evaluated security gaps are now documented in `DEFERRED.md` (e.g., `SECRET_RE` denylist gaps where `Basic YWRtaW46cHc=` is missed and URL userinfo loads at rc 0). The PR fixes a live scanner hole on empty paths. No hardcoded credentials were added.
-- **Test coverage**: The PR asserts regression tests were added in `test_openbox_cmd.py` for the exception fixes.
-
 ```reviewer_finding
 kind: security
 priority: P1

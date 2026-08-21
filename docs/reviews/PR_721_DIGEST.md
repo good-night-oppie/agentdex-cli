@@ -10,13 +10,6 @@ layer: cross-cutting
 cross_cutting: true
 ---
 
-# Summary of Changes
-This PR updates the `mcp` dependency version from 1.27.2 to 1.28.1 across `uv.lock` and `pyproject.toml`.
-
-# Evaluations
-- **Security issues**: N/A, standard dependency bump. No hardcoded credentials or secret regex gaps introduced.
-- **Test coverage**: N/A, dependency bump chore. No changes to code that require test coverage.
-
 ```reviewer_finding
 kind: architecture
 priority: P3
