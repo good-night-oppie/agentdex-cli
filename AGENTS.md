@@ -117,6 +117,13 @@ Standing, fleet-wide (per Eddie; A2A `shared_log#357`). Do NOT chase full-green 
 All PR reviewers operating on this repo MUST walk the `pr-cascade-breaker` finite state machine. The 11 hard rules live in [agents/review/AGENTS.md §"PR Cascade Breaker"](agents/review/AGENTS.md). Canonical skill: `~/.claude/skills/pr-cascade-breaker/SKILL.md` (synthesised 2026-06-25 from 6 historical cascade post-mortems). CI: `.github/workflows/pr-cascade-breaker-gate.yml`.
 
 ## Reviews
+- [PR 735 Digest](docs/reviews/PR_735_DIGEST.md) | [PR 734 Digest](docs/reviews/PR_734_DIGEST.md) | [PR 733 Digest](docs/reviews/PR_733_DIGEST.md) | [PR 732 Digest](docs/reviews/PR_732_DIGEST.md)
+- [PR 731 Digest](docs/reviews/PR_731_DIGEST.md) | [PR 730 Digest](docs/reviews/PR_730_DIGEST.md) | [PR 729 Digest](docs/reviews/PR_729_DIGEST.md) | [PR 728 Digest](docs/reviews/PR_728_DIGEST.md)
+- [PR 727 Digest](docs/reviews/PR_727_DIGEST.md) | [PR 726 Digest](docs/reviews/PR_726_DIGEST.md) | [PR 725 Digest](docs/reviews/PR_725_DIGEST.md) | [PR 724 Digest](docs/reviews/PR_724_DIGEST.md)
+- [PR 723 Digest](docs/reviews/PR_723_DIGEST.md) | [PR 722 Digest](docs/reviews/PR_722_DIGEST.md) | [PR 721 Digest](docs/reviews/PR_721_DIGEST.md) | [PR 720 Digest](docs/reviews/PR_720_DIGEST.md)
+- [PR 719 Digest](docs/reviews/PR_719_DIGEST.md) | [PR 718 Digest](docs/reviews/PR_718_DIGEST.md) | [PR 717 Digest](docs/reviews/PR_717_DIGEST.md) | [PR 716 Digest](docs/reviews/PR_716_DIGEST.md)
+- [PR 715 Digest](docs/reviews/PR_715_DIGEST.md) | [PR 714 Digest](docs/reviews/PR_714_DIGEST.md) | [PR 713 Digest](docs/reviews/PR_713_DIGEST.md) | [PR 712 Digest](docs/reviews/PR_712_DIGEST.md)
+- [PR 710 Digest](docs/reviews/PR_710_DIGEST.md) | [PR 705 Digest](docs/reviews/PR_705_DIGEST.md)
 - [PR 621 Digest](docs/reviews/PR_621_DIGEST.md)
 - [PR 623 Digest](docs/reviews/PR_623_DIGEST.md)
 - [PR 624 Digest](docs/reviews/PR_624_DIGEST.md)
