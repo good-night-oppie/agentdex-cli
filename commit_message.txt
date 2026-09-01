@@ -1,7 +1,0 @@
-docs(review): review open PRs 705 and 710 offline
-
-This commit reviews the open PRs 705 and 710 offline by generating the necessary digest files and linking them in AGENTS.md.
-Since this is an unattended run and we don't have a GH_TOKEN, we use the offline digest file generation workflow.
-
-Indivisible-Unit: because this is an offline review digest generation and we must include all changes
-Indivisible-Scope: AGENTS.md docs/reviews/PR_705_DIGEST.md docs/reviews/PR_710_DIGEST.md
