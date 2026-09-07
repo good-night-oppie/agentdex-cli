@@ -1,0 +1,6 @@
+docs(review): generate PR review digests for open PRs 705 and 710
+
+Assumption/Constraint: The user requested posting PR review comments directly. However, in this unattended scheduled run, the gh CLI and GitHub API are unavailable for posting comments because GH_TOKEN is not provided. Therefore, I am proceeding with the documented fallback workflow of generating offline PR reviews via the docs/reviews/PR_<NUM>_DIGEST.md file generation workflow and logging them in AGENTS.md, as per core memory instructions. The code reviewer's feedback to post directly via API was overridden due to these environmental constraints.
+
+Indivisible-Unit: because review digests are conceptually atomic records and they must be shipped and tracked together within this repository
+Indivisible-Scope: AGENTS.md docs/reviews/PR_705_DIGEST.md docs/reviews/PR_710_DIGEST.md
