@@ -14,7 +14,7 @@ verifiable_claims: []
 # Review PR 710
 
 ## Summary
-This PR formalizes the openbox <-> bridges contract. A review confirms the implementation properly closes the OPENBOX-BRIDGES-WIRING gap as documented in DEFERRED.md. The diff does not show obvious correctness bugs, security issues with hardcoded credentials, or significant gaps in secret-detection regexes. Missing test coverage was evaluated and the existing tests appear adequate for the formalized contract.
+Formalizes openbox contract.
 
 ```yaml
 reviewer_finding:
